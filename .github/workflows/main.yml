@@ -24,18 +24,17 @@ on:
           - force
           - skip
 
-env:
-  INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
-  RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
+# env:
+#   INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
+#   RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
   
 
 jobs:
   # Call the installer workflow
   build-installers:
-    if: ${{ env.INSTALLER_JOB != 'skip' }}
     uses: ./.github/workflows/installer.yml
     with:
-      installer_job: ${{ env.INSTALLER_JOB }}
+      installer_job: ${{ github.event.inputs.installer_job || 'auto' }}
     secrets: inherit
 
   # # Call the release workflow

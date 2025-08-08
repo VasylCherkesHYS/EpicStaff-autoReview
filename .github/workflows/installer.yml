@@ -11,7 +11,7 @@ on:
         description: "Whether artifacts were created"
         value: ${{ jobs.check-artifacts.outputs.artifacts-exist }}
 
-# jobs:
+
 #   installer-macos:
 #     runs-on: macos-latest
 #     if: ${{ inputs.installer_job != 'skip' }}
@@ -76,7 +76,7 @@ on:
 #           name: macos-installer
 #           path: artifacts/macos/
 #           retention-days: 7
-
+jobs:
   installer-windows:
     runs-on: windows-latest
     if: ${{ inputs.installer_job != 'skip' }}
