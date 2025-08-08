@@ -79,7 +79,7 @@ on:
 jobs:
   installer-windows:
     runs-on: windows-latest
-    if: ${{ inputs.installer_job != 'skip' }}
+    if: ${{ inputs.installer_job == 'skip' }}
 
     steps:
       - name: Checkout code
