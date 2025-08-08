@@ -198,7 +198,7 @@ jobs:
 
 
   installer-linux:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: ${{ inputs.installer_job != 'skip' }}
     
     outputs:
@@ -305,7 +305,7 @@ jobs:
           if-no-files-found: error
 
   check-artifacts:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [installer-windows, installer-linux]
     if: always()
     outputs:
