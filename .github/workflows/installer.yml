@@ -223,8 +223,6 @@ jobs:
           filters: |
             installer:
               - 'installer/**/*'
-              - 'src/**/*'
-              - 'frontend-config/**/*'
               - '.github/workflows/installer.yml'
 
       - name: Generate version info
@@ -296,11 +294,9 @@ jobs:
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
         uses: actions/upload-artifact@v4
         with:
-          name: epicstaff-linux-${{ steps.version-info.outputs.version }}
+          name: linux-installer
           path: |
-            artifacts/linux/epicstaff
-            artifacts/linux/epicstaff-${{ steps.version-info.outputs.version }}
-            artifacts/linux/*.sha256
+            artifacts/linux/epicstaff.app
           retention-days: 7
           if-no-files-found: error
 
