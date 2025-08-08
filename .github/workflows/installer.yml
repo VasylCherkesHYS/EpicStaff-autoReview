@@ -1,0 +1,250 @@
+name: Build Installers
+
+on:
+  workflow_call:
+    inputs:
+      installer_job:
+        required: true
+        type: string
+    outputs:
+      artifacts-created:
+        description: "Whether artifacts were created"
+        value: ${{ jobs.check-artifacts.outputs.artifacts-exist }}
+
+# jobs:
+#   installer-macos:
+#     runs-on: macos-latest
+#     if: ${{ inputs.installer_job != 'skip' }}
+    
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.12'
+
+#       - name: Cache Python dependencies
+#         uses: actions/cache@v3
+#         with:
+#           path: |
+#             ~/.cache/pip
+#             installer/.venv
+#           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+
+#       - name: Check if build needed
+#         id: check-changes
+#         if: ${{ inputs.installer_job == 'auto' }}
+#         uses: dorny/paths-filter@v2
+#         with:
+#           filters: |
+#             installer:
+#               - 'installer/**/*'
+#               - '.github/workflows/installer.yml'
+
+#       - name: Build macOS installer
+#         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+#         run: |
+#           echo "Job started"
+#           mkdir -p artifacts/macos
+#           cd installer
+#           python3 -m venv .venv
+#           source .venv/bin/activate
+#           pip install poetry
+#           poetry install --no-root --without win
+#           pip install --force-reinstall --no-binary :all: msgpack zstandard
+#           pyinstaller installer.py \
+#             --name epicstaff \
+#             --onefile \
+#             --windowed \
+#             --target-architecture universal2 \
+#             --add-data 'app/templates:app/templates' \
+#             --add-data 'app/static:app/static' \
+#             --add-data '../src/docker-compose.yaml:app/static/run_program' \
+#             --add-data '../frontend-config:app/static/run_program/frontend-config' \
+#             --add-data '../src/.env:app/static/run_program' \
+#             --hidden-import engineio.async_drivers.threading \
+#             --distpath ../artifacts/macos
+#           deactivate
+#           echo "Build complete. Binary should be in artifacts/macos/epicstaff.app"
+
+#       - name: Upload macOS artifacts
+#         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: macos-installer
+#           path: artifacts/macos/
+#           retention-days: 7
+
+  installer-windows:
+    runs-on: windows-latest
+    if: ${{ inputs.installer_job != 'skip' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~\AppData\Local\pip\Cache
+            installer\.venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+
+      - name: Check if build needed
+        id: check-changes
+        if: ${{ inputs.installer_job == 'auto' }}
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            installer:
+              - 'installer/**/*'
+              - '.github/workflows/installer.yml'
+
+      - name: Build Windows installer
+        if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+        shell: cmd
+        run: |
+          echo Job started
+          mkdir artifacts\windows
+          cd installer
+          python -m venv .venv
+          .venv\Scripts\activate
+          pip install poetry
+          poetry install --no-root
+          pyinstaller installer.py --name epicstaff.exe --onefile --add-data "app/templates:app/templates" --add-data "app/static:app/static" --add-data "../src/docker-compose.yaml:app/static/run_program" --add-data "../frontend-config:app/static/run_program/frontend-config" --add-data "../src/.env:app/static/run_program" --hidden-import engineio.async_drivers.threading --distpath ../artifacts/windows --windowed
+          deactivate
+          echo Build complete. Binary should be in artifacts/windows/epicstaff.exe
+
+      - name: Upload Windows artifacts
+        if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts/windows/
+          retention-days: 7
+
+  # installer-linux:
+  #   runs-on: ubuntu-latest
+  #   if: ${{ inputs.installer_job != 'skip' }}
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Log in to Container Registry
+  #       if: ${{ env.CI_REGISTRY_USER && env.CI_REGISTRY_PASSWORD }}
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.CI_REGISTRY }}
+  #         username: ${{ env.CI_REGISTRY_USER }}
+  #         password: ${{ env.CI_REGISTRY_PASSWORD }}
+  #       env:
+  #         CI_REGISTRY: ${{ vars.CI_REGISTRY }}
+  #         CI_REGISTRY_USER: ${{ secrets.CI_REGISTRY_USER }}
+  #         CI_REGISTRY_PASSWORD: ${{ secrets.CI_REGISTRY_PASSWORD }}
+
+  #     - name: Check if build needed
+  #       id: check-changes
+  #       if: ${{ inputs.installer_job == 'auto' }}
+  #       uses: dorny/paths-filter@v2
+  #       with:
+  #         filters: |
+  #           installer:
+  #             - 'installer/**/*'
+  #             - '.github/workflows/installer.yml'
+
+  #     - name: Build Linux installer
+  #       if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+  #       run: |
+  #         echo "Job started"
+  #         mkdir -p artifacts/linux
+  #         IMAGE_NAME="installer-linux-${{ github.sha }}"
+  #         CONTAINER_NAME="installer-container-${{ github.sha }}"
+          
+  #         docker build -t $IMAGE_NAME -f installer/Dockerfile.installer .
+  #         docker create --name $CONTAINER_NAME $IMAGE_NAME
+  #         docker cp $CONTAINER_NAME:/out/. artifacts/linux/
+          
+  #         echo "Build complete. Binary should be in artifacts/linux"
+  #         ls -l artifacts/linux/
+          
+  #         # Cleanup
+  #         docker rm -f $CONTAINER_NAME || true
+  #         docker rmi $IMAGE_NAME || true
+
+  #     - name: Upload Linux artifacts
+  #       if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: linux-installer
+  #         path: artifacts/linux/
+  #         retention-days: 7
+
+  check-artifacts:
+    runs-on: ubuntu-latest
+    needs: [installer-windows]
+    if: always()
+    outputs:
+      artifacts-exist: ${{ steps.check.outputs.exist }}
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+        continue-on-error: true
+
+      - name: Check if artifacts exist
+        id: check
+        run: |
+          echo "Checking for installer artifacts..."
+          FOUND_ARTIFACTS=false
+          
+          # Check for actual installer files in each platform directory
+          for platform in windows; do
+            artifact_dir="artifacts/${platform}-installer"
+            if [ -d "$artifact_dir" ]; then
+              echo "Found $artifact_dir directory"
+              ls -la "$artifact_dir/"
+              
+              case $platform in
+                linux)
+                  if [ -f "$artifact_dir/epicstaff.app" ]; then
+                    echo "Found Linux installer: $artifact_dir/epicstaff.app"
+                    FOUND_ARTIFACTS=true
+                  fi
+                  ;;
+                windows)
+                  if [ -f "$artifact_dir/epicstaff.exe" ]; then
+                    echo "Found Windows installer: $artifact_dir/epicstaff.exe"
+                    FOUND_ARTIFACTS=true
+                  fi
+                  ;;
+                macos)
+                  if [ -d "$artifact_dir/epicstaff.app" ] || [ -f "$artifact_dir/epicstaff.app" ]; then
+                    echo "Found macOS installer: $artifact_dir/epicstaff.app"
+                    FOUND_ARTIFACTS=true
+                  fi
+                  ;;
+              esac
+            fi
+          done
+          
+          echo "exist=$FOUND_ARTIFACTS" >> $GITHUB_OUTPUT
+          
+          if [ "$FOUND_ARTIFACTS" = "true" ]; then
+            echo "Installer artifacts found"
+          else
+            echo "No installer artifacts found"
+          fi

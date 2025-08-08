@@ -1,0 +1,56 @@
+name: EpicStaff Pipeline
+
+on:
+  push:
+    branches: [ main, Dev, feature-github-actions ]
+  workflow_dispatch:
+    inputs:
+      installer_job:
+        description: 'Installer job mode'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - force
+          - skip
+      release:
+        description: 'GitHub operations mode'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - force
+          - skip
+
+env:
+  INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
+  RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
+  
+
+jobs:
+  # Call the installer workflow
+  build-installers:
+    if: ${{ env.INSTALLER_JOB != 'skip' }}
+    uses: ./.github/workflows/installer.yml
+    with:
+      installer_job: ${{ env.INSTALLER_JOB }}
+    secrets: inherit
+
+  # # Call the release workflow
+  # create-release:
+  #   if: ${{ (github.ref == 'refs/heads/Dev' || github.ref == 'refs/heads/feature-github-actions') && env.RELEASE != 'skip' }}
+  #   needs: build-installers
+  #   uses: ./.github/workflows/release.yml
+  #   with:
+  #     release: ${{ env.RELEASE }}
+  #   secrets: inherit
+
+  # cleanup:
+  #   if: always()
+  #   needs: [build-installers, create-release]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Cleanup artifacts
+  #       run: echo "Cleanup completed"
