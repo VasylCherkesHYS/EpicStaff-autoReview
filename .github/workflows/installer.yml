@@ -97,6 +97,8 @@ jobs:
             ~\AppData\Local\pip\Cache
             installer\.venv
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Check if build needed
         id: check-changes
@@ -110,26 +112,90 @@ jobs:
 
       - name: Build Windows installer
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
-        shell: cmd
+        shell: pwsh
         run: |
-          echo Job started
-          mkdir artifacts\windows
-          cd installer
-          python -m venv .venv
-          .venv\Scripts\activate
-          pip install poetry
-          poetry install --no-root
-          pyinstaller installer.py --name epicstaff.exe --onefile --add-data "app/templates:app/templates" --add-data "app/static:app/static" --add-data "../src/docker-compose.yaml:app/static/run_program" --add-data "../frontend-config:app/static/run_program/frontend-config" --add-data "../src/.env:app/static/run_program" --hidden-import engineio.async_drivers.threading --distpath ../artifacts/windows --windowed
-          deactivate
-          echo Build complete. Binary should be in artifacts/windows/epicstaff.exe
+          Write-Host "Starting Windows installer build..."
+          
+          # Create artifacts directory at repository root
+          New-Item -ItemType Directory -Force -Path "artifacts/windows"
+          
+          # Navigate to installer directory
+          Push-Location installer
+          
+          try {
+            # Create and activate virtual environment
+            Write-Host "Setting up Python environment..."
+            python -m venv .venv
+            & ".venv\Scripts\Activate.ps1"
+            
+            # Upgrade pip and install poetry
+            python -m pip install --upgrade pip
+            pip install poetry
+            
+            # Install dependencies
+            Write-Host "Installing dependencies..."
+            poetry install --no-root --only main
+            
+            # Verify dependencies are installed
+            pip list
+            
+            # Build the installer
+            Write-Host "Building installer with PyInstaller..."
+            pyinstaller installer.py `
+              --name epicstaff.exe `
+              --onefile `
+              --add-data "app/templates;app/templates" `
+              --add-data "app/static;app/static" `
+              --add-data "../src/docker-compose.yaml;app/static/run_program" `
+              --add-data "../frontend-config;app/static/run_program/frontend-config" `
+              --add-data "../src/.env;app/static/run_program" `
+              --hidden-import engineio.async_drivers.threading `
+              --distpath ../artifacts/windows `
+              --windowed `
+              --clean
+            
+            Write-Host "Build completed successfully!"
+            
+            # Verify the file was created
+            if (Test-Path "../artifacts/windows/epicstaff.exe") {
+              $fileInfo = Get-Item "../artifacts/windows/epicstaff.exe"
+              Write-Host "✅ Executable created: $($fileInfo.Name) ($($fileInfo.Length) bytes)"
+            } else {
+              Write-Error "❌ Executable not found at expected location"
+              exit 1
+            }
+            
+          } catch {
+            Write-Error "Build failed: $_"
+            exit 1
+          } finally {
+            # Always return to original directory
+            Pop-Location
+          }
+
+      - name: Verify artifact exists
+        if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+        shell: pwsh
+        run: |
+          Write-Host "Verifying artifacts..."
+          if (Test-Path "artifacts/windows") {
+            Get-ChildItem -Path "artifacts/windows" -Recurse | ForEach-Object {
+              Write-Host "📁 Found: $($_.FullName) ($($_.Length) bytes)"
+            }
+          } else {
+            Write-Error "❌ Artifacts directory not found"
+            exit 1
+          }
 
       - name: Upload Windows artifacts
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: artifacts/windows/
+          name: windows-installer-${{ github.sha }}
+          path: artifacts/windows/epicstaff.exe
           retention-days: 7
+          if-no-files-found: error
+
 
   # installer-linux:
   #   runs-on: ubuntu-latest
