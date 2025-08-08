@@ -214,7 +214,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # No Docker registry needed for local builds!
       
       - name: Check if build needed
         id: check-changes
