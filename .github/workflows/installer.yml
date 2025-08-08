@@ -78,7 +78,7 @@ on:
 #           retention-days: 7
 jobs:
   installer-windows:
-    runs-on: self-hosted
+    runs-on: windows-latest
     if: ${{ inputs.installer_job != 'skip' }}
 
     steps:
@@ -198,7 +198,7 @@ jobs:
 
 
   installer-linux:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: ${{ inputs.installer_job != 'skip' }}
     
     outputs:
