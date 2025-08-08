@@ -257,7 +257,6 @@ jobs:
   #         path: artifacts/linux/
   #         retention-days: 7
 
-  jobs:
   installer-linux:
     runs-on: ubuntu-latest
     if: ${{ inputs.installer_job != 'skip' }}
@@ -274,19 +273,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
 
-      # GitHub Container Registry login (recommended)
-      - name: Log in to GitHub Container Registry
-        if: ${{ vars.USE_GHCR == 'true' }}
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
+      # No Docker registry needed for local builds!
+      
       - name: Check if build needed
         id: check-changes
         if: ${{ inputs.installer_job == 'auto' }}
@@ -295,6 +284,8 @@ jobs:
           filters: |
             installer:
               - 'installer/**/*'
+              - 'src/**/*'
+              - 'frontend-config/**/*'
               - '.github/workflows/installer.yml'
 
       - name: Generate version info
@@ -309,20 +300,22 @@ jobs:
       - name: Build Linux installer
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
         run: |
-          echo "Starting Linux installer build..."
+          set -e  # Exit on any error
+          
+          echo "🚀 Starting Linux installer build..."
           echo "Version: ${{ steps.version-info.outputs.version }}"
           
           # Create artifacts directory
           mkdir -p artifacts/linux
-          echo "Created artifacts directory"
+          echo "📁 Created artifacts directory"
           
           # Generate unique names to avoid conflicts
-          IMAGE_NAME="epicstaff-installer-linux:${{ steps.version-info.outputs.version }}"
+          IMAGE_NAME="epicstaff-installer:${{ steps.version-info.outputs.version }}"
           CONTAINER_NAME="epicstaff-installer-${{ github.run_id }}-${{ steps.version-info.outputs.short-sha }}"
           
-          echo "Building Docker image: ${IMAGE_NAME}"
+          echo "🏗️ Building Docker image: ${IMAGE_NAME}"
           
-          # Build the Docker image
+          # Build the Docker image with proper context
           if ! docker build -t "${IMAGE_NAME}" -f installer/Dockerfile.installer .; then
             echo "❌ Docker build failed"
             exit 1
@@ -330,44 +323,50 @@ jobs:
           
           echo "✅ Docker image built successfully"
           
-          # Create container (don't run it, just create)
-          echo "📦 Creating container: ${CONTAINER_NAME}"
-          if ! docker create --name "${CONTAINER_NAME}" "${IMAGE_NAME}"; then
-            echo "❌ Failed to create container"
-            docker rmi "${IMAGE_NAME}" 2>/dev/null || true
-            exit 1
-          fi
+          # Show what's in the image's /out directory
+          echo "🔍 Checking contents of /out directory in image:"
+          docker run --rm "${IMAGE_NAME}" ls -la /out/ || true
           
-          # Copy artifacts from container
+          # Create container and extract artifacts
+          echo "📦 Creating container: ${CONTAINER_NAME}"
+          docker create --name "${CONTAINER_NAME}" "${IMAGE_NAME}"
+          
+          # Copy all contents from /out directory
           echo "📋 Copying artifacts from container..."
           if ! docker cp "${CONTAINER_NAME}:/out/." artifacts/linux/; then
             echo "❌ Failed to copy artifacts from container"
+            # Show what's actually in the container
+            docker run --rm "${IMAGE_NAME}" find /out -type f -exec ls -la {} \;
             docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
             docker rmi "${IMAGE_NAME}" 2>/dev/null || true
             exit 1
           fi
           
-          echo "✅ Artifacts copied successfully"
-          
-          # List what we got
-          echo "📄 Contents of artifacts/linux/:"
+          echo "📄 Contents copied to artifacts/linux/:"
           ls -la artifacts/linux/
+          
           
           # Verify we have the expected executable
           if [ -f "artifacts/linux/epicstaff" ]; then
             EXEC_SIZE=$(stat -c%s "artifacts/linux/epicstaff")
             echo "🎉 Found executable: epicstaff (${EXEC_SIZE} bytes)"
             
-            # Make it executable
+            # Make it executable and create versioned copy
             chmod +x artifacts/linux/epicstaff
-            
-            # Create a versioned copy
             cp artifacts/linux/epicstaff "artifacts/linux/epicstaff-${{ steps.version-info.outputs.version }}"
-            echo "📋 Created versioned copy: epicstaff-${{ steps.version-info.outputs.version }}"
+            
+            # Create checksums
+            cd artifacts/linux
+            sha256sum epicstaff > epicstaff.sha256
+            sha256sum "epicstaff-${{ steps.version-info.outputs.version }}" > "epicstaff-${{ steps.version-info.outputs.version }}.sha256"
+            cd ../..
+            
+            echo "📝 Created checksums and versioned copy"
+            
           else
-            echo "❌ Expected executable 'epicstaff' not found in artifacts"
+            echo "❌ No executable found in artifacts"
             echo "Available files:"
-            find artifacts/linux -type f -exec ls -la {} \;
+            find artifacts/linux -type f -exec ls -la {} \; 2>/dev/null || true
             docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
             docker rmi "${IMAGE_NAME}" 2>/dev/null || true
             exit 1
@@ -380,34 +379,36 @@ jobs:
           
           echo "✅ Build completed successfully!"
 
-      - name: Test executable (basic check)
+      - name: Test executable
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
         run: |
           if [ -f "artifacts/linux/epicstaff" ]; then
             echo "🧪 Testing executable..."
             
             # Check if it's a valid ELF binary
-            if file artifacts/linux/epicstaff | grep -q "ELF"; then
+            FILE_TYPE=$(file artifacts/linux/epicstaff)
+            echo "📋 File type: ${FILE_TYPE}"
+            
+            if echo "${FILE_TYPE}" | grep -q "ELF.*executable"; then
               echo "✅ Executable is a valid ELF binary"
             else
               echo "❌ Executable is not a valid ELF binary"
-              file artifacts/linux/epicstaff
               exit 1
             fi
             
-            # Check if it has execute permissions
+            # Check permissions
             if [ -x "artifacts/linux/epicstaff" ]; then
               echo "✅ Executable has proper permissions"
             else
               echo "❌ Executable doesn't have execute permissions"
-              ls -la artifacts/linux/epicstaff
               exit 1
             fi
             
-            # Optional: Try to run with --help or --version if your app supports it
-            # echo "🔍 Testing executable help output..."
-            # timeout 10s ./artifacts/linux/epicstaff --help || echo "Help command test completed"
+            # Show dependencies
+            echo "🔗 Dynamic dependencies:"
+            ldd artifacts/linux/epicstaff 2>/dev/null || echo "Static binary or ldd failed"
             
+            echo "✅ Executable tests passed!"
           else
             echo "❌ Executable not found for testing"
             exit 1
@@ -419,11 +420,13 @@ jobs:
         run: |
           if [ -f "artifacts/linux/epicstaff" ]; then
             EXEC_SIZE=$(stat -c%s "artifacts/linux/epicstaff")
+            EXEC_SHA=$(cat artifacts/linux/epicstaff.sha256 | cut -d' ' -f1)
             echo "artifact-name=epicstaff-${{ steps.version-info.outputs.version }}" >> $GITHUB_OUTPUT
             echo "executable-size=${EXEC_SIZE}" >> $GITHUB_OUTPUT
+            echo "executable-sha256=${EXEC_SHA}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload versioned Linux artifacts
+      - name: Upload Linux artifacts
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
         uses: actions/upload-artifact@v4
         with:
@@ -431,18 +434,9 @@ jobs:
           path: |
             artifacts/linux/epicstaff
             artifacts/linux/epicstaff-${{ steps.version-info.outputs.version }}
+            artifacts/linux/*.sha256
           retention-days: 7
           if-no-files-found: error
-
-      # # Upload to release artifacts for main branch
-      # - name: Upload release artifact
-      #   if: ${{ (inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true')) && github.ref == 'refs/heads/main' }}
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: epicstaff-linux-release-${{ github.run_number }}
-      #     path: artifacts/linux/epicstaff
-      #     retention-days: 30
-      #     if-no-files-found: error
 
       - name: Build summary
         if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
@@ -452,8 +446,15 @@ jobs:
           echo "🏷️  Version: ${{ steps.version-info.outputs.version }}"
           echo "📦 Artifact: ${{ steps.build-info.outputs.artifact-name }}"
           echo "📏 Size: $(( ${{ steps.build-info.outputs.executable-size }} / 1024 / 1024 )) MB"
+          echo "🔐 SHA256: ${{ steps.build-info.outputs.executable-sha256 }}"
           echo "🐧 Platform: Linux x86_64"
           echo "🔗 Download URL will be available in the Actions artifacts section"
+          
+          # Also add to job summary
+          echo "# 🐧 Linux Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(( ${{ steps.build-info.outputs.executable-size }} / 1024 / 1024 )) MB" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:** \`${{ steps.build-info.outputs.executable-sha256 }}\`" >> $GITHUB_STEP_SUMMARY
 
   check-artifacts:
     runs-on: ubuntu-latest
