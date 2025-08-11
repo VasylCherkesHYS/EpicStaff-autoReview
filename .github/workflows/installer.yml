@@ -109,7 +109,6 @@ jobs:
             --name "EpicStaff"
             --onefile
             --windowed
-            --target-architecture universal2
             --add-data 'app/templates:app/templates'
             --add-data 'app/static:app/static'
             --add-data '../src/docker-compose.yaml:app/static/run_program'
