@@ -106,7 +106,7 @@ jobs:
           
           PYINSTALLER_ARGS=(
             installer.py
-            --name "EpicStaff"
+            --name "epicstaff"
             --onefile
             --windowed
             --add-data 'app/templates:app/templates'
@@ -132,7 +132,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-installer
-          path: artifacts/macos/epicstaff.exe
+          path: artifacts/macos/epicstaff
           retention-days: 7
           if-no-files-found: error
           
