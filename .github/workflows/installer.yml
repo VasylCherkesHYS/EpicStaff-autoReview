@@ -138,7 +138,7 @@ jobs:
           
   installer-windows:
     runs-on: windows-latest
-    if: ${{ inputs.installer_job == 'skip' }}
+    if: ${{ inputs.installer_job != 'skip' }}
 
     steps:
       - name: Checkout code
@@ -258,7 +258,7 @@ jobs:
 
   installer-linux:
     runs-on: self-hosted
-    if: ${{ inputs.installer_job == 'skip' }}
+    if: ${{ inputs.installer_job != 'skip' }}
     
     outputs:
       artifact-name: ${{ steps.build-info.outputs.artifact-name }}
