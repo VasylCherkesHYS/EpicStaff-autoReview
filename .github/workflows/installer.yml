@@ -400,8 +400,8 @@ jobs:
                   fi
                   ;;
                 macos)
-                  if [ -d "$artifact_dir/epicstaff.app" ] || [ -f "$artifact_dir/epicstaff.app" ]; then
-                    echo "Found macOS installer: $artifact_dir/epicstaff.app"
+                  if [ -d "$artifact_dir/epicstaff" ] || [ -f "$artifact_dir/epicstaff" ]; then
+                    echo "Found macOS installer: $artifact_dir/epicstaff"
                     FOUND_ARTIFACTS=true
                   fi
                   ;;

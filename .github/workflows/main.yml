@@ -7,22 +7,9 @@ on:
     inputs:
       installer_job:
         description: 'Installer job mode'
-        required: false
-        default: 'auto'
+        default: 'skip'
         type: choice
-        options:
-          - auto
-          - force
-          - skip
-      release:
-        description: 'GitHub operations mode'
-        required: false
-        default: 'auto'
-        type: choice
-        options:
-          - auto
-          - force
-          - skip
+        options: [ auto, force, skip ]
 
 # env:
 #   INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
@@ -36,15 +23,6 @@ jobs:
     with:
       installer_job: ${{ github.event.inputs.installer_job || 'auto' }}
     secrets: inherit
-
-  # # Call the release workflow
-  # create-release:
-  #   if: ${{ (github.ref == 'refs/heads/Dev' || github.ref == 'refs/heads/feature-github-actions') && env.RELEASE != 'skip' }}
-  #   needs: build-installers
-  #   uses: ./.github/workflows/release.yml
-  #   with:
-  #     release: ${{ env.RELEASE }}
-  #   secrets: inherit
 
   # cleanup:
   #   if: always()
