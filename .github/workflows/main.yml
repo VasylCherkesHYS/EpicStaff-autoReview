@@ -7,7 +7,6 @@ on:
     inputs:
       installer_job:
         description: 'Installer job mode'
-        default: 'skip'
         type: choice
         options: [ auto, force, skip ]
 
