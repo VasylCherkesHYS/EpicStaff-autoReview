@@ -122,17 +122,19 @@ jobs:
           
           pyinstaller "${PYINSTALLER_ARGS[@]}"
           
-          # # Create standard name copy
-          # VERSIONED_APP="EpicStaff-${{ steps.meta.outputs.version }}.app"
-          # if [[ -d "../artifacts/macos/$VERSIONED_APP" ]]; then
-          #   cp -R "../artifacts/macos/$VERSIONED_APP" "../artifacts/macos/EpicStaff.app"
-          #   echo "Created standard copy: EpicStaff.app"
-          # fi
-          
           deactivate
           popd
           
           echo "PyInstaller build completed!"
+      
+      - name: Upload MacOS artifacts
+        if: ${{ inputs.installer_job == 'force' || (inputs.installer_job == 'auto' && steps.check-changes.outputs.installer == 'true') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: artifacts/macos/epicstaff.exe
+          retention-days: 7
+          if-no-files-found: error
           
   installer-windows:
     runs-on: windows-latest
@@ -359,7 +361,7 @@ jobs:
 
   check-artifacts:
     runs-on: self-hosted
-    needs: [installer-windows, installer-linux]
+    needs: [installer-windows, installer-linux, installer-macos]
     if: always()
     outputs:
       artifacts-exist: ${{ steps.check.outputs.exist }}
@@ -378,7 +380,7 @@ jobs:
           FOUND_ARTIFACTS=false
           
           # Check for actual installer files in each platform directory
-          for platform in windows; do
+          for platform in linux windows macos; do
             artifact_dir="artifacts/${platform}-installer"
             if [ -d "$artifact_dir" ]; then
               echo "Found $artifact_dir directory"
