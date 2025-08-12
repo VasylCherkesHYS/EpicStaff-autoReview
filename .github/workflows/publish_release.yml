@@ -1,11 +1,7 @@
 name: Publish Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_notes:
-        description: 'Release notes'
-        required: false
+  workflow_call
 
 jobs:
   publish-release:
