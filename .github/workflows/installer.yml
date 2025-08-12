@@ -7,18 +7,15 @@ on:
         required: true
         type: string
     outputs:
-      artifacts-created:
+      artifacts_exist:
         description: "Whether artifacts were created"
-        value: ${{ jobs.check-artifacts.outputs.artifacts-exist }}
+        value: ${{ jobs.check-artifacts.outputs.artifacts_exist }}
 
 
 jobs:
   installer-macos:
     runs-on: macos-latest
     if: ${{ inputs.installer_job != 'skip' }}
-    
-    outputs:
-      artifact-name: ${{ steps.build-info.outputs.artifact-name }}
 
     steps:
       - name: Checkout code
@@ -259,10 +256,6 @@ jobs:
   installer-linux:
     runs-on: self-hosted
     if: ${{ inputs.installer_job != 'skip' }}
-    
-    outputs:
-      artifact-name: ${{ steps.build-info.outputs.artifact-name }}
-      executable-size: ${{ steps.build-info.outputs.executable-size }}
 
     steps:
       - name: Checkout code
@@ -364,7 +357,7 @@ jobs:
     needs: [installer-windows, installer-linux, installer-macos]
     if: always()
     outputs:
-      artifacts-exist: ${{ steps.check.outputs.exist }}
+      artifacts_exist: ${{ steps.check.outputs.artifacts_exist }}
     
     steps:
       - name: Download all artifacts
@@ -377,7 +370,9 @@ jobs:
         id: check
         run: |
           echo "Checking for installer artifacts..."
-          FOUND_ARTIFACTS=false
+          LINUX_BUILT=false
+          WINDOWS_BUILT=false
+          MACOS_BUILT=false
           
           # Check for actual installer files in each platform directory
           for platform in linux windows macos; do
@@ -390,29 +385,30 @@ jobs:
                 linux)
                   if [ -f "$artifact_dir/epicstaff.app" ]; then
                     echo "Found Linux installer: $artifact_dir/epicstaff.app"
-                    FOUND_ARTIFACTS=true
+                    LINUX_BUILT=true
                   fi
                   ;;
                 windows)
                   if [ -f "$artifact_dir/epicstaff.exe" ]; then
                     echo "Found Windows installer: $artifact_dir/epicstaff.exe"
-                    FOUND_ARTIFACTS=true
+                    WINDOWS_BUILT=true
                   fi
                   ;;
                 macos)
                   if [ -d "$artifact_dir/epicstaff" ] || [ -f "$artifact_dir/epicstaff" ]; then
                     echo "Found macOS installer: $artifact_dir/epicstaff"
-                    FOUND_ARTIFACTS=true
+                    MACOS_BUILT=true
                   fi
                   ;;
               esac
             fi
           done
           
-          echo "exist=$FOUND_ARTIFACTS" >> $GITHUB_OUTPUT
           
-          if [ "$FOUND_ARTIFACTS" = "true" ]; then
-            echo "Installer artifacts found"
-          else
-            echo "No installer artifacts found"
+          ARTIFACTS_EXIST=false
+          if [ "$LINUX_BUILT" = "true" ] && [ "$WINDOWS_BUILT" = "true" ] && [ "$MACOS_BUILT" = "true" ]; then
+            ARTIFACTS_EXIST=true
+            echo "All platforms built successfully!"
           fi
+
+          echo "artifacts_exist=$ARTIFACTS_EXIST" >> $GITHUB_OUTPUT
