@@ -16,9 +16,9 @@ on:
         type: boolean
         default: false
 
-# env:
-#   INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
-#   RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
+env:
+  INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
+  RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
   
 
 jobs:
