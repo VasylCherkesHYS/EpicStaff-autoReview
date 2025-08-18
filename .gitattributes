@@ -2,3 +2,5 @@
 
 # Explicitly mark PNGs as binary
 *.png binary
+*.pdf binary
+*.exe binary
