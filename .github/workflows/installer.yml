@@ -409,6 +409,19 @@ jobs:
           if [ "$LINUX_BUILT" = "true" ] && [ "$WINDOWS_BUILT" = "true" ] && [ "$MACOS_BUILT" = "true" ]; then
             ARTIFACTS_EXIST=true
             echo "All platforms built successfully!"
+          else
+            # Check each one individually
+            if [ "$LINUX_BUILT" != "true" ]; then
+              echo "Linux installer build error"
+            fi
+
+            if [ "$WINDOWS_BUILT" != "true" ]; then
+              echo "Windows installer build error"
+            fi
+
+            if [ "$MACOS_BUILT" != "true" ]; then
+              echo "MacOS installer build error"
+            fi
           fi
 
           echo "artifacts_exist=$ARTIFACTS_EXIST" >> $GITHUB_OUTPUT

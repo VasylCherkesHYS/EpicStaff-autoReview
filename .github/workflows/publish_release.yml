@@ -3,6 +3,9 @@ name: Publish Release
 on:
   workflow_call
 
+permissions:
+  contents: write
+  
 jobs:
   publish-release:
     runs-on: self-hosted
