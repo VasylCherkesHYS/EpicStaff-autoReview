@@ -22,7 +22,7 @@ jobs:
           jira-email: ${{ secrets.JIRA_USER_EMAIL }}
           jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
           action-type: 'open_issue'
-          jira-project-key: 'JST'
+          jira-project-key: 'EST'
           github-issue-title: ${{ github.event.issue.title }}
           github-issue-body: ${{ github.event.issue.body }}
           github-issue-url: ${{ github.event.issue.html_url }}
