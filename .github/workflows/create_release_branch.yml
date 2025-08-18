@@ -8,6 +8,10 @@ on:
         required: true
         type: choice
         options: [ 'true', 'false' ]
+
+permissions:
+  contents: write
+  
 jobs:
   create-tag-name:
     runs-on: self-hosted

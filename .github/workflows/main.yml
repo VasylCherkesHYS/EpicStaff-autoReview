@@ -16,11 +16,9 @@ on:
         type: boolean
         default: false
 
-# env:
-#   INSTALLER_JOB: ${{ github.event.inputs.installer_job || 'auto' }}
-#   RELEASE_JOB: ${{ github.event.inputs.release || 'auto' }}
+permissions:
+  contents: write
   
-
 jobs:
   integration-tests:
     name: Integration Tests
@@ -59,7 +57,7 @@ jobs:
   pipeline-summary:
     name: Pipeline Summary
     runs-on: self-hosted
-    needs: [integration-tests, build-installers]
+    needs: [integration-tests, build-installers, publish-release]
     if: always()
     steps:
       - name: Pipeline Results
