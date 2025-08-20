@@ -187,3 +187,11 @@ CACHES = {
         },
     }
 }
+
+
+KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL = os.getenv(
+    "KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL", "knowledge:chunk"
+)
+KNOWLEDGE_DOCUMENT_CHUNK_RESPONSE = os.getenv(
+    "KNOWLEDGE_DOCUMENT_CHUNK_RESPONSE", "knowledge:chunk:response"
+)

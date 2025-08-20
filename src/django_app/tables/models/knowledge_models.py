@@ -109,12 +109,14 @@ class DocumentMetadata(models.Model):
         """
 
         NEW = "new"
+        CHUNKED = "chunked"
         PROCESSING = "processing"
         COMPLETED = "completed"
         WARNING = "warning"
         FAILED = "failed"
 
     document_id = models.AutoField(primary_key=True)
+    document_hash = models.CharField(max_length=64, null=True, default=None)
     file_name = models.CharField(max_length=255, blank=True)
     file_type = models.CharField(
         max_length=10, choices=DocumentFileType.choices, blank=True
@@ -134,7 +136,10 @@ class DocumentMetadata(models.Model):
         default=DocumentStatus.NEW,
     )
     source_collection = models.ForeignKey(
-        SourceCollection, on_delete=models.CASCADE, related_name="document_metadata"
+        SourceCollection,
+        on_delete=models.CASCADE,
+        related_name="document_metadata",
+        null=True,
     )
 
     document_content = models.ForeignKey(
@@ -148,6 +153,11 @@ class DocumentMetadata(models.Model):
         return f"{self.file_name}"
 
 
+class Chunk(models.Model):
+    document = models.ForeignKey(DocumentMetadata, on_delete=models.CASCADE)
+    text = models.TextField()
+
+
 class DocumentEmbedding(models.Model):
     embedding_id = models.UUIDField(
         primary_key=True, default=uuid.uuid4, editable=False
@@ -158,7 +168,13 @@ class DocumentEmbedding(models.Model):
     document = models.ForeignKey(
         DocumentMetadata, on_delete=models.CASCADE, related_name="embeddings_doc"
     )
-    chunk_text = models.TextField()
+    chunk = models.ForeignKey(
+        Chunk,
+        on_delete=models.SET_NULL,
+        related_name="embeddings_chunk",
+        null=True,
+    )
+
     vector = VectorField(
         null=True, blank=True
     )  # embedding vector, with flexible dimensions

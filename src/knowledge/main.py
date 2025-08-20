@@ -4,9 +4,17 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
 
+from services.chunk_document_service import ChunkDocumentService
 from services.redis_service import RedisService
 from collection_processor import CollectionProcessor
-from models.request_models import KnowledgeSearchMessage
+from models.redis_models import (
+    ChunkDocumentMessage,
+    ChunkDocumentMessageResponse,
+    KnowledgeSearchMessage,
+)
+
+
+chunk_document_service = ChunkDocumentService()
 
 # Redis Configuration
 redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
@@ -19,9 +27,27 @@ knowledge_search_get_channel = os.getenv(
 knowledge_search_response_channel = os.getenv(
     "KNOWLEDGE_SEARCH_RESPONSE_CHANNEL", "knowledge:search:response"
 )
+knowledge_document_chunk_channel = os.getenv(
+    "KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL", "knowledge:chunk"
+)
+knowledge_document_chunk_response = os.getenv(
+    "KNOWLEDGE_DOCUMENT_CHUNK_RESPONSE", "knowledge:chunk:response"
+)
 
 
-async def indexing(redis_service, executor):
+def run_process_collection(collection_id):
+    """Runs the blocking embedding process in a separate process."""
+    processor = CollectionProcessor(collection_id)
+    processor.process_collection()
+
+
+def run_chunk_document(document_id: int):
+    chunk_document_service.process_chunk_document_by_document_id(
+        document_id=document_id
+    )
+
+
+async def indexing(redis_service: RedisService, executor: ThreadPoolExecutor):
     """Handles embedding creation from the Redis queue asynchronously."""
     logger.info(f"Subscribed to channel '{knowledge_sources_channel}' for embeddings.")
 
@@ -37,17 +63,52 @@ async def indexing(redis_service, executor):
                 await loop.run_in_executor(
                     executor, run_process_collection, collection_id
                 )
+
             except Exception as e:
                 logger.error(f"Error processing embedding: {e}")
 
 
-def run_process_collection(collection_id):
-    """Runs the blocking embedding process in a separate process."""
-    processor = CollectionProcessor(collection_id)
-    processor.process_collection()
+async def chunking(redis_service: RedisService, executor: ThreadPoolExecutor):
+    """Handles document chunking from the Redis queue asynchronously."""
+    logger.info(
+        f"Subscribed to channel '{knowledge_document_chunk_channel}' for embeddings."
+    )
+
+    pubsub = await redis_service.async_subscribe(knowledge_document_chunk_channel)
+    async for message in pubsub.listen():
+        if message["type"] == "message":
+            try:
+                data = json.loads(message["data"])
+                chunk_document_message = ChunkDocumentMessage.model_validate(data)
+
+                # Run blocking function in a ProcessPoolExecutor for CPU-bound work
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    executor, run_chunk_document, chunk_document_message.document_id
+                )
+                response = ChunkDocumentMessageResponse(
+                    success=True,
+                    document_id=chunk_document_message.document_id,
+                )
+                await redis_service.async_publish(
+                    channel=knowledge_document_chunk_response,
+                    message=response.model_dump()
+                )
+            except Exception as e:
+                error_message = f"Error processing embedding: {e}"
+                logger.error(error_message)
+                response = ChunkDocumentMessageResponse(
+                    success=False,
+                    document_id=chunk_document_message.document_id,
+                    message=error_message,
+                )
+                await redis_service.async_publish(
+                    channel=knowledge_document_chunk_response,
+                    message=response.model_dump()
+                )
 
 
-async def searching(redis_service):
+async def searching(redis_service: RedisService):
     """Handles search queries from the Redis queue asynchronously."""
     logger.info(
         f"Subscribed to channel '{knowledge_search_get_channel}' for search queries."
@@ -90,9 +151,11 @@ async def main():
 
     task1 = asyncio.create_task(indexing(redis_service, executor))
     task2 = asyncio.create_task(searching(redis_service))
-
+    task3 = asyncio.create_task(
+        chunking(redis_service=redis_service, executor=executor)
+    )
     try:
-        await asyncio.gather(task1, task2, return_exceptions=True)
+        await asyncio.gather(task1, task2, task3, return_exceptions=True)
     finally:
         executor.shutdown(wait=True)
 

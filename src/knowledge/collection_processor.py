@@ -4,50 +4,34 @@ import cachetools
 
 from psycopg2.errors import ForeignKeyViolation
 
-from storage.knowledge_storage import KnowledgeStorage
+from models.dto.models_dto import ChunkDTO, DocumentContentDTO
+from models.orm.document_models import DocumentContent
+from storage.knowledge_storage import ORMKnowledgeStorage
+from storage.document_chunk_storage import ORMDocumentChunkStorage
+from storage.document_storage import ORMDocumentStorage
+
 from chunkers.token_chunker import TokenChunker
 from chunkers.markdown_chunker import MarkdownChunker
 from chunkers.character_chunker import CharacterChunker
 from chunkers.json_chunker import JSONChunker
 from chunkers.html_chunker import HTMLChunker
 from chunkers.csv_chunker import CSVChunker
-from settings import Status
+from settings import UnitOfWork
 from embedder.openai import OpenAIEmbedder
 from embedder.gemini import GoogleGenAIEmbedder
 from embedder.cohere import CohereEmbedder
 from embedder.mistral import MistralEmbedder
 from embedder.together_ai import TogetherAIEmbedder
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
-def get_required_env_var(key: str) -> str:
-    """
-    If you see this error during local launch set all required variables in /knowledge/.env
-    """
-    value = os.getenv(key)
-    if value is None:
-        raise ValueError(f"Missing required environment variable: {key}")
-    return value
-
-
-POSTGRES_KNOWLEDGE_CONFIG = {
-    "dbname": get_required_env_var("DB_NAME"),
-    "user": get_required_env_var("DB_KNOWLEDGE_USER"),
-    "password": get_required_env_var("DB_KNOWLEDGE_PASSWORD"),
-    "port": get_required_env_var("DB_PORT"),
-    "host": get_required_env_var("DB_HOST_NAME"),
-}
+from services.chunk_document_service import ChunkDocumentService
+from models.enums import *
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
+chunk_document_service = ChunkDocumentService()
 
 
 class CollectionProcessor:
     def __init__(self, collection_id):
         self.collection_id = collection_id
-        self.storage = KnowledgeStorage(**POSTGRES_KNOWLEDGE_CONFIG)
         self.embedder = self._get_cached_embedder()
 
     def _get_cached_embedder(self):
@@ -56,7 +40,11 @@ class CollectionProcessor:
             return _embedder_cache[self.collection_id]
 
         logger.info(f"Initializing embedder for collection {self.collection_id}")
-        embedder_config = self.storage.get_embedder_configuration(self.collection_id)
+        uow = UnitOfWork()
+        with uow.start() as uow_ctx:
+            embedder_config = uow_ctx.knowledge_storage.get_embedder_configuration(
+                self.collection_id
+            )
         embedder = self._set_embedder_config(embedder_config)
 
         _embedder_cache[self.collection_id] = embedder
@@ -64,14 +52,16 @@ class CollectionProcessor:
 
     def search(self, uuid, query, search_limit, distance_threshold):
         embedded_query = self.embedder.embed(query)
-        knowledge_snippets = self.storage.search(
-            embedded_query=embedded_query,
-            collection_id=self.collection_id,
-            limit=search_limit,
-            distance_threshold=distance_threshold,
-        )
-        if knowledge_snippets:
-            logger.info(f"KNOWLEDGES: {knowledge_snippets[0][:150]}...")
+        uow = UnitOfWork()
+        with uow.start() as uow_ctx:
+            knowledge_snippets = uow_ctx.knowledge_storage.search(
+                embedded_query=embedded_query,
+                collection_id=self.collection_id,
+                limit=search_limit,
+                distance_threshold=distance_threshold,
+            )
+            if knowledge_snippets:
+                logger.debug(f"KNOWLEDGES: {knowledge_snippets[0][:150]}...")
 
         return {
             "uuid": uuid,
@@ -80,70 +70,82 @@ class CollectionProcessor:
         }
 
     def process_collection(self):
-
-        self.storage.update_collection_status(Status.PROCESSING, self.collection_id)
-        logger.info(f"Processing embeddings for collection_id: {self.collection_id}")
+        uow = UnitOfWork()
 
         try:
-            documents = self.storage.get_new_documents(self.collection_id)
-            for (
-                document_id,
-                file_name,
-                binary_content,
-                chunk_strategy,
-                chunk_size,
-                chunk_overlap,
-                additional_params,
-            ) in documents:
-                try:
-                    logger.info(
-                        f"Started processing document {file_name}, ID: {document_id}"
-                    )
-                    self.storage.update_document_status(Status.PROCESSING, document_id)
+            with uow.start() as uow_ctx:
+                uow_ctx.knowledge_storage.update_collection_status(
+                    status=Status.PROCESSING,
+                    collection_id=self.collection_id,
+                )
+                logger.info(f"Processing embeddings for collection_id: {self.collection_id}")
 
-                    text = self._get_text_content(binary_content)
-                    additional_params.update({"file_name": file_name})
-                    chunker = self._get_chunk_strategy(
-                        chunk_strategy, chunk_size, chunk_overlap, additional_params
-                    )
+                document_list = uow_ctx.document_storage.get_documents_in_collection(
+                    collection_id=self.collection_id,
+                )
 
-                    chunks = chunker.chunk(text)
-                    if not chunks:
+                for doc in document_list:
+                    try:
+                        logger.info(
+                            f"Started processing document {doc.file_name}, ID: {doc.document_id}"
+                        )
+                        uow_ctx.document_storage.update_document_status(
+                            status=Status.PROCESSING,
+                            document_id=doc.document_id,
+                        )
+
+                        chunk_dto_list = chunk_document_service.proccess_chunk_document(
+                            document=doc,
+                        )
+
+                        if not chunk_dto_list:
+                            logger.warning(
+                                f"Document: {doc.file_name} was not chunked and will not be embedded"
+                            )
+                            uow_ctx.document_storage.update_document_status(
+                                status=Status.WARNING,
+                                document_id=doc.document_id,
+                            )
+                            continue
+
+                        for chunk_dto in chunk_dto_list:
+                            vector = self.embedder.embed(chunk_dto.text)
+                            uow_ctx.knowledge_storage.save_embedding(
+                                chunk_id=chunk_dto.id,
+                                embedding=vector,
+                                document_id=doc.document_id,
+                                collection_id=self.collection_id,
+                            )
+
+                    except ForeignKeyViolation:
                         logger.warning(
-                            f"Document: {file_name} was not chunked and will not be embedded"
+                            f"Document: {doc.file_name} was deleted and will not be embedded"
                         )
-                        self.storage.update_document_status(Status.WARNING, document_id)
-                        continue
-
-                    for chunk in chunks:
-                        vector = self.embedder.embed(chunk)
-                        self.storage.save_embedding(
-                            chunk, vector, document_id, self.collection_id
+                    except Exception as e:
+                        uow_ctx.document_storage.update_document_status(
+                            status=Status.FAILED,
+                            document_id=doc.document_id,
                         )
-                except ForeignKeyViolation:
-                    logger.warning(
-                        f"Document: {file_name} was deleted and will not be embedded"
-                    )
-                except Exception as e:
-                    self.storage.update_document_status(Status.FAILED, document_id)
-                    logger.error(
-                        f"Error processing {file_name}, ID: {document_id}. Error: {e}"
-                    )
-                else:
-                    self.storage.update_document_status(Status.COMPLETED, document_id)
-                    logger.success(f"Document: {file_name} embedded!")
+                        logger.error(
+                            f"Error processing {doc.file_name}, ID: {doc.document_id}. Error: {e}"
+                        )
+                    else:
+                        uow_ctx.document_storage.update_document_status(
+                            status=Status.COMPLETED,
+                            document_id=doc.document_id,
+                        )
+                        logger.success(f"Document: {doc.file_name} embedded!")
 
         except Exception as e:
-            self.storage.update_collection_status(Status.FAILED, self.collection_id)
+            with uow.start() as uow_ctx:
+                uow_ctx.knowledge_storage.update_collection_status(
+                    status=Status.FAILED,
+                    collection_id=self.collection_id,
+                )
             logger.error(f"Error processing collection_id {self.collection_id}: {e}")
         else:
             self._update_status()
             logger.info(f"Embedding finished for collection_id: {self.collection_id}")
-
-    def _get_text_content(self, binary_content) -> str:
-
-        content = bytes(binary_content).decode("utf-8")
-        return content
 
     def _get_chunk_strategy(
         self, chunk_strategy, chunk_size, chunk_overlap, additional_params
@@ -164,6 +166,7 @@ class CollectionProcessor:
             api_key=os.getenv("OPENAI_API_KEY"), model_name="text-embedding-3-small"
         )
 
+    # TODO: use litellm instead
     def _set_embedder_config(self, embedder_config) -> None:
         """Set the embedding configuration for the knowledge storage."""
 
@@ -201,22 +204,27 @@ class CollectionProcessor:
         NEW: all documents are New
         COMPLETED: all documents are Completed
         """
-        documents_statuses = set(
-            self.storage.get_documents_statuses(self.collection_id)
-        )
+        uow = UnitOfWork()
+        with uow.start() as uow_ctx:
+            documents_statuses = set(
+                uow.document_storage.get_documents_statuses(self.collection_id)
+            )
 
         current_status = Status.COMPLETED
-        if documents_statuses == {Status.FAILED.value}:
+        if documents_statuses == {Status.FAILED}:
             current_status = Status.FAILED
-        elif Status.PROCESSING.value in documents_statuses:
+        elif Status.PROCESSING in documents_statuses:
             current_status = Status.PROCESSING
         elif (
-            Status.FAILED.value in documents_statuses
-            or Status.WARNING.value in documents_statuses
+            Status.FAILED in documents_statuses
+            or Status.WARNING in documents_statuses
         ):
             current_status = Status.WARNING
-        elif Status.NEW.value in documents_statuses or not documents_statuses:
+        elif Status.NEW in documents_statuses or not documents_statuses:
             current_status = Status.NEW
 
-        self.storage.update_collection_status(current_status, self.collection_id)
-        logger.info(f"{current_status} was set to collection {self.collection_id}")
+        with uow.start() as uow_ctx:
+            uow_ctx.knowledge_storage.update_collection_status(
+                current_status, self.collection_id
+            )
+            logger.info(f"{current_status} was set to collection {self.collection_id}")

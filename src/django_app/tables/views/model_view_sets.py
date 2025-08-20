@@ -1,3 +1,4 @@
+from tables.models.knowledge_models import Chunk
 from django_filters import rest_framework as filters
 from tables.models.llm_models import (
     RealtimeConfig,
@@ -36,6 +37,7 @@ from django.db.models.functions import Cast
 from tables.serializers.model_serializers import (
     AgentReadSerializer,
     AgentWriteSerializer,
+    ChunkSerializer,
     CrewTagSerializer,
     AgentTagSerializer,
     DecisionTableNodeSerializer,
@@ -532,9 +534,9 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             collection = serializer.save()
 
-            redis_service.publish_source_collection(
-                collection_id=collection.collection_id
-            )
+        redis_service.publish_source_collection(
+            collection_id=collection.collection_id
+        )
         return Response(
             SourceCollectionReadSerializer(collection).data,
             status=status.HTTP_201_CREATED,
@@ -591,9 +593,9 @@ class CopySourceCollectionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             collection = serializer.save()
 
-            redis_service.publish_source_collection(
-                collection_id=collection.collection_id
-            )
+        redis_service.publish_source_collection(
+            collection_id=collection.collection_id
+        )
         return Response(
             SourceCollectionReadSerializer(collection).data,
             status=status.HTTP_201_CREATED,
@@ -843,3 +845,10 @@ class DecisionTableNodeModelViewSet(viewsets.ModelViewSet):
                 condition_serializer.save()
 
         return Response(self.get_serializer(node).data)
+
+
+class ChunkViewSet(ReadOnlyModelViewSet):
+    queryset = Chunk.objects.all()
+    serializer_class = ChunkSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["document_id"]

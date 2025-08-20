@@ -51,4 +51,5 @@ class BaseToolSerializer(serializers.Serializer):
 
         return repr
     
-    
+class ProcessDocumentChunkingSerializer(serializers.Serializer):
+    document_id = serializers.IntegerField(required=True)

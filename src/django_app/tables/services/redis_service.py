@@ -7,7 +7,8 @@ from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from threading import Lock
 
-from tables.request_models import RealtimeAgentChatData, SessionData
+from django_app.settings import KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL
+from tables.request_models import ChunkDocumentMessage, RealtimeAgentChatData, SessionData
 from utils.singleton_meta import SingletonMeta
 from utils.logger import logger
 
@@ -158,3 +159,7 @@ class RedisService(metaclass=SingletonMeta):
             with contextlib.suppress(Exception):
                 await pubsub.unsubscribe(*channels)
                 await pubsub.close()
+
+    def publish_process_document_chunking(self, document_id):
+        message = ChunkDocumentMessage(document_id=document_id)
+        self.redis_client.publish(KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL, json.dumps(message.model_dump()))
