@@ -49,6 +49,7 @@ from tables.views.views import (
     EnvironmentConfig,
     InitRealtimeAPIView,
     ProcessDocumentChunkingView,
+    ProcessCollectionEmbeddingView,
     RunPythonCodeAPIView,
     ToolListRetrieveUpdateGenericViewSet,
     SessionViewSet,
@@ -128,7 +129,6 @@ router.register(r"condition", ConditionModelViewSet)
 
 router.register(r"sessions", SessionViewSet, basename="session")
 router.register(r"document-chunks", ChunkViewSet)
-
 
 urlpatterns = [
     path("", include(router.urls)),
@@ -212,5 +212,10 @@ urlpatterns = [
         "process-document-chunking/",
         ProcessDocumentChunkingView.as_view(),
         name="process-document-chunking",
+    ),
+    path(
+        "process-collection-embedding/",
+        ProcessCollectionEmbeddingView.as_view(),
+        name="process-collection-embedding",
     ),
 ]

@@ -53,3 +53,6 @@ class BaseToolSerializer(serializers.Serializer):
     
 class ProcessDocumentChunkingSerializer(serializers.Serializer):
     document_id = serializers.IntegerField(required=True)
+
+class ProcessCollectionEmbeddingSerializer(serializers.Serializer):
+    collection_id = serializers.IntegerField(required=True)

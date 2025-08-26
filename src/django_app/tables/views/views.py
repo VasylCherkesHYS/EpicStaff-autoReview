@@ -53,6 +53,7 @@ from tables.serializers.serializers import (
     EnvironmentConfigSerializer,
     InitRealtimeSerializer,
     ProcessDocumentChunkingSerializer,
+    ProcessCollectionEmbeddingSerializer,
     RunSessionSerializer,
 )
 from tables.serializers.knowledge_serializers import CollectionStatusSerializer
@@ -777,3 +778,17 @@ class ProcessDocumentChunkingView(APIView):
 
             redis_service.publish_process_document_chunking(document_id=document_id)
             return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class ProcessCollectionEmbeddingView(APIView):
+    @swagger_auto_schema(request_body=ProcessCollectionEmbeddingSerializer)
+    def post(self, request):
+        serializer = ProcessCollectionEmbeddingSerializer(data=request.data)
+        if serializer.is_valid():
+            collection_id = serializer["collection_id"].value
+            
+            redis_service.publish_source_collection(
+               collection_id=collection_id
+            )
+            return Response(status=status.HTTP_202_ACCEPTED)
+
