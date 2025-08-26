@@ -15,6 +15,8 @@ from models.orm.document_models import (
 )
 from models.enums import *
 from sqlalchemy.orm import Session
+
+
 class ORMKnowledgeStorage(BaseORMStorage):
 
     def save_embedding(
@@ -66,7 +68,9 @@ class ORMKnowledgeStorage(BaseORMStorage):
                 .one_or_none()
             )
             if collection is None:
-                raise ValueError(f"Collection with collection_id={collection_id} was not found")
+                raise ValueError(
+                    f"Collection with collection_id={collection_id} was not found"
+                )
             if collection.embedder is None:
                 raise ValueError(
                     f"No embedding model found for collection_id={collection_id}"
@@ -74,7 +78,7 @@ class ORMKnowledgeStorage(BaseORMStorage):
 
             embedder: EmbeddingConfig = collection.embedder
             model: EmbeddingModel = embedder.model
-            embedding_provider: Provider = model.embedding_provider 
+            embedding_provider: Provider = model.embedding_provider
             return {
                 "api_key": getattr(embedder, "api_key", None),
                 "model_name": model.name,
@@ -98,7 +102,9 @@ class ORMKnowledgeStorage(BaseORMStorage):
             stmt = (
                 select(
                     Chunk.text,
-                    DocumentEmbedding.vector.cosine_distance(embedded_query).label("distance"),
+                    DocumentEmbedding.vector.cosine_distance(embedded_query).label(
+                        "distance"
+                    ),
                 )
                 .join(Chunk, Chunk.id == DocumentEmbedding.chunk_id)
                 .where(DocumentEmbedding.collection_id == collection_id)
