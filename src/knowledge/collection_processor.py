@@ -50,18 +50,29 @@ class CollectionProcessor:
         _embedder_cache[self.collection_id] = embedder
         return embedder
 
-    def search(self, uuid, query, search_limit, distance_threshold):
+    def search(self, uuid, query, search_limit, similarity_threshold):
+        # Embed the query
         embedded_query = self.embedder.embed(query)
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
+            # Search in storage
             knowledge_snippets = uow_ctx.knowledge_storage.search(
                 embedded_query=embedded_query,
                 collection_id=self.collection_id,
                 limit=search_limit,
-                distance_threshold=distance_threshold,
+                similarity_threshold=similarity_threshold,
             )
+
+            # Logging results
             if knowledge_snippets:
-                logger.debug(f"KNOWLEDGES: {knowledge_snippets[0][:150]}...")
+                if len(knowledge_snippets) > 1:
+                    logger.info(
+                        f"KNOWLEDGES: {knowledge_snippets[0][:150]}\n.........\n{knowledge_snippets[-1][-150:]}"
+                    )
+                else:
+                    logger.info(f"KNOWLEDGES: {knowledge_snippets[0][:150]}...")
+            else:
+                logger.warning(f"NO KNOWLEDGE CHUNKS WERE EXTRACTED!")
 
         return {
             "uuid": uuid,

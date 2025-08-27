@@ -95,31 +95,40 @@ class ORMKnowledgeStorage(BaseORMStorage):
         embedded_query: List[float],
         collection_id: int,
         limit: int = 3,
-        distance_threshold: float = 0.6,
-    ) -> List[str]:
-        """Search documents using vector similarity."""
+        similarity_threshold: float = 0.2,
+    ) -> list[str]:
+        """
+        Search documents in the knowledge base using vector similarity.
+        similarity_threshold: min similarity (0 = no similarity, 1 = identical)
+        """
         try:
+            # Compute distance = 1 - similarity
             stmt = (
                 select(
                     Chunk.text,
-                    DocumentEmbedding.vector.cosine_distance(embedded_query).label(
-                        "distance"
-                    ),
+                    (1 - DocumentEmbedding.vector.cosine_distance(embedded_query)).label("similarity"),
                 )
                 .join(Chunk, Chunk.id == DocumentEmbedding.chunk_id)
                 .where(DocumentEmbedding.collection_id == collection_id)
-                .order_by("distance")
+                .order_by("similarity DESC")
                 .limit(limit)
             )
 
             results = self.session.execute(stmt).all()
 
-            return [
-                r.text
-                for r in results
-                if r.distance is not None and float(r.distance) < distance_threshold
-            ]
+            final_result = []
+            for i, r in enumerate(results, start=1):
+                similarity = r.similarity
+                if similarity is not None and similarity >= similarity_threshold:
+                    logger.info(f"Chunk #{i} (similarity: {similarity:.4f}): {r.text}")
+                    final_result.append(r.text)
+
+            logger.info(f"Returning {len(final_result)} chunks (threshold={similarity_threshold})")
+            return final_result
 
         except Exception as e:
             logger.error(f"Search failed for collection {collection_id}: {e}")
             return []
+
+    def __del__(self):
+        self.close()

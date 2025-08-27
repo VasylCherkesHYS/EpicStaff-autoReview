@@ -129,7 +129,7 @@ async def searching(redis_service: RedisService):
                     uuid=data.uuid,
                     query=data.query,
                     search_limit=data.search_limit,
-                    distance_threshold=data.distance_threshold,
+                    similarity_threshold=data.similarity_threshold,
                 )
 
                 await redis_service.async_publish(

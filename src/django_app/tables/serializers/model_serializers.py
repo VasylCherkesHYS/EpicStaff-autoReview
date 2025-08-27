@@ -205,7 +205,7 @@ class PythonCodeToolSerializer(serializers.ModelSerializer):
 
 class RealtimeAgentSerializer(serializers.ModelSerializer):
 
-    distance_threshold = serializers.DecimalField(
+    similarity_threshold = serializers.DecimalField(
         max_digits=3,
         decimal_places=2,
         min_value=Decimal("0.00"),
@@ -223,7 +223,7 @@ class RealtimeAgentSerializer(serializers.ModelSerializer):
 class AgentReadSerializer(serializers.ModelSerializer):
     tools = serializers.SerializerMethodField()
     realtime_agent = RealtimeAgentSerializer(read_only=True)
-    distance_threshold = serializers.DecimalField(
+    similarity_threshold = serializers.DecimalField(
         max_digits=3,
         decimal_places=2,
         min_value=Decimal("0.00"),
@@ -254,7 +254,7 @@ class AgentReadSerializer(serializers.ModelSerializer):
             "knowledge_collection",
             "realtime_agent",
             "search_limit",
-            "distance_threshold",
+            "similarity_threshold",
         ]
 
     def get_tools(self, agent: Agent) -> list[dict]:
@@ -283,7 +283,7 @@ class AgentWriteSerializer(serializers.ModelSerializer):
     llm_config = serializers.PrimaryKeyRelatedField(
         queryset=LLMConfig.objects.all(), required=False, allow_null=True
     )
-    distance_threshold = serializers.DecimalField(
+    similarity_threshold = serializers.DecimalField(
         max_digits=3,
         decimal_places=2,
         min_value=Decimal("0.00"),
@@ -314,7 +314,7 @@ class AgentWriteSerializer(serializers.ModelSerializer):
             "fcm_llm_config",
             "knowledge_collection",
             "search_limit",
-            "distance_threshold",
+            "similarity_threshold",
             "realtime_agent",
         ]
 
@@ -620,7 +620,7 @@ class CrewSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    distance_threshold = serializers.DecimalField(
+    similarity_threshold = serializers.DecimalField(
         max_digits=3,
         decimal_places=2,
         min_value=Decimal("0.00"),
