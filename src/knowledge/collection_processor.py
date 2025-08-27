@@ -81,9 +81,12 @@ class CollectionProcessor:
                 logger.info(f"Processing embeddings for collection_id: {self.collection_id}")
 
                 document_list = uow_ctx.document_storage.get_documents_in_collection(
-                    collection_id=self.collection_id,
+                    collection_id=self.collection_id, status=(DocumentStatus.NEW, DocumentStatus.WARNING, DocumentStatus.CHUNKED)
                 )
 
+                if len(document_list) == 0:
+                    logger.warning(f"Collection {self.collection_id} must contain at least 1 new document to embed")
+                
                 for doc in document_list:
                     try:
                         logger.info(

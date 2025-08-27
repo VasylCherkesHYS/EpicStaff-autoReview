@@ -29,8 +29,13 @@ class GetDocumentData:
 
 class ORMDocumentStorage(BaseORMStorage):
     def get_documents_in_collection(
-        self,  collection_id: int, status: DocumentStatus = DocumentStatus.NEW
+        self,
+        collection_id: int,
+        status: DocumentStatus | tuple[DocumentStatus] = DocumentStatus.NEW,
     ) -> list[DocumentMetadataDTO]:
+        if isinstance(status, DocumentStatus):
+            status = (status,)
+
         """Get all documents in a collection with specified status."""
         try:
             # Just filter on relationships, no need for explicit joins
@@ -40,7 +45,7 @@ class ORMDocumentStorage(BaseORMStorage):
                 .options(selectinload(DocumentMetadata.document_content))
                 .filter(
                     DocumentMetadata.source_collection_id == collection_id,
-                    DocumentMetadata.status == status,
+                    DocumentMetadata.status in status,
                 )
                 .all()
             )
@@ -100,16 +105,12 @@ class ORMDocumentStorage(BaseORMStorage):
 
             document = (
                 self.session.query(DocumentMetadata)
-                .options(
-                    joinedload(DocumentMetadata.document_content)
-                )  # eager load
+                .options(joinedload(DocumentMetadata.document_content))  # eager load
                 .filter(DocumentMetadata.document_id == document_id)
                 .one_or_none()
             )
 
-            return (
-                DocumentMetadataDTO.model_validate(document) if document else None
-            )
+            return DocumentMetadataDTO.model_validate(document) if document else None
 
         except SQLAlchemyError as e:
             logger.error(
@@ -124,16 +125,12 @@ class ORMDocumentStorage(BaseORMStorage):
         try:
             document = (
                 self.session.query(DocumentMetadata)
-                .options(
-                    joinedload(DocumentMetadata.document_content)
-                )  # eager load
+                .options(joinedload(DocumentMetadata.document_content))  # eager load
                 .filter(DocumentMetadata.document_hash == document_hash)
                 .one_or_none()
             )
 
-            return (
-                DocumentMetadataDTO.model_validate(document) if document else None
-            )
+            return DocumentMetadataDTO.model_validate(document) if document else None
 
         except SQLAlchemyError as e:
             logger.error(f"Failed to get document by hash {document_hash}: {str(e)}")
