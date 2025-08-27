@@ -10,13 +10,6 @@ from storage.document_storage import ORMDocumentStorage
 from storage.knowledge_storage import ORMKnowledgeStorage
 
 
-DEBUG = True
-
-if DEBUG:
-    load_dotenv(dotenv_path=find_dotenv("debug.env"))
-else:
-    load_dotenv()
-
 def get_required_env_var(key: str) -> str:
     """
     If you see this error during local launch set all required variables in /knowledge/.env
@@ -27,7 +20,17 @@ def get_required_env_var(key: str) -> str:
     return value
 
 
-DB_NAME = get_required_env_var("POSTGRES_DB")
+DEBUG = False
+
+if DEBUG:
+    load_dotenv(dotenv_path=find_dotenv("debug.env"))
+    # Workaround
+    os.environ["DB_NAME"] = get_required_env_var("POSTGRES_DB")
+else:
+    load_dotenv()
+
+
+DB_NAME = get_required_env_var("DB_NAME")
 DB_USER = get_required_env_var("DB_KNOWLEDGE_USER")
 DB_PASSWORD = get_required_env_var("DB_KNOWLEDGE_PASSWORD")
 DB_PORT = get_required_env_var("DB_PORT")
@@ -43,6 +46,7 @@ ENGINE = create_engine(DATABASE_URL, echo=False, pool_size=10, max_overflow=20)
 
 # Scoped session
 SessionLocal = scoped_session(sessionmaker(bind=ENGINE))
+
 
 class UnitOfWork:
     def __init__(self):
@@ -60,7 +64,7 @@ class UnitOfWork:
             self.chunk_storage = ORMDocumentChunkStorage(session=self.session)
             self.knowledge_storage = ORMKnowledgeStorage(session=self.session)
 
-            yield self  
+            yield self
 
             self.session.commit()
         except Exception as e:
