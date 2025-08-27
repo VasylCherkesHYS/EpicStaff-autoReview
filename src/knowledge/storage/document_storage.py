@@ -45,7 +45,7 @@ class ORMDocumentStorage(BaseORMStorage):
                 .options(selectinload(DocumentMetadata.document_content))
                 .filter(
                     DocumentMetadata.source_collection_id == collection_id,
-                    DocumentMetadata.status in status,
+                    DocumentMetadata.status.in_(status),
                 )
                 .all()
             )
@@ -177,39 +177,6 @@ class ORMDocumentStorage(BaseORMStorage):
         except SQLAlchemyError as e:
             logger.error(f"Failed to create document: {str(e)}")
             return None
-
-    def get_documents_by_collection_and_status(
-        self, collection_id: int, statuses: List[Status]
-    ) -> List[DocumentMetadataDTO]:
-        """Get documents by collection ID and multiple statuses."""
-        try:
-            status_values = [status.value for status in statuses]
-
-            with self.session_scope() as session:
-                documents = (
-                    session.query(DocumentMetadata)
-                    .join(
-                        DocumentContent,
-                        DocumentMetadata.document_content_id == DocumentContent.id,
-                    )
-                    .join(
-                        SourceCollection,
-                        DocumentMetadata.source_collection_id
-                        == SourceCollection.collection_id,
-                    )
-                    .filter(
-                        SourceCollection.collection_id == collection_id,
-                        DocumentMetadata.status.in_(status_values),
-                    )
-                    .all()
-                )
-                return documents
-
-        except SQLAlchemyError as e:
-            logger.error(
-                f"Failed to get documents for collection {collection_id}: {str(e)}"
-            )
-            return []
 
     def delete_document(self, document_id: int) -> bool:
         """Delete a document and its content."""
