@@ -103,14 +103,13 @@ class ORMKnowledgeStorage(BaseORMStorage):
         """
         try:
             # Compute distance = 1 - similarity
+            similarity_expr = (1 - DocumentEmbedding.vector.cosine_distance(embedded_query)).label("similarity")
+
             stmt = (
-                select(
-                    Chunk.text,
-                    (1 - DocumentEmbedding.vector.cosine_distance(embedded_query)).label("similarity"),
-                )
+                select(Chunk.text, similarity_expr)
                 .join(Chunk, Chunk.id == DocumentEmbedding.chunk_id)
                 .where(DocumentEmbedding.collection_id == collection_id)
-                .order_by("similarity DESC")
+                .order_by(similarity_expr.desc())  # safer
                 .limit(limit)
             )
 
@@ -130,5 +129,3 @@ class ORMKnowledgeStorage(BaseORMStorage):
             logger.error(f"Search failed for collection {collection_id}: {e}")
             return []
 
-    def __del__(self):
-        self.close()
