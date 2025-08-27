@@ -24,13 +24,15 @@ DEBUG = False
 
 if DEBUG:
     load_dotenv(dotenv_path=find_dotenv("debug.env"))
-    # Workaround
-    os.environ["DB_NAME"] = get_required_env_var("POSTGRES_DB")
 else:
     load_dotenv()
 
+# Workaround
+if os.environ.get("DB_NAME"):
+    DB_NAME = get_required_env_var("DB_NAME")
+else:
+    DB_NAME = get_required_env_var("POSTGRES_DB")
 
-DB_NAME = get_required_env_var("DB_NAME")
 DB_USER = get_required_env_var("DB_KNOWLEDGE_USER")
 DB_PASSWORD = get_required_env_var("DB_KNOWLEDGE_PASSWORD")
 DB_PORT = get_required_env_var("DB_PORT")
