@@ -282,7 +282,7 @@ class KnowledgeSearchMessage(BaseModel):
     uuid: str
     query: str
     search_limit: int | None
-    distance_threshold: float | None
+    similarity_threshold: float | None
 
 class ChunkDocumentMessage(BaseModel):
     document_id: int
