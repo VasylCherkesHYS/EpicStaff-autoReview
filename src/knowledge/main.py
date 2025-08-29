@@ -4,6 +4,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
 
+from services.collection_processor_service import CollectionProcessorService
 from services.chunk_document_service import ChunkDocumentService
 from services.redis_service import RedisService
 from collection_processor import CollectionProcessor
@@ -15,7 +16,7 @@ from models.redis_models import (
 
 
 chunk_document_service = ChunkDocumentService()
-
+collection_processor_service = CollectionProcessorService()
 # Redis Configuration
 redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
 redis_port = int(os.getenv("REDIS_PORT", "6379"))
@@ -37,8 +38,7 @@ knowledge_document_chunk_response = os.getenv(
 
 def run_process_collection(collection_id):
     """Runs the blocking embedding process in a separate process."""
-    processor = CollectionProcessor(collection_id)
-    processor.process_collection()
+    collection_processor_service.process_collection(collection_id=collection_id)
 
 
 def run_chunk_document(document_id: int):
@@ -123,9 +123,9 @@ async def searching(redis_service: RedisService):
                 collection_id = data.collection_id
 
                 logger.info(f"Processing search for collection_id: {collection_id}")
-
-                processor = CollectionProcessor(collection_id)
-                result = processor.search(
+                
+                result = collection_processor_service.search(
+                    collection_id=collection_id,
                     uuid=data.uuid,
                     query=data.query,
                     search_limit=data.search_limit,

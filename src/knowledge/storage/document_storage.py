@@ -42,7 +42,7 @@ class ORMDocumentStorage(BaseORMStorage):
 
             documents = (
                 self.session.query(DocumentMetadata)
-                .options(selectinload(DocumentMetadata.document_content))
+                .options(selectinload(DocumentMetadata.document_content)) 
                 .filter(
                     DocumentMetadata.source_collection_id == collection_id,
                     DocumentMetadata.status.in_(status),
@@ -105,7 +105,7 @@ class ORMDocumentStorage(BaseORMStorage):
 
             document = (
                 self.session.query(DocumentMetadata)
-                .options(joinedload(DocumentMetadata.document_content))  # eager load
+                .options(selectinload(DocumentMetadata.document_content))
                 .filter(DocumentMetadata.document_id == document_id)
                 .one_or_none()
             )

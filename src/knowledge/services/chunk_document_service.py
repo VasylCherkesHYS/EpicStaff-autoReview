@@ -8,7 +8,7 @@ from chunkers import (
     BaseChunker,
 )
 
-from services.redis_service import RedisService
+from .redis_service import RedisService
 from models.enums import Status
 from models.dto.models_dto import ChunkDTO, DocumentContentDTO, DocumentMetadataDTO
 from models.orm.document_models import DocumentContent, DocumentMetadata
@@ -17,8 +17,7 @@ from utils.singleton_meta import SingletonMeta
 
 
 class ChunkDocumentService(metaclass=SingletonMeta):
-
-
+    
     def _get_chunk_strategy(
         self, chunk_strategy, chunk_size, chunk_overlap, additional_params
     ) -> BaseChunker:
@@ -50,7 +49,7 @@ class ChunkDocumentService(metaclass=SingletonMeta):
         return self.proccess_chunk_document(document=document)
 
     def proccess_chunk_document(self, document: DocumentMetadataDTO) -> list[ChunkDTO]:
-        
+
         doc_content: DocumentContentDTO = document.document_content
         chunk_list = self.perform_chunking(
             binary_content=doc_content.content,
@@ -63,7 +62,9 @@ class ChunkDocumentService(metaclass=SingletonMeta):
         with uow.start() as uow_ctx:
 
             # Remove old chunks
-            uow.chunk_storage.delete_chunks(
+            uow.chunk_storage.delete_chunks(document_id=document.document_id)
+            # Remove old embeddings
+            uow.knowledge_storage.delete_document_embeddings(
                 document_id=document.document_id
             )
 
@@ -74,6 +75,11 @@ class ChunkDocumentService(metaclass=SingletonMeta):
             )
             uow_ctx.document_storage.update_document_status(
                 status=Status.CHUNKED, document_id=document.document_id
+            )
+            from .collection_processor_service import CollectionProcessorService
+
+            CollectionProcessorService().process_collection_status(
+                collection_id=document.source_collection_id
             )
 
         return chunk_dto_list

@@ -51,7 +51,7 @@ class DocumentMetadataDTO(BaseModel):
     additional_params: dict
     status: str
     document_content: Optional[DocumentContentDTO] = None
-
+    source_collection_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 

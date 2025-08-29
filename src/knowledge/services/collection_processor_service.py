@@ -4,6 +4,7 @@ import cachetools
 
 from psycopg2.errors import ForeignKeyViolation
 
+from services.chunk_document_service import ChunkDocumentService
 from models.dto.models_dto import ChunkDTO, DocumentContentDTO
 from models.orm.document_models import DocumentContent
 from storage.knowledge_storage import ORMKnowledgeStorage
@@ -22,43 +23,42 @@ from embedder.gemini import GoogleGenAIEmbedder
 from embedder.cohere import CohereEmbedder
 from embedder.mistral import MistralEmbedder
 from embedder.together_ai import TogetherAIEmbedder
-from services.chunk_document_service import ChunkDocumentService
 from models.enums import *
+from utils.singleton_meta import SingletonMeta
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
-chunk_document_service = ChunkDocumentService()
+
+class CollectionProcessorService(metaclass=SingletonMeta):
+    
 
 
-class CollectionProcessor:
-    def __init__(self, collection_id):
-        self.collection_id = collection_id
-        self.embedder = self._get_cached_embedder()
-
-    def _get_cached_embedder(self):
+    def _get_cached_embedder(self, collection_id: int):
         """Retrieve embedder from cache or initialize it if not cached."""
-        if self.collection_id in _embedder_cache:
-            return _embedder_cache[self.collection_id]
+        if collection_id in _embedder_cache:
+            return _embedder_cache[collection_id]
 
-        logger.info(f"Initializing embedder for collection {self.collection_id}")
+        logger.info(f"Initializing embedder for collection {collection_id}")
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
             embedder_config = uow_ctx.knowledge_storage.get_embedder_configuration(
-                self.collection_id
+                collection_id
             )
         embedder = self._set_embedder_config(embedder_config)
 
-        _embedder_cache[self.collection_id] = embedder
+        _embedder_cache[collection_id] = embedder
         return embedder
 
-    def search(self, uuid, query, search_limit, similarity_threshold):
+    def search(self, collection_id, uuid, query, search_limit, similarity_threshold):
+        embedder = self._get_cached_embedder(collection_id=collection_id)
         # Embed the query
-        embedded_query = self.embedder.embed(query)
+
+        embedded_query = embedder.embed(query)
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
             # Search in storage
             knowledge_snippets = uow_ctx.knowledge_storage.search(
                 embedded_query=embedded_query,
-                collection_id=self.collection_id,
+                collection_id=collection_id,
                 limit=search_limit,
                 similarity_threshold=similarity_threshold,
             )
@@ -76,27 +76,28 @@ class CollectionProcessor:
 
         return {
             "uuid": uuid,
-            "collection_id": self.collection_id,
+            "collection_id": collection_id,
             "results": knowledge_snippets,
         }
 
-    def process_collection(self):
+    def process_collection(self, collection_id):
+        embedder = self._get_cached_embedder(collection_id=collection_id)
         uow = UnitOfWork()
 
         try:
             with uow.start() as uow_ctx:
                 uow_ctx.knowledge_storage.update_collection_status(
                     status=Status.PROCESSING,
-                    collection_id=self.collection_id,
+                    collection_id=collection_id,
                 )
-                logger.info(f"Processing embeddings for collection_id: {self.collection_id}")
+                logger.info(f"Processing embeddings for collection_id: {collection_id}")
 
                 document_list = uow_ctx.document_storage.get_documents_in_collection(
-                    collection_id=self.collection_id, status=(DocumentStatus.NEW, DocumentStatus.WARNING, DocumentStatus.CHUNKED)
+                    collection_id=collection_id, status=(DocumentStatus.NEW, DocumentStatus.WARNING, DocumentStatus.CHUNKED)
                 )
 
                 if len(document_list) == 0:
-                    logger.warning(f"Collection {self.collection_id} must contain at least 1 new document to embed")
+                    logger.warning(f"Collection {collection_id} must contain at least 1 new document to embed")
                 
                 for doc in document_list:
                     try:
@@ -108,7 +109,7 @@ class CollectionProcessor:
                             document_id=doc.document_id,
                         )
 
-                        chunk_dto_list = chunk_document_service.proccess_chunk_document(
+                        chunk_dto_list = ChunkDocumentService().proccess_chunk_document(
                             document=doc,
                         )
 
@@ -123,12 +124,12 @@ class CollectionProcessor:
                             continue
 
                         for chunk_dto in chunk_dto_list:
-                            vector = self.embedder.embed(chunk_dto.text)
+                            vector = embedder.embed(chunk_dto.text)
                             uow_ctx.knowledge_storage.save_embedding(
                                 chunk_id=chunk_dto.id,
                                 embedding=vector,
                                 document_id=doc.document_id,
-                                collection_id=self.collection_id,
+                                collection_id=collection_id,
                             )
 
                     except ForeignKeyViolation:
@@ -154,12 +155,12 @@ class CollectionProcessor:
             with uow.start() as uow_ctx:
                 uow_ctx.knowledge_storage.update_collection_status(
                     status=Status.FAILED,
-                    collection_id=self.collection_id,
+                    collection_id=collection_id,
                 )
-            logger.error(f"Error processing collection_id {self.collection_id}: {e}")
+            logger.error(f"Error processing collection_id {collection_id}: {e}")
         else:
-            self.process_collection_status()
-            logger.info(f"Embedding finished for collection_id: {self.collection_id}")
+            self.process_collection_status(collection_id=collection_id)
+            logger.info(f"Embedding finished for collection_id: {collection_id}")
 
     def _get_chunk_strategy(
         self, chunk_strategy, chunk_size, chunk_overlap, additional_params
@@ -208,7 +209,7 @@ class CollectionProcessor:
             )
             return self._create_default_embedding_function()
 
-    def process_collection_status(self):
+    def process_collection_status(self, collection_id):
         """
         Update Collection status based on documents statuses
 
@@ -221,17 +222,20 @@ class CollectionProcessor:
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
             documents_statuses = set(
-                uow.document_storage.get_documents_statuses(self.collection_id)
+                uow.document_storage.get_documents_statuses(collection_id)
             )
 
         current_status = Status.COMPLETED
         if documents_statuses == {Status.FAILED}:
             current_status = Status.FAILED
+        elif documents_statuses == {Status.CHUNKED}:
+            current_status = Status.CHUNKED
         elif Status.PROCESSING in documents_statuses:
             current_status = Status.PROCESSING
         elif (
             Status.FAILED in documents_statuses
             or Status.WARNING in documents_statuses
+            or Status.CHUNKED in documents_statuses
         ):
             current_status = Status.WARNING
         elif Status.NEW in documents_statuses or not documents_statuses:
@@ -239,6 +243,6 @@ class CollectionProcessor:
 
         with uow.start() as uow_ctx:
             uow_ctx.knowledge_storage.update_collection_status(
-                current_status, self.collection_id
+                current_status, collection_id
             )
-            logger.info(f"{current_status} was set to collection {self.collection_id}")
+            logger.info(f"{current_status} was set to collection {collection_id}")  

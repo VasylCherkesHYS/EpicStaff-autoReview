@@ -1,6 +1,6 @@
 from typing import Dict, Optional, List
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from loguru import logger
 
 from .base_storage import BaseORMStorage
@@ -38,7 +38,12 @@ class ORMKnowledgeStorage(BaseORMStorage):
         except Exception as e:
             logger.error(f"Failed to save embedding: {e}")
             raise
+    
+    def delete_document_embeddings(self, document_id: int) -> None:
+        stmt = delete(DocumentEmbedding).where(DocumentEmbedding.document_id == document_id)
+        self.session.execute(stmt)
 
+        
     def update_collection_status(self, status: Status, collection_id: int) -> bool:
         """Update the status of a collection."""
         if status not in Status:
