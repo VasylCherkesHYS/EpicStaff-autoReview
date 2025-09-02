@@ -2,11 +2,29 @@
 
 # EpicStaff: Open-Source Multi-Agent Orchestration Platform
 
+<div align="center">
+   
+[![GitHub Stars](https://img.shields.io/github/stars/EpicStaff/EpicStaff?style=social)](https://github.com/EpicStaff/EpicStaff/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/EpicStaff/EpicStaff?style=social)](https://github.com/EpicStaff/EpicStaff/network/members)
+[![License](https://img.shields.io/github/license/EpicStaff/EpicStaff)](https://github.com/EpicStaff/EpicStaff/blob/main/LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/EpicStaff/EpicStaff)](https://github.com/EpicStaff/EpicStaff/commits/main)
+[![Open Issues](https://img.shields.io/github/issues/EpicStaff/EpicStaff)](https://github.com/EpicStaff/EpicStaff/issues)
+
+</div>
+
 ### AI Agents Without The Frustration. Build Production-Grade Agentic Systems with Visual Workflows and Full Backend Control.
 
 EpicStaff is an open-source **production-grade platform** for building **multi-agent AI systems** with maximum flexibility and minimum friction. We bridge the gap between no-code simplicity and developer centric power, offering a unified **custom AI agent workflow platform**.
 
 Create intelligent agents that operate with high performance, retain memory across complex tasks and reason based on injected knowledge. Our **asynchronous, low-latency AI orchestration engine** built on **FastAPI** ensures your AI workflows are both fast and scalable.
+
+<div align="center">
+   
+Our core philosophy: **We hide the complexity, not the logic.**
+
+**⭐ Star us on GitHub to support the project and follow our progress!**
+
+</div>
 
 ---
 
@@ -16,7 +34,42 @@ Create intelligent agents that operate with high performance, retain memory acro
 
 ---
 
-## A Dual-Approach Platform for Modern Teams
+## 🚀 Getting Started
+
+This guide will help you launch EpicStaff using our system installer, which manages the Docker containers for you.
+
+### Windows/Linux/macOS
+
+### 1. **Install dependencies**  
+   - [Git](https://git-scm.com/downloads)  
+   - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+### 2. Download the Installer
+Download the latest release for your operating system from our releases page.
+- **➡ [Download Latest Release](https://github.com/EpicStaff/EpicStaff/releases)**
+
+### 3. Unzip and Run
+Unzip the downloaded file and run the EpicStaff application.
+ 
+**For more [details](docs/docs.pdf)**
+
+---
+
+### 🛠️ **Important Step for macOS Users**
+
+Before running the application on macOS for the first time, you need to grant it execution permissions.
+
+**Why is this necessary?**
+macOS has a security feature called Gatekeeper that can block applications downloaded from the internet. The following commands simply tell your system that you trust EpicStaff and allow it to run.
+
+Open your terminal navigate to the unzipped directory and run these two commands:
+```bash
+chmod -R epicstaff.app
+xattr -r -d com.apple.quarantine epicstaff.app
+```
+---
+
+## One Platform, Two Workflows: Visual and Code
 
 We built EpicStaff to serve everyone involved in building AI-powered solutions, from business analysts to senior developers.
 
@@ -37,6 +90,27 @@ Get full control with a modular transparent **open-source FastAPI backend**. Div
 
 ---
 
+## 🎯 Who is EpicStaff For?
+
+* **AI Developers** seeking a flexible **FastAPI agent framework** without rigid templates.
+* **Business Teams** who need to quickly **build custom AI workflows** for automation.
+* **No-code/Low-code users** who prefer a **visual interface** over YAML or complex scripts.
+* **R&D Teams & Startups** prototyping and deploying **scalable agentic systems**.
+
+---
+## Where EpicStaff Fits In
+
+Here’s a quick look at how EpicStaff compares to other popular tools in the AI and automation space. Our unique hybrid approach is designed for cross-functional teams.
+
+| Platform | Primary Target Audience | Primary Interface | Extensibility | Key Weakness |
+|---|---|---|---|---|
+| **EpicStaff** | **Business Operations + AI Engineers** | **Hybrid (Visual + Code)** | **High** | **New player on the market** |
+| n8n | Business Operations / Citizen Developers | Visual | Medium | Limited native AI capabilities |
+| LangGraph | AI Engineers / Developers | Code-First | High | High entry barrier |
+| CrewAI | Developers / AI Enthusiasts | Code-First | High | Oriented towards specific tasks |
+| Zapier | Business Users (No-Code) | Visual | Low | No access to code |
+---
+
 ## Key Features
 
 | Feature                        | Description                                                                                                                                                                                                   |
@@ -50,15 +124,7 @@ Get full control with a modular transparent **open-source FastAPI backend**. Div
 | 🧱 **Modular & Extensible Backend** | We provide a **modular open-source backend** that is easy to extend and modify. Adapt the platform to the unique needs of your project.                                                               |
 | 🤖 **Multi-Agent Orchestration** | Design complex **multi-agent systems** where agents can collaborate to solve sophisticated problems. The platform is LLM-agnostic and supports any language model.                                          |
 
-
 ---
-
-## 🎯 Who is EpicStaff For?
-
-* **AI Developers** seeking a flexible **FastAPI agent framework** without rigid templates.
-* **Business Teams** who need to quickly **build custom AI workflows** for automation.
-* **No-code/Low-code users** who prefer a **visual interface** over YAML or complex scripts.
-* **R&D Teams & Startups** prototyping and deploying **scalable agentic systems**.
 
 ## Our Mission & Values
 
@@ -77,41 +143,16 @@ Get full control with a modular transparent **open-source FastAPI backend**. Div
 
 ## 🚀 Get Started
 
-**Star us on GitHub!** ⭐
-
 ---
 
-# Downloader
+## Join Our Community & Shape the Future of EpicStaff
 
-## Requirements
-- **Git**  
-- **Docker Desktop** (Must be running)
+EpicStaff is an open-source project driven by its community. Whether you're a developer, a no-code enthusiast, or a business professional, your feedback and contributions are what make this project grow.
 
----
+* **⭐ Star the Repository:** The easiest way to show your support and stay updated.
+* **🗣️ Join the Discussion:** Have a question, an idea for a new feature, or want to showcase what you've built? Head over to our [GitHub Discussions](https://github.com/EpicStaff/EpicStaff/discussions).
+* **💬 Connect on Discord:** For real-time chat with the community and the core team, join our [Discord Server](https://discord.gg/qF5bvqjS). 
+* **🤝 Contribute:** Found a bug or want to add a new tool? Check out our [CONTRIBUTING.md](link-to-your-contributing-file) to get started. We welcome all contributors!
 
-## 🚀 Getting Started
+**Let's build the future of intelligent, collaborative systems together!**
 
-### Windows/Linux/macOS
-
-1. **Install dependencies**  
-   - [Git](https://git-scm.com/downloads)  
-   - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-2. **Start Docker Desktop**
-
-3. **Download [release](https://github.com/EpicStaff/EpicStaff/releases) for your system**  
-
-**🛠️ Mandatory steps for macOS**
-
-For macOS, you will need to run additional commands in the terminal to make the program run in the unpacked directory.
-
-Run the following commands to grant permissions and remove the quarantine attribute:
-
-```bash
-chmod -R epicstaff.app 
-xattr -r -d com.apple.quarantine epicstaff.app
-```
-
-4. **Run the program**
- 
-**For more [details](docs/docs.pdf)**
