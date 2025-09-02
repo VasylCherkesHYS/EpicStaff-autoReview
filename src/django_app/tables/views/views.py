@@ -776,6 +776,9 @@ class ProcessDocumentChunkingView(APIView):
         if serializer.is_valid():
             document_id = serializer["document_id"].value
 
+            if not DocumentMetadata.objects.filter(document_id=document_id).exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
             redis_service.publish_process_document_chunking(document_id=document_id)
             return Response(status=status.HTTP_202_ACCEPTED)
 
@@ -786,9 +789,7 @@ class ProcessCollectionEmbeddingView(APIView):
         serializer = ProcessCollectionEmbeddingSerializer(data=request.data)
         if serializer.is_valid():
             collection_id = serializer["collection_id"].value
-            
-            redis_service.publish_source_collection(
-               collection_id=collection_id
-            )
+            if not SourceCollection.objects.filter(collection_id=collection_id).exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            redis_service.publish_source_collection(collection_id=collection_id)
             return Response(status=status.HTTP_202_ACCEPTED)
-
