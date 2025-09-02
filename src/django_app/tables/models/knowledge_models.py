@@ -1,5 +1,7 @@
 from django.db import models
 import uuid
+
+from loguru import logger
 from pgvector.django import VectorField
 
 
@@ -75,6 +77,30 @@ class SourceCollection(models.Model):
 
         super().save(*args, **kwargs)
 
+    def update_collection_status(self: "SourceCollection"):
+        documents_statuses = set(
+            self.document_metadata.values_list("status", flat=True)
+        )
+
+        NEW = SourceCollection.SourceCollectionStatus.NEW
+        PROCESSING = SourceCollection.SourceCollectionStatus.PROCESSING
+        WARNING = SourceCollection.SourceCollectionStatus.WARNING
+        FAILED = SourceCollection.SourceCollectionStatus.FAILED
+        COMPLETED = SourceCollection.SourceCollectionStatus.COMPLETED
+
+        current_status = COMPLETED
+        if documents_statuses == {FAILED}:
+            current_status = FAILED
+        elif PROCESSING in documents_statuses:
+            current_status = PROCESSING
+        elif FAILED in documents_statuses or WARNING in documents_statuses:
+            current_status = WARNING
+        elif NEW in documents_statuses or not documents_statuses:
+            current_status = NEW
+
+        self.status = current_status
+        self.save()
+
 
 class DocumentMetadata(models.Model):
     """
@@ -148,6 +174,29 @@ class DocumentMetadata(models.Model):
         null=True,
         related_name="document_metadata",
     )
+
+    def save(self, *args, **kwargs):
+        res = super().save(*args, **kwargs)
+        collection = self.source_collection
+        if collection is None:
+            logger.warning(
+                f"Source collection for document {self.file_name} not found!"
+            )
+        else:
+            self.source_collection.update_collection_status()
+        return res
+
+    def delete(self, using=..., keep_parents=...):
+        res = super().delete(using, keep_parents)
+        if self.source_collection is None:
+            logger.warning(
+                f"Source collection for document {self.file_name} not found!"
+            )
+        else:
+            self.source_collection.update_collection_status()
+
+        return res
+    
 
     def __str__(self):
         return f"{self.file_name}"

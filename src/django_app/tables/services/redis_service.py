@@ -8,7 +8,11 @@ from redis.retry import Retry
 from threading import Lock
 
 from django_app.settings import KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL
-from tables.request_models import ChunkDocumentMessage, RealtimeAgentChatData, SessionData
+from tables.request_models import (
+    ChunkDocumentMessage,
+    RealtimeAgentChatData,
+    SessionData,
+)
 from utils.singleton_meta import SingletonMeta
 from utils.logger import logger
 
@@ -88,16 +92,7 @@ class RedisService(metaclass=SingletonMeta):
         channel = "knowledge_sources"
         message = {
             "collection_id": collection_id,
-            "event": f"created new collection {collection_id}.",
-        }
-        self.redis_client.publish(channel=channel, message=json.dumps(message))
-        logger.info(f"Sent collection_id: {collection_id} to {channel}.")
-
-    def publish_add_source(self, collection_id) -> None:
-        channel = "knowledge_sources"
-        message = {
-            "collection_id": collection_id,
-            "event": f"add source to collection {collection_id}.",
+            "event": f"embed collection {collection_id}.",
         }
         self.redis_client.publish(channel=channel, message=json.dumps(message))
         logger.info(f"Sent collection_id: {collection_id} to {channel}.")
@@ -162,4 +157,6 @@ class RedisService(metaclass=SingletonMeta):
 
     def publish_process_document_chunking(self, document_id):
         message = ChunkDocumentMessage(document_id=document_id)
-        self.redis_client.publish(KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL, json.dumps(message.model_dump()))
+        self.redis_client.publish(
+            KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL, json.dumps(message.model_dump())
+        )
