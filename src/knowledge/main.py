@@ -7,7 +7,6 @@ from loguru import logger
 from services.collection_processor_service import CollectionProcessorService
 from services.chunk_document_service import ChunkDocumentService
 from services.redis_service import RedisService
-from collection_processor import CollectionProcessor
 from models.redis_models import (
     ChunkDocumentMessage,
     ChunkDocumentMessageResponse,

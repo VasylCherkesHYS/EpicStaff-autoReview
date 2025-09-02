@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+import sys
 
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import create_engine
@@ -21,6 +22,9 @@ def get_required_env_var(key: str) -> str:
 
 
 DEBUG = False
+if len(sys.argv) > 1:
+    if "--debug" in sys.argv:
+        DEBUG = True
 
 if DEBUG:
     load_dotenv(dotenv_path=find_dotenv("debug.env"))

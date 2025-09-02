@@ -16,6 +16,7 @@ class SourceCollection(models.Model):
         """
 
         NEW = "new"
+        CHUNKED = "chunked"
         PROCESSING = "processing"
         COMPLETED = "completed"
         WARNING = "warning"
@@ -87,19 +88,31 @@ class SourceCollection(models.Model):
         WARNING = SourceCollection.SourceCollectionStatus.WARNING
         FAILED = SourceCollection.SourceCollectionStatus.FAILED
         COMPLETED = SourceCollection.SourceCollectionStatus.COMPLETED
+        CHUNKED = SourceCollection.SourceCollectionStatus.CHUNKED
 
-        current_status = COMPLETED
-        if documents_statuses == {FAILED}:
+        if not documents_statuses or documents_statuses == {NEW}:
+            current_status = NEW
+        elif documents_statuses == {COMPLETED}:
+            current_status = COMPLETED
+        elif documents_statuses == {FAILED}:
             current_status = FAILED
+        elif documents_statuses == {CHUNKED}:
+            current_status = CHUNKED
         elif PROCESSING in documents_statuses:
             current_status = PROCESSING
-        elif FAILED in documents_statuses or WARNING in documents_statuses:
+        elif (
+            FAILED in documents_statuses
+            or WARNING in documents_statuses
+            or CHUNKED in documents_statuses
+        ):
             current_status = WARNING
-        elif NEW in documents_statuses or not documents_statuses:
-            current_status = NEW
+        else:
+            # fallback для неизвестных комбинаций
+            current_status = WARNING
 
         self.status = current_status
         self.save()
+
 
 
 class DocumentMetadata(models.Model):
@@ -196,7 +209,6 @@ class DocumentMetadata(models.Model):
             self.source_collection.update_collection_status()
 
         return res
-    
 
     def __str__(self):
         return f"{self.file_name}"

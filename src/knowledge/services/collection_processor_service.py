@@ -28,9 +28,8 @@ from utils.singleton_meta import SingletonMeta
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
 
-class CollectionProcessorService(metaclass=SingletonMeta):
-    
 
+class CollectionProcessorService(metaclass=SingletonMeta):
 
     def _get_cached_embedder(self, collection_id: int):
         """Retrieve embedder from cache or initialize it if not cached."""
@@ -93,12 +92,19 @@ class CollectionProcessorService(metaclass=SingletonMeta):
                 logger.info(f"Processing embeddings for collection_id: {collection_id}")
 
                 document_list = uow_ctx.document_storage.get_documents_in_collection(
-                    collection_id=collection_id, status=(DocumentStatus.NEW, DocumentStatus.WARNING, DocumentStatus.CHUNKED)
+                    collection_id=collection_id,
+                    status=(
+                        DocumentStatus.NEW,
+                        DocumentStatus.WARNING,
+                        DocumentStatus.CHUNKED,
+                    ),
                 )
 
                 if len(document_list) == 0:
-                    logger.warning(f"Collection {collection_id} must contain at least 1 new document to embed")
-                
+                    logger.warning(
+                        f"Collection {collection_id} must contain at least 1 new document to embed"
+                    )
+
                 for doc in document_list:
                     try:
                         logger.info(
@@ -213,11 +219,13 @@ class CollectionProcessorService(metaclass=SingletonMeta):
         """
         Update Collection status based on documents statuses
 
-        FALIED: all Failed
-        WARNING: at least 1 Warning or 1 Failed
+        FAILED: all documents Failed
+        WARNING: at least 1 Warning or 1 Failed (but not all Failed),
+                or mixture with CHUNKED
         PROCESSING: at least 1 Processing
-        NEW: all documents are New
+        NEW: all documents are New OR no documents
         COMPLETED: all documents are Completed
+        CHUNKED: all documents are Chunked
         """
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
@@ -225,8 +233,11 @@ class CollectionProcessorService(metaclass=SingletonMeta):
                 uow.document_storage.get_documents_statuses(collection_id)
             )
 
-        current_status = Status.COMPLETED
-        if documents_statuses == {Status.FAILED}:
+        if not documents_statuses or documents_statuses == {Status.NEW}:
+            current_status = Status.NEW
+        elif documents_statuses == {Status.COMPLETED}:
+            current_status = Status.COMPLETED
+        elif documents_statuses == {Status.FAILED}:
             current_status = Status.FAILED
         elif documents_statuses == {Status.CHUNKED}:
             current_status = Status.CHUNKED
@@ -238,11 +249,12 @@ class CollectionProcessorService(metaclass=SingletonMeta):
             or Status.CHUNKED in documents_statuses
         ):
             current_status = Status.WARNING
-        elif Status.NEW in documents_statuses or not documents_statuses:
-            current_status = Status.NEW
+        else:
+            # fallback
+            current_status = Status.WARNING
 
         with uow.start() as uow_ctx:
             uow_ctx.knowledge_storage.update_collection_status(
                 current_status, collection_id
             )
-            logger.info(f"{current_status} was set to collection {collection_id}")  
+            logger.info(f"{current_status} was set to collection {collection_id}")
