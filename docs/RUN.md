@@ -1,3 +1,9 @@
-1. Download file from run_program
-    run_program/manager.bat (windows)
-    run_program/manager.sh (linux or MacOS)
+# Download 
+Pre-requirements:
+1. Downloaded `git`
+2. Downloaded `docker`
+
+
+Download file
+    launcher.bat (windows)
+    launcher.sh (linux or MacOS)

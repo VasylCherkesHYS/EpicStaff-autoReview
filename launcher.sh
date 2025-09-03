@@ -1,5 +1,5 @@
-#!/bin/bash
-# run_program.sh - Main program manager
+#!/bin/sh
+# run_program_posix.sh - Main program manager (POSIX compatible)
 
 REPO_URL="https://github.com/EpicStaff/EpicStaff.git"
 REPO_DIR="EpicStaff"
@@ -12,14 +12,17 @@ show_menu() {
     echo "1. Install program"
     echo "2. Run program"
     echo "3. Change version"
-    echo "4. Stop system"
-    echo "5. Exit"
+    echo "4. Set savefile path"
+    echo "5. Stop system"
+    echo "6. Exit"
     echo "=============================="
-    read -p "Choose an option: " choice
+    printf "Choose an option: "
+    read choice
 }
 
 update_program() {
-    clear
+    
+    
     if [ ! -d "$REPO_DIR" ]; then
         echo "Cloning repository..."
         git clone "$REPO_URL" "$REPO_DIR"
@@ -58,7 +61,8 @@ change_version() {
         echo "2. Checkout by Branch"
         echo "3. Back"
         echo "=============================="
-        read -p "Enter choice (1-3): " choice
+        printf "Enter choice (1-3): "
+        read choice
 
         case $choice in
             1) choose_tag ;;
@@ -70,9 +74,8 @@ change_version() {
 }
 
 choose_tag() {
-    local page=0
-    local tags=($(git tag --sort=-creatordate))
-    local total=${#tags[@]}
+    page=0
+    per_page=10
     
     while true; do
         clear
@@ -80,41 +83,49 @@ choose_tag() {
         echo "   Select Tag (page $page)"
         echo "=============================="
         
-        local start=$((page * 10))
-        local end=$((start + 9))
+        # Get tags and show current page
+        git tag --sort=-creatordate | awk -v start=$((page*per_page+1)) -v end=$((page*per_page+per_page)) '
+        NR >= start && NR <= end { print NR". "$0 }
+        END { print "TOTAL="NR }
+        ' > /tmp/tags_$$
         
-        for ((i=$start; i<=end && i<total; i++)); do
-            echo "$((i+1)). ${tags[$i]}"
-        done
+        total=$(grep "TOTAL=" /tmp/tags_$$ | cut -d= -f2)
+        grep -v "TOTAL=" /tmp/tags_$$
         
         echo "N. Next page"
         echo "P. Previous page"
         echo "B. Back"
         echo
-        read -p "Enter choice: " choice
+        printf "Enter choice: "
+        read choice
         
         case $choice in
-            [Nn])
-                if [ $((start + 10)) -lt $total ]; then
-                    ((page++))
+            [Nn]|[Nn]ext)
+                if [ $((page*per_page+per_page)) -lt $total ]; then
+                    page=$((page+1))
                 fi
                 ;;
-            [Pp])
+            [Pp]|[Pp]rev*)
                 if [ $page -gt 0 ]; then
-                    ((page--))
+                    page=$((page-1))
                 fi
                 ;;
-            [Bb])
+            [Bb]|[Bb]ack)
+                rm -f /tmp/tags_$$
                 return
                 ;;
             *)
-                if [[ "$choice" =~ ^[0-9]+$ ]] && [ $((choice-1)) -ge 0 ] && [ $((choice-1)) -lt $total ]; then
-                    local tag_index=$((choice-1))
-                    clear
-                    git checkout "${tags[$tag_index]}"
-                    echo "Switched to tag ${tags[$tag_index]}"
-                    read -p "Press Enter to continue..."
-                    return
+                if echo "$choice" | grep -q '^[0-9][0-9]*$'; then
+                    tag=$(git tag --sort=-creatordate | sed -n "${choice}p")
+                    if [ -n "$tag" ]; then
+                        clear
+                        git checkout "$tag"
+                        echo "Switched to tag $tag"
+                        printf "Press Enter to continue..."
+                        read dummy
+                        rm -f /tmp/tags_$$
+                        return
+                    fi
                 fi
                 ;;
         esac
@@ -122,9 +133,8 @@ choose_tag() {
 }
 
 choose_branch() {
-    local page=0
-    local branches=($(git branch -r --sort=-committerdate | grep -v HEAD | sed 's/origin\///'))
-    local total=${#branches[@]}
+    page=0
+    per_page=10
     
     while true; do
         clear
@@ -132,45 +142,64 @@ choose_branch() {
         echo "   Select Branch (page $page)"
         echo "=============================="
         
-        local start=$((page * 10))
-        local end=$((start + 9))
+        # Get remote branches and show current page
+        git branch -r --sort=-committerdate | grep -v HEAD | sed 's/origin\///' | awk -v start=$((page*per_page+1)) -v end=$((page*per_page+per_page)) '
+        NR >= start && NR <= end { print NR". "$0 }
+        END { print "TOTAL="NR }
+        ' > /tmp/branches_$$
         
-        for ((i=$start; i<=end && i<total; i++)); do
-            echo "$((i+1)). ${branches[$i]}"
-        done
+        total=$(grep "TOTAL=" /tmp/branches_$$ | cut -d= -f2)
+        grep -v "TOTAL=" /tmp/branches_$$
         
         echo "N. Next page"
         echo "P. Previous page"
         echo "B. Back"
         echo
-        read -p "Enter choice: " choice
+        printf "Enter choice: "
+        read choice
         
         case $choice in
-            [Nn])
-                if [ $((start + 10)) -lt $total ]; then
-                    ((page++))
+            [Nn]|[Nn]ext)
+                if [ $((page*per_page+per_page)) -lt $total ]; then
+                    page=$((page+1))
                 fi
                 ;;
-            [Pp])
+            [Pp]|[Pp]rev*)
                 if [ $page -gt 0 ]; then
-                    ((page--))
+                    page=$((page-1))
                 fi
                 ;;
-            [Bb])
+            [Bb]|[Bb]ack)
+                rm -f /tmp/branches_$$
                 return
                 ;;
             *)
-                if [[ "$choice" =~ ^[0-9]+$ ]] && [ $((choice-1)) -ge 0 ] && [ $((choice-1)) -lt $total ]; then
-                    local branch_index=$((choice-1))
-                    clear
-                    git checkout "${branches[$branch_index]}"
-                    echo "Switched to branch ${branches[$branch_index]}"
-                    read -p "Press Enter to continue..."
-                    return
+                if echo "$choice" | grep -q '^[0-9][0-9]*$'; then
+                    branch=$(git branch -r --sort=-committerdate | grep -v HEAD | sed 's/origin\///' | sed -n "${choice}p" | awk '{print $1}')
+                    if [ -n "$branch" ]; then
+                        clear
+                        git checkout "$branch"
+                        echo "Switched to branch $branch"
+                        printf "Press Enter to continue..."
+                        read dummy
+                        rm -f /tmp/branches_$$
+                        return
+                    fi
                 fi
                 ;;
         esac
     done
+}
+
+set_savefile_path() {
+    clear
+    if [ ! -d "$REPO_DIR" ]; then
+        echo "Repository not found. Cloning..."
+        git clone "$REPO_URL" "$REPO_DIR"
+    fi
+    cd "$REPO_DIR/run_program"
+    ./merge_env.sh
+    cd - > /dev/null
 }
 
 stop_system() {
@@ -183,7 +212,8 @@ stop_system() {
     ./remove_containers.sh
     cd - > /dev/null
     echo "System stopped."
-    read -p "Press Enter to continue..."
+    printf "Press Enter to continue..."
+    read dummy
 }
 
 # Main loop
@@ -193,8 +223,9 @@ while true; do
         1) update_program ;;
         2) run_program ;;
         3) change_version ;;
-        4) stop_system ;;
-        5) exit 0 ;;
+        4) set_savefile_path ;;
+        5) stop_system ;;
+        6) exit 0 ;;
         *) continue ;;
     esac
 done
