@@ -9,19 +9,21 @@ cls
 echo ==============================
 echo EpicStaff Program Manager
 echo ==============================
-echo 1. Update program
+echo 1. Install program
 echo 2. Run program
 echo 3. Change version
-echo 4. Stop system
-echo 5. Exit
+echo 4. Sync variables
+echo 5. Stop system
+echo 6. Exit
 echo ==============================
 set /p choice=Choose an option: 
 
 if "%choice%"=="1" goto update
 if "%choice%"=="2" goto run
 if "%choice%"=="3" goto change_version
-if "%choice%"=="4" goto stop_system
-if "%choice%"=="5" exit /b
+if "%choice%"=="4" goto sync_variables
+if "%choice%"=="5" goto stop_system
+if "%choice%"=="6" exit /b
 goto menu
 
 :update
@@ -177,6 +179,14 @@ for /f "tokens=*" %%i in ('echo %choice%') do (
     )
 )
 goto show_branches
+
+:sync_variables
+cls
+pushd "%REPO_DIR%\run_program"
+call merge_env.bat
+call replace_env.bat
+popd
+goto menu
 
 :stop_system
 cls

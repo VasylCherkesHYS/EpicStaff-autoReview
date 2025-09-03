@@ -1,23 +1,17 @@
 #!/bin/bash
-set -e
+# remove_containers.sh - Remove EpicStaff containers
 
-echo "=============================="
-echo "  EpicStaff - Remove Containers"
-echo "=============================="
+echo "============================="
+echo "   EpicStaff - Remove Containers"
+echo "============================="
 echo
 
-# Get all container IDs with project name epicstaff
-CONTAINERS=$(docker ps -a --filter "name=epicstaff" --format "{{.ID}}")
-
-if [ -z "$CONTAINERS" ]; then
-    echo "[INFO] No EpicStaff containers found."
-else
-    for c in $CONTAINERS; do
-        echo "[INFO] Stopping container $c..."
-        docker stop "$c" >/dev/null 2>&1
-        echo "[INFO] Removing container $c..."
-        docker rm "$c" >/dev/null 2>&1
-    done
-fi
+# List all containers with project name epicstaff and stop+remove them
+for container_id in $(docker ps -a --filter "name=epicstaff" --format "{{.ID}}"); do
+    echo "[INFO] Stopping container $container_id..."
+    docker stop "$container_id" > /dev/null 2>&1
+    echo "[INFO] Removing container $container_id..."
+    docker rm "$container_id" > /dev/null 2>&1
+done
 
 echo "[OK] All EpicStaff containers removed."

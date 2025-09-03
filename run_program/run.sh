@@ -1,20 +1,22 @@
 #!/bin/bash
-set -e
+# run.sh - Run the EpicStaff project
 
-echo "=============================="
-echo "  EpicStaff - Run Project"
-echo "=============================="
+echo "============================="
+echo "   EpicStaff - Run Project"
+echo "============================="
 echo
 
-# Run remove_containers first
-"$(
-  dirname "$0"
-)/remove_containers.sh"
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SRC_DIR="$(dirname "$0")/../src"
-cd "$SRC_DIR" || { echo "Directory not found: $SRC_DIR"; exit 1; }
+# Run remove_containers first
+"$SCRIPT_DIR/remove_containers.sh"
+
+# Change to src directory
+cd "$SCRIPT_DIR/../src"
 
 # Start containers in detached mode
 docker compose --project-name "epicstaff" up -d
 
 echo "[OK] EpicStaff is running."
+read -p "Press Enter to continue..."
