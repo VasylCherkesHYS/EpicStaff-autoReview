@@ -27,6 +27,7 @@ update_program() {
         echo "Cloning repository..."
         git clone "$REPO_URL" "$REPO_DIR"
     fi
+    chmod -R +rwx "$REPO_DIR"
     cd "$REPO_DIR/run_program"
     ./update.sh
     cd - > /dev/null
@@ -38,6 +39,7 @@ run_program() {
         echo "Repository not found. Cloning..."
         git clone "$REPO_URL" "$REPO_DIR"
     fi
+    chmod -R +rwx "$REPO_DIR"
     cd "$REPO_DIR/run_program"
     ./run.sh
     cd - > /dev/null
@@ -49,6 +51,7 @@ change_version() {
         echo "Repository not found. Cloning..."
         git clone "$REPO_URL" "$REPO_DIR"
     fi
+    chmod -R +rwx "$REPO_DIR"
     cd "$REPO_DIR"
     git fetch --all --tags
 
@@ -119,7 +122,7 @@ choose_tag() {
                     tag=$(git tag --sort=-creatordate | sed -n "${choice}p")
                     if [ -n "$tag" ]; then
                         clear
-                        git checkout "$tag"
+                        git checkout -f "$tag"
                         echo "Switched to tag $tag"
                         printf "Press Enter to continue..."
                         read dummy
@@ -178,7 +181,7 @@ choose_branch() {
                     branch=$(git branch -r --sort=-committerdate | grep -v HEAD | sed 's/origin\///' | sed -n "${choice}p" | awk '{print $1}')
                     if [ -n "$branch" ]; then
                         clear
-                        git checkout "$branch"
+                        git checkout -f "$branch"
                         echo "Switched to branch $branch"
                         printf "Press Enter to continue..."
                         read dummy
