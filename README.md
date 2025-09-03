@@ -28,9 +28,13 @@ Our core philosophy: **We hide the complexity, not the logic.**
 
 ---
 
+<div align="center">
+   
 ### Watch EpicStaff in Action!
 
-[![Watch the EpicStaff Demo](https://img.youtube.com/vi/fEaBBupvWRE/maxresdefault.jpg)](https://youtu.be/fEaBBupvWRE)
+![Watch the EpicStaff Demo](https://github.com/EpicStaff/EpicStaff/blob/2913561e9a20f1a38f1471c3b86d9a8b8d6ef2f8/1756889065163750.gif?raw=true)
+
+</div>
 
 ---
 
@@ -90,7 +94,7 @@ Get full control with a modular transparent **open-source FastAPI backend**. Div
 
 ---
 
-## 🎯 Who is EpicStaff For?
+## Who is EpicStaff For?
 
 * **AI Developers** seeking a flexible **FastAPI agent framework** without rigid templates.
 * **Business Teams** who need to quickly **build custom AI workflows** for automation.
@@ -115,14 +119,14 @@ Here’s a quick look at how EpicStaff compares to other popular tools in the AI
 
 | Feature                        | Description                                                                                                                                                                                                   |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🧩 **Visual AI Workflow Builder** | Visually build, debug, and manage complex AI workflows with our intuitive **graphic interface**. This **no-code** tool is perfect for rapid prototyping and team collaboration.                                 |
-| 🧠 **Memory & Contextual Reasoning** | Implement robust **memory persistence**, allowing agents to retain context across multi-step workflows. Develop a powerful, **context-aware reasoning engine** for smarter decision-making.                   |
-| 📚 **Knowledge Injection (RAG)** | **Inject knowledge from files** and structured data to ground LLM responses, enhance accuracy and reduce hallucinations.                                                                                    |
-| 🐍 **Custom Python Tools** | Easily extend agent capabilities by connecting your own **Python tools**. Integrate any custom logic or API without needing to redeploy the entire system.                                                     |
-| ⚙️ **Full Developer Control via API** | Gain complete **control over the orchestration layer** via a flexible **RESTful API**. Manage task execution with **fine-grained task control** for maximum precision.                                     |
-| ⚡ **High-Performance Core** | Powered by a **high-performance asynchronous core** built with **FastAPI**. Our **event-driven architecture** is optimized for **low-latency** agent responses making it suitable for real-time applications. |
-| 🧱 **Modular & Extensible Backend** | We provide a **modular open-source backend** that is easy to extend and modify. Adapt the platform to the unique needs of your project.                                                               |
-| 🤖 **Multi-Agent Orchestration** | Design complex **multi-agent systems** where agents can collaborate to solve sophisticated problems. The platform is LLM-agnostic and supports any language model.                                          |
+|  **Visual AI Workflow Builder** | Visually build, debug, and manage complex AI workflows with our intuitive **graphic interface**. This **no-code** tool is perfect for rapid prototyping and team collaboration.                                 |
+|  **Memory & Contextual Reasoning** | Implement robust **memory persistence**, allowing agents to retain context across multi-step workflows. Develop a powerful, **context-aware reasoning engine** for smarter decision-making.                   |
+|  **Knowledge Injection (RAG)** | **Inject knowledge from files** and structured data to ground LLM responses, enhance accuracy and reduce hallucinations.                                                                                    |
+|  **Custom Python Tools** | Easily extend agent capabilities by connecting your own **Python tools**. Integrate any custom logic or API without needing to redeploy the entire system.                                                     |
+|  **Full Developer Control via API** | Gain complete **control over the orchestration layer** via a flexible **RESTful API**. Manage task execution with **fine-grained task control** for maximum precision.                                     |
+|  **High-Performance Core** | Powered by a **high-performance asynchronous core** built with **FastAPI**. Our **event-driven architecture** is optimized for **low-latency** agent responses making it suitable for real-time applications. |
+|  **Modular & Extensible Backend** | We provide a **modular open-source backend** that is easy to extend and modify. Adapt the platform to the unique needs of your project.                                                               |
+|  **Multi-Agent Orchestration** | Design complex **multi-agent systems** where agents can collaborate to solve sophisticated problems. The platform is LLM-agnostic and supports any language model.                                          |
 
 ---
 
@@ -130,10 +134,10 @@ Here’s a quick look at how EpicStaff compares to other popular tools in the AI
 
 **Mission:** To empower teams to build intelligent AI agents: quickly, collaboratively and without unnecessary complexity.
 
-* 💎 **Clarity over complexity:** We hide the overhead, not the logic.
-* 🤝 **Collaboration by design:** Visual-first for non-technical users, full code flexibility for developers.
-* ⚙️ **Developer Respect:** No black boxes. Just a clean, extensible architecture that gives engineers the control they need.
-* 🌐 **Open by Default:** Fully open-source, modular and community-driven.
+*  **Clarity over complexity:** We hide the overhead, not the logic.
+*  **Collaboration by design:** Visual-first for non-technical users, full code flexibility for developers.
+*  **Developer Respect:** No black boxes. Just a clean, extensible architecture that gives engineers the control they need.
+*  **Open by Default:** Fully open-source, modular and community-driven.
 
 ---
 
