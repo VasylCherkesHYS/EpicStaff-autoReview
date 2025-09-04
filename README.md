@@ -159,3 +159,12 @@ EpicStaff is an open-source project driven by its community. Whether you're a de
 
 **Let's build the future of intelligent, collaborative systems together!**
 
+## 🙏 Special Thanks
+
+Our platform leverages the innovative work of the open-source community. A special thank you goes out to **[Foblex](https://github.com/Foblex)** for their collaboration and fantastic contributions.
+
+* We proudly use the **[f-flow library](https://github.com/Foblex/f-flow)** which is a core part of our architecture.
+* Foblex helps us spread the word by featuring EpicStaff in his articles and educational materials. You can check out his work at **[flow.foblex.com](https://flow.foblex.com/)**.
+
+We believe in the power of collaboration and are grateful for such a great partnership.
+
