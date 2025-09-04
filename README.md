@@ -154,9 +154,8 @@ Here’s a quick look at how EpicStaff compares to other popular tools in the AI
 EpicStaff is an open-source project driven by its community. Whether you're a developer, a no-code enthusiast, or a business professional, your feedback and contributions are what make this project grow.
 
 * **⭐ Star the Repository:** The easiest way to show your support and stay updated.
-* **🗣️ Join the Discussion:** Have a question, an idea for a new feature, or want to showcase what you've built? Head over to our [GitHub Discussions](https://github.com/EpicStaff/EpicStaff/discussions).
-* **💬 Connect on Discord:** For real-time chat with the community and the core team, join our [Discord Server](https://discord.gg/qF5bvqjS). 
-* **🤝 Contribute:** Found a bug or want to add a new tool? Check out our [CONTRIBUTING.md](link-to-your-contributing-file) to get started. We welcome all contributors!
+* **💬 Connect on Discord:** For real-time chat with the community and the core team, join our [Reddit Community](https://www.reddit.com/r/EpicStaff_AI/). 
+* **🤝 Contribute:** Found a bug or want to add a new tool? Check out our [CONTRIBUTING.md](CONTRIBUTING.md) to get started. We welcome all contributors!
 
 **Let's build the future of intelligent, collaborative systems together!**
 
