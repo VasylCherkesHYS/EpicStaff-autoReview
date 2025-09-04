@@ -65,10 +65,6 @@ Ready to write some code? Here’s how to get started. We have a list of beginne
 3.  The core team will review your PR. We may suggest some changes or improvements.
 4.  Once your PR is approved and all automated checks have passed, it will be merged into the `main` branch. Thank you for your contribution!
 
-## Style Guides
-
-We use **Black** for Python code formatting. Please run it on your code before committing to ensure a consistent style.
-
 ## Any Questions?
 
 If you get stuck or have any questions, don't hesitate to ask in our [GitHub Discussions](https://github.com/EpicStaff/EpicStaff/discussions) or join our [Reddit Community](https://www.reddit.com/r/EpicStaff_AI/).
