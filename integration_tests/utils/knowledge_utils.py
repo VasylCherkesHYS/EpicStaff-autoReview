@@ -95,7 +95,7 @@ async def knowledge_search(knowledge_collection_id, query, redis_service) -> lis
         await pubsub.unsubscribe()
 
 
-def create_source_collection(embedder_config_id: int) -> int:
+def create_source_collection(auth_headers: dict, embedder_config_id: int) -> int:
     """Create a source collection for testing."""
     url = f"{DJANGO_URL}/source-collections/"
 
@@ -146,7 +146,7 @@ def create_source_collection(embedder_config_id: int) -> int:
     return source_collection_data["collection_id"]
 
 
-def knowledge_clean_up(collection_id: int):
+def knowledge_clean_up(auth_headers: dict, collection_id: int):
     """Clean up the collection after testing."""
     url = f"{DJANGO_URL}/source-collections/{collection_id}/"
     response = requests.delete(url, headers={"Host": rhost})
@@ -159,7 +159,9 @@ def knowledge_clean_up(collection_id: int):
         )
 
 
-def check_statuses_for_embedding_creation(collection_id: int, max_timeout: int = 20):
+def check_statuses_for_embedding_creation(
+    auth_headers: dict, collection_id: int, max_timeout: int = 20
+):
     """Wait and check for the completion of embedding creation."""
     logger.info(f"Waiting for collection {collection_id} to be ready...")
     time.sleep(2)
@@ -192,7 +194,7 @@ def check_statuses_for_embedding_creation(collection_id: int, max_timeout: int =
     ), "Documents are still being processed"
 
 
-def get_embedder_model(name: str = "text-embedding-3-small") -> int:
+def get_embedder_model(auth_headers: dict, name: str = "text-embedding-3-small") -> int:
     """Get embedder model ID by name."""
     embedder_model_response = requests.get(
         f"{DJANGO_URL}/embedding-models/?name={name}", headers={"Host": rhost}
@@ -206,7 +208,7 @@ def get_embedder_model(name: str = "text-embedding-3-small") -> int:
     return results[0]["id"]
 
 
-def get_or_create_embedder_config(embedder_model_id: int) -> int:
+def get_or_create_embedder_config(auth_headers: dict, embedder_model_id: int) -> int:
     """Get or create embedder configuration."""
     embedder_config_data = {
         "custom_name": "MyTestEmbedderConfig",

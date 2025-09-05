@@ -43,10 +43,10 @@ def _get_docker_host_from_context() -> str | None:
             docker_host = contexts[0]["Endpoints"]["docker"]["Host"]
             return docker_host
     except (
-            subprocess.CalledProcessError,
-            KeyError,
-            IndexError,
-            json.JSONDecodeError,
+        subprocess.CalledProcessError,
+        KeyError,
+        IndexError,
+        json.JSONDecodeError,
     ):
         return None
 
@@ -79,7 +79,9 @@ def is_container_running(container_name: str) -> bool:
 
 
 def validate_task_and_session(task_name, task_id, agent_id, session_id):
-    task_response = requests.get(f"{DJANGO_URL}/task-messages/?session_id={session_id}", headers={"Host": rhost})
+    task_response = requests.get(
+        f"{DJANGO_URL}/task-messages/?session_id={session_id}", headers={"Host": rhost}
+    )
     validate_response(task_response)
     task_message = task_response.json()
 
@@ -93,7 +95,9 @@ def validate_task_and_session(task_name, task_id, agent_id, session_id):
     assert task_message["results"][0]["task"] == task_id, "Task ID mismatch"
     assert task_message["results"][0]["name"] == task_name, "Task name mismatch"
 
-    session_response = requests.get(f"{DJANGO_URL}/sessions/{session_id}/", headers={"Host": rhost})
+    session_response = requests.get(
+        f"{DJANGO_URL}/sessions/{session_id}/", headers={"Host": rhost}
+    )
     validate_response(session_response)
     session_data = session_response.json()
 
@@ -102,13 +106,13 @@ def validate_task_and_session(task_name, task_id, agent_id, session_id):
     ), "Session task name mismatch"
 
 
-def wait_for_results(session_id: int):
+def wait_for_results(auth_headers: dict, session_id: int):
     start_time = time.time()
     while True:
         if time.time() - start_time > MAX_SESSION_EXECUTION_TIME_SECONDS:
             raise TimeoutError()
         check_containers()
-        status = get_session_status(session_id=session_id)
+        status = get_session_status(auth_headers, session_id=session_id)
 
         if status == "error":
             logger.error(f"Session status is {status}")
@@ -121,7 +125,9 @@ def wait_for_results(session_id: int):
             break
 
         time.sleep(2)
-    session_message_list = get_graph_session_messages(session_id=session_id)
+    session_message_list = get_graph_session_messages(
+        auth_headers, session_id=session_id
+    )
     logger.info(f"Messages: \n{session_message_list}")
     assert len(session_message_list) != 0
 
@@ -168,22 +174,25 @@ def check_containers():
             assert False, f'Container "{name}" not running'
 
 
-def get_graph_session_messages(session_id: int) -> list:
+def get_graph_session_messages(auth_headers: dict, session_id: int) -> list:
     session_response = requests.get(
-        f"{DJANGO_URL}/graph-session-messages/?session_id={session_id}", headers={"Host": rhost}
+        f"{DJANGO_URL}/graph-session-messages/?session_id={session_id}",
+        headers={"Host": rhost},
     )
     validate_response(session_response)
     return session_response.json()["results"]
 
 
 def get_session_status(session_id: int) -> str:
-    session_response = requests.get(f"{DJANGO_URL}/sessions/{session_id}/", headers={"Host": rhost})
+    session_response = requests.get(
+        f"{DJANGO_URL}/sessions/{session_id}/", headers={"Host": rhost}
+    )
     validate_response(session_response)
 
     return session_response.json()["status"]
 
 
-def run_session(graph_id: int, variables: dict | None = None):
+def run_session(auth_headers: dict, graph_id: int, variables: dict | None = None):
     if variables is None:
         variables = dict()
 
@@ -191,42 +200,52 @@ def run_session(graph_id: int, variables: dict | None = None):
         "graph_id": graph_id,
         "variables": variables,
     }
-    run_crew_response = requests.post(f"{DJANGO_URL}/run-session/", json=run_data, headers={"Host": rhost})
+    run_crew_response = requests.post(
+        f"{DJANGO_URL}/run-session/", json=run_data, headers={"Host": rhost}
+    )
     validate_response(run_crew_response)
     return run_crew_response.json()["session_id"]
 
 
-def create_tool_config(*args, **kwargs) -> int:
+def create_tool_config(auth_headers: dict, *args, **kwargs) -> int:
 
-    tool_config_response = requests.post(f"{DJANGO_URL}/tool-configs/", json=kwargs, headers={"Host": rhost})
+    tool_config_response = requests.post(
+        f"{DJANGO_URL}/tool-configs/", json=kwargs, headers={"Host": rhost}
+    )
     validate_response(tool_config_response)
     return tool_config_response.json()["id"]
 
 
 def create_task(*args, **kwargs) -> tuple:
-    tasks_response = requests.post(f"{DJANGO_URL}/tasks/", json=kwargs, headers={"Host": rhost})
+    tasks_response = requests.post(
+        f"{DJANGO_URL}/tasks/", json=kwargs, headers={"Host": rhost}
+    )
     validate_response(tasks_response)
 
     return tasks_response.json()["id"], tasks_response.json()["name"]
 
 
 def create_crew(*args, **kwargs) -> int:
-    crew_response = requests.post(f"{DJANGO_URL}/crews/", json=kwargs, headers={"Host": rhost})
+    crew_response = requests.post(
+        f"{DJANGO_URL}/crews/", json=kwargs, headers={"Host": rhost}
+    )
     validate_response(crew_response)
     return crew_response.json()["id"]
 
 
-def create_agent(*args, **kwargs) -> int:
+def create_agent(auth_headers: dict, *args, **kwargs) -> int:
     kwargs["configured_tools"] = kwargs.get("configured_tools") or []
     kwargs["python_code_tools"] = kwargs.get("python_code_tools") or []
 
-    agent_response = requests.post(f"{DJANGO_URL}/agents/", json=kwargs, headers={"Host": rhost})
+    agent_response = requests.post(
+        f"{DJANGO_URL}/agents/", json=kwargs, headers={"Host": rhost}
+    )
     validate_response(agent_response)
 
     return agent_response.json()["id"]
 
 
-def create_config(llm_id: int) -> int:
+def create_config(auth_headers: dict, llm_id: int) -> int:
     llm_config_data = {
         "custom_name": "MyLLMConfig",
         "model": llm_id,
@@ -235,7 +254,7 @@ def create_config(llm_id: int) -> int:
 
     llm_config_response = requests.get(
         f"{DJANGO_URL}/llm-configs?custom_name={llm_config_data['custom_name']}",
-        headers={"Host": rhost}
+        headers={"Host": rhost},
     )
     llm_config = None
     if llm_config_response.ok:
@@ -253,7 +272,7 @@ def create_config(llm_id: int) -> int:
     return llm_config["id"]
 
 
-def set_openai_api_key_to_environment() -> None:
+def set_openai_api_key_to_environment(auth_headers: dict) -> None:
     OPENAI_API_KEY = os.environ.get("OPENAI_KEY", None)
 
     if OPENAI_API_KEY is None:
@@ -270,6 +289,7 @@ def set_openai_api_key_to_environment() -> None:
     )
     validate_response(response)
 
+
 def get_tool(tool_alias: str) -> int:
     response_tools = requests.get(f"{DJANGO_URL}/tools/", headers={"Host": rhost})
     validate_response(response_tools)
@@ -280,7 +300,9 @@ def get_tool(tool_alias: str) -> int:
     return tool[0]["id"]
 
 
-def create_graph(graph_name: str, entry_point: str | None = None) -> int:
+def create_graph(
+    auth_headers: dict, graph_name: str, entry_point: str | None = None
+) -> int:
     graph_data = {
         "name": graph_name,
         "entry_point": entry_point,
@@ -288,12 +310,15 @@ def create_graph(graph_name: str, entry_point: str | None = None) -> int:
         "metadata": {"key": "var"},
     }
 
-    create_graph_response = requests.post(f"{DJANGO_URL}/graphs/", json=graph_data, headers={"Host": rhost})
+    create_graph_response = requests.post(
+        f"{DJANGO_URL}/graphs/", json=graph_data, headers={"Host": rhost}
+    )
     validate_response(create_graph_response)
     return create_graph_response.json()["id"]
 
 
 def create_python_code_tool(
+    auth_headers: dict,
     name: str,
     description: str,
     args_schema: dict,
@@ -316,14 +341,18 @@ def create_python_code_tool(
         "args_schema": args_schema,
     }
 
-    response = requests.post(f"{DJANGO_URL}/python-code-tool/", json=tool_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/python-code-tool/", json=tool_data, headers={"Host": rhost}
+    )
     validate_response(response)
 
     return response.json()["id"]
 
 
 def get_python_code_tool_by_name(name: str) -> int | None:
-    response = requests.get(f"{DJANGO_URL}/python-code-tool/?name={name}", headers={"Host": rhost})
+    response = requests.get(
+        f"{DJANGO_URL}/python-code-tool/?name={name}", headers={"Host": rhost}
+    )
     validate_response(response)
 
     results = response.json()["results"]
@@ -333,6 +362,7 @@ def get_python_code_tool_by_name(name: str) -> int | None:
 
 
 def create_python_node(
+    auth_headers: dict,
     graph: int,
     node_name: str,
     code: str,
@@ -358,12 +388,15 @@ def create_python_node(
         "output_variable_path": output_variable_path,
     }
 
-    response = requests.post(f"{DJANGO_URL}/pythonnodes/", json=python_node_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/pythonnodes/", json=python_node_data, headers={"Host": rhost}
+    )
     validate_response(response)
     return response.json()["id"]
 
 
 def create_crew_node(
+    auth_headers: dict,
     crew_id: int,
     node_name: str,
     graph_id: int,
@@ -378,12 +411,15 @@ def create_crew_node(
         "output_variable_path": output_variable_path,
     }
 
-    response = requests.post(f"{DJANGO_URL}/crewnodes/", json=crew_node_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/crewnodes/", json=crew_node_data, headers={"Host": rhost}
+    )
     validate_response(response)
     return response.json()["id"]
 
 
 def create_llm_node(
+    auth_headers: dict,
     llm_config_id: int,
     node_name: str,
     graph_id: int,
@@ -398,22 +434,27 @@ def create_llm_node(
         "output_variable_path": output_variable_path,
     }
 
-    response = requests.post(f"{DJANGO_URL}/llmnodes/", json=llm_node_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/llmnodes/", json=llm_node_data, headers={"Host": rhost}
+    )
     validate_response(response)
     return response.json()["id"]
 
 
-def create_edge(start_key: str, end_key: str, graph: int) -> int:
+def create_edge(auth_headers: dict, start_key: str, end_key: str, graph: int) -> int:
 
     edge_data = {"start_key": start_key, "end_key": end_key, "graph": graph}
 
-    response = requests.post(f"{DJANGO_URL}/edges/", json=edge_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/edges/", json=edge_data, headers={"Host": rhost}
+    )
     validate_response(response)
 
     return response.json()["id"]
 
 
 def create_conditional_edge(
+    auth_headers: dict,
     source: str,
     graph: int,
     code: str,
@@ -438,14 +479,16 @@ def create_conditional_edge(
     }
 
     response = requests.post(
-        f"{DJANGO_URL}/conditionaledges/", json=conditional_edge_data, headers={"Host": rhost}
+        f"{DJANGO_URL}/conditionaledges/",
+        json=conditional_edge_data,
+        headers={"Host": rhost},
     )
     validate_response(response)
 
     return response.json()["id"]
 
 
-def create_start_node(graph_id: int, variables: dict | None = None):
+def create_start_node(auth_headers: dict, graph_id: int, variables: dict | None = None):
     if variables is None:
         variables = dict()
     create_start_node_data = {
@@ -453,7 +496,10 @@ def create_start_node(graph_id: int, variables: dict | None = None):
         "variables": variables,
     }
 
-    response = requests.post(f"{DJANGO_URL}/startnodes/", json=create_start_node_data, headers={"Host": rhost})
+    response = requests.post(
+        f"{DJANGO_URL}/startnodes/",
+        json=create_start_node_data,
+        headers={"Host": rhost},
+    )
     validate_response(response)
     return response.json()["id"]
-

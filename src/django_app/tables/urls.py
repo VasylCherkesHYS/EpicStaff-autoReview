@@ -1,5 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from tables.views.auth_views import LoginAPIView
+from rest_framework_simplejwt.views import (
+    TokenRefreshView,
+)
 
 from tables.views.model_view_sets import (
     ConditionGroupModelViewSet,
@@ -119,7 +123,6 @@ router.register(r"realtime-session-items", RealtimeSessionItemViewSet)
 router.register(r"realtime-agents", RealtimeAgentViewSet)
 router.register(r"realtime-agent-chats", RealtimeAgentChatViewSet)
 
-
 router.register(r"decision-table-node", DecisionTableNodeModelViewSet)
 router.register(r"condition-group", ConditionGroupModelViewSet)
 router.register(r"condition", ConditionModelViewSet)
@@ -204,4 +207,6 @@ urlpatterns = [
         RunSessionSSEViewSwagger.as_view(),
         name="run-session-subscribe-swagger",
     ),
+    path("login/", LoginAPIView.as_view(), name="api_login"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 ]

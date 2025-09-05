@@ -10,24 +10,25 @@ from loguru import logger
 from utils.variables import MANAGER_URL
 
 
-def test_create_and_run_session():
+def test_create_and_run_session(auth_headers):
 
     # TODO: create a function to ensure container is running
     sleep(1)  # sleep to make sure that predifined models uploaded
     set_openai_api_key_to_environment()
 
     # Create configurations
-    llm_id = get_llm_model()
-    config_id = create_config(llm_id=llm_id)
-    config_id_2 = create_config(llm_id=llm_id)
+    llm_id = get_llm_model(auth_headers)
+    config_id = create_config(auth_headers, llm_id=llm_id)
+    config_id_2 = create_config(auth_headers, llm_id=llm_id)
 
-    wikipedia_crew_id = create_wikipedia_crew(config_id)
-    author_crew_id = create_author_crew(config_id_2)
-    user_crew_id = create_user_crew(config_id)
+    wikipedia_crew_id = create_wikipedia_crew(auth_headers, config_id)
+    author_crew_id = create_author_crew(auth_headers, config_id_2)
+    user_crew_id = create_user_crew(auth_headers, config_id)
 
-    graph_id = create_graph("Integration graph2")  # TODO: Change this
+    graph_id = create_graph(auth_headers, "Integration graph2")  # TODO: Change this
 
     create_crew_node(
+        auth_headers,
         crew_id=wikipedia_crew_id,
         node_name="wiki_crew_node",
         graph_id=graph_id,
@@ -35,6 +36,7 @@ def test_create_and_run_session():
         output_variable_path="variables",
     )
     create_crew_node(
+        auth_headers,
         crew_id=author_crew_id,
         node_name="author_crew_node",
         graph_id=graph_id,
@@ -44,6 +46,7 @@ def test_create_and_run_session():
         output_variable_path="variables.result",
     )
     create_crew_node(
+        auth_headers,
         crew_id=user_crew_id,
         node_name="user_crew_node",
         graph_id=graph_id,
@@ -53,6 +56,7 @@ def test_create_and_run_session():
         output_variable_path="variables",
     )
     create_llm_node(
+        auth_headers,
         llm_config_id=config_id,
         node_name="llm_node1",
         graph_id=graph_id,
@@ -61,21 +65,35 @@ def test_create_and_run_session():
         },
         output_variable_path="variables",
     )
-    create_start_node(graph_id=graph_id)
-    create_hash_message_python_node(graph_id=graph_id)
-    create_option_1_python_node(graph_id=graph_id)
-    create_option_2_python_node(graph_id=graph_id)
-    create_edge(start_key="__start__", end_key="hash_message", graph=graph_id)
-    create_edge(start_key="hash_message", end_key="user_crew_node", graph=graph_id)
-    create_user_name_conditional_edge(source="user_crew_node", graph=graph_id)
+    create_start_node(auth_headers, graph_id=graph_id)
+    create_hash_message_python_node(auth_headers, graph_id=graph_id)
+    create_option_1_python_node(auth_headers, graph_id=graph_id)
+    create_option_2_python_node(auth_headers, graph_id=graph_id)
+    create_edge(
+        auth_headers, start_key="__start__", end_key="hash_message", graph=graph_id
+    )
+    create_edge(
+        auth_headers, start_key="hash_message", end_key="user_crew_node", graph=graph_id
+    )
+    create_user_name_conditional_edge(
+        auth_headers, source="user_crew_node", graph=graph_id
+    )
 
-    create_edge(start_key="option_1", end_key="llm_node1", graph=graph_id)
+    create_edge(auth_headers, start_key="option_1", end_key="llm_node1", graph=graph_id)
 
-    create_edge(start_key="option_2", end_key="author_crew_node", graph=graph_id)
-    create_edge(start_key="author_crew_node", end_key="wiki_crew_node", graph=graph_id)
+    create_edge(
+        auth_headers, start_key="option_2", end_key="author_crew_node", graph=graph_id
+    )
+    create_edge(
+        auth_headers,
+        start_key="author_crew_node",
+        end_key="wiki_crew_node",
+        graph=graph_id,
+    )
 
     # Run sessions
     session1 = run_session(
+        auth_headers,
         graph_id=graph_id,
         variables={"user_id": 14, "secret_message": "hello, crew"},
     )
@@ -87,13 +105,13 @@ def test_create_and_run_session():
     # )
     # logger.success(f"Session with id {session2} created, yay!")
 
-    wait_for_results(session_id=session1)
+    wait_for_results(auth_headers, session_id=session1)
     # wait_for_results(session_id=session2)
     delete_session(session_id=session1)
 
 
 @pytest.mark.asyncio
-async def test_knowledges(collection_id, redis_service):
+async def test_knowledges(auth_headers, collection_id, redis_service):
     """Knowledges created in 'collection_id' fixture"""
     test_query = "What makes MYM different from other logistics platforms?"
 
@@ -117,15 +135,16 @@ async def test_knowledges(collection_id, redis_service):
 @pytest.mark.skip
 def test_get_tool_class_data():
 
-    tool_list_response = requests.get(f"{MANAGER_URL}/tool/list", headers={"Host": rhost})
+    tool_list_response = requests.get(
+        f"{MANAGER_URL}/tool/list", headers={"Host": rhost}
+    )
     validate_response(response=tool_list_response)
     tool_alias_list = tool_list_response.json()["tool_list"]
 
     error_tools = []
     for tool_alias in tool_alias_list:
         tool_class_data_response = requests.get(
-            f"{MANAGER_URL}/tool/{tool_alias}/class-data",
-            headers={"Host": rhost}
+            f"{MANAGER_URL}/tool/{tool_alias}/class-data", headers={"Host": rhost}
         )
         try:
             validate_response(response=tool_class_data_response)
@@ -140,55 +159,63 @@ def test_get_tool_class_data():
         assert False, str(error_tools)
 
 
-def create_wikipedia_crew(llm_config_id):
+def create_wikipedia_crew(auth_headers: dict, llm_config_id):
     # Create Wikipedia agent and crew
-    wikipedia_tool_config_id = create_wikipedia_tool_config()
+    wikipedia_tool_config_id = create_wikipedia_tool_config(auth_headers)
     wiki_agent_id = create_wiki_agent(
-        tool_config_id_list=[wikipedia_tool_config_id], config_id=llm_config_id
+        auth_headers,
+        tool_config_id_list=[wikipedia_tool_config_id],
+        config_id=llm_config_id,
     )
-    wiki_crew_id = create_crew(name="WIKIPEDIA CREW", agents=[wiki_agent_id])
+    wiki_crew_id = create_crew(
+        auth_headers, name="WIKIPEDIA CREW", agents=[wiki_agent_id]
+    )
     wiki_task_id, wiki_task_name = create_wiki_task(
-        crew_id=wiki_crew_id, agent_id=wiki_agent_id
+        auth_headers, crew_id=wiki_crew_id, agent_id=wiki_agent_id
     )
     return wiki_crew_id
 
 
-def create_user_crew(llm_config_id):
+def create_user_crew(auth_headers: dict, llm_config_id):
     # Create Wikipedia agent and crew
-    user_python_code_tool_id = create_user_python_code_tool()
+    user_python_code_tool_id = create_user_python_code_tool(auth_headers)
     user_agent_id = create_user_agent(
+        auth_headers,
         config_id=llm_config_id,
         python_code_tool_id_list=[user_python_code_tool_id],
     )
-    user_crew_id = create_crew(name="USER CREW", agents=[user_agent_id])
-    task_id, task_name = create_user_task(crew_id=user_crew_id, agent_id=user_agent_id)
+    user_crew_id = create_crew(auth_headers, name="USER CREW", agents=[user_agent_id])
+    task_id, task_name = create_user_task(
+        auth_headers, crew_id=user_crew_id, agent_id=user_agent_id
+    )
     return user_crew_id
 
 
-def create_author_crew(llm_config_id):
-    author_agent_id = create_author_agent(config_id=llm_config_id)
+def create_author_crew(auth_headers: dict, llm_config_id):
+    author_agent_id = create_author_agent(auth_headers, config_id=llm_config_id)
     author_crew_id = create_crew(
+        auth_headers,
         name="AUTHOR CREW",
         agents=[author_agent_id],
     )
     author_task_id, author_task_name = create_poem_task(
-        crew_id=author_crew_id, agent_id=author_agent_id
+        auth_headers, crew_id=author_crew_id, agent_id=author_agent_id
     )
     return author_crew_id
 
 
-def create_wikipedia_tool_config() -> int:
-    wikipedia_tool_id = get_tool("wikipedia")
+def create_wikipedia_tool_config(auth_headers: dict) -> int:
+    wikipedia_tool_id = get_tool(auth_headers, "wikipedia")
 
     tool_config_data = {
         "name": "integration test wiki tool config",
         "tool": wikipedia_tool_id,
         "configuration": {},
     }
-    return create_tool_config(**tool_config_data)
+    return create_tool_config(auth_headers, **tool_config_data)
 
 
-def create_wiki_task(crew_id: int, agent_id: int) -> tuple:
+def create_wiki_task(auth_headers: dict, crew_id: int, agent_id: int) -> tuple:
     task_data = {
         "name": f"Test wiki task {random.randint(1,100000)}",
         "instructions": "Find inpormation about cars",
@@ -198,10 +225,10 @@ def create_wiki_task(crew_id: int, agent_id: int) -> tuple:
         "agent": agent_id,
     }
 
-    return create_task(**task_data)
+    return create_task(auth_headers, **task_data)
 
 
-def create_poem_task(crew_id: int, agent_id: int) -> tuple:
+def create_poem_task(auth_headers: dict, crew_id: int, agent_id: int) -> tuple:
 
     task_data = {
         "name": f"Test write poem task {random.randint(1,100000)}",
@@ -211,10 +238,10 @@ def create_poem_task(crew_id: int, agent_id: int) -> tuple:
         "crew": crew_id,
         "agent": agent_id,
     }
-    return create_task(**task_data)
+    return create_task(auth_headers, **task_data)
 
 
-def create_user_task(crew_id: int, agent_id: int) -> tuple:
+def create_user_task(auth_headers: dict, crew_id: int, agent_id: int) -> tuple:
 
     task_data = {
         "name": f"user task",
@@ -234,10 +261,11 @@ def create_user_task(crew_id: int, agent_id: int) -> tuple:
             },
         },
     }
-    return create_task(**task_data)
+    return create_task(auth_headers, **task_data)
 
 
 def create_wiki_agent(
+    auth_headers: dict,
     tool_config_id_list: list,
     config_id: int,
 ) -> int:
@@ -252,10 +280,11 @@ def create_wiki_agent(
         "llm_config": config_id,
         "fcm_llm_config": config_id,
     }
-    return create_agent(**agent_data)
+    return create_agent(auth_headers, **agent_data)
 
 
 def create_author_agent(
+    auth_headers: dict,
     config_id: int,
 ) -> int:
     agent_data = {
@@ -268,10 +297,12 @@ def create_author_agent(
         "llm_config": config_id,
         "fcm_llm_config": config_id,
     }
-    return create_agent(**agent_data)
+    return create_agent(auth_headers, **agent_data)
 
 
-def create_user_agent(config_id: int, python_code_tool_id_list: list[int]) -> int:
+def create_user_agent(
+    auth_headers: dict, config_id: int, python_code_tool_id_list: list[int]
+) -> int:
     agent_data = {
         "role": "User Agent",
         "goal": "Persorm user related actions",
@@ -283,10 +314,10 @@ def create_user_agent(config_id: int, python_code_tool_id_list: list[int]) -> in
         "llm_config": config_id,
         "fcm_llm_config": config_id,
     }
-    return create_agent(**agent_data)
+    return create_agent(auth_headers, **agent_data)
 
 
-def create_user_python_code_tool() -> int:
+def create_user_python_code_tool(auth_headers: dict) -> int:
 
     code = """
 def main(user_id: int):
@@ -317,14 +348,14 @@ def main(user_id: int):
         "global_kwargs": {"state": test_state},
         "args_schema": args_schema,
     }
-    tool = get_python_code_tool_by_name(tool_data["name"])
+    tool = get_python_code_tool_by_name(auth_headers, tool_data["name"])
     if tool is not None:
         tool_data["name"] = f"{tool_data['name']}_{str(uuid.uuid4())}"
-    tool = create_python_code_tool(**tool_data)
+    tool = create_python_code_tool(auth_headers, **tool_data)
     return tool
 
 
-def create_hash_message_python_node(graph_id: int) -> int:
+def create_hash_message_python_node(auth_headers: dict, graph_id: int) -> int:
     code = """
 import hashlib
 def main(user_id: int, secret_message: str):
@@ -346,10 +377,10 @@ def main(user_id: int, secret_message: str):
         "output_variable_path": "variables",
     }
 
-    return create_python_node(**python_node_data)
+    return create_python_node(auth_headers, **python_node_data)
 
 
-def create_option_1_python_node(graph_id: int) -> int:
+def create_option_1_python_node(auth_headers: dict, graph_id: int) -> int:
     code = """
 def main(*args, **kwargs):
     return {'query': f"Famous {kwargs.get('user_name')}s in the world"}
@@ -367,10 +398,10 @@ def main(*args, **kwargs):
         },
         "output_variable_path": "variables",
     }
-    return create_python_node(**python_node_data)
+    return create_python_node(auth_headers, **python_node_data)
 
 
-def create_option_2_python_node(graph_id: int) -> int:
+def create_option_2_python_node(auth_headers: dict, graph_id: int) -> int:
     code = """
 def main(*args, **kwargs):
     return {'result': "option_2"}
@@ -389,10 +420,10 @@ def main(*args, **kwargs):
         "output_variable_path": "variables",
     }
 
-    return create_python_node(**python_node_data)
+    return create_python_node(auth_headers, **python_node_data)
 
 
-def create_user_name_conditional_edge(source: str, graph: int):
+def create_user_name_conditional_edge(auth_headers: dict, source: str, graph: int):
     code = """
 def main():
     user_name = state["variables"]["user_name"]
@@ -408,11 +439,13 @@ def main():
         "graph": graph,
         "code": code,
     }
-    return create_conditional_edge(**conditional_edge_data)
+    return create_conditional_edge(auth_headers, **conditional_edge_data)
 
 
 def get_llm_model(name: str = "gpt-4o-mini"):
-    llm_model_response = requests.get(f"{DJANGO_URL}/llm-models?name={name}", headers={"Host": rhost})
+    llm_model_response = requests.get(
+        f"{DJANGO_URL}/llm-models?name={name}", headers={"Host": rhost}
+    )
     llm_model = None
     if llm_model_response.ok:
         results = llm_model_response.json()["results"]

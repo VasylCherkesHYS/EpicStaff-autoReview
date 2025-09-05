@@ -14,6 +14,7 @@ python manage.py migrate
 # Upload models (custom command)
 echo "Uploading models..."
 python manage.py upload_models
+python manage.py create_super_user
 
 # Collect static files for production server
 echo "Collects static"

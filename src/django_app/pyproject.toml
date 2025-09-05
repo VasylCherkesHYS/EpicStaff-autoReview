@@ -28,6 +28,7 @@ litellm = "1.67.0"
 django-redis = "^5.4.0"
 uvicorn = "^0.34.2"
 gunicorn = "^23.0.0"
+djangorestframework-simplejwt = "^5.5.0"
 
 
 [tool.pytest.ini_options]

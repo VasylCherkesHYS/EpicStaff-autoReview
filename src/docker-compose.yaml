@@ -32,6 +32,8 @@ services:
 
       - GUNICORN_WORKERS=${GUNICORN_WORKERS}
       - GUNICORN_THREADS=${GUNICORN_THREADS}
+      - SUPERUSER_NAME=superuser_name
+      - SUPERUSER_PASSWORD=superuser_password
     volumes:
       - crew_config:/home/user/root/app/env_config
 
