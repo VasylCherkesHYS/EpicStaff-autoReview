@@ -170,10 +170,18 @@ def check_statuses_for_embedding_creation(collection_id: int, max_timeout: int =
             f"{DJANGO_URL}/collection_status/{collection_id}/", headers={"Host": rhost}
         )
         validate_response(response)
-        collection_status_data = response.json()
-        logger.info(f"collection_status_data: {collection_status_data}")
+        collection_statuses_data = response.json()
+        collection_data = next(
+            (
+                c_data
+                for c_data in collection_statuses_data
+                if c_data["collection_id"] == collection_id
+            ),
+            None,
+        )
+        logger.info(f"collection_status_data: {collection_data}")
 
-        if collection_status_data["collection_status"] == "completed":
+        if collection_data["collection_status"] == "completed":
             break
     else:
         # This runs if the for loop completes without a break
@@ -181,14 +189,11 @@ def check_statuses_for_embedding_creation(collection_id: int, max_timeout: int =
 
     # Verify collection statuses
     assert (
-        collection_status_data["total_documents"]
-        == collection_status_data["completed_documents"]
+        collection_data["total_documents"] == collection_data["completed_documents"]
     ), "Not all documents were processed"
+    assert collection_data["failed_documents"] == 0, "Some documents failed processing"
     assert (
-        collection_status_data["failed_documents"] == 0
-    ), "Some documents failed processing"
-    assert (
-        collection_status_data["processing_documents"] == 0
+        collection_data["processing_documents"] == 0
     ), "Documents are still being processed"
 
 
