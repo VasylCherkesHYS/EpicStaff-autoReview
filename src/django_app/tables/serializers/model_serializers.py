@@ -2,7 +2,11 @@ from typing import Any, Literal
 from decimal import Decimal
 from itertools import chain
 
+from tables.models.domain_task_models import DomainTask
+from tables.models.python_models import Venv
 from tables.serializers.serializers import BaseToolSerializer
+
+
 from tables.models import (
     Agent,
     Task,
@@ -11,62 +15,52 @@ from tables.models import (
     TemplateAgent,
     Tool,
     ToolConfigField,
-)
-from tables.models import LLMConfig
-from tables.models import EmbeddingConfig
-from tables.models import EmbeddingModel
-from tables.models import LLMModel
-from tables.models import Provider
-from tables.models import Crew
-from tables.models import (
+    LLMConfig,
+    EmbeddingConfig,
+    EmbeddingModel,
+    LLMModel,
+    Provider,
+    Crew,
     ConditionalEdge,
     CrewNode,
     Edge,
     Graph,
     GraphSessionMessage,
     PythonNode,
-)
-from rest_framework import serializers
-from tables.exceptions import ToolConfigSerializerError
-from tables.models import PythonCode, PythonCodeResult, PythonCodeTool
-from tables.models.crew_models import (
+    Venv,
+    PythonCode,
+    PythonCodeResult,
+    PythonCodeTool,
     DefaultAgentConfig,
     DefaultCrewConfig,
     TaskPythonCodeTools,
-)
-from tables.models.embedding_models import DefaultEmbeddingConfig
-from tables.models.graph_models import (
+    TaskPythonCodeTools,
     Condition,
     ConditionGroup,
     DecisionTableNode,
     LLMNode,
     StartNode,
-)
-from tables.models.llm_models import (
+    DefaultEmbeddingConfig,
     DefaultLLMConfig,
     RealtimeModel,
     RealtimeConfig,
     RealtimeTranscriptionModel,
     RealtimeTranscriptionConfig,
-)
-from tables.models.realtime_models import (
     RealtimeSessionItem,
     RealtimeAgent,
     RealtimeAgentChat,
-)
-from tables.models.tag_models import AgentTag, CrewTag, GraphTag
-from tables.models.vector_models import MemoryDatabase
-from tables.validators.tool_config_validator import ToolConfigValidator, eval_any
-from tables.models import (
     AgentSessionMessage,
     TaskSessionMessage,
     Session,
     UserSessionMessage,
-)
-from tables.models import (
     ToolConfig,
 )
+from rest_framework import serializers
+from tables.exceptions import ToolConfigSerializerError
 
+from tables.models.tag_models import AgentTag, CrewTag, GraphTag
+from tables.models.vector_models import MemoryDatabase
+from tables.validators.tool_config_validator import ToolConfigValidator, eval_any
 
 from django.core.exceptions import ValidationError
 
@@ -136,33 +130,10 @@ class ToolSerializer(serializers.ModelSerializer):
 
 
 class PythonCodeSerializer(serializers.ModelSerializer):
-    libraries = serializers.ListField(
-        child=serializers.CharField(),
-        write_only=False,
-        help_text="A list of library names.",
-    )
 
     class Meta:
         model = PythonCode
         fields = "__all__"
-
-    def to_representation(self, instance):
-        """Convert 'libraries' string to a list of strings for output."""
-        representation = super().to_representation(instance)
-        representation["libraries"] = (
-            list(filter(None, instance.libraries.split(" ")))
-            if instance.libraries
-            else []
-        )
-        return representation
-
-    def to_internal_value(self, data):
-        """Convert 'libraries' list of strings to a space-separated string for storage."""
-        internal_value = super().to_internal_value(data)
-        libraries = data.get("libraries", [])
-        if isinstance(libraries, list):
-            internal_value["libraries"] = " ".join(libraries)
-        return internal_value
 
 
 class PythonCodeToolSerializer(serializers.ModelSerializer):
@@ -1057,4 +1028,49 @@ class GraphSerializer(serializers.ModelSerializer):
             "start_node_list",
             "time_to_live",
             "persistent_variables",
+        ]
+
+
+class VenvSerializer(serializers.ModelSerializer):
+    libraries = serializers.ListField(
+        child=serializers.CharField(),
+        write_only=False,
+        help_text="A list of library names.",
+    )
+
+    class Meta:
+        model = Venv
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        """Convert 'libraries' string to a list of strings for output."""
+        representation = super().to_representation(instance)
+        representation["libraries"] = (
+            list(filter(None, instance.libraries.split(" ")))
+            if instance.libraries
+            else []
+        )
+        return representation
+
+    def to_internal_value(self, data):
+        """Convert 'libraries' list of strings to a space-separated string for storage."""
+        internal_value = super().to_internal_value(data)
+        libraries = data.get("libraries", [])
+        if isinstance(libraries, list):
+            internal_value["libraries"] = " ".join(libraries)
+        return internal_value
+
+
+class DomainTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DomainTask
+        fields = [
+            "id",
+            "payload",
+            "type",
+            "status",
+            "message",
+            "data",
+            "created_at",
+            "updated_at",
         ]

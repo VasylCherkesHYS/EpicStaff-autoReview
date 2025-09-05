@@ -1,3 +1,4 @@
+import json
 import uuid
 import asyncio
 from typing import Any
@@ -28,28 +29,27 @@ class RunPythonCodeService(metaclass=SingletonMeta):
         global_kwargs = python_code_data.global_kwargs or {}
 
         unique_task_id = str(uuid.uuid4())
-        code_task_data = CodeTaskData(
-            venv_name=venv_name,
-            libraries=libraries,
-            code=code,
-            execution_id=unique_task_id,
-            entrypoint=entrypoint,
-            func_kwargs=inputs,
-            global_kwargs={
-                **global_kwargs,
-                **additional_global_kwargs,
+        
+        request_data = {
+            "id": unique_task_id,
+            "type": "execute_code",
+            "data": {
+                "venv_name": venv_name,
+                "code": code,
+                "entrypoint": entrypoint,
+                "func_kwargs": inputs,
+                "global_kwargs": {**global_kwargs, **additional_global_kwargs},
             },
-        )
+        }
+
+        
         callback_receiver = RunPythonCallbackReceiver(execution_id=unique_task_id)
 
         subscriber = AsyncPubsubSubscriber(callback_receiver.callback)
         await self.redis_service.asubscribe("code_results", subscriber=subscriber)
 
-        total_len = 0
-        for g in self.redis_service._async_pubsub_groups.values():
-            total_len += len(g._subscribers)
         await self.redis_service.apublish(
-            "code_exec_tasks", code_task_data.model_dump()
+            "code_exec_tasks", request_data
         )
         logger.info("Waiting for code_results")
 
@@ -66,9 +66,12 @@ class RunPythonCallbackReceiver:
         self.execution_id = execution_id
         self.results: dict[str, Any] | None = None
 
-    # @psutil_wrapper
     async def callback(self, message: dict[str, Any]):
-        code_result_data = CodeResultData.model_validate_json(message["data"])
-        if code_result_data.execution_id == self.execution_id:
-            self.results = code_result_data.model_dump()
+        code_result_data: dict = json.loads(message["data"])
+        execution_id = code_result_data.get("id")
+        data = code_result_data.get("data")
+        status = code_result_data.get("status")
+        execution_message = code_result_data.get("message", "Fatal error during code execution")
+        if execution_id == self.execution_id:
+            self.results = data if status == "success" else execution_message
             logger.info(f"Received code result for execution ID: {self.execution_id}")

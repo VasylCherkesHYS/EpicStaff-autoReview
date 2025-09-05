@@ -8,10 +8,14 @@ from django.db import transaction, IntegrityError, models
 from tables.models import GraphSessionMessage
 from tables.models import PythonCodeResult
 from tables.request_models import CodeResultData, GraphSessionMessageData
-from tables.services.session_manager_service import SessionManagerService
 from tables.models import Session
 from loguru import logger
+from tables.services.redis_service import RedisService
+from tables.services.venv_manager_service import VenvManagerService
 
+
+redis_service = RedisService()
+venv_manager_service = VenvManagerService(redis_service=redis_service)
 
 SESSION_STATUS_CHANNEL = os.environ.get(
     "SESSION_STATUS_CHANNEL", "sessions:session_status"
@@ -21,7 +25,12 @@ GRAPH_MESSAGES_CHANNEL = os.environ.get("GRAPH_MESSAGES_CHANNEL", "graph:message
 GRAPH_MESSAGE_UPDATE_CHANNEL = os.environ.get(
     "GRAPH_MESSAGE_UPDATE_CHANNEL", "graph:message:update"
 )
-
+SANDBOX_REQUEST_CHANNEL = os.environ.get(
+    "SANDBOX_REQUEST_CHANNEL", "sandbox"
+)
+SANDBOX_RESPONSE_CHANNEL = os.environ.get(
+    "SANDBOX_RESPONSE_CHANNEL", "sandbox-response"
+)
 
 class RedisPubSub:
 
@@ -78,6 +87,27 @@ class RedisPubSub:
             PythonCodeResult.objects.create(**data)
         except Exception as e:
             logger.error(f"Error handling code_results message: {e}")
+    
+    def sandbox_result_handler(self, message: dict):
+        try:
+            logger.debug(f"Received message from sandbox_result_handler: {message}")
+            data: dict = json.loads(message["data"])
+            id_ = data.get("id")
+            status = data.get("status")
+            response_data = data.get("data")
+            if response_data is None:
+                response_data = {}
+            message = data.get("message", "")
+            venv_manager_service.handle_sandbox_response(
+                id_=id_,
+                status=status,
+                data=response_data,
+                message=message
+            )
+
+        except Exception as e:
+            logger.error(f"Error handling sandbox_result message: {e}")
+
 
     def _buffer_save(self, buffer: deque[dict], model: Type[models.Model]):
         try:
@@ -154,6 +184,7 @@ class RedisPubSub:
     def listen_for_redis_messages_worker(self):
         logger.info(f"Start worker {os.getpid()} listening for Redis messages...")
         self.set_handler(SESSION_STATUS_CHANNEL, self.session_status_handler)
+        self.set_handler(SANDBOX_RESPONSE_CHANNEL, self.sandbox_result_handler)
         self.set_handler(CODE_RESULT_CHANNEL, self.code_results_handler)
         self.subscribe_to_channels()
 

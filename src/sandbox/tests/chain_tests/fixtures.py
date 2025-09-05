@@ -10,7 +10,7 @@ from typing import Any, Generator
 from unittest.mock import MagicMock, patch
 import redis.asyncio as aioredis
 
-from dynamic_venv_executor_chain import DynamicVenvExecutorChain
+from sandbox.chains.dynamic_venv_executor_chain import DynamicVenvExecutorChain
 
 @pytest.fixture
 def output_path() -> Path:

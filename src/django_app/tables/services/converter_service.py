@@ -244,15 +244,12 @@ class ConverterService(metaclass=SingletonMeta):
 
     def convert_python_code_to_pydantic(self, python_code: PythonCode):
 
-        libraries = python_code.get_libraries_list()
         venv_name = str(python_code.pk)
-        if not libraries:
-            venv_name = "default"
+
         return PythonCodeData(
             venv_name=venv_name,
             code=python_code.code,
             entrypoint=python_code.entrypoint,
-            libraries=libraries,
         )
 
     def convert_python_code_tool_to_pydantic(

@@ -41,12 +41,19 @@ from tables.views.model_view_sets import (
     RealtimeModelViewSet,
     RealtimeAgentViewSet,
     RealtimeAgentChatViewSet,
+    VenvViewSet,
+    DomainTaskDetailView,
 )
 
 from tables.views.views import (
     AnswerToLLM,
+    CreateVenvTaskView,
     EnvironmentConfig,
+    GetLibrariesTaskView,
+    GetVenvExistsTaskView,
     InitRealtimeAPIView,
+    InstallLibrariesTaskView,
+    RemoveVenvTaskView,
     RunPythonCodeAPIView,
     ToolListRetrieveUpdateGenericViewSet,
     SessionViewSet,
@@ -125,7 +132,8 @@ router.register(r"condition-group", ConditionGroupModelViewSet)
 router.register(r"condition", ConditionModelViewSet)
 
 router.register(r"sessions", SessionViewSet, basename="session")
-
+router.register(r"venvs", VenvViewSet, basename="venvs")
+router.register(r"domain-tasks", DomainTaskDetailView, basename="domain-task")
 urlpatterns = [
     path("", include(router.urls)),
     path("run-session/", RunSession.as_view(), name="run-session"),
@@ -204,4 +212,34 @@ urlpatterns = [
         RunSessionSSEViewSwagger.as_view(),
         name="run-session-subscribe-swagger",
     ),
+    path(
+        "domain-tasks/venvs/create/",
+        CreateVenvTaskView.as_view(),
+        name="create-venv-task",
+    ),
+    path(
+        "domain-tasks/venvs/install-libraries/",
+        InstallLibrariesTaskView.as_view(),
+        name="install-libraries-task",
+    ),
+    path(
+        "domain-tasks/venvs/get-libraries/",
+        GetLibrariesTaskView.as_view(),
+        name="get-libraries-task",
+    ),
+    path(
+        "domain-tasks/venvs/get-exists/",
+        GetVenvExistsTaskView.as_view(),
+        name="get-venv-exists-task",
+    ),
+    path(
+        "domain-tasks/venvs/remove/",
+        RemoveVenvTaskView.as_view(),
+        name="remove-venv-task",
+    ),
+    # path(
+    #     "domain-tasks/<uuid:id>/",
+    #     DomainTaskDetailView.as_view(),
+    #     name="domain-task-detail",
+    # ),
 ]

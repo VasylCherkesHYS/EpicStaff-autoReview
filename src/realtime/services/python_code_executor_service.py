@@ -1,3 +1,4 @@
+import json
 import uuid
 import asyncio
 from typing import Any
@@ -22,27 +23,25 @@ class PythonCodeExecutorService(metaclass=SingletonMeta):
         venv_name = python_code_data.venv_name
         code = python_code_data.code
         entrypoint = python_code_data.entrypoint
-        libraries = python_code_data.libraries
 
         global_kwargs = python_code_data.global_kwargs or {}
 
         unique_task_id = str(uuid.uuid4())
-        code_task_data = CodeTaskData(
-            venv_name=venv_name,
-            libraries=libraries,
-            code=code,
-            execution_id=unique_task_id,
-            entrypoint=entrypoint,
-            func_kwargs=inputs,
-            global_kwargs={
-                **global_kwargs,
-                **additional_global_kwargs,
+        request_data = {
+            "id": unique_task_id,
+            "type": "execute_code",
+            "data": {
+                "venv_name": venv_name,
+                "code": code,
+                "entrypoint": entrypoint,
+                "func_kwargs": inputs,
+                "global_kwargs": {**global_kwargs, **additional_global_kwargs},
             },
-        )
+        }
 
         pubsub = await self.redis_service.async_subscribe("code_results")
         await self.redis_service.async_publish(
-            "code_exec_tasks", code_task_data.model_dump()
+            "code_exec_tasks", request_data
         )
         logger.info("Waiting for code_results")
 
@@ -50,8 +49,19 @@ class PythonCodeExecutorService(metaclass=SingletonMeta):
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=1.0
             )
-            if message:
-                code_result_data = CodeResultData.model_validate_json(message["data"])
-                if code_result_data.execution_id == unique_task_id:
-                    return code_result_data.model_dump()
+            if message and message["type"] == "message":
+                code_result_data: dict = json.loads(message["data"])
+                execution_id = code_result_data.get("id")
+
+                if execution_id != unique_task_id:
+                    continue
+
+                data = code_result_data.get("data")
+                status = code_result_data.get("status")
+                execution_message = code_result_data.get("message", "Fatal error during code execution")
+
+                pubsub.unsubscribe("code_results")
+                return data if status == "success" else execution_message
+            
             await asyncio.sleep(0.1)
+            

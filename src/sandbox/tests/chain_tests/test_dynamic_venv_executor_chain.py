@@ -1,6 +1,6 @@
 import json
 import pytest
-from dynamic_venv_executor_chain import DynamicVenvExecutorChain
+from sandbox.chains.dynamic_venv_executor_chain import DynamicVenvExecutorChain
 from models import CodeTaskData
 from fixtures import *
 

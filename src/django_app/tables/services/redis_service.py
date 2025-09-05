@@ -158,3 +158,4 @@ class RedisService(metaclass=SingletonMeta):
             with contextlib.suppress(Exception):
                 await pubsub.unsubscribe(*channels)
                 await pubsub.close()
+

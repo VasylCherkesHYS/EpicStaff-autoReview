@@ -26,6 +26,20 @@ files = [
 ]
 
 [[package]]
+name = "epicstaff-shared"
+version = "0.1.0"
+description = ""
+optional = false
+python-versions = ">=3.12"
+groups = ["main"]
+files = []
+develop = true
+
+[package.source]
+type = "directory"
+url = "../shared"
+
+[[package]]
 name = "fakeredis"
 version = "2.26.2"
 description = "Python implementation of redis API, can be used for testing purposes."
@@ -355,4 +369,4 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "e9ad84f66d4acc15cc7c290542d57eee023fe2fd5ceb89f62dcf4b8eb6f456b0"
+content-hash = "e205c990bd1552e1560a29cda60888f992d00c6b1738645e2244739e9ea91f79"

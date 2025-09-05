@@ -2,6 +2,9 @@ FROM python:3.12.10
 
 WORKDIR /home/user/root/app
 
+COPY ./sandbox .
+COPY shared/ ../shared/
+
 RUN pip install --upgrade --no-cache-dir pip setuptools wheel
 
 RUN pip install poetry
@@ -13,7 +16,6 @@ RUN poetry config virtualenvs.create false
 RUN poetry install --no-root
 RUN rm -rf /root/.cache
 
-COPY ./sandbox .
-COPY shared/ shared/
+
 
 CMD python main.py

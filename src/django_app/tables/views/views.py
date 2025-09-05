@@ -2,6 +2,15 @@ from datetime import datetime, timezone
 from collections import defaultdict
 import uuid
 
+from django.urls import reverse
+
+from tables.models.python_models import PythonCode
+from tables.services.venv_manager_service import VenvManagerService
+from tables.models.domain_task_models import (
+    DomainTask,
+    DomainTaskStatusChoices,
+    TypeChoices,
+)
 from tables.models import Tool
 from tables.models import Crew
 from tables.models.crew_models import DefaultAgentConfig, DefaultCrewConfig
@@ -29,6 +38,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework import filters
+from rest_framework.request import Request
 
 from tables.services.config_service import YamlConfigService
 from tables.services.session_manager_service import SessionManagerService
@@ -38,10 +48,11 @@ from tables.services.run_python_code_service import RunPythonCodeService
 from tables.services.quickstart_service import QuickstartService
 
 from django_filters.rest_framework import DjangoFilterBackend
-
+from tables.utils.gen_execution_id import gen_execution_id
 
 from tables.models import Session, SourceCollection, DocumentMetadata
 from tables.serializers.model_serializers import (
+    DomainTaskSerializer,
     SessionSerializer,
     SessionLightSerializer,
     DefaultLLMConfigSerializer,
@@ -50,8 +61,15 @@ from tables.serializers.model_serializers import (
 )
 from tables.serializers.serializers import (
     AnswerToLLMSerializer,
+    DomainTaskResponseSerializer,
+    CreateVenvTaskSerializer,
     EnvironmentConfigSerializer,
+    ExecuteCodeTaskSerializer,
+    GetLibrariesTaskSerializer,
+    GetVenvExistsTaskSerializer,
     InitRealtimeSerializer,
+    InstallLibrariesTaskSerializer,
+    RemoveVenvTaskSerializer,
     RunSessionSerializer,
 )
 from tables.serializers.knowledge_serializers import CollectionStatusSerializer
@@ -68,6 +86,7 @@ config_service = YamlConfigService()
 run_python_code_service = RunPythonCodeService()
 realtime_service = RealtimeService()
 quickstart_service = QuickstartService()
+venv_manager_service = VenvManagerService(redis_service=redis_service)
 
 
 class SessionViewSet(
@@ -601,8 +620,18 @@ class RunPythonCodeAPIView(APIView):
                 {"error": "python_code_id is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        execution_id = run_python_code_service.run_code(python_code_id, variables)
+        
+        execution_id = gen_execution_id()
+        python_code = PythonCode.objects.get(id=python_code_id)
+        
+        run_python_code_service.run_code(
+            execution_id=execution_id,
+            venv_name=python_code.venv.venv_name,
+            python_code=python_code.code,
+            entrypoint=python_code.entrypoint,
+            variables=variables,
+            global_kwargs=python_code.global_kwargs or {},
+        )
         return Response({"execution_id": execution_id}, status=status.HTTP_200_OK)
 
 
@@ -762,3 +791,167 @@ class QuickstartView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CreateVenvTaskView(generics.GenericAPIView):
+    serializer_class = CreateVenvTaskSerializer
+    task_type = TypeChoices.CREATE_VENV
+
+    def post(self, request: Request, *args, **kwargs):
+        serializer: CreateVenvTaskSerializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_uuid = str(uuid.uuid4())
+
+        task = DomainTask.objects.create(
+            id=task_uuid,
+            type=self.task_type,
+            status=DomainTaskStatusChoices.PENDING,
+            payload=serializer.validated_data,
+        )
+        venv_manager_service.create_venv(
+            id_ =task_uuid, venv_name=serializer.validated_data["venv_name"],
+        )
+
+        check_url = request.build_absolute_uri(
+            reverse("domain-task-detail", args=[task.id])
+        )
+        response_data = {
+            "task_id": task.id,
+            "check_url": check_url,
+            "estimated_wait_seconds": 30,
+        }
+        resp_serializer = DomainTaskResponseSerializer(data=response_data)
+        resp_serializer.is_valid(raise_exception=True)
+        return Response(resp_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+class InstallLibrariesTaskView(APIView):
+    serializer_class = InstallLibrariesTaskSerializer
+    task_type = TypeChoices.INSTALL_LIBRARIES
+
+    def post(self, request: Request, *args, **kwargs):
+        serializer: CreateVenvTaskSerializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_uuid = str(uuid.uuid4())
+        task = DomainTask.objects.create(
+            id=task_uuid,
+            type=self.task_type,
+            status=DomainTaskStatusChoices.PENDING,
+            payload=serializer.validated_data,
+        )
+        venv_manager_service.install_libraries(
+            id_=task_uuid,
+            venv_name=serializer.validated_data["venv_name"],
+            libraries=serializer.validated_data["libraries"],
+        )
+
+        check_url = request.build_absolute_uri(
+            reverse("domain-task-detail", args=[task.id])
+        )
+        response_data = {
+            "task_id": task.id,
+            "check_url": check_url,
+            "estimated_wait_seconds": 30,
+        }
+        resp_serializer = DomainTaskResponseSerializer(data=response_data)
+        resp_serializer.is_valid(raise_exception=True)
+        return Response(resp_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+class GetLibrariesTaskView(generics.GenericAPIView):
+    serializer_class = GetLibrariesTaskSerializer
+    task_type = TypeChoices.GET_LIBRARIES
+
+    def post(self, request: Request, *args, **kwargs):
+        serializer: CreateVenvTaskSerializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_uuid = str(uuid.uuid4())
+        task = DomainTask.objects.create(
+            id=task_uuid,
+            type=self.task_type,
+            status=DomainTaskStatusChoices.PENDING,
+            payload=serializer.validated_data,
+        )
+        venv_manager_service.library_list(
+            id_ = task_uuid, venv_name=serializer.validated_data["venv_name"],
+        )
+        check_url = request.build_absolute_uri(
+            reverse("domain-task-detail", args=[task.id])
+        )
+        response_data = {
+            "task_id": task.id,
+            "check_url": check_url,
+            "estimated_wait_seconds": 30,
+        }
+        resp_serializer = DomainTaskResponseSerializer(data=response_data)
+        resp_serializer.is_valid(raise_exception=True)
+        return Response(resp_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+class GetVenvExistsTaskView(generics.GenericAPIView):
+    serializer_class = GetVenvExistsTaskSerializer
+    task_type = TypeChoices.GET_VENV_EXISTS
+
+    def post(self, request: Request, *args, **kwargs):
+        serializer: CreateVenvTaskSerializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_uuid = str(uuid.uuid4())
+        task = DomainTask.objects.create(
+            id=task_uuid,
+            type=self.task_type,
+            status=DomainTaskStatusChoices.PENDING,
+            payload=serializer.validated_data,
+        )
+        venv_manager_service.venv_exists(
+            id_=task_uuid,
+            venv_name=serializer.validated_data["venv_name"],
+        )
+
+        check_url = request.build_absolute_uri(
+            reverse("domain-task-detail", args=[task.id])
+        )
+        response_data = {
+            "task_id": task.id,
+            "check_url": check_url,
+            "estimated_wait_seconds": 30,
+        }
+        resp_serializer = DomainTaskResponseSerializer(data=response_data)
+        resp_serializer.is_valid(raise_exception=True)
+        return Response(resp_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+class RemoveVenvTaskView(generics.GenericAPIView):
+    serializer_class = RemoveVenvTaskSerializer
+    task_type = TypeChoices.REMOVE_VENV
+
+    def post(self, request: Request, *args, **kwargs):
+        serializer: CreateVenvTaskSerializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task_uuid = str(uuid.uuid4())
+
+        task = DomainTask.objects.create(
+            id=task_uuid,
+            type=self.task_type,
+            status=DomainTaskStatusChoices.PENDING,
+            payload=serializer.validated_data,
+        )
+        venv_manager_service.remove_venv(
+            id_=task_uuid, venv_name=serializer.validated_data["venv_name"],
+        )
+
+        check_url = request.build_absolute_uri(
+            reverse("domain-task-detail", args=[task.id])
+        )
+        response_data = {
+            "task_id": task.id,
+            "check_url": check_url,
+            "estimated_wait_seconds": 30,
+        }
+        resp_serializer = DomainTaskResponseSerializer(data=response_data)
+        resp_serializer.is_valid(raise_exception=True)
+        return Response(resp_serializer.data, status=status.HTTP_202_ACCEPTED)

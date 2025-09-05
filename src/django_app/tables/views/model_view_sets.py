@@ -1,4 +1,6 @@
 from django_filters import rest_framework as filters
+from tables.models.domain_task_models import DomainTask
+from tables.models.python_models import Venv
 from tables.models.llm_models import (
     RealtimeConfig,
     RealtimeTranscriptionConfig,
@@ -39,6 +41,7 @@ from tables.serializers.model_serializers import (
     CrewTagSerializer,
     AgentTagSerializer,
     DecisionTableNodeSerializer,
+    DomainTaskSerializer,
     GraphLightSerializer,
     GraphTagSerializer,
     RealtimeConfigSerializer,
@@ -50,6 +53,7 @@ from tables.serializers.model_serializers import (
     ConditionSerializer,
     TaskReadSerializer,
     TaskWriteSerializer,
+    VenvSerializer,
     TaskConfiguredTools,
     TaskPythonCodeTools,
 )
@@ -399,6 +403,12 @@ class ToolConfigViewSet(ModelViewSet):
     serializer_class = ToolConfigSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["tool", "name"]
+
+class VenvViewSet(ModelViewSet):
+    queryset = Venv.objects.all()
+    serializer_class = VenvSerializer
+    filter_backends = [DjangoFilterBackend]
+    filter_fields = ["venv_name"]
 
 
 class PythonCodeViewSet(viewsets.ModelViewSet):
@@ -843,3 +853,18 @@ class DecisionTableNodeModelViewSet(viewsets.ModelViewSet):
                 condition_serializer.save()
 
         return Response(self.get_serializer(node).data)
+
+
+
+class DomainTaskDetailView(viewsets.ReadOnlyModelViewSet):
+    """
+    GET /tasks/{task_id}/ — return task status.
+    """
+
+    queryset = DomainTask.objects.all()
+    serializer_class = DomainTaskSerializer
+    lookup_field = "id"
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["status"]
+    ordering_fields = ["created_at"]
+    ordering = ["created_at"]

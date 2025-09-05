@@ -88,7 +88,6 @@ def main(**kwargs) -> bool:
             venv_name="default",
             code=code,
             entrypoint="main",
-            libraries=[],
         )
         python_code_execution_data: dict = await RunPythonCodeService().run_code(
             python_code_data=python_code_data,
@@ -120,7 +119,6 @@ def main(variables: dict) -> bool:
             venv_name="default",
             code=code,
             entrypoint="main",
-            libraries=[],
         )
 
         python_code_execution_data: dict = await RunPythonCodeService().run_code(

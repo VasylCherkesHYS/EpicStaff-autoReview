@@ -1,14 +1,28 @@
 from django.db import models
 
 
-class PythonCode(models.Model):
-    code = models.TextField()
-    entrypoint = models.TextField(default="main")
-    libraries = models.TextField(default="")  # sep: space
-    global_kwargs = models.JSONField(default=dict)
+class Venv(models.Model):
+
+    venv_name = models.CharField(max_length=255, unique=True, primary_key=True)
+    libraries = models.TextField(default="")
+
+    actual_data = models.JSONField(default=dict)
 
     def get_libraries_list(self):
         return list(filter(None, self.libraries.split(" ")))
+
+    def set_libraries_list(self, libraries: list[str]):
+        self.libraries = " ".join(libraries)
+
+
+class PythonCode(models.Model):
+    code = models.TextField()
+    entrypoint = models.TextField(default="main")
+    venv = models.ForeignKey(Venv, on_delete=models.SET_NULL, null=True)
+    global_kwargs = models.JSONField(default=dict)
+
+    def get_libraries_list(self):
+        return self.venv.get_libraries_list()
 
 
 class PythonCodeTool(models.Model):
@@ -25,4 +39,3 @@ class PythonCodeResult(models.Model):
     stderr = models.TextField(default="")
     stdout = models.TextField(default="")
     returncode = models.IntegerField(default=0)
-

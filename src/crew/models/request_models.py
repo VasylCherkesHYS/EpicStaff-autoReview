@@ -57,7 +57,6 @@ class PythonCodeData(BaseModel):
     venv_name: str
     code: str
     entrypoint: str
-    libraries: list[str]
     global_kwargs: dict[str, Any] | None = None
 
 

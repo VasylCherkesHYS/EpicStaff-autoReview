@@ -52,3 +52,38 @@ class BaseToolSerializer(serializers.Serializer):
         return repr
     
     
+class CreateVenvTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+
+
+class InstallLibrariesTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+    libraries = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_null=True
+    )
+
+
+class GetLibrariesTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+
+
+class GetVenvExistsTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+
+
+class RemoveVenvTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+
+
+class ExecuteCodeTaskSerializer(serializers.Serializer):
+    venv_name = serializers.CharField()
+    code = serializers.CharField()
+    entrypoint = serializers.CharField(default="main", required=False)
+    func_kwargs = serializers.DictField(child=serializers.JSONField(), required=False, allow_null=True)
+    global_kwargs = serializers.DictField(child=serializers.JSONField(), required=False, allow_null=True)
+
+
+class DomainTaskResponseSerializer(serializers.Serializer):
+    task_id = serializers.UUIDField()
+    check_url = serializers.CharField()
+    estimated_wait_seconds = serializers.IntegerField()
