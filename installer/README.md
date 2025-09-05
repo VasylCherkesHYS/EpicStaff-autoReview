@@ -14,7 +14,7 @@ To build the application:
 
 ```bash
 # Build the executable
-pyinstaller installer.py --name epicstaff.exe --onefile --add-data 'app/templates:app/templates' --add-data 'app/static:app/static' --add-data '../src/docker-compose.yaml:app/static/run_program' --add-data '../frontend-config:app/static/run_program/frontend-config' --add-data '../src/.env:app/static/run_program' --hidden-import engineio.async_drivers.threading --distpath ../artifacts/windows --windowed
+pyinstaller installer.py --name epicstaff.exe --onefile --add-data 'app/templates:app/templates' --add-data 'app/static:app/static' --add-data '../src/docker-compose.yaml:app/static/run_program' --add-data '../frontend-config:app/static/run_program/frontend-config' --add-data '../src/.env:app/static/run_program' --hidden-import engineio.async_drivers.threading --distpath ./dist --windowed
 # Run the built executable
 ./dist/epicstaff
 ```

@@ -189,18 +189,22 @@ class UpdateImagesState(State):
         repo_url = get_git_build_repository()
         tmp_repo_path = None  # Initialize to None for cleanup in finally block
         try:
-            # 1. Create a temporary directory
             tmp_repo_path = Path(tempfile.mkdtemp(prefix="docker_build_repo_"))
             yield f"[INFO] Cloning repository to temporary directory: {tmp_repo_path}\n"
 
-            # 2. Clone the repository into the temporary directory
-            # Git will handle authentication (e.g., via credential manager, SSH agent, or prompts if interactive)
-            clone_command = f'git clone -b {branch} {repo_url} "{tmp_repo_path}"'
-            yield from self._run_script(clone_command, prefix="git clone")
-            cleanup_git = (
-                f'cd "{tmp_repo_path}" && git rm --cached -r . && git reset --hard'
+            clone_command = f'git clone --no-checkout {repo_url} "{tmp_repo_path}"'
+            yield from self._run_script(clone_command, prefix="git clone --no-checkout")
+
+            set_git_config = (
+                f'cd "{tmp_repo_path}" && '
+                f'git config core.autocrlf false && '
+                f'git config core.eol lf'
             )
-            yield from self._run_script(cleanup_git, prefix="gitattributes-refresh")
+            yield from self._run_script(set_git_config, prefix="git config")
+
+            checkout_command = f'cd "{tmp_repo_path}" && git checkout {branch}'
+            yield from self._run_script(checkout_command, prefix="git checkout")
+
 
             # Basic check to see if cloning was successful
             if not tmp_repo_path.is_dir() or not any(tmp_repo_path.iterdir()):
