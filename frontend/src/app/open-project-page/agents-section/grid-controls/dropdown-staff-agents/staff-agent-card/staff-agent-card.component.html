@@ -8,6 +8,7 @@
         class="icon-container menu-icon-container"
         title="Menu Options"
         (click)="toggleMenu($event)"
+          *ngIf="cardState === 'removing'"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
