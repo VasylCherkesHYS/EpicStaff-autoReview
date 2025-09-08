@@ -32,7 +32,7 @@ Our core philosophy: **We hide the complexity, not the logic.**
    
 ### Watch EpicStaff in Action!
 
-![Watch the EpicStaff Demo](https://github.com/EpicStaff/EpicStaff/blob/2913561e9a20f1a38f1471c3b86d9a8b8d6ef2f8/1756889065163750.gif?raw=true)
+![Watch the EpicStaff Demo](https://github.com/EpicStaff/EpicStaff-resources/blob/main/how_to_create_flow.gif?raw=true)
 
 </div>
 
