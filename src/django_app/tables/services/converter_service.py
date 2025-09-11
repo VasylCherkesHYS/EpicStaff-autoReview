@@ -1,4 +1,5 @@
 from typing import Iterable
+from tables.models.mcp_models import McpTool
 from tables.serializers.serializers import BaseToolSerializer
 from tables.models.llm_models import (
     RealtimeConfig,
@@ -159,7 +160,7 @@ class ConverterService(metaclass=SingletonMeta):
         return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
     def convert_tool_to_base_tool_pydantic(
-        self, tool: PythonCodeTool | ToolConfig
+        self, tool: PythonCodeTool | ToolConfig | McpTool
     ) -> BaseToolData:
         if isinstance(tool, PythonCodeTool):
             unique_name = f"python-code-tool:{tool.pk}"
@@ -167,6 +168,9 @@ class ConverterService(metaclass=SingletonMeta):
         elif isinstance(tool, ToolConfig):
             unique_name = f"configured-tool:{tool.pk}"
             data = self.convert_configured_tool_to_pydantic(tool)
+        elif isinstance(tool, McpTool):
+            unique_name = f"mcp-tool:{tool.pk}"
+            data = self.convert_mcp_tool_to_pydantic(tool)
         else:
             raise TypeError(f"Tool type of {type(tool)} is not supported")
 
@@ -307,6 +311,15 @@ class ConverterService(metaclass=SingletonMeta):
         return ConfiguredToolData(
             name_alias=tool_config.tool.name_alias,
             tool_config=tool_config_data,
+        )
+
+    def convert_mcp_tool_to_pydantic(self, mcp_tool: McpTool):
+        return McpToolData(
+            transport=mcp_tool.transport,
+            tool_name=mcp_tool.tool_name,
+            timeout=mcp_tool.timeout,
+            auth=mcp_tool.auth,
+            init_timeout=mcp_tool.auth,
         )
 
     def convert_llm_config_to_pydantic(self, config: LLMConfig) -> LLMData | None:

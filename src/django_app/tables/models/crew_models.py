@@ -1,6 +1,7 @@
 from typing import Any
 from django.db import models
 from django.db.models import CheckConstraint
+from tables.models.python_models import PythonCodeTool
 from tables.models import DefaultBaseModel, AbstractDefaultFillableModel, Process
 from django.core.exceptions import ValidationError
 
@@ -74,8 +75,24 @@ class Agent(AbstractDefaultFillableModel):
     role = models.TextField()
     goal = models.TextField()
     backstory = models.TextField()
-    configured_tools = models.ManyToManyField("ToolConfig", blank=True, default=[])
-    python_code_tools = models.ManyToManyField("PythonCodeTool", blank=True, default=[])
+    configured_tools = models.ManyToManyField(
+        "ToolConfig",
+        through="AgentConfiguredTools",
+        related_name="agents",
+        blank=True,
+    )
+    python_code_tools = models.ManyToManyField(
+        "PythonCodeTool",
+        through="AgentPythonCodeTools",
+        related_name="agents",
+        blank=True,
+    )
+    mcp_tools = models.ManyToManyField(
+        "McpTool",
+        through="AgentMcpTools",
+        related_name="agents",
+        blank=True,
+    )
     max_iter = models.IntegerField(default=None, null=True)
     max_rpm = models.IntegerField(default=None, null=True)
     max_execution_time = models.IntegerField(default=None, null=True)
@@ -151,6 +168,33 @@ class Agent(AbstractDefaultFillableModel):
 
     def __str__(self):
         return self.role
+
+
+class AgentConfiguredTools(models.Model):
+    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    tool = models.ForeignKey("ToolConfig", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_configured_tools"
+        unique_together = ("agent", "tool")
+
+
+class AgentPythonCodeTools(models.Model):
+    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    tool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_python_code_tools"
+        unique_together = ("agent", "tool")
+
+
+class AgentMcpTools(models.Model):
+    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    tool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_mcp_tools"
+        unique_together = ("agent", "tool")
 
 
 class Crew(AbstractDefaultFillableModel):
@@ -402,6 +446,13 @@ class TaskPythonCodeTools(models.Model):
     class Meta:
         unique_together = ("task", "tool")
 
+class TaskMcpTools(models.Model):
+    task = models.ForeignKey("Task", on_delete=models.CASCADE)
+    tool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_task_mcp_tools"
+        unique_together = ("task", "tool")
 
 class TaskContext(models.Model):
     task = models.ForeignKey(

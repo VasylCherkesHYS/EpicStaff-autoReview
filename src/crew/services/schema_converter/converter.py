@@ -28,5 +28,7 @@ def generate_model_from_schema(schema_dict: dict) -> Type[BaseModel]:
     dynamic_module = ModuleType(module_name)
     exec(class_definition, dynamic_module.__dict__)
     sys.modules[module_name] = dynamic_module
-    return getattr(dynamic_module, module_name)
+    model: Type[BaseModel] = getattr(dynamic_module, module_name)
+    model.model_rebuild()
+    return model
 
