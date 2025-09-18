@@ -58,7 +58,7 @@ class McpToolData(BaseModel):
     Configuration for a FastMCP client connecting to remote MCP tools via SSE.
     """
 
-    transport: AnyUrl
+    transport: str
     """URL of the remote MCP server (SSE). Required."""
     tool_name: str
 
@@ -93,7 +93,7 @@ class PythonCodeToolData(BaseModel):
 
 class BaseToolData(BaseModel):
     unique_name: str
-    data: PythonCodeToolData | ConfiguredToolData
+    data: PythonCodeToolData | ConfiguredToolData | McpToolData
 
 
 class RunToolParamsModel(BaseModel):

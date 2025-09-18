@@ -78,7 +78,7 @@ services:
       manager:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
       knowledge:
         condition: service_started
       django_app:
@@ -117,7 +117,7 @@ services:
       crewdb:
         condition: service_healthy
       redis:
-        condition: service_started      
+        condition: service_healthy      
 
   crewdb:
     image: crewdb
@@ -225,13 +225,14 @@ services:
       - crew_config:/home/user/root/app/env_config/
     networks:
       - backend-network
+      - mcp-network
     tty: true
     stdin_open: true
     depends_on:
       crewdb:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   sandbox:
     image: sandbox
@@ -283,7 +284,7 @@ services:
       crewdb:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   frontend:
     image: frontend
@@ -318,3 +319,7 @@ networks:
 
   frontend-network:
     driver: bridge
+
+  mcp-network:
+    driver: bridge
+    external: true

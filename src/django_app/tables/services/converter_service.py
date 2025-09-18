@@ -150,13 +150,15 @@ class ConverterService(metaclass=SingletonMeta):
         return crew_data
 
     def _get_agent_base_tools(self, agent: Agent) -> list[BaseToolData]:
-        tools = list(agent.python_code_tools.all()) + list(agent.configured_tools.all())
+        tools = list(agent.python_code_tools.all()) + list(agent.configured_tools.all()) + list(agent.mcp_tools.all())
         return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
     def _get_task_base_tools(self, task: Task) -> list[BaseToolData]:
-        tools = [entry.tool for entry in task.task_configured_tool_list.all()] + [
-            entry.tool for entry in task.task_python_code_tool_list.all()
-        ]
+        tools = (
+            [entry.tool for entry in task.task_configured_tool_list.all()]
+            + [entry.tool for entry in task.task_python_code_tool_list.all()]
+            + [entry.tool for entry in task.task_mcp_tool_list.all()]
+        )
         return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
     def convert_tool_to_base_tool_pydantic(
@@ -319,7 +321,7 @@ class ConverterService(metaclass=SingletonMeta):
             tool_name=mcp_tool.tool_name,
             timeout=mcp_tool.timeout,
             auth=mcp_tool.auth,
-            init_timeout=mcp_tool.auth,
+            init_timeout=mcp_tool.init_timeout,
         )
 
     def convert_llm_config_to_pydantic(self, config: LLMConfig) -> LLMData | None:

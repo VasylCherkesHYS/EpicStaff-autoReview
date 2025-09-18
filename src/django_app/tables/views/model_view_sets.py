@@ -30,6 +30,7 @@ from tables.models.realtime_models import (
 )
 from tables.models.tag_models import AgentTag, CrewTag, GraphTag
 from tables.models.vector_models import MemoryDatabase
+from tables.models.mcp_models import McpTool
 from utils.logger import logger
 from django.db.models import IntegerField
 from django.db.models.functions import Cast
@@ -52,6 +53,7 @@ from tables.serializers.model_serializers import (
     TaskWriteSerializer,
     TaskConfiguredTools,
     TaskPythonCodeTools,
+    McpToolSerializer,
 )
 
 
@@ -843,3 +845,8 @@ class DecisionTableNodeModelViewSet(viewsets.ModelViewSet):
                 condition_serializer.save()
 
         return Response(self.get_serializer(node).data)
+
+
+class McpToolViewSet(viewsets.ModelViewSet):
+    queryset = McpTool.objects.all()
+    serializer_class = McpToolSerializer

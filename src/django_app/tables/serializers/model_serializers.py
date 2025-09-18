@@ -204,6 +204,12 @@ class PythonCodeToolSerializer(serializers.ModelSerializer):
         return self.update(instance, validated_data)
 
 
+class McpToolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = McpTool
+        fields = "__all__"
+
+
 class RealtimeAgentSerializer(serializers.ModelSerializer):
 
     similarity_threshold = serializers.DecimalField(
@@ -270,7 +276,9 @@ class AgentReadSerializer(serializers.ModelSerializer):
         for tool in agent.configured_tools.all():
             serialized = BaseToolSerializer(tool).data
             tools.append(serialized)
-
+        for tool in agent.mcp_tools.all():
+            serialized = BaseToolSerializer(tool).data
+            tools.append(serialized)
         return tools
 
 
@@ -378,9 +386,7 @@ class AgentWriteSerializer(serializers.ModelSerializer):
         instance.python_code_tools.set(
             PythonCodeTool.objects.filter(id__in=tools["python-code-tool-list"])
         )
-        instance.mcp_tools.set(
-            McpTool.objects.filter(id__in=tools["mcp-tool-list"])
-        )
+        instance.mcp_tools.set(McpTool.objects.filter(id__in=tools["mcp-tool-list"]))
 
         if realtime_agent_data:
             realtime_agent, _ = RealtimeAgent.objects.get_or_create(agent=instance)
@@ -503,7 +509,9 @@ class TaskReadSerializer(serializers.ModelSerializer):
 
     def get_tools(self, task: Task) -> list[dict]:
         all_task_tools = chain(
-            task.task_configured_tool_list.all(), task.task_python_code_tool_list.all()
+            task.task_configured_tool_list.all(),
+            task.task_python_code_tool_list.all(),
+            task.task_mcp_tool_list.all(),
         )
         return [BaseToolSerializer(task_tool.tool).data for task_tool in all_task_tools]
 
@@ -594,10 +602,9 @@ class TaskWriteSerializer(serializers.ModelSerializer):
                 instance.full_clean()
                 mcp_tool_list.append(instance)
 
-
         TaskPythonCodeTools.objects.bulk_create(python_code_tool_list)
         TaskConfiguredTools.objects.bulk_create(configured_tool_list)
-        TaskPythonCodeTools.objects.bulk_create(mcp_tool_list)
+        TaskMcpTools.objects.bulk_create(mcp_tool_list)
 
     def _update_task_contexts(self, task, context_ids):
         TaskContext.objects.filter(task=task).delete()

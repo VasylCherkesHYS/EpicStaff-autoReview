@@ -9,6 +9,7 @@ from services.schema_converter.converter import generate_model_from_schema
 
 from functools import partial
 
+
 class McpTool:
 
     def __init__(self, fast_mcp_client: Client, tool_name: str):
@@ -17,7 +18,8 @@ class McpTool:
 
     async def get_tool_data(self) -> FastMCPTool:
         # List all tools from the server
-        tools = await self.fast_mcp_client.list_tools()
+        async with self.fast_mcp_client:
+            tools = await self.fast_mcp_client.list_tools()
 
         # Find the tool by name
         tool: FastMCPTool = next((t for t in tools if t.name == self.tool_name), None)
@@ -25,12 +27,23 @@ class McpTool:
             raise ValueError(f"Tool {self.tool_name} not found")
 
         return tool
-    
+
     async def execute(self, **kwargs):
-        try:
-            return await self.fast_mcp_client.call_tool(self.tool_name, arguments=kwargs)
-        except (ToolError, RuntimeError) as e:
-            return e
+        async with self.fast_mcp_client:
+            result = await self.fast_mcp_client.call_tool(
+                self.tool_name, arguments=kwargs
+            )
+            if result.is_error:
+                raise RuntimeError(result.data)
+
+            if result.structured_content:
+                return result.structured_content
+
+            if result.content:
+                return " ".join([c.text for c in result.content if hasattr(c, "text")])
+
+            return result.data
+
 
 class CrewaiMcpToolFactory:
 
@@ -39,7 +52,7 @@ class CrewaiMcpToolFactory:
             fast_mcp_client=Client(
                 transport=tool_data.transport,
                 timeout=tool_data.timeout,
-                auth=tool_data.auth,
+                auth=tool_data.auth if tool_data.auth else None,
                 init_timeout=tool_data.init_timeout,
             ),
             tool_name=tool_data.tool_name,
@@ -51,6 +64,9 @@ class CrewaiMcpToolFactory:
             "description": tool.description or tool_data.tool_name,
         }
         if tool.inputSchema:
+            tool.inputSchema["title"] = (
+                tool_data.tool_name[0].upper() + tool_data.tool_name[1:] + "InputSchema"
+            )
             args_schema = generate_model_from_schema(schema_dict=tool.inputSchema)
             config["args_schema"] = args_schema
         config["func"] = partial(sync_wrapper, mcp_tool.execute)

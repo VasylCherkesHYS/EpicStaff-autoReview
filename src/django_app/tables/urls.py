@@ -10,6 +10,7 @@ from tables.views.model_view_sets import (
     EdgeViewSet,
     GraphLightViewSet,
     GraphViewSet,
+    McpToolViewSet,
     PythonNodeViewSet,
     LLMNodeViewSet,
     StartNodeModelViewSet,
@@ -125,7 +126,7 @@ router.register(r"condition-group", ConditionGroupModelViewSet)
 router.register(r"condition", ConditionModelViewSet)
 
 router.register(r"sessions", SessionViewSet, basename="session")
-
+router.register(r"mcp-tools", McpToolViewSet)
 urlpatterns = [
     path("", include(router.urls)),
     path("run-session/", RunSession.as_view(), name="run-session"),

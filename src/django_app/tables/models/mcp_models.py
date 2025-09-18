@@ -8,7 +8,7 @@ class McpTool(models.Model):
     Configuration for a FastMCP client connecting to remote MCP tools via SSE.
     """
 
-    transport = models.URLField(
+    transport = models.CharField(
         max_length=2048,
         help_text="URL of the remote MCP server (SSE). Required."
     )

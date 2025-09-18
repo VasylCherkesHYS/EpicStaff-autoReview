@@ -1,6 +1,7 @@
 import asyncio
 import os
 import psutil
+from services.crew.mcp_tool_factory import CrewaiMcpToolFactory
 from utils.memory_monitor import MemoryMonitor
 from services.graph.graph_session_manager_service import GraphSessionManagerService
 from services.run_python_code_service import RunPythonCodeService
@@ -8,7 +9,6 @@ from services.crew.crew_parser_service import CrewParserService
 from services.knowledge_search_service import KnowledgeSearchService
 from services.redis_service import RedisService
 from utils.logger import logger
-from gc import collect as gc_collect
 
 
 async def main():
@@ -29,13 +29,14 @@ async def main():
     redis_service = RedisService(host=redis_host, port=redis_port)
     python_code_executor_service = RunPythonCodeService(redis_service=redis_service)
     knowledge_search_service = KnowledgeSearchService(redis_service=redis_service)
-
+    mcp_tool_factory = CrewaiMcpToolFactory()
     crew_parser_service = CrewParserService(
         manager_host=manager_host,
         manager_port=manager_port,
         redis_service=redis_service,
         python_code_executor_service=python_code_executor_service,
         knowledge_search_service=knowledge_search_service,
+        mcp_tool_factory=mcp_tool_factory,
     )
     session_manager_service = GraphSessionManagerService(
         redis_service=redis_service,

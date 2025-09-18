@@ -172,29 +172,32 @@ class Agent(AbstractDefaultFillableModel):
 
 class AgentConfiguredTools(models.Model):
     agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
-    tool = models.ForeignKey("ToolConfig", on_delete=models.CASCADE)
+    toolconfig = models.ForeignKey("ToolConfig", on_delete=models.CASCADE)
 
     class Meta:
         db_table = "tables_agent_configured_tools"
-        unique_together = ("agent", "tool")
+        unique_together = ("agent_id", "toolconfig_id")
+        managed = False
 
 
 class AgentPythonCodeTools(models.Model):
     agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
-    tool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
+    pythoncodetool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
 
     class Meta:
         db_table = "tables_agent_python_code_tools"
-        unique_together = ("agent", "tool")
+        unique_together = ("agent_id", "pythoncodetool_id")
+        managed = False
 
 
 class AgentMcpTools(models.Model):
     agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
-    tool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
+    mcptool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
 
     class Meta:
         db_table = "tables_agent_mcp_tools"
-        unique_together = ("agent", "tool")
+        unique_together = ("agent_id", "mcptool_id")
+        managed = False
 
 
 class Crew(AbstractDefaultFillableModel):
@@ -446,13 +449,17 @@ class TaskPythonCodeTools(models.Model):
     class Meta:
         unique_together = ("task", "tool")
 
+
 class TaskMcpTools(models.Model):
-    task = models.ForeignKey("Task", on_delete=models.CASCADE)
+    task = models.ForeignKey(
+        "Task", on_delete=models.CASCADE, related_name="task_mcp_tool_list"
+    )
     tool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
 
     class Meta:
         db_table = "tables_task_mcp_tools"
         unique_together = ("task", "tool")
+
 
 class TaskContext(models.Model):
     task = models.ForeignKey(
