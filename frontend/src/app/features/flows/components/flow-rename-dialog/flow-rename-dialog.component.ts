@@ -30,6 +30,7 @@ interface FlowRenameData {
                         id="flowName"
                         class="form-control"
                         [(ngModel)]="newName"
+                        required
                         placeholder="Enter flow name"
                         autocomplete="off"
                     />
@@ -39,7 +40,7 @@ interface FlowRenameData {
                 <app-button type="ghost" (click)="cancel()">Cancel</app-button>
                 <app-button
                     type="primary"
-                    [disabled]="!isValid()"
+                    [disabled]="!newName || !newName.trim().length"
                     (click)="save()"
                     >Save</app-button
                 >
