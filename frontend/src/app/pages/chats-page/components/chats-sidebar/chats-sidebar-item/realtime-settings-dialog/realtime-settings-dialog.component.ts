@@ -154,7 +154,10 @@ export class RealtimeSettingsDialogComponent implements OnInit {
       .subscribe({
         next: () => {
           this.toastService.success('Transcription config deleted successfully');
-          this.loadTranscriptionConfigs();
+
+          this.transcriptionConfigs = this.transcriptionConfigs.filter(
+            (c) => c.id !== configId
+          );
         },
         error: (error) => {
           console.error('Error deleting transcription config:', error);
