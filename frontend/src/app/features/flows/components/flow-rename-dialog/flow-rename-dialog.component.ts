@@ -36,6 +36,7 @@ interface FlowRenameData {
                     />
                 </div>
             </div>
+            <!-- TODO: Add error message -->
             <div class="dialog-actions">
                 <app-button type="ghost" (click)="cancel()">Cancel</app-button>
                 <app-button
