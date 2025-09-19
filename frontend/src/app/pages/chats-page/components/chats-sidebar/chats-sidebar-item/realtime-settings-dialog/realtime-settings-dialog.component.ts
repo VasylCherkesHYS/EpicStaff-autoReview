@@ -145,6 +145,22 @@ export class RealtimeSettingsDialogComponent implements OnInit {
       }
     });
   }
+
+  deleteTranscriptionConfig(configId: number): void {
+    this.transcriptionConfigsService
+      .deleteTranscriptionConfig(configId)
+      .subscribe({
+        next: () => {
+          this.toastService.success('Transcription config deleted successfully');
+          this.loadTranscriptionConfigs();
+        },
+        error: (error) => {
+          console.error('Error deleting transcription config:', error);
+          this.toastService.error('Failed to delete transcription config');
+        },
+      });
+  }
+
   onThresholdChange(value: number): void {
     this.settingsForm.patchValue({ threshold: value });
   }
