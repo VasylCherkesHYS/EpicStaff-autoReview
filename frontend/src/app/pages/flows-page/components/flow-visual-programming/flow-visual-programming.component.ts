@@ -76,6 +76,7 @@ import { UnsavedChangesDialogService } from '../../../../shared/components/unsav
 import { isEqual } from 'lodash';
 import { CanComponentDeactivate } from '../../../../core/guards/unsaved-changes.guard';
 import { ConfigService } from '../../../../services/config/config.service';
+import { PanelSyncService } from '../../../../visual-programming/services/panel-sync.service';
 @Component({
     selector: 'app-flow-visual-programming',
     standalone: true,
@@ -113,7 +114,8 @@ export class FlowVisualProgrammingComponent
         private readonly startNodeService: StartNodeService,
         private readonly dialog: CdkDialog,
         private readonly unsavedChangesDialogService: UnsavedChangesDialogService,
-        private readonly configService: ConfigService
+        private readonly configService: ConfigService,
+        private readonly panelSync: PanelSyncService
     ) {}
 
     public ngOnInit(): void {
@@ -155,8 +157,8 @@ export class FlowVisualProgrammingComponent
         }
 
         this.isSaving = true;
-        // Persist open side panel state into FlowService before reading flow state
-        this.flowGraphComponent?.saveOpenPanelStateSilently();
+        // Ask any open panel to persist its state via shell to FlowService
+        this.panelSync.requestPersist();
         const flowState: FlowModel = this.flowService.getFlowState();
         console.log(
             'floew state that i got from service on saveflow',
