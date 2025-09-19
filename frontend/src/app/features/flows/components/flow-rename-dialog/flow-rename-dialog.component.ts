@@ -65,7 +65,17 @@ interface FlowRenameData {
                 font-size: 1.25rem;
                 font-weight: 600;
             }
+            .dialog-title {
+                margin-top: 0;
+                margin-bottom: 1.5rem;
+                color: var(--color-text-primary);
+                font-size: 1.25rem;
+                font-weight: 600;
+            }
 
+            .dialog-content {
+                margin-bottom: 1.5rem;
+            }
             .dialog-content {
                 margin-bottom: 1.5rem;
             }
@@ -73,7 +83,16 @@ interface FlowRenameData {
             .form-group {
                 margin-bottom: 1rem;
             }
+            .form-group {
+                margin-bottom: 1rem;
+            }
 
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                color: var(--color-text-secondary);
+                font-size: 0.875rem;
+            }
             label {
                 display: block;
                 margin-bottom: 0.5rem;
@@ -91,7 +110,21 @@ interface FlowRenameData {
                 font-size: 0.875rem;
                 transition: border-color 0.2s;
             }
+            .form-control {
+                width: 100%;
+                padding: 0.625rem;
+                background-color: var(--color-input-background);
+                border: 1px solid var(--color-input-border);
+                border-radius: 6px;
+                color: var(--color-text-primary);
+                font-size: 0.875rem;
+                transition: border-color 0.2s;
+            }
 
+            .form-control:focus {
+                outline: none;
+                border-color: var(--accent-color);
+            }
             .form-control:focus {
                 outline: none;
                 border-color: var(--accent-color);
