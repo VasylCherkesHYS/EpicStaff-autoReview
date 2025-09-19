@@ -1,0 +1,69 @@
+git clone https://github.com/EpicStaff/EpicStaff.git
+Download vs - https://visualstudio.microsoft.com/visual-cpp-build-tools/
+check the box - Desktop development with C++
+Make sure you have Docker installed and running 
+
+# Make sure your PowerShell doesn't restrict script execution
+# Win+X -> Windows PowerShell (Admin)
+# Run:
+Get-ExecutionPolicy
+# If not RemoteSigned, then:
+Set-ExecutionPolicy RemoteSigned
+
+cd EpicStaff
+python.exe -m pip install --upgrade pip
+pip install poetry
+cd src
+
+docker volume create sandbox_venvs; docker volume create sandbox_executions; docker volume create crew_pgdata; docker volume create crew_config
+
+docker compose up -d redis redis-monitor crewdb
+#Open a new terminal
+
+cd crew
+python -m venv venv
+venv/Scripts/activate
+poetry install
+python main.py
+#Open a new terminal
+
+cd src/django_app
+python -m venv venv
+venv/Scripts/activate
+pip install poetry
+poetry install
+.\entrypoint_debug.ps1
+#Open a new terminal
+
+
+cd src/knowledge
+python -m venv venv
+venv/Scripts/activate
+poetry install
+(Потрібно створити дотенв з ->
+DB_NAME=crew
+DB_HOST_NAME=localhost
+DB_PORT=5432
+DB_KNOWLEDGE_USER=knowledge_user
+DB_KNOWLEDGE_PASSWORD=knowledge_password
+
+
+)
+python main.py
+
+
+# manager
+cd manager
+python app.py
+
+# realtime
+cd realtime
+python server_run.py
+
+# sandbox
+cd sandbox
+python main.py
+
+.\entrypoint_debug.ps1
+
+
