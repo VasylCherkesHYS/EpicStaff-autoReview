@@ -147,6 +147,8 @@ export class RealtimeSettingsDialogComponent implements OnInit {
   }
 
   deleteTranscriptionConfig(configId: number): void {
+    this.settingsForm.patchValue({ realtime_transcription_config: null });
+
     this.transcriptionConfigsService
       .deleteTranscriptionConfig(configId)
       .subscribe({
