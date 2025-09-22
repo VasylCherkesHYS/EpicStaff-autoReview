@@ -61,6 +61,13 @@ At this point:
 
 ---
 
+## 6. Environment Configuration (Global .env)
+In the root of the project, find a single .env file and change all required variables:
+```env
+DB_NAME=crew
+DB_HOST_NAME=127.0.0.1
+```
+
 # Running Backend Services Locally  
 ⚠️ **Reminder:** Each service must be started in a **new terminal**.
 
@@ -89,17 +96,6 @@ poetry install
 ---
 
 ### 🔹 3. Knowledge
-
-Create `.env` in `src/knowledge`:
-```env
-DB_NAME=crew
-DB_HOST_NAME=localhost
-DB_PORT=5432
-DB_KNOWLEDGE_USER=knowledge_user
-DB_KNOWLEDGE_PASSWORD=knowledge_password
-```
-
-Run:
 ```powershell
 cd src/knowledge
 python -m venv venv
@@ -132,17 +128,6 @@ python main.py
 ---
 
 ### 🔹 5. Realtime
-
-Create `.env` in `src/realtime`:
-```env
-DB_HOST_NAME=127.0.0.1
-DB_PORT=5432
-DB_NAME=crew
-DB_REALTIME_USER=postgres
-DB_REALTIME_PASSWORD=admin
-```
-
-Run:
 ```powershell
 cd src/realtime
 python -m venv venv
@@ -154,17 +139,6 @@ python run_server.py
 ---
 
 ### 🔹 6. Manager
-
-Create `.env` in `src/manager`:
-```env
-DB_MANAGER_USER=manager_user
-DB_MANAGER_PASSWORD=manager_password
-DB_NAME=crew
-DB_PORT=5432
-DB_HOST_NAME=127.0.0.1
-```
-
-Run:
 ```powershell
 cd src/manager
 python -m venv venv
