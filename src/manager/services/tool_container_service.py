@@ -29,6 +29,7 @@ class ToolContainerService:
         self.tool_image_service = tool_image_service
         self.import_tool_data_repository = import_tool_data_repository
 
+        # TODO: Service crashes with "NoneType: None" if manager docker container was never created. Works only if container exists but is stopped. Need to handle case when container does not exist at all.
         manager_container = self.docker_client.containers.get("manager_container")
         network_settings = manager_container.attrs["NetworkSettings"]
         self.network_name = list(network_settings["Networks"].keys())[0]
