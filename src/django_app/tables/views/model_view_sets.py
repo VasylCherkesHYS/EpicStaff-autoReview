@@ -66,6 +66,14 @@ from tables.serializers.import_serializers import (
     CrewImportSerializer,
     GraphImportSerializer,
 )
+from tables.serializers.copy_serializers import (
+    AgentCopySerializer,
+    AgentCopyDeserializer,
+    CrewCopySerializer,
+    CrewCopyDeserializer,
+    GraphCopySerializer,
+    GraphCopyDeserializer,
+)
 
 
 from tables.models import (
@@ -142,7 +150,7 @@ from tables.serializers.knowledge_serializers import (
     DocumentMetadataSerializer,
 )
 from tables.services.redis_service import RedisService
-from tables.utils.mixins import ImportExportMixin
+from tables.utils.mixins import ImportExportMixin, DeepCopyMixin
 
 
 redis_service = RedisService()
@@ -248,7 +256,7 @@ class EmbeddingConfigReadWriteViewSet(ModelViewSet):
     filterset_class = EmbeddingConfigFilter
 
 
-class AgentViewSet(ModelViewSet, ImportExportMixin):
+class AgentViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
     queryset = Agent.objects.select_related("realtime_agent").prefetch_related(
         "python_code_tools__python_code",
         Prefetch(
@@ -273,6 +281,9 @@ class AgentViewSet(ModelViewSet, ImportExportMixin):
     entity_type = EntityType.AGENT.value
     export_prefix = "agent"
     filename_attr = "role"
+
+    copy_serializer_class = AgentCopySerializer
+    copy_deserializer_class = AgentCopyDeserializer
 
     def get_serializer_class(self):
         if self.action in ["list", "retrieve"]:
@@ -320,7 +331,7 @@ class AgentViewSet(ModelViewSet, ImportExportMixin):
         return Response(read_serializer.data, status=status.HTTP_200_OK)
 
 
-class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
+class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
     queryset = Crew.objects.prefetch_related("task_set", "agents", "tags")
     serializer_class = CrewSerializer
     filter_backends = [DjangoFilterBackend]
@@ -340,6 +351,9 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
     entity_type = EntityType.CREW.value
     export_prefix = "crew"
     filename_attr = "name"
+
+    copy_serializer_class = CrewCopySerializer
+    copy_deserializer_class = CrewCopyDeserializer
 
     def get_serializer_class(self):
         if self.action == "export":
@@ -463,12 +477,15 @@ class PythonCodeResultReadViewSet(ReadOnlyModelViewSet):
     filterset_fields = ["execution_id", "returncode"]
 
 
-class GraphViewSet(viewsets.ModelViewSet, ImportExportMixin):
+class GraphViewSet(viewsets.ModelViewSet, ImportExportMixin, DeepCopyMixin):
     serializer_class = GraphSerializer
 
     entity_type = EntityType.GRAPH.value
     export_prefix = "graph"
     filename_attr = "name"
+
+    copy_serializer_class = GraphCopySerializer
+    copy_deserializer_class = GraphCopyDeserializer
 
     def get_queryset(self):
         return (
