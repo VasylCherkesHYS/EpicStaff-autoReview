@@ -75,24 +75,6 @@ class Agent(AbstractDefaultFillableModel):
     role = models.TextField()
     goal = models.TextField()
     backstory = models.TextField()
-    configured_tools = models.ManyToManyField(
-        "ToolConfig",
-        through="AgentConfiguredTools",
-        related_name="agents",
-        blank=True,
-    )
-    python_code_tools = models.ManyToManyField(
-        "PythonCodeTool",
-        through="AgentPythonCodeTools",
-        related_name="agents",
-        blank=True,
-    )
-    mcp_tools = models.ManyToManyField(
-        "McpTool",
-        through="AgentMcpTools",
-        related_name="agents",
-        blank=True,
-    )
     max_iter = models.IntegerField(default=None, null=True)
     max_rpm = models.IntegerField(default=None, null=True)
     max_execution_time = models.IntegerField(default=None, null=True)
@@ -171,33 +153,38 @@ class Agent(AbstractDefaultFillableModel):
 
 
 class AgentConfiguredTools(models.Model):
-    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    agent = models.ForeignKey(
+        "Agent", on_delete=models.CASCADE, related_name="configured_tools"
+    )
     toolconfig = models.ForeignKey("ToolConfig", on_delete=models.CASCADE)
 
     class Meta:
-        db_table = "tables_agent_configured_tools"
+        db_table = "tables_agent_configured_tools_m2m"
         unique_together = ("agent_id", "toolconfig_id")
-        managed = False
 
 
 class AgentPythonCodeTools(models.Model):
-    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    agent = models.ForeignKey(
+        "Agent",
+        on_delete=models.CASCADE,
+        related_name="python_code_tools",
+    )
     pythoncodetool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
 
     class Meta:
-        db_table = "tables_agent_python_code_tools"
+        db_table = "tables_agent_python_code_tools_m2m"
         unique_together = ("agent_id", "pythoncodetool_id")
-        managed = False
 
 
 class AgentMcpTools(models.Model):
-    agent = models.ForeignKey("Agent", on_delete=models.CASCADE)
+    agent = models.ForeignKey(
+        "Agent", on_delete=models.CASCADE, related_name="mcp_tools"
+    )
     mcptool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
 
     class Meta:
-        db_table = "tables_agent_mcp_tools"
+        db_table = "tables_agent_mcp_tools_m2m"
         unique_together = ("agent_id", "mcptool_id")
-        managed = False
 
 
 class Crew(AbstractDefaultFillableModel):

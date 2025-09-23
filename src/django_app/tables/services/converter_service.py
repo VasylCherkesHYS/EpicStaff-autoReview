@@ -1,4 +1,5 @@
 from typing import Iterable
+from tables.models.crew_models import AgentConfiguredTools, AgentMcpTools, AgentPythonCodeTools
 from tables.models.mcp_models import McpTool
 from tables.serializers.serializers import BaseToolSerializer
 from tables.models.llm_models import (
@@ -150,9 +151,24 @@ class ConverterService(metaclass=SingletonMeta):
         return crew_data
 
     def _get_agent_base_tools(self, agent: Agent) -> list[BaseToolData]:
-        tools = list(agent.python_code_tools.all()) + list(agent.configured_tools.all()) + list(agent.mcp_tools.all())
-        return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
+        python_tools = PythonCodeTool.objects.filter(
+            id__in=AgentPythonCodeTools.objects.filter(agent_id=agent.id)
+            .values_list("pythoncodetool_id", flat=True)
+        )
+        configured_tools = ToolConfig.objects.filter(
+            id__in=AgentConfiguredTools.objects.filter(agent_id=agent.id)
+            .values_list("toolconfig_id", flat=True)
+        )
+        mcp_tools = McpTool.objects.filter(
+            id__in=AgentMcpTools.objects.filter(agent_id=agent.id)
+            .values_list("mcptool_id", flat=True)
+        )
+
+        all_tools = list(python_tools) + list(configured_tools) + list(mcp_tools)
+
+        return [self.convert_tool_to_base_tool_pydantic(tool) for tool in all_tools]
+    
     def _get_task_base_tools(self, task: Task) -> list[BaseToolData]:
         tools = (
             [entry.tool for entry in task.task_configured_tool_list.all()]
