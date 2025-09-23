@@ -125,7 +125,7 @@ export class AgentsTableComponent {
         private toastService: ToastService,
         private realtimeAgentService: RealtimeAgentService,
         public dialog: Dialog
-    ) {}
+    ) { }
 
     ngOnInit(): void {
         this.loadStartTime = Date.now();
@@ -468,6 +468,19 @@ export class AgentsTableComponent {
 
             editable: false,
         },
+        {
+            headerName: '',
+            field: 'copy',
+            cellRenderer: (params: ICellRendererParams) => {
+                return `<i class="ti ti-copy action-icon"></i>`;
+            },
+            width: 50,
+            minWidth: 50,
+            maxWidth: 50,
+            cellClass: 'action-cell',
+
+            editable: false,
+        },
     ];
 
     public defaultColDef: ColDef = {
@@ -720,7 +733,7 @@ export class AgentsTableComponent {
                     console.error('Error creating agent:', error);
                     this.toastService.error(
                         'Error creating agent: ' +
-                            (error.message || 'Unknown error')
+                        (error.message || 'Unknown error')
                     );
                 },
                 complete: () => {
@@ -1335,6 +1348,22 @@ export class AgentsTableComponent {
             this.openSettingsDialog(agentData);
         }
         const columnId = event.column.getColId();
+
+        if (event.colDef.field === 'copy') {
+            const agentData = event.data;
+            this.closePopup();
+            this.agentsService.copyAgent(agentData, agentData.id).subscribe({
+                next: (resp) => {
+                    console.log('Agent copied successfully RESP:', resp);
+
+
+                    this.toastService.success(`Agent copied successfully`);
+                },
+                error: (error) => {
+                    this.toastService.error('Failed to copy agent');
+                },
+            });
+        }
         // Process only specific columns.
         if (
             columnId !== 'mergedConfigs' &&
