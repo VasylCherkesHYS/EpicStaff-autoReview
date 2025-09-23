@@ -122,7 +122,7 @@ poetry install
 mkdir savefiles
 ```
 
-Fix dependency path in `src/sandbox/dynamic_venv_executor_chain.py` (line 103):
+Fix dependency path in `src/sandbox/dynamic_venv_executor_chain.py`:
 ```python
 predefined_libraries = {"../../shared/dotdict"}
 ```
