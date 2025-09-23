@@ -284,6 +284,7 @@ class AgentViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
 
     copy_serializer_class = AgentCopySerializer
     copy_deserializer_class = AgentCopyDeserializer
+    copy_serializer_response_class = AgentReadSerializer
 
     def get_serializer_class(self):
         if self.action in ["list", "retrieve"]:
@@ -354,6 +355,7 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
 
     copy_serializer_class = CrewCopySerializer
     copy_deserializer_class = CrewCopyDeserializer
+    copy_serializer_response_class = CrewSerializer
 
     def get_serializer_class(self):
         if self.action == "export":
@@ -486,6 +488,7 @@ class GraphViewSet(viewsets.ModelViewSet, ImportExportMixin, DeepCopyMixin):
 
     copy_serializer_class = GraphCopySerializer
     copy_deserializer_class = GraphCopyDeserializer
+    copy_serializer_response_class = GraphSerializer
 
     def get_queryset(self):
         return (
