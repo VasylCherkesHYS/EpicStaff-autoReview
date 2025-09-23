@@ -1,4 +1,11 @@
 from django_filters import rest_framework as filters
+from tables.models.crew_models import (
+    AgentConfiguredTools,
+    AgentMcpTools,
+    AgentPythonCodeTools,
+    TaskMcpTools,
+)
+from tables.exceptions import TaskSerializerError, AgentSerializerError
 from tables.models.llm_models import (
     RealtimeConfig,
     RealtimeTranscriptionConfig,
@@ -236,16 +243,30 @@ class EmbeddingConfigReadWriteViewSet(ModelViewSet):
 
 class AgentViewSet(ModelViewSet):
     queryset = Agent.objects.select_related("realtime_agent").prefetch_related(
-        "python_code_tools__python_code",
+        Prefetch(
+            "python_code_tools",
+            queryset=AgentPythonCodeTools.objects.select_related(
+                "pythoncodetool__python_code"
+            ),
+            to_attr="prefetched_python_code_tools",
+        ),
         Prefetch(
             "configured_tools",
-            queryset=ToolConfig.objects.select_related("tool").prefetch_related(
+            queryset=AgentConfiguredTools.objects.select_related(
+                "toolconfig__tool"
+            ).prefetch_related(
                 Prefetch(
-                    "tool__tool_fields",
+                    "toolconfig__tool__tool_fields",
                     queryset=ToolConfigField.objects.all(),
                     to_attr="prefetched_config_fields",
                 )
             ),
+            to_attr="prefetched_configured_tools",
+        ),
+        Prefetch(
+            "mcp_tools",
+            queryset=AgentMcpTools.objects.select_related("mcptool"),
+            to_attr="prefetched_mcp_tools",
         ),
     )
     filter_backends = [DjangoFilterBackend]
@@ -272,6 +293,8 @@ class AgentViewSet(ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if "tools" in request.data:
+            raise AgentSerializerError(detail="Use tool_ids instead of tools")
         write_serializer = self.get_serializer(
             instance, data=request.data, partial=False
         )
@@ -286,6 +309,9 @@ class AgentViewSet(ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if "tools" in request.data:
+            raise AgentSerializerError(detail="Use tool_ids instead of tools")
+
         write_serializer = self.get_serializer(
             instance, data=request.data, partial=True
         )
@@ -318,26 +344,33 @@ class CrewReadWriteViewSet(ModelViewSet):
 
 class TaskReadWriteViewSet(ModelViewSet):
     queryset = Task.objects.prefetch_related(
-        "task_python_code_tool_list",
         Prefetch(
-            "task_context_list", queryset=TaskContext.objects.select_related("context")
+            "task_python_code_tool_list",
+            queryset=TaskPythonCodeTools.objects.select_related("tool__python_code"),
+            to_attr="prefetched_python_code_tools",
+        ),
+        Prefetch(
+            "task_context_list",
+            queryset=TaskContext.objects.select_related("context"),
+            to_attr="prefetched_contexts",
         ),
         Prefetch(
             "task_configured_tool_list",
             queryset=TaskConfiguredTools.objects.select_related(
-                "tool"
+                "tool__tool"
             ).prefetch_related(
                 Prefetch(
-                    "tool__tool",
-                    queryset=Tool.objects.prefetch_related(
-                        Prefetch(
-                            "tool_fields",
-                            queryset=ToolConfigField.objects.all(),
-                            to_attr="prefetched_config_fields",
-                        )
-                    ),
+                    "tool__tool__tool_fields",
+                    queryset=ToolConfigField.objects.all(),
+                    to_attr="prefetched_config_fields",
                 )
             ),
+            to_attr="prefetched_configured_tools",
+        ),
+        Prefetch(
+            "task_mcp_tool_list",
+            queryset=TaskMcpTools.objects.select_related("tool"),
+            to_attr="prefetched_mcp_tools",
         ),
     )
     filter_backends = [DjangoFilterBackend]
@@ -367,6 +400,9 @@ class TaskReadWriteViewSet(ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if "tools" in request.data:
+            raise TaskSerializerError(detail="Use tool_ids instead of tools")
+
         write_serializer = self.get_serializer(instance, data=request.data)
         write_serializer.is_valid(raise_exception=True)
         self.perform_update(write_serializer)
@@ -378,6 +414,9 @@ class TaskReadWriteViewSet(ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
+        if "tools" in request.data:
+            raise TaskSerializerError(detail="Use tool_ids instead of tools")
+
         write_serializer = self.get_serializer(
             instance, data=request.data, partial=True
         )

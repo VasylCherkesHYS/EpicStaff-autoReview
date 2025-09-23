@@ -331,7 +331,7 @@ class ConverterService(metaclass=SingletonMeta):
             tool_config=tool_config_data,
         )
 
-    def convert_mcp_tool_to_pydantic(self, mcp_tool: McpTool):
+    def convert_mcp_tool_to_pydantic(self, mcp_tool: McpTool) -> McpToolData:
         return McpToolData(
             transport=mcp_tool.transport,
             tool_name=mcp_tool.tool_name,
