@@ -33,10 +33,9 @@ Set-ExecutionPolicy RemoteSigned
 
 ---
 
-## 4. Python & Poetry Setup
+## 4. Python Setup
 ```powershell
 python.exe -m pip install --upgrade pip
-pip install poetry
 cd src
 ```
 
@@ -49,23 +48,27 @@ Create required Docker volumes:
 docker volume create sandbox_venvs; docker volume create sandbox_executions; docker volume create crew_pgdata; docker volume create crew_config
 ```
 
-Start core infrastructure containers:
+Start the core infrastructure containers:
 ```powershell
-docker compose up -d redis redis-monitor crewdb frontend
+    docker compose up --build
 ```
 
-At this point:
-- **Postgres (crewdb)** runs in Docker on port **5432**  
-- **Redis + redis-monitor** run in Docker  
-- **Frontend (Angular + Nginx)** runs in Docker  
+After that, you can manually stop any containers you prefer to run locally:
+```powershell
+    docker stop <container_name_or_id>
+```
 
----
+Alternatively, you can stop them directly from Docker Desktop.
+
 
 ## 6. Environment Configuration (Global .env)
-In the root of the project, find a single .env file and change all required variables:
+In the `/src` directory, locate the single `.env` file.  
+Add the following variables if they are missing, or update them if they already exist:
 ```env
 DB_NAME=crew
 DB_HOST_NAME=127.0.0.1
+REDIS_HOST=127.0.0.1
+MANAGER_PORT=8001
 ```
 
 # Running Backend Services Locally  
@@ -78,6 +81,7 @@ DB_HOST_NAME=127.0.0.1
 cd crew
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 python main.py
 ```
@@ -89,6 +93,7 @@ python main.py
 cd src/django_app
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 .\entrypoint_debug.ps1
 ```
@@ -100,6 +105,7 @@ poetry install
 cd src/knowledge
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 python main.py
 ```
@@ -111,6 +117,7 @@ python main.py
 cd src/sandbox
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 mkdir savefiles
 ```
@@ -132,6 +139,7 @@ python main.py
 cd src/realtime
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 python run_server.py
 ```
@@ -143,6 +151,7 @@ python run_server.py
 cd src/manager
 python -m venv venv
 venv\Scripts\activate
+pip install poetry
 poetry install
 python app.py
 ```
