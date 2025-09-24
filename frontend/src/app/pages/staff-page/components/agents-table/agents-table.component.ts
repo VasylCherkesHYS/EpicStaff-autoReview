@@ -1353,13 +1353,34 @@ export class AgentsTableComponent {
             const agentData = event.data;
             this.closePopup();
             this.agentsService.copyAgent(agentData, agentData.id).subscribe({
-                next: (resp) => {
-                    console.log('Agent copied successfully RESP:', resp);
-
-
+                next: (newAgent) => {
+                    // Show a success toast notification to the user
                     this.toastService.success(`Agent copied successfully`);
+
+                    // Find the index of the original agent row in the rowData array
+                    const rowIndex = this.rowData.findIndex(
+                        (row) => row === event.data
+                    );
+
+                    if (rowIndex !== -1) {
+                        // Create a new object for the copied agent with the new ID from the server
+                        const copiedAgent = {
+                            ...this.rowData[rowIndex],
+                            id: newAgent.id,
+                        };
+
+                        // Insert the copied agent into the rowData array immediately after the original
+                        this.rowData.splice(rowIndex + 1, 0, copiedAgent);
+
+                        // Update the ag-Grid table by adding the new row at the same index
+                        this.gridApi.applyTransaction({
+                            add: [copiedAgent],
+                            addIndex: rowIndex + 1,
+                        });
+                    }
                 },
                 error: (error) => {
+                    // Show an error toast if the copy operation fails
                     this.toastService.error('Failed to copy agent');
                 },
             });
