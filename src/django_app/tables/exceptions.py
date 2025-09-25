@@ -49,3 +49,8 @@ class TaskSerializerError(CustomAPIExeption):
 class AgentSerializerError(CustomAPIExeption):
     status_code = 400
     default_detail = "SerializerError occurred during Agent serialization"
+
+
+class EndNodeValidationError(CustomAPIExeption):
+    status_code = 400
+    default_detail = "ValidationError occured in session_manager_service"

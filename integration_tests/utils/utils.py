@@ -456,4 +456,3 @@ def create_start_node(graph_id: int, variables: dict | None = None):
     response = requests.post(f"{DJANGO_URL}/startnodes/", json=create_start_node_data, headers={"Host": rhost})
     validate_response(response)
     return response.json()["id"]
-

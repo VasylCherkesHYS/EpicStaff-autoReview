@@ -114,18 +114,20 @@ async def test_knowledges(collection_id, redis_service):
     )
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 def test_get_tool_class_data():
-
-    tool_list_response = requests.get(f"{MANAGER_URL}/tool/list", headers={"Host": rhost})
-    validate_response(response=tool_list_response)
-    tool_alias_list = tool_list_response.json()["tool_list"]
-
+    with open(Path("../src/manager/tools_config.json"), "r") as f:
+        tool_config_list = json.loads(f.read())
+    tool_alias_list = []
+    for tool_config in tool_config_list:
+        for tool_alias in tool_config["tool_dict"]:
+            tool_alias_list.append(tool_alias)
     error_tools = []
     for tool_alias in tool_alias_list:
-        tool_class_data_response = requests.get(
+        tool_class_data_response = requests.post(
             f"{MANAGER_URL}/tool/{tool_alias}/class-data",
-            headers={"Host": rhost}
+            json={"tool_init_configuration": None},
+            headers={"Host": rhost},
         )
         try:
             validate_response(response=tool_class_data_response)
@@ -135,6 +137,8 @@ def test_get_tool_class_data():
             error_tools.append(
                 {"tool_alias": tool_alias, "message": tool_class_data_response.reason}
             )
+        except Exception as e:
+            error_tools.append(e)
 
     if error_tools:
         assert False, str(error_tools)
@@ -412,7 +416,9 @@ def main():
 
 
 def get_llm_model(name: str = "gpt-4o-mini"):
-    llm_model_response = requests.get(f"{DJANGO_URL}/llm-models?name={name}", headers={"Host": rhost})
+    llm_model_response = requests.get(
+        f"{DJANGO_URL}/llm-models?name={name}", headers={"Host": rhost}
+    )
     llm_model = None
     if llm_model_response.ok:
         results = llm_model_response.json()["results"]

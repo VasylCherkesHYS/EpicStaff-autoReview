@@ -42,7 +42,7 @@ Our core philosophy: **We hide the complexity, not the logic.**
 
 This guide will help you launch EpicStaff using our system installer, which manages the Docker containers for you.
 
-### Windows/Linux/macOS
+### Windows/Linux
 
 ### 1. **Install dependencies**  
    - [Git](https://git-scm.com/downloads)  
@@ -59,18 +59,37 @@ Unzip the downloaded file and run the EpicStaff application.
 
 ---
 
-### 🛠️ **Important Step for macOS Users**
+### MacOS Launch Instructions (Manual)
 
-Before running the application on macOS for the first time, you need to grant it execution permissions.
-
-**Why is this necessary?**
-macOS has a security feature called Gatekeeper that can block applications downloaded from the internet. The following commands simply tell your system that you trust EpicStaff and allow it to run.
-
-Open your terminal navigate to the unzipped directory and run these two commands:
+### 1. Clone the Project
 ```bash
-chmod -R epicstaff.app
-xattr -r -d com.apple.quarantine epicstaff.app
+git clone -b stable --single-branch https://github.com/EpicStaff/EpicStaff.git`
 ```
+### 2. Change .env file
+```bash
+sed -i '' 's|CREW_SAVEFILES_PATH=/c/savefiles|CREW_SAVEFILES_PATH=~/savefiles|' src/.env
+```
+Replace `~/savefiles` with your preferred location
+### 3. Make sure you have Docker installed and running
+### 4. Use next command to run the project
+```bash
+cd src && docker volume create sandbox_venvs && docker volume create sandbox_executions && docker volume create crew_pgdata && docker volume create crew_config && docker-compose up --build
+```
+
+---
+
+### Windows Launch Instructions (Manual)
+
+### 1. Clone the Project
+`git clone https://github.com/EpicStaff/EpicStaff.git`
+### 2. Make sure you have Docker installed and running
+### 3. Inside `src/` use next commands
+```bash
+docker volume create sandbox_venvs; docker volume create sandbox_executions; docker volume create crew_pgdata; docker volume create crew_config
+
+docker compose up --build
+```
+
 ---
 
 ## One Platform, Two Workflows: Visual and Code
@@ -142,10 +161,6 @@ Here’s a quick look at how EpicStaff compares to other popular tools in the AI
 ---
 
 **Join us on the journey to shape the future of intelligent, collaborative systems!**
-
----
-
-## 🚀 Get Started
 
 ---
 

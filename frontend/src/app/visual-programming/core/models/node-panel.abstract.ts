@@ -12,7 +12,6 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NodeModel } from './node.model';
 import { ShortcutListenerDirective } from '../directives/shortcut-listener.directive';
-import { isEqual } from 'lodash';
 import { UniqueNodeNameValidatorService } from '../../services/unique-node-name.validator';
 
 @Component({
@@ -26,7 +25,7 @@ import { UniqueNodeNameValidatorService } from '../../services/unique-node-name.
         },
     ],
     host: {
-        '(escape)': 'onSave()',
+        '(escape)': 'onEscape()',
     },
 })
 export abstract class BaseSidePanel<T extends NodeModel>
@@ -34,37 +33,57 @@ export abstract class BaseSidePanel<T extends NodeModel>
 {
     protected fb = inject(FormBuilder);
     protected uniqueNameValidator = inject(UniqueNodeNameValidatorService);
+    private lastInitializedNodeId: string | null = null;
 
     node = input.required<T>();
     save = output<NodeModel>();
-    close = output<void>();
 
     public form!: FormGroup;
 
     constructor() {
-        // Reinitialize form whenever the node input changes
         effect(() => {
             const currentNode = this.node();
-            if (currentNode) {
+            if (!currentNode) return;
+            if (this.lastInitializedNodeId !== currentNode.id) {
                 this.form = this.initializeForm();
+                this.lastInitializedNodeId = currentNode.id;
             }
         });
     }
 
     ngOnInit(): void {
         this.form = this.initializeForm();
+        const n = this.node();
+        this.lastInitializedNodeId = n ? n.id : null;
     }
 
     ngOnDestroy(): void {}
 
     public onSave(): void {
-        if (this.form.invalid) {
-            // If form is invalid, just close the panel without saving
-            this.close.emit();
+        if (this.form && this.form.invalid) {
+            const originalNode = this.node();
+            if (originalNode) {
+                this.save.emit(originalNode);
+            }
             return;
         }
         const updatedNode = this.createUpdatedNode();
         this.save.emit(updatedNode);
+    }
+
+    public onEscape(): void {
+        this.onSave();
+    }
+
+    // Returns the updated node without emitting outputs or closing the panel
+    public onSaveSilently(): T | null {
+        if (!this.form) return null;
+        if (this.form.invalid) return null;
+        try {
+            return this.createUpdatedNode();
+        } catch {
+            return null;
+        }
     }
 
     protected createNodeNameValidators(

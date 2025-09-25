@@ -7,6 +7,7 @@ class McpTool(models.Model):
     """
     Configuration for a FastMCP client connecting to remote MCP tools via SSE.
     """
+    name = models.CharField(max_length=255, unique=True, help_text="Unique name for mcp configuration")
 
     transport = models.CharField(
         max_length=2048,

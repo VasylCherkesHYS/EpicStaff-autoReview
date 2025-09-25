@@ -8,10 +8,12 @@ from tables.views.model_view_sets import (
     CrewNodeViewSet,
     DecisionTableNodeModelViewSet,
     EdgeViewSet,
+    EndNodeModelViewSet,
     GraphLightViewSet,
     GraphViewSet,
     McpToolViewSet,
     PythonNodeViewSet,
+    FileExtractorNodeViewSet,
     LLMNodeViewSet,
     StartNodeModelViewSet,
     RealtimeConfigModelViewSet,
@@ -98,8 +100,10 @@ router.register(r"sources", DocumentMetadataViewSet)
 router.register(r"graphs", GraphViewSet, basename="graphs")
 router.register(r"crewnodes", CrewNodeViewSet)
 router.register(r"pythonnodes", PythonNodeViewSet)
+router.register(r"file-extractor-nodes", FileExtractorNodeViewSet)
 router.register(r"llmnodes", LLMNodeViewSet)
 router.register(r"startnodes", StartNodeModelViewSet)
+router.register(r"endnodes", EndNodeModelViewSet)
 
 router.register(r"edges", EdgeViewSet)
 router.register(r"conditionaledges", ConditionalEdgeViewSet)
