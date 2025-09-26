@@ -215,7 +215,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                     agent.similarity_threshold
                         ? parseFloat(agent.similarity_threshold)
                         : 0.7,
-                    [Validators.min(0.1), Validators.max(1.0)]
+                    [Validators.min(0.0), Validators.max(1.0)]
                 ),
                 cache: new FormControl<boolean>(agent.cache ?? true),
                 respect_context_window: new FormControl<boolean>(
