@@ -12,6 +12,7 @@ import { UniqueNodeNameValidatorService } from '../../services/unique-node-name.
 export abstract class BaseSidePanel<T extends NodeModel> {
     protected fb = inject(FormBuilder);
     protected uniqueNameValidator = inject(UniqueNodeNameValidatorService);
+    private lastInitializedNodeId: string | null = null;
 
     node = input.required<T>();
 
@@ -22,6 +23,7 @@ export abstract class BaseSidePanel<T extends NodeModel> {
             const node = this.node();
             if (node) {
                 this.form = this.initializeForm();
+                this.lastInitializedNodeId = node.id;
             }
         });
     }

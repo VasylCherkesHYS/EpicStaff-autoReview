@@ -254,6 +254,14 @@ export class ProjectsStorageService {
         );
     }
 
+    public copyProject(id: number): Observable<GetProjectRequest> {
+        return this.projectsApiService.copyProject(id).pipe(
+            tap((newProject: GetProjectRequest) => {
+                this.addProjectToCache(newProject);
+            })
+        );
+    }
+
     copyProject(
         source: GetProjectRequest,
         newName: string
