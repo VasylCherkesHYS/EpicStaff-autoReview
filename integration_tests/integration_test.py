@@ -80,15 +80,8 @@ def test_create_and_run_session():
         variables={"user_id": 14, "secret_message": "hello, crew"},
     )
     logger.success(f"Session with id {session1} created, yay!")
-    # session2 = run_session(
-    #     graph_id=graph_id,
-    #     initial_state={"user_id": 2, "secret_message": "hello, crew 2"},
-    #     entry_point="hash_message",
-    # )
-    # logger.success(f"Session with id {session2} created, yay!")
 
     wait_for_results(session_id=session1)
-    # wait_for_results(session_id=session2)
     delete_session(session_id=session1)
 
 
@@ -114,7 +107,7 @@ async def test_knowledges(collection_id, redis_service):
     )
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 def test_get_tool_class_data():
     with open(Path("../src/manager/tools_config.json"), "r") as f:
         tool_config_list = json.loads(f.read())
@@ -143,6 +136,26 @@ def test_get_tool_class_data():
     if error_tools:
         assert False, str(error_tools)
 
+
+def test_mcp_tool():
+    docker_compose_up(project_dir="mcp-test-tool")
+
+
+
+
+def docker_compose_up(project_dir):
+    try:
+        project_path = Path(project_dir).resolve()
+        result = subprocess.run(
+            ["docker", "compose", "up", "--build", "-d"],
+            cwd=project_path,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        logger.info(result.stdout)
+    except subprocess.CalledProcessError as e:
+        logger.exception(e.stderr)    
 
 def create_wikipedia_crew(llm_config_id):
     # Create Wikipedia agent and crew
