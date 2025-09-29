@@ -1,3 +1,4 @@
+import os
 from crewai.tools.base_tool import Tool as CrewaiTool
 
 from utils.sync_wrapper import sync_wrapper
@@ -48,6 +49,7 @@ class McpTool:
 class CrewaiMcpToolFactory:
 
     async def create(self, tool_data: McpToolData) -> CrewaiTool:
+
         mcp_tool = McpTool(
             fast_mcp_client=Client(
                 transport=tool_data.transport,
@@ -64,9 +66,8 @@ class CrewaiMcpToolFactory:
             "description": tool.description or tool_data.tool_name,
         }
         if tool.inputSchema:
-            tool.inputSchema["title"] = (
-                tool_data.tool_name[0].upper() + tool_data.tool_name[1:] + "InputSchema"
-            )
+            title = tool_data.tool_name
+            tool.inputSchema["title"] = title
             args_schema = generate_model_from_schema(schema_dict=tool.inputSchema)
             config["args_schema"] = args_schema
         config["func"] = partial(sync_wrapper, mcp_tool.execute)
