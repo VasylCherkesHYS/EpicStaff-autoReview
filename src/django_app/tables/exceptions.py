@@ -54,3 +54,8 @@ class AgentSerializerError(CustomAPIExeption):
 class EndNodeValidationError(CustomAPIExeption):
     status_code = 400
     default_detail = "ValidationError occured in session_manager_service"
+
+
+class FileExtractorValidationError(CustomAPIExeption):
+    status_code = 400
+    default_detail = "FileExtractorNode requires input arguments"

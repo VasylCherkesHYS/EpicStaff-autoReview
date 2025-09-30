@@ -871,7 +871,7 @@ class MetdataNodeSerializer(serializers.Serializer):
     parentId = serializers.CharField(allow_null=True, allow_blank=True)
     position = serializers.DictField()
     input_map = serializers.DictField()
-    node_name = serializers.CharField()
+    node_name = serializers.CharField(allow_null=True)
     output_variable_path = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
@@ -904,9 +904,9 @@ class MetdataNodeSerializer(serializers.Serializer):
 
 class GraphMetadataSerializer(serializers.Serializer):
 
-    nodes = MetdataNodeSerializer(many=True)
-    groups = serializers.JSONField()
-    connections = serializers.JSONField()
+    nodes = MetdataNodeSerializer(many=True, required=False)
+    groups = serializers.JSONField(required=False)
+    connections = serializers.JSONField(required=False)
 
     def create(self, validated_data):
         nodes_data = validated_data.pop("nodes", [])
@@ -924,8 +924,8 @@ class GraphMetadataSerializer(serializers.Serializer):
         nodes_serializer.is_valid(raise_exception=True)
         nodes = nodes_serializer.save()
 
-        connections = validated_data.pop("connections")
-        groups = validated_data.pop("groups")
+        connections = validated_data.pop("connections", {})
+        groups = validated_data.pop("groups", {})
 
         return {"nodes": nodes, "groups": groups, "connections": connections}
 

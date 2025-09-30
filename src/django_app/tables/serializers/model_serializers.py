@@ -593,10 +593,10 @@ class TaskWriteSerializer(serializers.ModelSerializer):
 
         task = super().create(validated_data)
 
-        if tool_ids is not None:
+        if tool_ids:
             self._update_task_tools(task=task, tool_ids=tool_ids)
 
-        if context_ids is not None:
+        if context_ids:
             self._update_task_contexts(task, context_ids)
 
         return task
@@ -609,10 +609,10 @@ class TaskWriteSerializer(serializers.ModelSerializer):
 
         task = super().update(instance, validated_data)
 
-        if tool_ids is not None:
+        if tool_ids:
             self._update_task_tools(task=task, tool_ids=tool_ids)
 
-        if context_ids is not None:
+        if context_ids:
             self._update_task_contexts(task, context_ids)
 
         return task  # TODO: responce
