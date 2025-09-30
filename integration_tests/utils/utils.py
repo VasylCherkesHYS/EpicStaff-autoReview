@@ -368,7 +368,7 @@ def create_mcp_tool(
     }
 
     response = requests.post(
-        f"{DJANGO_URL}/mcp-tools", json=tool_data, headers={"Host": rhost}
+        f"{DJANGO_URL}/mcp-tools/", json=tool_data, headers={"Host": rhost}
     )
     validate_response(response)
 

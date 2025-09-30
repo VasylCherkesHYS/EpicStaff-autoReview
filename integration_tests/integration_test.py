@@ -143,7 +143,6 @@ def test_get_tool_class_data():
     if error_tools:
         assert False, str(error_tools)
 
-@pytest.mark.skip
 def test_mcp_session(run_mcp_tool):
     
     # Create configurations
@@ -159,10 +158,10 @@ def test_mcp_session(run_mcp_tool):
         input_map={},
         output_variable_path="variables",
     )
-
+    create_end_node(graph_id=graph_id)
     create_start_node(graph_id=graph_id)
     create_edge(start_key="__start__", end_key="mcp_test_crew_node", graph=graph_id)
-
+    create_edge(start_key="mcp_test_crew_node", end_key="__end_node__", graph=graph_id)
     # Run sessions
     session_id = run_session(
         graph_id=graph_id,
