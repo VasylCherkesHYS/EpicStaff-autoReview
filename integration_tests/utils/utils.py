@@ -190,7 +190,7 @@ def get_session_status(session_id: int) -> str:
     return session_response.json()["status"]
 
 
-def run_session(graph_id: int, variables: dict | None = None):
+def run_session(graph_id: int, variables: dict | None = None) -> int:
     if variables is None:
         variables = dict()
 
@@ -232,8 +232,6 @@ def create_crew(*args, **kwargs) -> int:
 
 
 def create_agent(*args, **kwargs) -> int:
-    kwargs["configured_tools"] = kwargs.get("configured_tools") or []
-    kwargs["python_code_tools"] = kwargs.get("python_code_tools") or []
 
     agent_response = requests.post(
         f"{DJANGO_URL}/agents/", json=kwargs, headers={"Host": rhost}
@@ -243,11 +241,12 @@ def create_agent(*args, **kwargs) -> int:
     return agent_response.json()["id"]
 
 
-def create_config(llm_id: int) -> int:
+def create_llm_config(llm_id: int) -> int:
     llm_config_data = {
         "custom_name": "MyLLMConfig",
         "model": llm_id,
         "temperature": 0,
+        "api_key": os.environ.get("OPENAI_API_KEY")
     }
 
     llm_config_response = requests.get(
@@ -519,3 +518,17 @@ def create_start_node(graph_id: int, variables: dict | None = None):
     )
     validate_response(response)
     return response.json()["id"]
+
+
+def wait_for_http(url: str, timeout: int = 60):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            resp = requests.get(url, timeout=2)
+            if resp.status_code == 200:
+                logger.info(f"Service at {url} is up")
+                return
+        except requests.RequestException:
+            pass
+        time.sleep(2)
+    raise TimeoutError(f"Service at {url} not ready after {timeout}s")

@@ -18,6 +18,8 @@ from utils.variables import DJANGO_URL, rhost
 def validate_response(response):
     """Validate API response."""
     if not response.ok:
+        import pdb; pdb.set_trace()
+
         raise Exception(f"API call failed: {response.status_code}, {response.text}")
 
 
@@ -140,7 +142,6 @@ def create_source_collection(embedder_config_id: int) -> int:
             for i, file in enumerate(test_files)
         ]
         response = requests.post(url, data=data, files=files, headers={"Host": rhost})
-
     validate_response(response)
     source_collection_data = response.json()
     return source_collection_data["collection_id"]

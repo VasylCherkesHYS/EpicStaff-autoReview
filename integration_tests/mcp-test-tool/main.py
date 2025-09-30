@@ -3,7 +3,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("MyServer")
 
 @mcp.tool
-def test(name: str) -> str:
+def test_tool_1(name: str) -> str:
     return f"Hello, {name}!"
 
 if __name__ == "__main__":
