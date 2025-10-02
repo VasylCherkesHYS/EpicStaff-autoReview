@@ -11,7 +11,6 @@ from loguru import logger
 
 from utils.variables import MANAGER_URL, TEST_TOOL_NAME
 
-
 def test_create_and_run_session():
 
     # TODO: create a function to ensure container is running
@@ -71,11 +70,11 @@ def test_create_and_run_session():
     create_user_name_conditional_edge(source="user_crew_node", graph=graph_id)
 
     create_edge(start_key="option_1", end_key="llm_node1", graph=graph_id)
-
     create_edge(start_key="option_2", end_key="author_crew_node", graph=graph_id)
     create_edge(start_key="author_crew_node", end_key="wiki_crew_node", graph=graph_id)
     create_end_node(graph_id=graph_id)
     create_edge(start_key="wiki_crew_node", end_key="__end_node__", graph=graph_id)
+    create_edge(start_key="llm_node1", end_key="__end_node__", graph=graph_id)
 
     # Run sessions
     session1 = run_session(
@@ -85,13 +84,11 @@ def test_create_and_run_session():
     logger.success(f"Session with id {session1} created, yay!")
 
     wait_for_results_sse(session_id=session1)
-    # wait_for_results(session_id=session2)
+    # wait_for_results_sse(session_id=session2)
     delete_session(session_id=session1)
     delete_crews(crew_ids_to_delete=[user_crew_id, author_crew_id, wikipedia_crew_id])
     delete_graph(graph_id=graph_id)
     delete_custom_tools()
-
-
 
 @pytest.mark.asyncio
 async def test_knowledges(collection_id, redis_service):
@@ -112,7 +109,6 @@ async def test_knowledges(collection_id, redis_service):
         "A secure and user-friendly platform designed for businesses of all sizes."
         in str_results
     )
-
 
 @pytest.mark.skip
 def test_get_tool_class_data():
@@ -208,7 +204,6 @@ def create_author_crew(llm_config_id):
         crew_id=author_crew_id, agent_id=author_agent_id
     )
     return author_crew_id
-
 
 def create_mcp_test_crew(llm_config_id):
     mcp_tool_id = create_mcp_tool(

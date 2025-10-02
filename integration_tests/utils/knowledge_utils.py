@@ -163,7 +163,7 @@ def knowledge_clean_up(collection_id: int):
 def check_statuses_for_embedding_creation(collection_id: int, max_timeout: int = 20):
     """Wait and check for the completion of embedding creation."""
     logger.info(f"Waiting for collection {collection_id} to be ready...")
-    time.sleep(2)
+    time.sleep(10)
 
     for i in range(max_timeout):
         time.sleep(3)

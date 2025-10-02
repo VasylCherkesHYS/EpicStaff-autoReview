@@ -974,3 +974,5 @@ class DecisionTableNodeModelViewSet(viewsets.ModelViewSet):
 class McpToolViewSet(viewsets.ModelViewSet):
     queryset = McpTool.objects.all()
     serializer_class = McpToolSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["name", "tool_name"]
