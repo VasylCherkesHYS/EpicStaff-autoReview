@@ -1,7 +1,9 @@
 import asyncio
 import os
-import psutil
+import sys
+
 from services.crew.mcp_tool_factory import CrewaiMcpToolFactory
+from dotenv import load_dotenv, find_dotenv
 from utils.memory_monitor import MemoryMonitor
 from services.graph.graph_session_manager_service import GraphSessionManagerService
 from services.run_python_code_service import RunPythonCodeService
@@ -9,6 +11,12 @@ from services.crew.crew_parser_service import CrewParserService
 from services.knowledge_search_service import KnowledgeSearchService
 from services.redis_service import RedisService
 from utils.logger import logger
+
+if "--debug" in sys.argv:
+    logger.info("RUNNING IN DEBUG MODE")
+    load_dotenv(find_dotenv("debug.env"), override=True)
+else:
+    load_dotenv(find_dotenv(".env"))
 
 
 async def main():
@@ -62,7 +70,6 @@ async def main():
         while True:
             await asyncio.sleep(1)
             # monitor.log_memory_usage()
-
 
     except Exception as e:
         logger.error(f"An error occurred: {e}", exc_info=True)
