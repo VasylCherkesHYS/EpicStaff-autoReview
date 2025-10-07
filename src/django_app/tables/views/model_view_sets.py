@@ -1,3 +1,4 @@
+from tables.models.knowledge_models import Chunk
 from django_filters import rest_framework as filters
 from tables.models.crew_models import (
     AgentConfiguredTools,
@@ -45,6 +46,7 @@ from django.db.models.functions import Cast
 from tables.serializers.model_serializers import (
     AgentReadSerializer,
     AgentWriteSerializer,
+    ChunkSerializer,
     CrewTagSerializer,
     AgentTagSerializer,
     DecisionTableNodeSerializer,
@@ -654,9 +656,6 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             collection = serializer.save()
 
-            redis_service.publish_source_collection(
-                collection_id=collection.collection_id
-            )
         return Response(
             SourceCollectionReadSerializer(collection).data,
             status=status.HTTP_201_CREATED,
@@ -693,9 +692,7 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             with transaction.atomic():
                 serializer.create_documents(collection)
-
-                redis_service.publish_add_source(collection_id=collection.collection_id)
-
+                
             read_serializer = SourceCollectionReadSerializer(collection)
             return Response(read_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -713,9 +710,6 @@ class CopySourceCollectionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             collection = serializer.save()
 
-            redis_service.publish_source_collection(
-                collection_id=collection.collection_id
-            )
         return Response(
             SourceCollectionReadSerializer(collection).data,
             status=status.HTTP_201_CREATED,
@@ -731,7 +725,7 @@ class DocumentMetadataViewSet(viewsets.ReadOnlyModelViewSet):
         collection: SourceCollection = instance.source_collection
         instance.delete()
 
-        self.update_collection_status(collection)
+        collection.update_collection_status()
 
         return Response(
             {
@@ -739,31 +733,6 @@ class DocumentMetadataViewSet(viewsets.ReadOnlyModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
-
-    def update_collection_status(self, collection):
-        documents_statuses = set(
-            collection.document_metadata.values_list("status", flat=True)
-        )
-
-        NEW = SourceCollection.SourceCollectionStatus.NEW
-        PROCESSING = SourceCollection.SourceCollectionStatus.PROCESSING
-        WARNING = SourceCollection.SourceCollectionStatus.WARNING
-        FAILED = SourceCollection.SourceCollectionStatus.FAILED
-        COMPLETED = SourceCollection.SourceCollectionStatus.COMPLETED
-
-        current_status = COMPLETED
-        if documents_statuses == {FAILED}:
-            current_status = FAILED
-        elif PROCESSING in documents_statuses:
-            current_status = PROCESSING
-        elif FAILED in documents_statuses or WARNING in documents_statuses:
-            current_status = WARNING
-        elif NEW in documents_statuses or not documents_statuses:
-            current_status = NEW
-
-        collection.status = current_status
-        collection.save()
-
 
 class MemoryFilter(FilterSet):
     run_id = NumberFilter(method="filter_run_id")
@@ -977,3 +946,8 @@ class McpToolViewSet(viewsets.ModelViewSet):
     serializer_class = McpToolSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["name", "tool_name"]
+class ChunkViewSet(ReadOnlyModelViewSet):
+    queryset = Chunk.objects.all()
+    serializer_class = ChunkSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["document_id"]

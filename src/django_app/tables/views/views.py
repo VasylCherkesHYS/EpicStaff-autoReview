@@ -54,6 +54,8 @@ from tables.serializers.serializers import (
     AnswerToLLMSerializer,
     EnvironmentConfigSerializer,
     InitRealtimeSerializer,
+    ProcessDocumentChunkingSerializer,
+    ProcessCollectionEmbeddingSerializer,
     RunSessionSerializer,
 )
 from tables.serializers.knowledge_serializers import CollectionStatusSerializer
@@ -762,7 +764,10 @@ class QuickstartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @swagger_auto_schema(request_body=QuickstartSerializer)
+    @swagger_auto_schema(
+        request_body=QuickstartSerializer,
+        responses={202: openapi.Response(description="Chunking operation accepted")},
+    )
     def post(self, request):
         serializer = QuickstartSerializer(data=request.data)
         if serializer.is_valid():
@@ -787,3 +792,29 @@ class QuickstartView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProcessDocumentChunkingView(APIView):
+    @swagger_auto_schema(request_body=ProcessDocumentChunkingSerializer)
+    def post(self, request):
+        serializer = ProcessDocumentChunkingSerializer(data=request.data)
+        if serializer.is_valid():
+            document_id = serializer["document_id"].value
+
+            if not DocumentMetadata.objects.filter(document_id=document_id).exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+            redis_service.publish_process_document_chunking(document_id=document_id)
+            return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class ProcessCollectionEmbeddingView(APIView):
+    @swagger_auto_schema(request_body=ProcessCollectionEmbeddingSerializer)
+    def post(self, request):
+        serializer = ProcessCollectionEmbeddingSerializer(data=request.data)
+        if serializer.is_valid():
+            collection_id = serializer["collection_id"].value
+            if not SourceCollection.objects.filter(collection_id=collection_id).exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            redis_service.publish_source_collection(collection_id=collection_id)
+            return Response(status=status.HTTP_202_ACCEPTED)

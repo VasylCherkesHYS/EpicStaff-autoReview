@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from tables.views.model_view_sets import (
+    ChunkViewSet,
     ConditionGroupModelViewSet,
     ConditionModelViewSet,
     ConditionalEdgeViewSet,
@@ -50,6 +51,8 @@ from tables.views.views import (
     AnswerToLLM,
     EnvironmentConfig,
     InitRealtimeAPIView,
+    ProcessDocumentChunkingView,
+    ProcessCollectionEmbeddingView,
     RunPythonCodeAPIView,
     ToolListRetrieveUpdateGenericViewSet,
     SessionViewSet,
@@ -131,6 +134,8 @@ router.register(r"condition", ConditionModelViewSet)
 
 router.register(r"sessions", SessionViewSet, basename="session")
 router.register(r"mcp-tools", McpToolViewSet)
+router.register(r"document-chunks", ChunkViewSet)
+
 urlpatterns = [
     path("", include(router.urls)),
     path("run-session/", RunSession.as_view(), name="run-session"),
@@ -208,5 +213,15 @@ urlpatterns = [
         "run-session/subscribe/<int:session_id>/swagger/",
         RunSessionSSEViewSwagger.as_view(),
         name="run-session-subscribe-swagger",
+    ),
+    path(
+        "process-document-chunking/",
+        ProcessDocumentChunkingView.as_view(),
+        name="process-document-chunking",
+    ),
+    path(
+        "process-collection-embedding/",
+        ProcessCollectionEmbeddingView.as_view(),
+        name="process-collection-embedding",
     ),
 ]
