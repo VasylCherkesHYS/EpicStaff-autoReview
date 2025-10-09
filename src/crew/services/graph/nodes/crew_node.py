@@ -16,6 +16,7 @@ class CrewNode(BaseNode):
         self,
         session_id: int,
         node_name: str,
+        stop_event: StopEvent,
         crew_data: CrewData,
         redis_service: RedisService,
         crewai_output_channel: str,
@@ -27,6 +28,7 @@ class CrewNode(BaseNode):
         super().__init__(
             session_id=session_id,
             node_name=node_name,
+            stop_event=stop_event,
             input_map=input_map,
             output_variable_path=output_variable_path,
         )

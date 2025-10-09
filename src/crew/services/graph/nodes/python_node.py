@@ -13,6 +13,7 @@ class PythonNode(BaseNode):
         self,
         session_id: int,
         node_name: str,
+        stop_event: StopEvent,
         input_map: dict,
         output_variable_path: str,
         python_code_executor_service: RunPythonCodeService,
@@ -21,6 +22,7 @@ class PythonNode(BaseNode):
         super().__init__(
             session_id=session_id,
             node_name=node_name,
+            stop_event=stop_event,
             input_map=input_map,
             output_variable_path=output_variable_path,
         )

@@ -1,4 +1,5 @@
 import json
+import threading
 
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -41,6 +42,7 @@ class SessionGraphBuilder:
         python_code_executor_service: RunPythonCodeService,
         crewai_output_channel: str,
         knowledge_search_service: KnowledgeSearchService,
+        stop_session: threading.Event
     ):
         """
         Initializes the SessionGraphBuilder with the required services and session details.
@@ -62,7 +64,8 @@ class SessionGraphBuilder:
 
         self._graph_builder = StateGraph(State)
         self._end_node_result: dict | None = {}
-
+        self.stop_session = stop_session
+        
     def add_conditional_edges(
         self,
         from_node: str,

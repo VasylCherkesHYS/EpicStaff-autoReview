@@ -1,6 +1,7 @@
 import os
 from textwrap import dedent
 from typing import Any, Type
+from services.graph.events import StopEvent
 from crewai import Agent, Crew, Task, LLM
 from langchain_core.tools import BaseTool
 from utils.parse_llm import parse_llm, parse_memory_llm, parse_memory_embedder
@@ -131,6 +132,7 @@ class CrewParserService(metaclass=SingletonMeta):
         crew_data: CrewData,
         session_id: int,
         crew_callback_factory: CrewCallbackFactory,
+        stop_event: StopEvent,
         inputs: dict[str, Any] | None = None,
         global_kwargs: dict[str, Any] | None = None,
     ) -> Crew:
@@ -151,6 +153,7 @@ class CrewParserService(metaclass=SingletonMeta):
             "knowledge_collection_id": crew_data.knowledge_collection_id,
             "search_limit": crew_data.search_limit,
             "similarity_threshold": crew_data.similarity_threshold,
+            "stop_event": stop_event,
         }
 
         if crew_data.memory:

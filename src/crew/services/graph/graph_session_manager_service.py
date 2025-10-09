@@ -1,6 +1,9 @@
 import json
+import threading
 import uuid
 from typing import Any
+from services.graph.events import StopEvent
+from services.graph.exceptions import StopSession
 from dotdict import DotDict
 from utils.memory_monitor import MemoryMonitor, MemoryMonitorContext
 from services.graph.graph_builder import SessionGraphBuilder, State
@@ -16,12 +19,19 @@ from pathlib import Path
 from utils.helpers import load_env
 from services.graph.graph_builder import SessionGraphBuilder
 from services.knowledge_search_service import KnowledgeSearchService
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import sys
 import gc
 
 session_data_tasks: dict[int, int] = {}
 import ctypes
+
+
+@dataclass
+class SessionTaskItem:
+
+    task: asyncio.Task
+    stop_event: StopEvent
 
 
 class GraphSessionManagerService(metaclass=SingletonMeta):
@@ -55,7 +65,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
         self.crewai_output_channel = crewai_output_channel
         self.knowledge_search_service = knowledge_search_service
         self.max_concurrent_sessions = (max_concurrent_sessions,)
-        self.session_graph_pool: dict[int, asyncio.Task] = {}
+        self.session_graph_pool: dict[int, SessionTaskItem] = {}
         self.session_queue = asyncio.Queue()
         self._worker_task: asyncio.Task | None = None
         self._semaphore = asyncio.Semaphore(max_concurrent_sessions)
@@ -66,7 +76,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
         self._worker_task = asyncio.create_task(self._session_worker())
         logger.info("Session Manager Service is now running.")
 
-    async def run_session(self, session_data: SessionData):
+    async def run_session(self, session_data: SessionData, stop_event: StopEvent):
 
         try:
             session_id = session_data.id
@@ -79,6 +89,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
                 python_code_executor_service=self.python_code_executor_service,
                 crewai_output_channel=self.crewai_output_channel,
                 knowledge_search_service=self.knowledge_search_service,
+                stop_session=stop_event,
             )
 
             graph = session_graph_builder.compile_from_schema(session_data=session_data)
@@ -104,8 +115,10 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
                     self.redis_service.publish("graph:messages", data)
                 logger.debug(f"Mode: {stream_mode}. Chunk: {chunk}")
 
-            await asyncio.sleep(0.01)
+                stop_event.check_stop()
             
+            await asyncio.sleep(0.01)
+
             graph_end_data = GraphMessage(
                 session_id=session_id,
                 name="",
@@ -120,19 +133,23 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
 
             self.redis_service.publish("graph:messages", graph_end_message_data)
             await asyncio.sleep(0.05)
-            self.redis_service.update_session_status(
+            await self.redis_service.aupdate_session_status(
                 session_id=session_id, status="end"
             )
 
         except asyncio.CancelledError:
             # Status updated in _handle_session_timeout
             logger.warning(f"Session {session_id} was cancelled")
-
+        except StopSession as e:
+            await self.redis_service.aupdate_session_status(
+                session_id=session_id, status="error", error=str(e)
+            )
+            
         except Exception as e:
             logger.exception(f"Failed to start session: {e}")
 
             await self.redis_service.aupdate_session_status(
-                session_id=session_id, status="error", error=str(e)
+                session_id=session_id, status="error", error="Session stopped by user."
             )
 
     async def _listen_callback(self, message: dict[str, Any]):
@@ -186,7 +203,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
 
                     # Remove task from pool and cancel
                     session_task = self.session_graph_pool.pop(session_id)
-                    session_task.cancel()
+                    session_task.stop_event.set()
 
                     await self.redis_service.aupdate_session_status(
                         session_id=session_id, status="expired"
@@ -208,10 +225,10 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
         except Exception as e:
             logger.exception(f"Error handling session timeout: {e}")
 
-    async def session_runner(self, data: SessionData):
+    async def session_runner(self, data: SessionData, stop_event: StopEvent):
         async with self._semaphore:
             logger.info(f"Acquired semaphore for session {data.id}")
-            await self.run_session(data)
+            await self.run_session(data, stop_event)
             self.counter += 1
             logger.debug(f"Tasks executed: {self.counter}")
 
@@ -220,6 +237,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
             if sid in self.session_graph_pool:
                 self.session_graph_pool.pop(sid)
                 logger.info(f"Task for session {sid} removed from pool")
+            logger.warning(f"Task for session {sid} is not in pool")
 
         return remove_task_from_pool
 
@@ -230,8 +248,9 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
             session_id = session_data.id
             logger.info(f"Dequeued session {session_id}")
 
-            task = asyncio.create_task(self.session_runner(session_data))
-            self.session_graph_pool[session_id] = task
+            stop_event = StopEvent()
+            task = asyncio.create_task(self.session_runner(session_data, stop_event))
+            self.session_graph_pool[session_id] = SessionTaskItem(task, stop_event)
             session_data_tasks[session_id] = id(session_data)
 
             task.add_done_callback(self.create_callback(session_id))
