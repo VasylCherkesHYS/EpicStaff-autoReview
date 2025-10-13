@@ -8,6 +8,7 @@ from loguru import logger
 
 
 from callbacks.session_callback_factory import CrewCallbackFactory
+from services.graph.events import StopEvent
 from services.graph.subgraphs.decision_table_node import DecisionTableNodeSubgraph
 from services.graph.nodes.llm_node import LLMNode
 from services.graph.nodes.end_node import EndNode
@@ -42,7 +43,7 @@ class SessionGraphBuilder:
         python_code_executor_service: RunPythonCodeService,
         crewai_output_channel: str,
         knowledge_search_service: KnowledgeSearchService,
-        stop_session: threading.Event
+        stop_event: StopEvent,
     ):
         """
         Initializes the SessionGraphBuilder with the required services and session details.
@@ -64,8 +65,8 @@ class SessionGraphBuilder:
 
         self._graph_builder = StateGraph(State)
         self._end_node_result: dict | None = {}
-        self.stop_session = stop_session
-        
+        self.stop_event = stop_event
+
     def add_conditional_edges(
         self,
         from_node: str,
@@ -212,6 +213,7 @@ class SessionGraphBuilder:
                 input_map=crew_node_data.input_map,
                 output_variable_path=crew_node_data.output_variable_path,
                 knowledge_search_service=self.knowledge_search_service,
+                stop_event=self.stop_event,
             )
             self.add_node(crew_node)
 
@@ -223,6 +225,7 @@ class SessionGraphBuilder:
                 python_code_data=python_node_data.python_code,
                 input_map=python_node_data.input_map,
                 output_variable_path=python_node_data.output_variable_path,
+                stop_event=self.stop_event,
             )
             self.add_node(python_node)
 
@@ -233,6 +236,7 @@ class SessionGraphBuilder:
                 python_code_executor_service=self.python_code_executor_service,
                 input_map=file_extractor_node_data.input_map,
                 output_variable_path=file_extractor_node_data.output_variable_path,
+                stop_event=self.stop_event,
             )
             self.add_node(file_extractor_node)
 
@@ -243,6 +247,7 @@ class SessionGraphBuilder:
                 llm_data=llm_node_data.llm_data,
                 input_map=llm_node_data.input_map,
                 output_variable_path=llm_node_data.output_variable_path,
+                stop_event=self.stop_event,
             )
             self.add_node(llm_node)
 
@@ -268,6 +273,7 @@ class SessionGraphBuilder:
                 session_graph_builder_instance=self,
                 session_id=self.session_id,
                 output_map=schema.end_node.output_map,
+                stop_event=self.stop_event,
             )
             self.add_node(end_node)
 

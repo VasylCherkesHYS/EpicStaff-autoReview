@@ -67,6 +67,7 @@ class CrewNode(BaseNode):
             crew_callback_factory=crew_callback_factory,
             inputs=input_,
             global_kwargs=gloabl_kwargs,
+            stop_event=self.stop_event,
         )
         crew_output = await crew.kickoff_async(inputs=input_)
 

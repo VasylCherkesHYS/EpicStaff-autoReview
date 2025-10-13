@@ -324,3 +324,6 @@ class ChunkDocumentMessageResponse(BaseModel):
     document_id: int
     success: bool
     message: str | None
+
+class StopSessionMessage(BaseModel):
+    session_id: int

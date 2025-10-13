@@ -331,3 +331,6 @@ class KnowledgeSearchMessage(BaseModel):
     query: str
     search_limit: int | None
     similarity_threshold: float | None
+
+class StopSessionMessage(BaseModel):
+    session_id: int

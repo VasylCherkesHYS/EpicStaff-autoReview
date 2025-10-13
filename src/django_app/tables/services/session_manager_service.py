@@ -56,7 +56,7 @@ class SessionManagerService(metaclass=SingletonMeta):
 
     def stop_session(self, session_id: int) -> None:
         session: Session = self.get_session(session_id=session_id)
-        # TODO: Send notify to redis channel to stop container
+        self.redis_service.publish_stop_session(session_id=session_id)
 
         session.status = Session.SessionStatus.END
         session.save()
@@ -165,9 +165,9 @@ class SessionManagerService(metaclass=SingletonMeta):
                 )
             )
             decision_table_node_data_list.append(decision_table_node_data)
-        
+
         end_node = self.end_node_validator.validate(graph_id=graph.pk)
-        
+
         # TODO: remove validation
         if end_node is not None:
             end_node_data = self.converter_service.convert_end_node_to_pydantic(

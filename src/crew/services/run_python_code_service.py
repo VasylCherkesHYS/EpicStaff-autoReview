@@ -3,6 +3,7 @@ import asyncio
 from typing import Any
 
 from loguru import logger
+from services.graph.events import StopEvent
 from utils.psutil_wrapper import psutil_wrapper
 from utils.singleton_meta import SingletonMeta
 from services.redis_service import AsyncPubsubSubscriber, RedisService
@@ -17,6 +18,7 @@ class RunPythonCodeService(metaclass=SingletonMeta):
         self,
         python_code_data: PythonCodeData,
         inputs: dict[str, Any],
+        stop_event: StopEvent,
         additional_global_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         additional_global_kwargs = additional_global_kwargs or {}
@@ -57,7 +59,7 @@ class RunPythonCodeService(metaclass=SingletonMeta):
             if callback_receiver.results is not None:
                 self.redis_service.unsubscribe("code_results", subscriber=subscriber)
                 return callback_receiver.results
-
+            stop_event.check_stop()
             await asyncio.sleep(0.001)
 
 

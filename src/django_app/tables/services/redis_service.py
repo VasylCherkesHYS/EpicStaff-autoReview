@@ -8,11 +8,12 @@ from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from threading import Lock
 
-from django_app.settings import KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL
+from django_app.settings import KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL, STOP_SESSION_CHANNEL
 from tables.request_models import (
     ChunkDocumentMessage,
     RealtimeAgentChatData,
     SessionData,
+    StopSessionMessage,
 )
 from utils.singleton_meta import SingletonMeta
 from utils.logger import logger
@@ -159,4 +160,10 @@ class RedisService(metaclass=SingletonMeta):
         message = ChunkDocumentMessage(document_id=document_id)
         self.redis_client.publish(
             KNOWLEDGE_DOCUMENT_CHUNK_CHANNEL, json.dumps(message.model_dump())
+        )
+
+    def publish_stop_session(self, session_id):
+        message = StopSessionMessage(session_id=session_id)
+        self.redis_client.publish(
+            STOP_SESSION_CHANNEL, json.dumps(message.model_dump())
         )
