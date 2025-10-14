@@ -108,6 +108,7 @@
     .file-item-with-settings {
       padding: 1rem;
       border-bottom: 1px solid var(--color-divider-subtle);
+      transition: all 0.2s ease;
 
       &.invalid-file {
         background-color: rgba(255, 68, 68, 0.05);
@@ -125,7 +126,8 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0rem;
+        transition: all 0.25s ease;
 
         .file-info {
           display: flex;
@@ -182,8 +184,12 @@
       .file-settings {
         background-color: var(--color-nodes-input-bg);
         border-radius: 6px;
-        padding: 0.75rem;
-
+        padding: 0;
+        // opacity: 1;
+        // overflow: hidden;
+        // transform: translateY(-4px);
+        // max-height: 0;
+        transition: all 0.25s ease;
         .setting-row {
           display: flex;
           gap: 1rem;
@@ -268,7 +274,7 @@
             }
           }
         }
-
+      
         // Chunk size validation error message
         .chunk-size-error {
           margin-top: 0.5rem;
@@ -281,5 +287,20 @@
         }
       }
     }
+      .file-item-with-settings:hover .file-settings,
+      .file-item-with-settings:focus-within .file-settings {
+        opacity: 1;
+        transform: translateY(0);
+        overflow: visible;
+        max-height: 500px; // Arbitrary large value to allow expansion
+        padding: 0.75rem;
+
+      }
+      .file-item-with-settings:hover .file-header,
+      .file-item-with-settings:focus-within .file-header {
+        margin-bottom: 0.75rem;
+
+      }
+
   }
 }

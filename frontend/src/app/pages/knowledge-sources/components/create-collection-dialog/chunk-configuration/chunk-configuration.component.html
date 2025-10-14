@@ -1,0 +1,115 @@
+<div>
+    <div class="file-info">
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+            ></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <span class="file-name">{{ selectedFile?.file?.name }}</span>
+        <span class="file-size">
+            {{ ((selectedFile?.file?.size ?? 0) / 1024).toFixed(0) }} KB
+        </span>
+        <span class="file-status invalid" *ngIf="!selectedFile?.isValid">
+            Invalid file type
+        </span>
+    </div>
+
+    <!-- Per-file chunk settings -->
+    <div class="file-settings" *ngIf="selectedFile.isValid">
+        <div class="setting-row">
+            <div class="setting-group">
+                <div class="setting-label">
+                    <label>Chunk Strategy</label>
+                    <app-help-tooltip
+                        text="Choose how to split your document into chunks. Different strategies work better for different document types."
+                    ></app-help-tooltip>
+                </div>
+                <select
+                    class="chunk-strategy-select"
+                    [value]="selectedFile.chunkStrategy"
+                    (change)="
+                        updateFileSettings(
+                            i,
+                            'chunkStrategy',
+                            $any($event).target.value
+                        )
+                    "
+                >
+                    <option
+                        *ngFor="let strategy of chunkStrategies"
+                        [value]="strategy.value"
+                    >
+                        {{ strategy.label }}
+                    </option>
+                </select>
+            </div>
+
+            <!-- <div class="setting-group">
+                <div class="setting-label">
+                    <label>Chunk Size</label>
+                    <app-help-tooltip
+                        text="The maximum size of each document chunk. Smaller chunks are more precise but may lose context. Larger chunks preserve more context but may be less precise."
+                    ></app-help-tooltip>
+                </div>
+                <input
+                    type="number"
+                    [value]="selectedFile.chunkSize"
+                    min="1"
+                    [max]="maxChunkSize"
+                    [class.invalid-input]="selectedFile.hasChunkSizeError"
+                    (change)="
+                        updateFileSettings(
+                            i,
+                            'chunkSize',
+                            $any($event).target.value
+                        )
+                    "
+                    (keydown.enter)="$event.preventDefault()"
+                />
+            </div> -->
+
+            <!-- <div class="setting-group">
+                <div class="setting-label">
+                    <label>Chunk Overlap</label>
+                    <app-help-tooltip
+                        text="The number of characters or tokens that overlap between chunks. Helps maintain context between chunks. Must be smaller than chunk size."
+                    ></app-help-tooltip>
+                </div>
+                <input
+                    type="number"
+                    [value]="selectedFile.overlapSize"
+                    min="0"
+                    [max]="maxOverlapSize"
+                    [class.invalid-input]="selectedFile.hasChunkSizeError"
+                    (change)="
+                        updateFileSettings(
+                            i,
+                            'overlapSize',
+                            $any($event).target.value
+                        )
+                    "
+                    (keydown.enter)="$event.preventDefault()"
+                />
+            </div> -->
+        </div>
+
+        <!-- Chunk size validation error message -->
+        <!-- <div
+            class="chunk-size-error"
+            *ngIf="selectedFile.hasChunkSizeError"
+        >
+            Chunk size must be greater than overlap size
+        </div> -->
+    </div>
+</div>

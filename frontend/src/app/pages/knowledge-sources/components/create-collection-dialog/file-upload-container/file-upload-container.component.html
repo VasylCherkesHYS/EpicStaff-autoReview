@@ -48,7 +48,7 @@
   </div>
 
   <!-- File list with individual settings -->
-  <div class="file-list" *ngIf="filesWithSettings.length > 0">
+  <div class="file-list" *ngIf="filesWithSettings.length > 0" >
     <div class="file-list-header">
       <h3>Selected Files ({{ filesWithSettings.length }})</h3>
       <div class="invalid-files-alert" *ngIf="hasInvalidFiles">
@@ -63,7 +63,7 @@
           *ngFor="let fileWithSettings of filesWithSettings; let i = index"
           [class.invalid-file]="!fileWithSettings.isValid"
         >
-          <div class="file-header">
+          <div class="file-header" (click)="emitChunkParams(i)">
             <div class="file-info">
               <svg
                 xmlns="http://www.w3.org/2000/svg"

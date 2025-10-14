@@ -14,19 +14,9 @@ import {
   Validators,
   FormsModule,
 } from '@angular/forms';
-import { ChunkStrategy } from '../../../models/source-collection.model';
+import { ChunkStrategy, FileWithSettings } from '../../../models/source-collection.model';
 import { chunkSizeGreaterThanOverlapValidator } from '../../../../../shared/form-validators/chunk-size.validator';
 import { HelpTooltipComponent } from '../../../../../shared/components/help-tooltip/help-tooltip.component';
-
-// Interface to track file settings
-export interface FileWithSettings {
-  file: File;
-  chunkStrategy: ChunkStrategy;
-  chunkSize: number;
-  overlapSize: number;
-  isValid: boolean; // Track file validity
-  hasChunkSizeError?: boolean; // Track chunk size validation
-}
 
 @Component({
   selector: 'app-file-upload-container',
@@ -54,6 +44,7 @@ export class FileUploadContainerComponent {
   ];
 
   @Output() hasInvalidFilesChange = new EventEmitter<boolean>();
+  @Output() chunkParamsChange = new EventEmitter<FileWithSettings>();
 
   public filesWithSettings: FileWithSettings[] = [];
   isDragging = false;
@@ -70,7 +61,7 @@ export class FileUploadContainerComponent {
   public additionalParamsInput: string = '{}';
   public hasAdditionalParamsError: boolean = false;
 
-  constructor(private fb: FormBuilder) {}
+  constructor(private fb: FormBuilder) { }
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -250,6 +241,11 @@ export class FileUploadContainerComponent {
 
     // Update overall invalid status
     this.checkForInvalidFiles();
+  }
+
+  emitChunkParams(index: number): void {
+    const file = this.filesWithSettings[index];
+    this.chunkParamsChange.emit(file);
   }
 
   // Method to get files for form submission

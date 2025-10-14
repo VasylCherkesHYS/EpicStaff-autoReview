@@ -7,6 +7,15 @@ export type ChunkStrategy =
   | 'json'
   | 'html';
 
+export interface FileWithSettings {
+  file: File;
+  chunkStrategy: ChunkStrategy;
+  chunkSize: number;
+  overlapSize: number;
+  isValid: boolean; // Track file validity
+  hasChunkSizeError?: boolean; // Track chunk size validation
+}
+
 export enum CollectionStatus {
   NEW = 'new',
   PROCESSING = 'processing',

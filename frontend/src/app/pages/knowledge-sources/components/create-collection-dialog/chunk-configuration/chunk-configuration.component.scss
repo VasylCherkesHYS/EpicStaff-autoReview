@@ -1,0 +1,31 @@
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #fff;
+
+    .file-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 300px;
+    }
+
+    .file-size {
+        font-size: 0.75rem;
+        color: #aaa;
+    }
+
+    .file-status {
+        font-size: 0.75rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+
+        &.invalid {
+            background-color: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+        }
+    }
+}
