@@ -7,6 +7,12 @@ export type ChunkStrategy =
   | 'json'
   | 'html';
 
+export interface AdditionalParams {
+  csvStrategy: string,
+  htmlStrategy: string,
+  additinalParams: string,
+}
+
 export interface FileWithSettings {
   file: File;
   chunkStrategy: ChunkStrategy;
@@ -14,6 +20,7 @@ export interface FileWithSettings {
   overlapSize: number;
   isValid: boolean; // Track file validity
   hasChunkSizeError?: boolean; // Track chunk size validation
+  additionalParams?: AdditionalParams;
 }
 
 export enum CollectionStatus {
@@ -43,4 +50,10 @@ export interface CreateGetSourceCollectionRequestRequest {
   chunk_strategies: ChunkStrategy[];
   chunk_overlaps: number[];
   additional_params: {};
+}
+
+
+export interface FileWithIndex {
+  file: FileWithSettings;
+  index: number;
 }

@@ -93,6 +93,7 @@
                     [chunkStrategies]="chunkStrategies"
                     (hasInvalidFilesChange)="onInvalidFilesChange($event)"
                     (chunkParamsChange)="onFileSelected($event)"
+                    [selectedFile]="currentFile()"
                 ></app-file-upload-container>
 
                 <div class="progress-bar" *ngIf="isSubmitting && progress > 0">
@@ -100,12 +101,14 @@
                     <span class="progress-text">{{ progress }}%</span>
                 </div>
             </div>
-            <div class="dialog-content__sidebar">
+            <div class="dialog-content__sidebar" *ngIf="currentFile()">
                 <app-chunk-configuration
                     [selectedFile]="currentFile()"
                     [maxChunkSize]="maxChunkSize"
                     [maxOverlapSize]="maxOverlapSize"
                     [chunkStrategies]="chunkStrategies"
+                    [fileSettingsFormArray]="fileSettingsFormArray"
+                    (chunkParamsChange)="onFileSelected($event)"
                 >
                 </app-chunk-configuration>
             </div>

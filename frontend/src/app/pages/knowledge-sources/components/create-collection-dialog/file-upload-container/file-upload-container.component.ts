@@ -14,9 +14,12 @@ import {
   Validators,
   FormsModule,
 } from '@angular/forms';
-import { ChunkStrategy, FileWithSettings } from '../../../models/source-collection.model';
+import { ChunkStrategy, FileWithIndex, FileWithSettings } from '../../../models/source-collection.model';
 import { chunkSizeGreaterThanOverlapValidator } from '../../../../../shared/form-validators/chunk-size.validator';
 import { HelpTooltipComponent } from '../../../../../shared/components/help-tooltip/help-tooltip.component';
+
+
+
 
 @Component({
   selector: 'app-file-upload-container',
@@ -42,9 +45,9 @@ export class FileUploadContainerComponent {
     { label: 'JSON', value: 'json' },
     { label: 'HTML', value: 'html' },
   ];
-
+  @Input() selectedFile?: FileWithIndex | null = null;
   @Output() hasInvalidFilesChange = new EventEmitter<boolean>();
-  @Output() chunkParamsChange = new EventEmitter<FileWithSettings>();
+  @Output() chunkParamsChange = new EventEmitter<FileWithIndex>();
 
   public filesWithSettings: FileWithSettings[] = [];
   isDragging = false;
@@ -245,7 +248,7 @@ export class FileUploadContainerComponent {
 
   emitChunkParams(index: number): void {
     const file = this.filesWithSettings[index];
-    this.chunkParamsChange.emit(file);
+    this.chunkParamsChange.emit({file, index});
   }
 
   // Method to get files for form submission

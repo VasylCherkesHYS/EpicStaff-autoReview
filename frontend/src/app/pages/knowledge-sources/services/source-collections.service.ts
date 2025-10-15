@@ -19,7 +19,7 @@ interface ApiGetRequest<T> {
   providedIn: 'root',
 })
 export class CollectionsService {
-  constructor(private http: HttpClient, private configService: ConfigService) {}
+  constructor(private http: HttpClient, private configService: ConfigService) { }
 
   private get apiUrl(): string {
     return this.configService.apiUrl + 'source-collections/';

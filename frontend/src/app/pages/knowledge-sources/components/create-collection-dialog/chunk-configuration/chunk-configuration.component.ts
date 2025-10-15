@@ -1,15 +1,20 @@
 import { Component, effect, Input, Signal, OnInit, EventEmitter, Output } from '@angular/core';
-import { ChunkStrategy, FileWithSettings } from '../../../models/source-collection.model';
+import { ChunkStrategy, FileWithIndex, FileWithSettings } from '../../../models/source-collection.model';
 import { CommonModule } from '@angular/common';
+import { HelpTooltipComponent } from "../../../../../shared/components/help-tooltip/help-tooltip.component";
+import { FormArray } from '@angular/forms';
+import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
+import { SourceEmbeddingService } from '../../../services/source-embedding.service';
 
 @Component({
   selector: 'app-chunk-configuration',
-  imports: [CommonModule],
+  imports: [CommonModule, HelpTooltipComponent, ButtonComponent],
   templateUrl: './chunk-configuration.component.html',
   styleUrl: './chunk-configuration.component.scss'
 })
 export class ChunkConfigurationComponent {
-  @Input() selectedFile: FileWithSettings | null = null;
+  @Input() selectedFile: FileWithIndex | null = null;
+  @Input() fileSettingsFormArray!: FormArray;
   @Input() maxChunkSize: number = 8000;
   @Input() maxOverlapSize: number = 1000;
   @Input() chunkStrategies: { label: string; value: ChunkStrategy }[] = [
@@ -19,12 +24,24 @@ export class ChunkConfigurationComponent {
     { label: 'JSON', value: 'json' },
     { label: 'HTML', value: 'html' },
   ];
-  @Output() chunkParamsChange = new EventEmitter<FileWithSettings>();
+  @Output() chunkParamsChange = new EventEmitter<FileWithIndex>();
+
 
   // Default values
   defaultChunkSize = 1000;
   defaultOverlapSize = 200;
   defaultChunkStrategy: ChunkStrategy = 'token';
+
+  // Check if a file setting has a chunk size error
+  hasChunkError(index: number): boolean {
+    const group = this.fileSettingsFormArray.at(index);
+    return group ? group.hasError('chunkSizeTooSmall') : false;
+  }
+
+  constructor(
+    private sourceEmbeddingService: SourceEmbeddingService,
+
+  ) { }
 
   updateFileSettings(index: number, field: string, value: any): void {
     const numericValue =
@@ -33,11 +50,11 @@ export class ChunkConfigurationComponent {
     // Update our tracked array
     if (this.selectedFile) {
       if (field === 'chunkStrategy') {
-        this.selectedFile.chunkStrategy = value;
+        this.selectedFile.file.chunkStrategy = value;
       } else if (field === 'chunkSize') {
-        this.selectedFile.chunkSize = numericValue;
+        this.selectedFile.file.chunkSize = numericValue;
       } else if (field === 'overlapSize') {
-        this.selectedFile.overlapSize = numericValue;
+        this.selectedFile.file.overlapSize = numericValue;
       }
 
     }
@@ -50,10 +67,26 @@ export class ChunkConfigurationComponent {
     control.updateValueAndValidity();
 
     // Update the file's error state
-    this.selectedFile.hasChunkSizeError = this.hasChunkError(index);
+    if (this.selectedFile) {
+      this.selectedFile.file.hasChunkSizeError = this.hasChunkError(index);
+    }
+  }
 
-    // Update overall invalid status
-    this.checkForInvalidFiles();
+  onClick() {
+    console.log("chunking clicked");
+
+    if (!this.selectedFile || this.hasChunkError(this.selectedFile.index)) {
+      return
+    }
+
+    this.sourceEmbeddingService.createDocumentChunking(this.selectedFile.index)
+      .subscribe({
+        next: (res) => {
+          console.log("chunking", res);
+
+        }
+      })
+
   }
 
   ngOnChanges() {

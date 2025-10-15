@@ -16,17 +16,17 @@
             ></path>
             <polyline points="14 2 14 8 20 8"></polyline>
         </svg>
-        <span class="file-name">{{ selectedFile?.file?.name }}</span>
+        <span class="file-name">{{ selectedFile?.file?.file?.name }}</span>
         <span class="file-size">
-            {{ ((selectedFile?.file?.size ?? 0) / 1024).toFixed(0) }} KB
+            {{ ((selectedFile?.file?.file?.size ?? 0) / 1024).toFixed(0) }} KB
         </span>
-        <span class="file-status invalid" *ngIf="!selectedFile?.isValid">
+        <span class="file-status invalid" *ngIf="!selectedFile?.file?.isValid">
             Invalid file type
         </span>
     </div>
 
     <!-- Per-file chunk settings -->
-    <div class="file-settings" *ngIf="selectedFile.isValid">
+    <div class="file-settings" *ngIf="selectedFile?.file?.isValid">
         <div class="setting-row">
             <div class="setting-group">
                 <div class="setting-label">
@@ -37,10 +37,10 @@
                 </div>
                 <select
                     class="chunk-strategy-select"
-                    [value]="selectedFile.chunkStrategy"
+                    [value]="selectedFile?.file?.chunkStrategy"
                     (change)="
                         updateFileSettings(
-                            i,
+                            selectedFile!.index,
                             'chunkStrategy',
                             $any($event).target.value
                         )
@@ -55,7 +55,7 @@
                 </select>
             </div>
 
-            <!-- <div class="setting-group">
+            <div class="setting-group">
                 <div class="setting-label">
                     <label>Chunk Size</label>
                     <app-help-tooltip
@@ -64,22 +64,24 @@
                 </div>
                 <input
                     type="number"
-                    [value]="selectedFile.chunkSize"
+                    [value]="selectedFile?.file?.chunkSize"
                     min="1"
                     [max]="maxChunkSize"
-                    [class.invalid-input]="selectedFile.hasChunkSizeError"
+                    [class.invalid-input]="
+                        selectedFile?.file?.hasChunkSizeError
+                    "
                     (change)="
                         updateFileSettings(
-                            i,
+                            selectedFile!.index,
                             'chunkSize',
                             $any($event).target.value
                         )
                     "
                     (keydown.enter)="$event.preventDefault()"
                 />
-            </div> -->
+            </div>
 
-            <!-- <div class="setting-group">
+            <div class="setting-group">
                 <div class="setting-label">
                     <label>Chunk Overlap</label>
                     <app-help-tooltip
@@ -88,28 +90,61 @@
                 </div>
                 <input
                     type="number"
-                    [value]="selectedFile.overlapSize"
+                    [value]="selectedFile?.file?.overlapSize"
                     min="0"
                     [max]="maxOverlapSize"
-                    [class.invalid-input]="selectedFile.hasChunkSizeError"
+                    [class.invalid-input]="
+                        selectedFile?.file?.hasChunkSizeError
+                    "
                     (change)="
                         updateFileSettings(
-                            i,
+                            selectedFile!.index,
                             'overlapSize',
                             $any($event).target.value
                         )
                     "
                     (keydown.enter)="$event.preventDefault()"
                 />
-            </div> -->
+            </div>
         </div>
 
         <!-- Chunk size validation error message -->
-        <!-- <div
+        <div
             class="chunk-size-error"
-            *ngIf="selectedFile.hasChunkSizeError"
+            *ngIf="selectedFile?.file?.hasChunkSizeError"
         >
             Chunk size must be greater than overlap size
-        </div> -->
+        </div>
+    </div>
+
+    <!-- additional parameters -->
+
+    <!-- <div class="setting-group">
+        <div class="setting-label">
+            <label>Additional params</label>
+        </div>
+        <select
+            class="chunk-strategy-select"
+            [value]="selectedFile?.file?.chunkStrategy"
+            (change)="
+                updateFileSettings(
+                    selectedFile!.index,
+                    'chunkStrategy',
+                    $any($event).target.value
+                )
+            "
+        >
+            <option
+                *ngFor="let strategy of chunkStrategies"
+                [value]="strategy.value"
+            >
+                {{ strategy.label }}
+            </option>
+        </select>
+    </div> -->
+    <div class="btn-container">
+        <app-button type="primary" (click)="onClick()">
+            <span>Chunk Preview</span>
+        </app-button>
     </div>
 </div>

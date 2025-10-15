@@ -30,7 +30,7 @@ import { FileUploadContainerComponent } from './file-upload-container/file-uploa
 import { EmbeddingModelSelectorComponent } from '../../../../shared/components/embedding-model-selector/embedding-model-selector.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
-import { FileWithSettings } from '../../models/source-collection.model';
+import { FileWithSettings, FileWithIndex } from '../../models/source-collection.model';
 import { signal, WritableSignal } from '@angular/core';
 import { ChunkConfigurationComponent } from "./chunk-configuration/chunk-configuration.component";
 
@@ -46,7 +46,7 @@ import { ChunkConfigurationComponent } from "./chunk-configuration/chunk-configu
     ButtonComponent,
     HelpTooltipComponent,
     ChunkConfigurationComponent
-],
+  ],
   templateUrl: './create-collection-dialog.component.html',
   styleUrls: ['./create-collection-dialog.component.scss'],
 })
@@ -74,7 +74,8 @@ export class CreateCollectionDialogComponent implements OnInit {
     { label: 'JSON', value: 'json' },
     { label: 'HTML', value: 'html' },
   ];
-  currentFile: WritableSignal<FileWithSettings | null> = signal<FileWithSettings | null>(null);
+  currentFile: WritableSignal<FileWithIndex | null> = signal<FileWithIndex | null>(null);
+
 
   // Track if we have any invalid files
   hasInvalidFiles = false;
@@ -262,12 +263,16 @@ export class CreateCollectionDialogComponent implements OnInit {
     }
   }
 
-  onFileSelected(file: FileWithSettings) {
+  onFileSelected({ file, index }: FileWithIndex) {
+    if (this.fileSettingsFormArray.length === 0) {
+      this.currentFile.set(null);
+      return;
+    }
     // Если уже выбран файл и это новый файл — заменяем
-    if (!this.currentFile() || this.currentFile()?.file !== file.file) {
-      this.currentFile.set(file);
+    if (!this.currentFile() || this.currentFile()?.file.file !== file.file) {
+      this.currentFile.set({ file, index });
       console.log('Текущий выбранный файл:', this.currentFile());
-      
+
     }
     if (!this.currentFile()) {
       console.log('Файл не выбран');

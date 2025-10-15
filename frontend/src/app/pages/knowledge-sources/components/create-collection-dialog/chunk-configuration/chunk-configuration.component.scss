@@ -29,3 +29,110 @@
         }
     }
 }
+.file-settings {
+    background-color: var(--color-nodes-input-bg);
+    border-radius: 6px;
+    padding: 0;
+    padding-top: 0.75rem;
+    transition: all 0.25s ease;
+    .setting-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+
+        .setting-group {
+            flex: 1;
+            min-width: 120px;
+
+            .setting-label {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.25rem;
+            }
+
+            label {
+                display: block;
+                font-size: 0.75rem;
+                color: #aaa;
+            }
+
+            select,
+            input {
+                width: 100%;
+                padding: 0.5rem 0.75rem;
+                font-size: 0.875rem;
+                background-color: var(--color-input-background);
+                border: 1px solid var(--color-input-border);
+                border-radius: 6px;
+                color: var(--color-text-primary);
+                outline: none;
+                transition: border-color 0.2s ease;
+
+                &:focus {
+                    border-color: var(--accent-color);
+                }
+
+                &.invalid-input {
+                    border-color: #ff4444;
+                    box-shadow: 0 0 0 1px rgba(255, 68, 68, 0.5);
+                }
+
+                &::placeholder {
+                    color: var(--color-input-text-placeholder);
+                }
+            }
+
+            .chunk-strategy-select {
+                cursor: pointer;
+                appearance: none;
+                background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M10.293%203.293%2C6%207.586%2C1.707%203.293A1%2C1%200%2C0%2C0%20.293%204.707l5%2C5a1%2C1%200%2C0%2C0%201.414%2C0l5-5a1%2C1%200%2C0%2C0-1.414-1.414Z%22%2F%3E%3C%2Fsvg%3E");
+                background-repeat: no-repeat;
+                background-position: right 0.7em center;
+                background-size: 0.65em;
+                padding-right: 1.7em;
+            }
+
+            /* Dropdown menu items styling */
+            select option {
+                background-color: var(--color-nodes-input-bg);
+                color: #fff;
+                padding: 0.5rem;
+            }
+
+            /* Selected option highlight */
+            select option:checked,
+            select option:hover {
+                background-color: var(--active-color);
+                color: white;
+            }
+
+            input[type="number"] {
+                -moz-appearance: textfield;
+                appearance: textfield;
+
+                &::-webkit-outer-spin-button,
+                &::-webkit-inner-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
+                }
+            }
+        }
+    }
+
+    // Chunk size validation error message
+    .chunk-size-error {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #ff4444;
+        background-color: rgba(255, 68, 68, 0.1);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        border-left: 3px solid #ff4444;
+    }
+}
+.btn-container {
+    display: flex;
+    justify-content: end;
+    padding-top: 0.75em;
+}
