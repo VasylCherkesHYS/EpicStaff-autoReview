@@ -68,23 +68,31 @@ class SourceSerializerMixin:
         return files
 
     def validate_list_lengths(self, attrs):
-        files = attrs.get("files")
-        chunk_sizes = attrs.get("chunk_sizes")
-        chunk_strategies = attrs.get("chunk_strategies")
-        chunk_overlaps = attrs.get("chunk_overlaps")
+        files = attrs.get("files", [])
+        chunk_sizes = attrs.get("chunk_sizes", [])
+        chunk_strategies = attrs.get("chunk_strategies", [])
+        chunk_overlaps = attrs.get("chunk_overlaps", [])
 
-        list_lengths = {
-            "files": len(files),
-            "chunk_sizes": len(chunk_sizes),
-            "chunk_strategies": len(chunk_strategies),
-            "chunk_overlaps": len(chunk_overlaps),
-        }
+        list_lengths = [
+            len(files),
+            len(chunk_sizes),
+            len(chunk_strategies),
+            len(chunk_overlaps),
+        ]
 
-        if len(set(list_lengths.values())) != 1:
+        if not any(list_lengths):
+            return attrs
+
+        if len(set(list_lengths)) != 1:
+            lengths_dict = {
+                "files": len(files),
+                "chunk_sizes": len(chunk_sizes),
+                "chunk_strategies": len(chunk_strategies),
+                "chunk_overlaps": len(chunk_overlaps),
+            }
             raise serializers.ValidationError(
-                f"All list fields must have the same length. Received lengths: {list_lengths}"
+                f"All list fields must have the same length. Received lengths: {lengths_dict}"
             )
-
         return attrs
 
     def validate_list_document_metadata(self, list_document_metadata: list):
@@ -126,7 +134,7 @@ class SourceSerializerMixin:
         if isinstance(obj, str):
             try:
                 return json.loads(obj)
-            except Exception as e:
+            except Exception:
                 try:
                     safe_obj = re.sub(r"\\", r"\\\\", obj)
                     return json.loads(safe_obj)

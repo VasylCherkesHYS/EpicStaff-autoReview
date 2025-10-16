@@ -60,7 +60,6 @@ class UploadSourceCollectionSerializer(
             "additional_params",
         ]
         read_only_fields = ["collection_id", "created_at", "status"]
-
         validators = []
 
     def validate_files(self, value):
@@ -70,22 +69,23 @@ class UploadSourceCollectionSerializer(
         return self.validate_list_lengths(attrs)
 
     def create(self, validated_data):
-        files = validated_data.pop("files")
-        chunk_sizes = validated_data.pop("chunk_sizes")
-        chunk_strategies = validated_data.pop("chunk_strategies")
-        chunk_overlaps = validated_data.pop("chunk_overlaps")
-        additional_params = validated_data.pop("additional_params")
+        files = validated_data.pop("files", [])
+        chunk_sizes = validated_data.pop("chunk_sizes", [])
+        chunk_strategies = validated_data.pop("chunk_strategies", [])
+        chunk_overlaps = validated_data.pop("chunk_overlaps", [])
+        additional_params = validated_data.pop("additional_params", [])
 
         with transaction.atomic():
             collection = SourceCollection.objects.create(**validated_data)
-            self.create_documents_for_collection(
-                collection=collection,
-                files=files,
-                chunk_sizes=chunk_sizes,
-                chunk_strategies=chunk_strategies,
-                chunk_overlaps=chunk_overlaps,
-                raw_additional_params=additional_params,
-            )
+            if files:
+                self.create_documents_for_collection(
+                    collection=collection,
+                    files=files,
+                    chunk_sizes=chunk_sizes,
+                    chunk_strategies=chunk_strategies,
+                    chunk_overlaps=chunk_overlaps,
+                    raw_additional_params=additional_params,
+                )
         return collection
 
 
@@ -117,26 +117,24 @@ class AddSourcesSerializer(SourceSerializerMixin, serializers.Serializer):
         return self.validate_list_lengths(attrs)
 
     def create_documents(self, collection):
-        files = self.validated_data["files"]
-        chunk_sizes = self.validated_data.pop("chunk_sizes")
-        chunk_strategies = self.validated_data.pop("chunk_strategies")
-        chunk_overlaps = self.validated_data.pop("chunk_overlaps")
-        additional_params = self.validated_data.pop("additional_params")
-        self.create_documents_for_collection(
-            collection=collection,
-            files=files,
-            chunk_sizes=chunk_sizes,
-            chunk_strategies=chunk_strategies,
-            chunk_overlaps=chunk_overlaps,
-            raw_additional_params=additional_params,
-        )
+        files = self.validated_data.get("files", [])
+        chunk_sizes = self.validated_data.get("chunk_sizes", [])
+        chunk_strategies = self.validated_data.get("chunk_strategies", [])
+        chunk_overlaps = self.validated_data.get("chunk_overlaps", [])
+        additional_params = self.validated_data.get("additional_params", [])
+        
+        if files:
+            self.create_documents_for_collection(
+                collection=collection,
+                files=files,
+                chunk_sizes=chunk_sizes,
+                chunk_strategies=chunk_strategies,
+                chunk_overlaps=chunk_overlaps,
+                raw_additional_params=additional_params,
+            )
 
 
 class UpdateSourceCollectionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for updating only specific fields of a SourceCollection.
-    """
-
     class Meta:
         model = SourceCollection
         fields = ["collection_name"]
@@ -188,12 +186,13 @@ class CopySourceCollectionSerializer(
         validators = []
 
     def create(self, validated_data):
-        list_document_metadata = validated_data.pop("document_metadata")
+        list_document_metadata = validated_data.pop("document_metadata", [])
         with transaction.atomic():
             collection = SourceCollection.objects.create(**validated_data)
-            self.create_copy_collection(
-                collection=collection, list_document_metadata=list_document_metadata
-            )
+            if list_document_metadata:
+                self.create_copy_collection(
+                    collection=collection, list_document_metadata=list_document_metadata
+                )
         return collection
 
 
