@@ -42,6 +42,7 @@ class PythonNode(BaseNode):
             self.python_code_data,
             input_,
             additional_global_kwargs=additional_global_kwargs,
+            stop_event=self.stop_event,
         )
 
         python_message_data = PythonMessageData(

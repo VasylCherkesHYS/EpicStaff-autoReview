@@ -1,6 +1,7 @@
 import time
 from typing import Any, Type
 from crewai.tools.base_tool import Tool
+from services.graph.events import StopEvent
 from models.response_models import ToolResponse
 from models.request_models import (
     McpToolData,
@@ -16,6 +17,7 @@ from loguru import logger
 from services.run_python_code_service import RunPythonCodeService
 import asyncio
 
+
 class ProxyToolFactory:
 
     def __init__(
@@ -23,7 +25,6 @@ class ProxyToolFactory:
         host: str,
         port: int,
         python_code_executor_service: RunPythonCodeService,
-        
     ):
         self.host = host
         self.port = port
@@ -31,7 +32,10 @@ class ProxyToolFactory:
         self.loop = asyncio.get_event_loop()
 
     def create_python_code_proxy_tool(
-        self, python_code_tool_data: PythonCodeToolData, global_kwargs: dict[str, Any]
+        self,
+        python_code_tool_data: PythonCodeToolData,
+        global_kwargs: dict[str, Any],
+        stop_event: StopEvent,
     ) -> Tool:
         args_schema = generate_model_from_schema(python_code_tool_data.args_schema)
         name = python_code_tool_data.name
@@ -45,6 +49,7 @@ class ProxyToolFactory:
                     python_code_data=python_code_tool_data.python_code,
                     inputs=kwargs,
                     additional_global_kwargs=global_kwargs,
+                    stop_event=stop_event,
                 ),
                 self.loop,
             )
@@ -59,7 +64,9 @@ class ProxyToolFactory:
             name=name, description=description, args_schema=args_schema, func=_run
         )
 
-    def create_proxy_tool(self, tool_data: ConfiguredToolData) -> Tool:
+    def create_proxy_tool(
+        self, tool_data: ConfiguredToolData, stop_event: StopEvent | None = None,
+    ) -> Tool:
 
         tool_init_configuration = None
         if tool_data.tool_config is not None:
@@ -70,6 +77,7 @@ class ProxyToolFactory:
             json=ToolInitConfigurationModel(
                 tool_init_configuration=tool_init_configuration
             ).model_dump(),
+            stop_event=stop_event,
         )
         data_txt = resp.json()["classdata"]
         data: dict = txt_to_obj(data_txt)
@@ -102,7 +110,7 @@ class ProxyToolFactory:
             description=data["description"],
             args_schema=data["args_schema"],
             func=_run,
-        )    
+        )
 
     def run_tool_in_container(
         self,
@@ -121,9 +129,11 @@ class ProxyToolFactory:
         return ToolResponse.model_validate(response.json()).data
 
     # TODO: make async
-    def fetch_data_with_retry(self, url, retries=15, delay=3):
+    def fetch_data_with_retry(self, url, retries=15, delay=3, stop_event: StopEvent | None = None):
         for attempt in range(retries):
             try:
+                if stop_event is not None:
+                    stop_event.check_stop()
                 print(f"Attempt {attempt + 1} to fetch data...")
                 resp = requests.get(url)
                 if resp.status_code == 200:
@@ -135,12 +145,16 @@ class ProxyToolFactory:
                 time.sleep(delay)
         raise Exception(f"Failed to fetch data after {retries} attempts.")
 
-    def post_data_with_retry(self, url, json=None, retries=15, delay=3):
+    def post_data_with_retry(
+        self, url, json=None, retries=15, delay=3, stop_event: StopEvent | None = None
+    ):
         if json is None:
             json = dict()
 
         for attempt in range(retries):
             try:
+                if stop_event is not None:
+                    stop_event.check_stop()
                 print(f"Attempt {attempt + 1} to fetch data...")
                 resp = requests.post(url=url, json=json)
                 if resp.status_code == 200:

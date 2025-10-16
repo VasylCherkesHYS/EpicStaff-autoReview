@@ -18,8 +18,8 @@ class RunPythonCodeService(metaclass=SingletonMeta):
         self,
         python_code_data: PythonCodeData,
         inputs: dict[str, Any],
-        stop_event: StopEvent,
         additional_global_kwargs: dict[str, Any] | None = None,
+        stop_event: StopEvent | None = None,
     ) -> dict[str, Any]:
         additional_global_kwargs = additional_global_kwargs or {}
         venv_name = python_code_data.venv_name
@@ -59,7 +59,8 @@ class RunPythonCodeService(metaclass=SingletonMeta):
             if callback_receiver.results is not None:
                 self.redis_service.unsubscribe("code_results", subscriber=subscriber)
                 return callback_receiver.results
-            stop_event.check_stop()
+            if stop_event is not None:
+                stop_event.check_stop()
             await asyncio.sleep(0.001)
 
 

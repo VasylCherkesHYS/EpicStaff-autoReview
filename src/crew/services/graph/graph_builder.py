@@ -107,6 +107,7 @@ class SessionGraphBuilder:
                 await self.python_code_executor_service.run_code(
                     python_code_data=python_code_data,
                     inputs=input_,
+                    stop_event=self.stop_event,
                     additional_global_kwargs=additional_global_kwargs,
                 )
             )

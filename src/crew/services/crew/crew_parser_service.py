@@ -193,14 +193,15 @@ class CrewParserService(metaclass=SingletonMeta):
                 tool = self.proxy_tool_factory.create_python_code_proxy_tool(
                     python_code_tool_data=base_tool_data.data,
                     global_kwargs=global_kwargs,
+                    stop_event=stop_event,
                 )
             elif isinstance(base_tool_data.data, ConfiguredToolData):
                 tool = self.proxy_tool_factory.create_proxy_tool(
-                    tool_data=base_tool_data.data,
+                    tool_data=base_tool_data.data, stop_event=stop_event
                 )
             elif isinstance(base_tool_data.data, McpToolData):
                 tool = await self.mcp_tool_factory.create(
-                    tool_data=base_tool_data.data,
+                    tool_data=base_tool_data.data, stop_event=stop_event
                 )
             else:
                 raise TypeError(
