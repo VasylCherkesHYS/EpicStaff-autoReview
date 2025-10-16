@@ -101,6 +101,9 @@ class CrewParserService(metaclass=SingletonMeta):
             "stop_event": stop_event,
         }
 
+        if not tool_list:
+            agent_config["tool_choice"] = "none"
+
         return Agent(**agent_config)
 
     def parse_task(
