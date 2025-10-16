@@ -379,10 +379,10 @@ class LLM:
                     choice = chunk["choices"][0]
                     delta = choice.get("delta", {})
                     # accumulate streamed text
-                    if "content" in delta:
+                    if "content" in delta and delta["content"]:
                         text_piece = delta["content"]
                         text_response += text_piece
-                    if "tool_calls" in delta:
+                    if "tool_calls" in delta and delta["tool_calls"]:
                         tool_calls.extend(delta["tool_calls"])
                     # usage sometimes comes as separate event
                     if "usage" in chunk and chunk["usage"]:
