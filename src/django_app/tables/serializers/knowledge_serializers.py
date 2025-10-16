@@ -12,10 +12,16 @@ class UploadSourceCollectionSerializer(
     SourceSerializerMixin, serializers.ModelSerializer
 ):
     files = serializers.ListField(
-        child=serializers.FileField(), allow_empty=True, write_only=True
+        child=serializers.FileField(),
+        allow_empty=True,
+        write_only=True,
+        required=False,
     )
     chunk_sizes = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=True, write_only=True
+        child=serializers.IntegerField(),
+        allow_empty=True,
+        write_only=True,
+        required=False,
     )
     chunk_strategies = serializers.ListField(
         child=serializers.ChoiceField(
@@ -23,14 +29,19 @@ class UploadSourceCollectionSerializer(
         ),
         allow_empty=True,
         write_only=True,
+        required=False,
     )
     chunk_overlaps = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=True, write_only=True
+        child=serializers.IntegerField(),
+        allow_empty=True,
+        write_only=True,
+        required=False,
     )
     additional_params = serializers.ListField(
         child=serializers.JSONField(),
         allow_empty=True,
         write_only=True,
+        required=False,
     )
 
     class Meta:
