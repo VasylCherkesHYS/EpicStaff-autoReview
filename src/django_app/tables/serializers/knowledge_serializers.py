@@ -12,24 +12,24 @@ class UploadSourceCollectionSerializer(
     SourceSerializerMixin, serializers.ModelSerializer
 ):
     files = serializers.ListField(
-        child=serializers.FileField(), allow_empty=False, write_only=True
+        child=serializers.FileField(), allow_empty=True, write_only=True
     )
     chunk_sizes = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=False, write_only=True
+        child=serializers.IntegerField(), allow_empty=True, write_only=True
     )
     chunk_strategies = serializers.ListField(
         child=serializers.ChoiceField(
             choices=DocumentMetadata.DocumentChunkStrategy.choices
         ),
-        allow_empty=False,
+        allow_empty=True,
         write_only=True,
     )
     chunk_overlaps = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=False, write_only=True
+        child=serializers.IntegerField(), allow_empty=True, write_only=True
     )
     additional_params = serializers.ListField(
         child=serializers.JSONField(),
-        allow_empty=False,
+        allow_empty=True,
         write_only=True,
     )
 
