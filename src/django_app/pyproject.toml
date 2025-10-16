@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "django-app"
+version = "0.1.0"
+description = "backend server"
+authors = ["Ihor Orlenko", "Maksym Yevstratiev"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+Django = "^5.1.1"
+djangorestframework = "^3.15.2"
+psycopg2 = "^2.9.9"
+drf-yasg = "^1.21.7"
+setuptools = "^75.1.0"
+django-filter = "^24.3"
+django-cors-headers = "^4.5.0"
+redis = "*"
+loguru = "^0.7.2"
+pydantic = "^2.9.2"
+datamodel-code-generator = "^0.26.5"
+pgvector = "^0.3.6"
+django-environ = "^0.12.0"
+pdfplumber = "^0.11.5"
+python-docx = "^1.1.2"
+beautifulsoup4 = "^4.13.3"
+django-health-check = "^3.18.3"
+litellm = "1.67.0"
+django-redis = "^5.4.0"
+uvicorn = "^0.34.2"
+gunicorn = "^23.0.0"
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-mock = "^3.14.0"
+pytest-django = "^4.9.0"
+pytest-asyncio = "^1.0.0"
+fakeredis = "^2.26.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

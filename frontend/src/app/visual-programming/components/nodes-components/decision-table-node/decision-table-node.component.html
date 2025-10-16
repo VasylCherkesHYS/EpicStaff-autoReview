@@ -1,0 +1,11 @@
+<div class="decision-table">
+    @if (conditionGroups.length > 0) {
+    <div class="decision-table__groups">
+        @for (group of conditionGroups; track group.group_name) {
+        <span class="decision-table__group">
+            {{ group.group_name }}
+        </span>
+        }
+    </div>
+    }
+</div>

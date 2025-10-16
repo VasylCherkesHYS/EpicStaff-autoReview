@@ -1,0 +1,23 @@
+.decision-table {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+
+    &__groups {
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    &__group {
+        background: #e3e7f1;
+        color: #2a2a2a;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+}

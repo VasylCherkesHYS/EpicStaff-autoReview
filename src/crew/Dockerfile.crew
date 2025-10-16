@@ -1,0 +1,42 @@
+# Use a base image with Python 3.12.10
+FROM python:3.12.10
+
+# Default build arg
+ARG INSTALL_GROUPS="--no-dev"
+
+# Set environment variables for Poetry
+ENV POETRY_VERSION=1.8.3 \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1
+
+# Install dependencies for Poetry and Python
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -sSL https://install.python-poetry.org | python3 - && \
+    apt-get clean
+
+# Add Poetry to the PATH
+ENV PATH="/root/.local/bin:$PATH"
+
+# Set the working directory in the Docker image
+WORKDIR /home/user/root/app
+
+# Copy pyproject.toml and poetry.lock first to avoid rebuilding on code changes
+COPY crew/pyproject.toml .
+COPY crew/poetry.lock .
+COPY crew/libraries/ ./libraries
+
+ENV PEP517_BUILD_BACKEND=setuptools.build_meta
+
+# Install Python dependencies using Poetry, clearing cache
+RUN echo "INSTALL_GROUPS=${INSTALL_GROUPS}"
+
+COPY ./shared ./../shared
+RUN poetry install --no-root ${INSTALL_GROUPS} -vvv > /tmp/poetry_install.log 2>&1
+RUN rm -rf /root/.cache
+
+#Copying file to workdir
+COPY ./crew .
+CMD ["poetry", "run", "python3", "/home/user/root/app/main.py"]
+
+

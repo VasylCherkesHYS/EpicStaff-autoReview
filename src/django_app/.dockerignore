@@ -1,0 +1,7 @@
+ENV
+.env
+*/venv
+*/.venv
+*/.django_venv
+staticfiles/
+*_stand/

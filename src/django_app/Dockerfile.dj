@@ -1,0 +1,23 @@
+# Use a base image with Python 3.12.10
+FROM python:3.12.10
+
+# Install updated pip, setuptools, and wheel
+RUN pip install --upgrade pip setuptools wheel
+
+RUN pip install poetry
+
+# Set the working directory in the Docker image
+WORKDIR /home/user/root/app
+
+ENV PEP517_BUILD_BACKEND=setuptools.build_meta
+
+COPY pyproject.toml .
+COPY poetry.lock .
+
+# Configure poetry to not create a virtual environment and install dependencies and delete cache
+RUN poetry config virtualenvs.create false && poetry install --no-root && rm -rf /root/.cache
+
+#Coping file to workdir
+COPY . .
+
+RUN chmod +x ./entrypoint.sh

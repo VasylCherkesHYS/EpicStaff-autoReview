@@ -1,0 +1,15 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.fe
+    ports:
+      - "4200:80"
+    networks:
+      - frontend-network
+    volumes:
+      - ../frontend-config/frontend-config.json:/usr/share/nginx/html/config.json:ro
+
+networks:
+  frontend-network:
+    driver: bridge
