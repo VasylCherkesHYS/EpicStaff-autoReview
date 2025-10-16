@@ -41,10 +41,11 @@ def test_dotdict_update():
     assert dotdict.b == 2
 
 
-def test_dotdict_model_dump():
+def test_dotdict_json_dumps():
+    import json
     data = {"a": 1, "b": {"c": 2}}
     dotdict = DotDict(data)
-    dumped = dotdict.model_dump()
-    assert dumped == {"a": 1, "b": {"c": 2}}
+    dumped = json.dumps(dotdict)
+    assert dumped == "{\"a\": 1, \"b\": {\"c\": 2}}"
 
 
