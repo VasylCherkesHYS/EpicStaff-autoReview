@@ -65,6 +65,9 @@ class DotDict(dict):
             self._setters[name] = Expression(code=code, func=func)
         except Exception as e: raise ValueError(f"Invalid expression for setter '{name}': {e}") from e
 
+    def model_dump(self):
+        return dict(self)
+
 class DotList(list):
     def __init__(self, iterable=None):
         super().__init__()
