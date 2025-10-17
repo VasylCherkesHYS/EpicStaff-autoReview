@@ -89,9 +89,7 @@ class DotList(list):
         super().__setitem__(key, DotObject(value))
 
 def DotObject(data):
-    """
-    Рекурсивно преобразует словари и списки в их "dot-notation" аналоги.
-    """
+
     if isinstance(data, dict):
         return DotDict(data)
     if isinstance(data, list):
