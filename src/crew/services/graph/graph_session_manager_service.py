@@ -151,7 +151,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
             logger.exception(f"Failed to start session: {e}")
 
             await self.redis_service.aupdate_session_status(
-                session_id=session_id, status="error", error="Session stopped by user."
+                session_id=session_id, status="error", error="Session stopped"
             )
 
     async def _listen_callback(self, message: dict[str, Any]):
@@ -178,7 +178,11 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
     async def _listen_to_channels(self):
         subscriber = AsyncPubsubSubscriber(self._listen_callback)
         await self.redis_service.asubscribe(
-            [self.session_schema_channel, self.session_timeout_channel, self.stop_session_channel],
+            [
+                self.session_schema_channel,
+                self.session_timeout_channel,
+                self.stop_session_channel,
+            ],
             subscriber=subscriber,
         )
 
@@ -230,7 +234,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
 
     async def _handle_stop_session(self, data: str):
         logger.info(f"Received message from channel {self.stop_session_channel}")
-        
+
         stop_session_message = StopSessionMessage.model_validate(json.loads(data))
         session_id = stop_session_message.session_id
         if session_id not in self.session_graph_pool:
