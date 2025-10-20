@@ -67,7 +67,9 @@ class ProxyToolFactory:
         )
 
     def create_proxy_tool(
-        self, tool_data: ConfiguredToolData, stop_event: StopEvent | None = None,
+        self,
+        tool_data: ConfiguredToolData,
+        stop_event: StopEvent | None = None,
     ) -> Tool:
 
         tool_init_configuration = None
@@ -130,51 +132,35 @@ class ProxyToolFactory:
 
         return ToolResponse.model_validate(response.json()).data
 
-    # TODO: make async
-    def fetch_data_with_retry(self, url, retries=15, delay=3, stop_event: StopEvent | None = None):
+    def post_data_with_retry(
+        self, url, json=None, retries=15, delay=3, stop_event: StopEvent | None = None
+    ):
+        if json is None:
+            json = {}
+
         for attempt in range(retries):
             try:
-                logger.info(f"Attempt {attempt + 1} to fetch data...")
+                print(f"Attempt {attempt + 1} to post data...")
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(requests.get, url)
+                    future = executor.submit(requests.post, url, json=json)
+
                     while True:
                         if stop_event is not None:
                             stop_event.check_stop()
+
                         try:
                             resp = future.result(timeout=0.01)
                             if resp.status_code == 200:
                                 return resp
                             else:
-                                logger.error(f"Bad status: {resp.status_code}")
+                                print(f"Bad status: {resp.status_code}")
                                 break
                         except concurrent.futures.TimeoutError:
                             continue
-            except requests.exceptions.RequestException as e:
-                logger.exception(f"Request failed: {e}")
 
-            # Wait before retrying
-            if attempt < retries - 1:
-                time.sleep(delay)
-
-        raise Exception(f"Failed to fetch data after {retries} attempts.")
-
-    def post_data_with_retry(
-        self, url, json=None, retries=15, delay=3, stop_event: StopEvent | None = None
-    ):
-        if json is None:
-            json = dict()
-
-        for attempt in range(retries):
-            try:
-                if stop_event is not None:
-                    stop_event.check_stop()
-                print(f"Attempt {attempt + 1} to fetch data...")
-                resp = requests.post(url=url, json=json)
-                if resp.status_code == 200:
-                    return resp
             except requests.exceptions.RequestException as e:
                 print(f"Request failed: {e}")
-            # Wait before retrying
             if attempt < retries - 1:
                 time.sleep(delay)
+
         raise Exception(f"Failed to post data after {retries} attempts.")

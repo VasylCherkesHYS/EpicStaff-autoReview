@@ -144,7 +144,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
             logger.warning(f"Session {session_id} was cancelled")
         except StopSession as e:
             await self.redis_service.aupdate_session_status(
-                session_id=session_id, status="stop"
+                session_id=session_id, status=stop_event.status
             )
 
         except Exception as e:
@@ -210,7 +210,7 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
 
                     # Remove task from pool and cancel
                     session_task = self.session_graph_pool.pop(session_id)
-                    session_task.stop_event.set()
+                    session_task.stop_event.set_with_status(status="expired")
 
                     await self.redis_service.aupdate_session_status(
                         session_id=session_id, status="expired"
