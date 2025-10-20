@@ -48,6 +48,7 @@ class Session(models.Model):
                 self.SessionStatus.END,
                 self.SessionStatus.ERROR,
                 self.SessionStatus.EXPIRED,
+                self.SessionStatus.STOP,
             }
             and not self.finished_at
         ):
