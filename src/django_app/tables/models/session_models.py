@@ -14,6 +14,7 @@ class Session(models.Model):
         WAIT_FOR_USER = "wait_for_user"
         ERROR = "error"
         END = "end"
+        STOP = "stop"
         EXPIRED = "expired"
 
     graph = models.ForeignKey("Graph", on_delete=models.CASCADE, null=True)

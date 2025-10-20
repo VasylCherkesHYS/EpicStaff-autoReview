@@ -144,14 +144,14 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
             logger.warning(f"Session {session_id} was cancelled")
         except StopSession as e:
             await self.redis_service.aupdate_session_status(
-                session_id=session_id, status="error", error="Session was stopped"
+                session_id=session_id, status="stop"
             )
 
         except Exception as e:
             logger.exception(f"Failed to start session: {e}")
 
             await self.redis_service.aupdate_session_status(
-                session_id=session_id, status="error", error="Session stopped"
+                session_id=session_id, status="error", error=f"Unhandled error. \n{e}"
             )
 
     async def _listen_callback(self, message: dict[str, Any]):
