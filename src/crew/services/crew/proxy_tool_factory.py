@@ -1,3 +1,5 @@
+import concurrent.futures
+
 import time
 from typing import Any, Type
 from crewai.tools.base_tool import Tool
@@ -132,17 +134,28 @@ class ProxyToolFactory:
     def fetch_data_with_retry(self, url, retries=15, delay=3, stop_event: StopEvent | None = None):
         for attempt in range(retries):
             try:
-                if stop_event is not None:
-                    stop_event.check_stop()
-                print(f"Attempt {attempt + 1} to fetch data...")
-                resp = requests.get(url)
-                if resp.status_code == 200:
-                    return resp
+                logger.info(f"Attempt {attempt + 1} to fetch data...")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(requests.get, url)
+                    while True:
+                        if stop_event is not None:
+                            stop_event.check_stop()
+                        try:
+                            resp = future.result(timeout=0.01)
+                            if resp.status_code == 200:
+                                return resp
+                            else:
+                                logger.error(f"Bad status: {resp.status_code}")
+                                break
+                        except concurrent.futures.TimeoutError:
+                            continue
             except requests.exceptions.RequestException as e:
-                print(f"Request failed: {e}")
+                logger.exception(f"Request failed: {e}")
+
             # Wait before retrying
             if attempt < retries - 1:
                 time.sleep(delay)
+
         raise Exception(f"Failed to fetch data after {retries} attempts.")
 
     def post_data_with_retry(
