@@ -1144,6 +1144,8 @@ class RealtimeAgentChatSerializer(serializers.ModelSerializer):
 
 
 class ConditionSerializer(serializers.ModelSerializer):
+    condition_group = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Condition
         fields = "__all__"
@@ -1151,18 +1153,11 @@ class ConditionSerializer(serializers.ModelSerializer):
 
 class ConditionGroupSerializer(serializers.ModelSerializer):
     conditions = ConditionSerializer(many=True, required=False)
+    decision_table_node = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = ConditionGroup
-        fields = [
-            "decision_table_node",
-            "group_name",
-            "group_type",
-            "expression",
-            "conditions",
-            "manipulation",
-            "next_node",
-        ]
+        fields = "__all__"
 
 
 class DecisionTableNodeSerializer(serializers.ModelSerializer):
@@ -1170,7 +1165,7 @@ class DecisionTableNodeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DecisionTableNode
-        fields = ["graph", "condition_groups", "node_name", "default_next_node"]
+        fields = "__all__"
 
 
 class GraphSerializer(serializers.ModelSerializer):
