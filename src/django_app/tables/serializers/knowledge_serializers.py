@@ -58,6 +58,7 @@ class UploadSourceCollectionSerializer(
             "chunk_strategies",
             "chunk_overlaps",
             "additional_params",
+            "is_draft",
         ]
         read_only_fields = ["collection_id", "created_at", "status"]
         validators = []
@@ -181,6 +182,7 @@ class CopySourceCollectionSerializer(
             "embedder",
             "created_at",
             "document_metadata",
+            "is_draft"
         ]
         read_only_fields = ["collection_id", "created_at", "status"]
         validators = []
@@ -209,6 +211,7 @@ class SourceCollectionReadSerializer(serializers.ModelSerializer):
             "embedder",
             "created_at",
             "document_metadata",
+            "is_draft"
         ]
         read_only_fields = fields
 

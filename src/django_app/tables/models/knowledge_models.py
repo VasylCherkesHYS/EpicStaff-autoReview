@@ -34,7 +34,7 @@ class SourceCollection(models.Model):
     )
 
     embedder = models.ForeignKey(EmbeddingConfig, on_delete=models.SET_NULL, null=True)
-
+    is_draft = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
