@@ -34,7 +34,7 @@ class FileContentExtractorNode(PythonNode):
             input_map=input_map,
             output_variable_path=output_variable_path,
             python_code_executor_service=python_code_executor_service,
-            code_data=code_data,
+            python_code_data=code_data,
         )
 
     def _get_extractor_code(self, arg_names: list[str]):
