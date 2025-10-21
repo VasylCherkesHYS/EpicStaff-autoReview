@@ -106,7 +106,9 @@ class ProxyToolFactory:
             logger.info(f"kwargs = {kw}")
 
             return proxy_tool_factory.run_tool_in_container(
-                tool_data=tool_data, run_kwargs=kw
+                tool_data=tool_data,
+                run_kwargs=kw,
+                stop_event=stop_event,
             )
 
         return Tool(
@@ -120,14 +122,17 @@ class ProxyToolFactory:
         self,
         tool_data: ConfiguredToolData,
         run_kwargs: dict[str, Any],
+        stop_event: StopEvent | None = None,
     ) -> str:
 
-        response = requests.post(
+        response = self.post_data_with_retry(
             url=f"http://{self.host}:{self.port}/tool/{tool_data.name_alias}/run",
             json={
                 "tool_config": tool_data.tool_config.model_dump(),
                 "run_kwargs": run_kwargs,
             },
+            retries=3,
+            stop_event=stop_event,
         )
 
         return ToolResponse.model_validate(response.json()).data
@@ -140,7 +145,7 @@ class ProxyToolFactory:
 
         for attempt in range(retries):
             try:
-                print(f"Attempt {attempt + 1} to post data...")
+                logger.info(f"Attempt {attempt + 1} to post data...")
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(requests.post, url, json=json)
 
@@ -153,13 +158,13 @@ class ProxyToolFactory:
                             if resp.status_code == 200:
                                 return resp
                             else:
-                                print(f"Bad status: {resp.status_code}")
+                                logger.error(f"Bad status: {resp.status_code}")
                                 break
                         except concurrent.futures.TimeoutError:
                             continue
 
             except requests.exceptions.RequestException as e:
-                print(f"Request failed: {e}")
+                logger.error(f"Request failed: {e}")
             if attempt < retries - 1:
                 time.sleep(delay)
 
