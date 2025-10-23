@@ -1,0 +1,14 @@
+tool-data:
+  # Custom name or folder name if None
+  name: "test-tool"
+  
+  description: "test tool description"
+  
+  args-schema: "args_schema.json" 
+  
+  # args schema file name
+  code-file: "main.py"
+  
+  entrypoint: "main"
+  
+  requirements: "requirements.txt"
