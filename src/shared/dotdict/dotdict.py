@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import ast
-from typing import Any
+from typing import Any, Mapping
 
 
 @dataclass
@@ -87,7 +87,7 @@ class DotList(list):
         super().__init__()
         if iterable:
             for item in iterable:
-                self.append(item)
+                super().append(DotObject(item))  # recursive conversion
 
     def append(self, item):
         super().append(DotObject(item))
@@ -102,11 +102,15 @@ class DotList(list):
     def __setitem__(self, key, value):
         super().__setitem__(key, DotObject(value))
 
+    def model_dump(self):
+        return [v.model_dump() if hasattr(v, "model_dump") else v for v in self]
+
 
 def DotObject(data):
-
-    if isinstance(data, dict):
-        return DotDict(data)
-    if isinstance(data, list):
-        return DotList(data)
+    if isinstance(data, Mapping):
+        return DotDict({k: DotObject(v) for k, v in data.items()})
+    elif isinstance(data, (list, tuple, set)):
+        return DotList(DotObject(v) for v in data)
     return data
+
+
