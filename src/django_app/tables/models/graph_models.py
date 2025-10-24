@@ -108,7 +108,7 @@ class EndNode(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["graph"], name="unique_graph_end_node")
         ]
-    
+
     def clean(self):
         super().clean()
         if not self.output_map:

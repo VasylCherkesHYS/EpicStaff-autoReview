@@ -1,3 +1,4 @@
+from typing import Any
 from django.utils import timezone
 from django.db import models
 from django.core.serializers.json import DjangoJSONEncoder
@@ -56,6 +57,12 @@ class Session(models.Model):
 
         super().save(*args, **kwargs)
 
+    def delete(self, using=None, keep_parents=False, callback: Any = None):
+        if callback is not None:
+            callback()
+        result = super().delete(using, False)
+
+        return result
     class Meta:
         get_latest_by = ["id"]
 

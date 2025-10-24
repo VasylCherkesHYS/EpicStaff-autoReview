@@ -189,12 +189,25 @@ class SessionViewSet(
             )
 
         with transaction.atomic():
-            sessions = Session.objects.filter(id__in=ids)
-            deleted_count = sessions.count()
-            sessions.delete()
+            session_list = Session.objects.filter(id__in=ids)
+            deleted_count = session_list.count()
+            for session in session_list:
+                session.delete(
+                    callback=lambda: session_manager_service.stop_session(
+                        session_id=session.pk
+                    )
+                )
+
         return Response(
             {"deleted": deleted_count, "ids": ids}, status=status.HTTP_200_OK
         )
+
+    def destroy(self, request, *args, **kwargs):
+        session: Session = self.get_object()
+        session.delete(
+            callback=lambda: session_manager_service.stop_session(session_id=session.pk)
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RunSession(APIView):
@@ -690,9 +703,7 @@ class CollectionStatusAPIView(ListAPIView):
 
     def get_queryset(self):
         return (
-            SourceCollection.objects.only(
-                "collection_id", "collection_name", "status"
-            )
+            SourceCollection.objects.only("collection_id", "collection_name", "status")
             .annotate(
                 total_documents=Count("document_metadata"),
                 new_documents=Count(
@@ -729,6 +740,7 @@ class CollectionStatusAPIView(ListAPIView):
                 )
             )
         )
+
 
 class QuickstartView(APIView):
     """
@@ -814,7 +826,9 @@ class ProcessCollectionEmbeddingView(APIView):
         serializer = ProcessCollectionEmbeddingSerializer(data=request.data)
         if serializer.is_valid():
             collection_id = serializer["collection_id"].value
-            if not SourceCollection.objects.filter(collection_id=collection_id).exists():
+            if not SourceCollection.objects.filter(
+                collection_id=collection_id
+            ).exists():
                 return Response(status=status.HTTP_404_NOT_FOUND)
             redis_service.publish_source_collection(collection_id=collection_id)
             return Response(status=status.HTTP_202_ACCEPTED)
