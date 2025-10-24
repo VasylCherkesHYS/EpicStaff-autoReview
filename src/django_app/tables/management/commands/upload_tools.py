@@ -57,11 +57,20 @@ def get_args_schema(tool_path: Path, args_schema_file_name: str) -> dict:
 
 
 def get_requirements(tool_path: Path, requirements_file_name: str) -> list[str]:
+    requirements_file = tool_path / requirements_file_name
+    if not requirements_file.exists():
+        return []
 
-    with open(tool_path / requirements_file_name, "r", encoding="utf-8") as f:
-        requirements_text = f.read()
-    requirements = requirements_text.split("\n")
-    return " ".join(requirements)
+    with open(requirements_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    requirements = [
+        line.strip() 
+        for line in lines 
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+    return requirements
 
 
 def get_code_file(tool_path: Path, code_file_name: str) -> str:
@@ -120,13 +129,14 @@ def upload_tools():
                 requirements = get_requirements(
                     tool_path=tool_path, requirements_file_name=tool_data.requirements
                 )
+                requirements_string = " ".join(requirements)
                 name = tool_data.name
                 entrypoint = tool_data.entrypoint
                 description = tool_data.description
                 create_or_update_python_tool(
                     name=name,
                     code=code,
-                    requirements=requirements,
+                    requirements=requirements_string,
                     entrypoint=entrypoint,
                     description=description,
                     args_schema=args_schema,
