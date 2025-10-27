@@ -8,6 +8,6 @@ class StopEvent(threading.Event):
         super().__init__(*args, **kwargs)
         self.status = default_status
         
-    def check_stop(self, *args, **kwargs):
+    def check_stop(self):
         if self.is_set():
-            raise StopSession(*args, status=self.status, **kwargs)
+            raise StopSession(status=self.status)

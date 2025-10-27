@@ -57,11 +57,7 @@ class SessionManagerService(metaclass=SingletonMeta):
         return Session.objects.get(id=session_id)
 
     def stop_session(self, session_id: int) -> None:
-        # session: Session = self.get_session(session_id=session_id)
         self.redis_service.publish_stop_session(session_id=session_id)
-
-        # session.status = Session.SessionStatus.STOP
-        # session.save()
 
     def get_session_status(self, session_id: int) -> Session.SessionStatus:
         session: Session = self.get_session(session_id=session_id)
