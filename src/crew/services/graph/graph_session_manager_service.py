@@ -213,7 +213,10 @@ class GraphSessionManagerService(metaclass=SingletonMeta):
 
                     # Remove task from pool and cancel
                     session_task = self.session_graph_pool.pop(session_id)
-                    session_task.stop_event.set_with_status(status="expired")
+                    
+                    stop_event = session_task.stop_event
+                    stop_event.status = "expired" 
+                    stop_event.set()
 
                     await self.redis_service.aupdate_session_status(
                         session_id=session_id, status="expired"
