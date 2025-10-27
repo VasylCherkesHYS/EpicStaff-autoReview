@@ -123,7 +123,7 @@ class AddSourcesSerializer(SourceSerializerMixin, serializers.Serializer):
         chunk_strategies = self.validated_data.get("chunk_strategies", [])
         chunk_overlaps = self.validated_data.get("chunk_overlaps", [])
         additional_params = self.validated_data.get("additional_params", [])
-        
+
         if files:
             self.create_documents_for_collection(
                 collection=collection,
@@ -138,8 +138,22 @@ class AddSourcesSerializer(SourceSerializerMixin, serializers.Serializer):
 class UpdateSourceCollectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SourceCollection
-        fields = ["collection_name"]
-        validators = []
+        fields = ["collection_name", "embedder", "is_draft"]
+        extra_kwargs = {
+            "embedder": {"required": False, "allow_null": True},
+            "is_draft": {"required": False},
+        }
+
+    def get_fields(self):
+
+        fields = super().get_fields()
+
+        instance = getattr(self, "instance", None)
+        if instance and not instance.is_draft:
+            allowed_fields = ["collection_name"]
+            fields = {k: v for k, v in fields.items() if k in allowed_fields}
+
+        return fields
 
 
 class DocumentMetadataSerializer(serializers.ModelSerializer):
@@ -157,7 +171,27 @@ class DocumentMetadataSerializer(serializers.ModelSerializer):
             "document_content",
             "status",
         ]
-        read_only_fields = ["document_id"]
+        read_only_fields = [
+            "document_id",
+            "file_type",
+            "source_collection",
+            "document_content",
+            "status",
+        ]
+
+    def update(self, instance, validated_data):
+        instance.update_document(
+            file_name=validated_data.get("file_name", instance.file_name),
+            chunk_strategy=validated_data.get(
+                "chunk_strategy", instance.chunk_strategy
+            ),
+            chunk_size=validated_data.get("chunk_size", instance.chunk_size),
+            chunk_overlap=validated_data.get("chunk_overlap", instance.chunk_overlap),
+            additional_params=validated_data.get(
+                "additional_params", instance.additional_params
+            ),
+        )
+        return instance
 
 
 class CopySourceCollectionSerializer(
@@ -182,7 +216,7 @@ class CopySourceCollectionSerializer(
             "embedder",
             "created_at",
             "document_metadata",
-            "is_draft"
+            "is_draft",
         ]
         read_only_fields = ["collection_id", "created_at", "status"]
         validators = []
@@ -211,7 +245,7 @@ class SourceCollectionReadSerializer(serializers.ModelSerializer):
             "embedder",
             "created_at",
             "document_metadata",
-            "is_draft"
+            "is_draft",
         ]
         read_only_fields = fields
 

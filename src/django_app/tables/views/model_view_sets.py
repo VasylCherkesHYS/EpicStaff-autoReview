@@ -12,7 +12,7 @@ from tables.models.llm_models import (
     RealtimeTranscriptionConfig,
     RealtimeTranscriptionModel,
 )
-from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet, GenericViewSet
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import (
     DjangoFilterBackend,
@@ -230,7 +230,7 @@ class ProviderReadWriteViewSet(ModelViewSet):
     serializer_class = ProviderSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = ProviderFilter
- 
+
 
 class LLMModelReadWriteViewSet(BasePredefinedRestrictedViewSet):
     queryset = LLMModel.objects.all()
@@ -664,7 +664,7 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """
-        Only allow updating collection_name.
+        Only allow updating if collection is draft.
         """
         instance = self.get_object()
         serializer = UpdateSourceCollectionSerializer(
@@ -693,7 +693,7 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             with transaction.atomic():
                 serializer.create_documents(collection)
-                
+
             read_serializer = SourceCollectionReadSerializer(collection)
             return Response(read_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -717,7 +717,9 @@ class CopySourceCollectionViewSet(viewsets.ModelViewSet):
         )
 
 
-class DocumentMetadataViewSet(viewsets.ReadOnlyModelViewSet):
+class DocumentMetadataViewSet(
+    mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericViewSet
+):
     queryset = DocumentMetadata.objects.select_related("source_collection")
     serializer_class = DocumentMetadataSerializer
 
@@ -735,6 +737,20 @@ class DocumentMetadataViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+    
 class MemoryFilter(FilterSet):
     run_id = NumberFilter(method="filter_run_id")
     agent_id = CharFilter(field_name="payload__agent_id", lookup_expr="exact")
@@ -947,6 +963,8 @@ class McpToolViewSet(viewsets.ModelViewSet):
     serializer_class = McpToolSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["name", "tool_name"]
+
+
 class ChunkViewSet(ReadOnlyModelViewSet):
     queryset = Chunk.objects.all()
     serializer_class = ChunkSerializer

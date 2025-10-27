@@ -6,6 +6,7 @@ from pgvector.django import VectorField
 
 
 from .embedding_models import EmbeddingConfig
+from django.db import transaction
 
 
 # Knowledge Sources and Embeddings
@@ -114,7 +115,6 @@ class SourceCollection(models.Model):
         self.save()
 
 
-
 class DocumentMetadata(models.Model):
     """
     Model to store file contents as binary (bytea).
@@ -208,7 +208,30 @@ class DocumentMetadata(models.Model):
         else:
             self.source_collection.update_collection_status()
 
-        return res
+        return
+
+    @transaction.atomic
+    def update_document(
+        self,
+        file_name: str,
+        chunk_strategy: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        additional_params: dict,
+    ):
+        # Remove all embeddings
+        Chunk.objects.filter(document=self.pk).delete()
+        DocumentEmbedding.objects.filter(document=self.pk).delete()
+
+        status = self.DocumentStatus.NEW
+        self.file_name = file_name
+        self.chunk_strategy = chunk_strategy
+        self.chunk_overlap = chunk_overlap
+        self.chunk_size = chunk_size
+        self.additional_params = additional_params
+        self.status = status
+        self.save()
+        self.source_collection.update_collection_status()
 
     def __str__(self):
         return f"{self.file_name}"
@@ -231,7 +254,7 @@ class DocumentEmbedding(models.Model):
     )
     chunk = models.ForeignKey(
         Chunk,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         related_name="embeddings_chunk",
         null=True,
     )
