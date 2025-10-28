@@ -1,0 +1,2 @@
+langchain_community==0.2.13
+serper-python==0.0.1

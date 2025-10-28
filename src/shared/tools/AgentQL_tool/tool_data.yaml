@@ -1,0 +1,7 @@
+tool-data:
+  name: "AgentQL"
+  description: "Web interaction and structured data extraction using AgentQL."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The specific GitLab action to perform from the available tools.",
+      "enum": [
+        "get_project",
+        "get_projects_issues",
+        "get_project_issues_by_id",
+        "create_project_issue",
+        "get_project_mrs",
+        "get_project_mrs_by_id",
+        "create_project_mr",
+        "get_project_members",
+        "get_project_labels",
+        "get_project_snippets",
+        "get_comments",
+        "create_comment"
+      ]
+    },
+    "project_id": {
+      "type": "string",
+      "description": "The ID or path of the GitLab project (e.g., '12345' or 'group/project'). Required for most actions."
+    },
+    "issue_id": {
+      "type": "integer",
+      "description": "The unique ID (iid) of a specific issue within a project."
+    },
+    "mr_id": {
+      "type": "integer",
+      "description": "The unique ID (iid) of a specific merge request within a project."
+    },
+    "title": {
+      "type": "string",
+      "description": "The title for a new issue or merge request."
+    },
+    "description": {
+      "type": "string",
+      "description": "The description body for a new issue or merge request."
+    },
+    "source_branch": {
+      "type": "string",
+      "description": "The source branch for a new merge request."
+    },
+    "target_branch": {
+      "type": "string",
+      "description": "The target branch for a new merge request."
+    },
+    "object_type": {
+      "type": "string",
+      "description": "The type of object to comment on (either 'issue' or 'mr').",
+      "enum": ["issue", "mr"]
+    },
+    "object_id": {
+      "type": "integer",
+      "description": "The ID (iid) of the issue or MR to get/create comments for."
+    },
+    "comment_body": {
+      "type": "string",
+      "description": "The text content of the comment to create."
+    }
+  },
+  "required": ["action"]
+}

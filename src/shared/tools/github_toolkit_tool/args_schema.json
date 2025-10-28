@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The GitHub action to perform (e.g., 'create_issue', 'create_pull_request')"
+    },
+    "repo_owner": {
+      "type": "string",
+      "description": "The owner of the repository"
+    },
+    "repo_name": {
+      "type": "string",
+      "description": "The name of the repository"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title for the issue or pull request"
+    },
+    "body": {
+      "type": "string",
+      "description": "Body content for the issue or pull request"
+    },
+    "assignees": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of assignees for the issue or pull request"
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of labels for the issue or pull request"
+    }
+  },
+  "required": ["action", "repo_owner", "repo_name", "title", "body"]
+}

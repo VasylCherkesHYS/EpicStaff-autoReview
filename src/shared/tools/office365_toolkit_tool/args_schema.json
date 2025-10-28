@@ -1,0 +1,89 @@
+{
+  "title": "ArgsSchema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The specific Office365 action to perform from the available tools.",
+      "enum": [
+        "search_emails",
+        "send_email",
+        "search_calendar_events",
+        "create_calendar_event",
+        "list_onedrive_files",
+        "read_onedrive_file",
+        "write_onedrive_file"
+      ]
+    },
+    "query": {
+      "type": "string",
+      "description": "A search query string (e.g., 'from:boss@example.com'). Used by 'search_emails' and 'search_calendar_events'."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "The maximum number of results to return. Used by 'search_emails' and 'search_calendar_events'.",
+      "default": 10
+    },
+    "subject": {
+      "type": "string",
+      "description": "The subject line. Used by 'send_email' and 'create_calendar_event'."
+    },
+    "body": {
+      "type": "string",
+      "description": "The body content (HTML or text). Used by 'send_email' and 'create_calendar_event'."
+    },
+    "to_recipients": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A list of recipient email addresses. Used by 'send_email'."
+    },
+    "cc_recipients": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A list of CC recipient email addresses. Used by 'send_email'."
+    },
+    "bcc_recipients": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A list of BCC recipient email addresses. Used by 'send_email'."
+    },
+    "folder_id": {
+      "type": "string",
+      "description": "The optional ID of a specific mail folder to search in. Used by 'search_emails'."
+    },
+    "start_time": {
+      "type": "string",
+      "description": "The start time for an event or search range in ISO 8601 format (e.g., '2025-10-31T09:00:00')."
+    },
+    "end_time": {
+      "type": "string",
+      "description": "The end time for an event or search range in ISO 8601 format (e.g., '2025-10-31T10:00:00')."
+    },
+    "attendees": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A list of attendee email addresses. Used by 'create_calendar_event'."
+    },
+    "location": {
+      "type": "string",
+      "description": "The location of the event. Used by 'create_calendar_event'."
+    },
+    "calendar_id": {
+      "type": "string",
+      "description": "The optional ID of a specific calendar to search. Used by 'search_calendar_events'."
+    },
+    "folder_path": {
+      "type": "string",
+      "description": "The path to a folder in OneDrive (e.g., 'Documents/Reports'). Used by 'list_onedrive_files'."
+    },
+    "file_path": {
+      "type": "string",
+      "description": "The path to a file in OneDrive (e.g., 'Documents/report.txt'). Used by 'read_onedrive_file' and 'write_onedrive_file'."
+    },
+    "content": {
+      "type": "string",
+      "description": "The string content to write to a file. Used by 'write_onedrive_file'."
+    }
+  },
+  "required": ["action"]
+}

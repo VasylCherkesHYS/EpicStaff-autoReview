@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {"type": "string", "description": "Which Gmail tool to execute: create_draft, send_message, search, get_message, get_thread"},
+    "to": {"type": "string", "description": "Recipient email address (for create_draft or send_message)"},
+    "subject": {"type": "string", "description": "Email subject line (for create_draft or send_message)"},
+    "body": {"type": "string", "description": "Email body content (for create_draft or send_message)"},
+    "query": {"type": "string", "description": "Search query string for Gmail messages (for search)"},
+    "max_results": {"type": "integer", "description": "Maximum number of search results to return (for search)"},
+    "message_id": {"type": "string", "description": "Unique Gmail message ID to retrieve (for get_message)"},
+    "thread_id": {"type": "string", "description": "Unique Gmail thread ID to retrieve (for get_thread)"}
+  },
+  "required": ["action"]
+}

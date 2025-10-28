@@ -1,0 +1,7 @@
+tool-data:
+  name: "JiraToolkit"
+  description: "A comprehensive toolkit for interacting with Atlassian Jira. Allows creating, searching, getting, and updating issues. Can also add comments, assign issues, transition issue status, manage projects, and look up users."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

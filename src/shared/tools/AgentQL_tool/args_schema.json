@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "AgentQL query string"
+    }
+  },
+  "required": ["query"]
+}

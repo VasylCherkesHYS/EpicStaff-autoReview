@@ -1,0 +1,7 @@
+tool-data:
+  name: "AINetworkToolkit"
+  description: "Tool for interacting with the AINetwork Blockchain to perform various operations."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

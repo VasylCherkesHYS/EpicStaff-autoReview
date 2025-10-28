@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "ad_unit": {
+      "type": "string",
+      "description": "Identifier for the ad unit"
+    },
+    "context": {
+      "type": "string",
+      "description": "Contextual information for ad placement"
+    }
+  },
+  "required": ["ad_unit", "context"]
+}

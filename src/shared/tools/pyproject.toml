@@ -1,0 +1,19 @@
+[project]
+name = "dotdict"
+version = "0.1.0"
+description = "Custom dictionary type for epicstaff"
+authors = [
+    {name = "maksym.yevstratiev",email = "maksym.yevstratiev@hys-enterprise.com"}
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pytest (>=8.4.2,<9.0.0)",
+    "pytest-mock (>=3.15.1,<4.0.0)",
+    "langchain-community (==0.3)",
+    "pydantic (>=2.12.3,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

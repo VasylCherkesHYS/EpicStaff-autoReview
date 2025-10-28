@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "title": "ArgsSchema",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The search query to perform."
+    }
+  },
+  "required": ["query"]
+}

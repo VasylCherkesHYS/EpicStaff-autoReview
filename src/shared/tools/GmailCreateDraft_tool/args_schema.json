@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "title": "ArgsSchema",
+  "properties": {
+    "to": {
+      "type": "string",
+      "description": "Recipient email address"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Subject of the email"
+    },
+    "body": {
+      "type": "string",
+      "description": "Body content of the email"
+    }
+  },
+  "required": ["to", "subject", "body"]
+}

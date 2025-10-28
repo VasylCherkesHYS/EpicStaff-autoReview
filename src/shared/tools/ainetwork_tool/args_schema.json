@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The operation to perform (e.g., 'transfer', 'create_app')"
+    },
+    "params": {
+      "type": "object",
+      "description": "Parameters for the operation"
+    },
+    "context": {
+      "type": "string",
+      "description": "Optional instructions for the LLM"
+    }
+  },
+  "required": ["action", "params"]
+}

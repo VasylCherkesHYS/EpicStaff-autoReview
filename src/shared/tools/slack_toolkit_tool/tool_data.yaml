@@ -1,0 +1,7 @@
+tool-data:
+  name: "TwilioSendMessageTool"
+  description: "A tool to send an SMS (text message) to a specified phone number using the Twilio API."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

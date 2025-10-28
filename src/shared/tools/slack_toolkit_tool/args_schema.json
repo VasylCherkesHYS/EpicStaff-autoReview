@@ -1,0 +1,15 @@
+{
+  "title": "ArgsSchema",
+  "type": "object",
+  "properties": {
+    "to_phone_number": {
+      "type": "string",
+      "description": "The recipient's phone number in E.164 format (e.g., '+15557654321')."
+    },
+    "body": {
+      "type": "string",
+      "description": "The text content of the SMS message to send."
+    }
+  },
+  "required": ["to_phone_number", "body"]
+}

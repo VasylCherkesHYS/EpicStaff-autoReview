@@ -1,0 +1,78 @@
+{
+  "type": "object",
+  "title": "ArgsSchema",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The specific Jira action to perform from the available tools.",
+      "enum": [
+        "create_issue",
+        "search_issues",
+        "get_projects",
+        "create_project",
+        "get_issue",
+        "update_issue",
+        "add_comment",
+        "get_comments",
+        "assign_issue",
+        "transition_issue",
+        "get_all_users",
+        "get_user_by_email"
+      ]
+    },
+    "project_key": {
+      "type": "string",
+      "description": "The key of the Jira project (e.g., 'PROJ'). Required for creating issues and projects."
+    },
+    "summary": {
+      "type": "string",
+      "description": "The summary or title for a new issue."
+    },
+    "description": {
+      "type": "string",
+      "description": "The description for a new issue. Can also be used for comment body."
+    },
+    "issue_type": {
+      "type": "string",
+      "description": "The type of issue to create (e.g., 'Task', 'Bug', 'Story')."
+    },
+    "jql_query": {
+      "type": "string",
+      "description": "A Jira Query Language (JQL) string to search for issues (e.g., 'project = PROJ AND status = Open')."
+    },
+    "issue_key": {
+      "type": "string",
+      "description": "The key of a specific Jira issue (e.g., 'PROJ-123'). Required for getting, updating, commenting, assigning, or transitioning issues."
+    },
+    "update_fields": {
+      "type": "object",
+      "description": "A JSON dictionary of fields to update on an issue (e.g., {\"summary\": \"New summary\"}).",
+      "additionalProperties": true
+    },
+    "comment_body": {
+      "type": "string",
+      "description": "The text content for a new comment to add to an issue."
+    },
+    "assignee_email": {
+      "type": "string",
+      "description": "The email address of the user to assign an issue to."
+    },
+    "transition_name": {
+      "type": "string",
+      "description": "The name of the workflow transition to perform (e.g., 'In Progress', 'Done', 'Close Issue')."
+    },
+    "project_name": {
+      "type": "string",
+      "description": "The full name for a new project to be created."
+    },
+    "project_template": {
+      "type": "string",
+      "description": "The template for a new project (e.g., 'kanban', 'scrum')."
+    },
+    "user_email": {
+      "type": "string",
+      "description": "The email address of a specific user to retrieve."
+    }
+  },
+  "required": ["action"]
+}

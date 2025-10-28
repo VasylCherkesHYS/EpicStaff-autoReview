@@ -1,0 +1,7 @@
+tool-data:
+  name: "GmailToolkit"
+  description: "Comprehensive Gmail tools: create draft, send message, search emails, get message, get thread. LLM can choose 'action' and provide relevant fields for each operation."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

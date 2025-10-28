@@ -1,0 +1,7 @@
+tool-data:
+  name: "GmailCreateDraft"
+  description: "Tool to create a draft email in Gmail."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

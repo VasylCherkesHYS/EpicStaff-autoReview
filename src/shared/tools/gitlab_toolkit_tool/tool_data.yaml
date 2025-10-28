@@ -1,0 +1,7 @@
+tool-data:
+  name: "GitlabToolkit"
+  description: "A comprehensive toolkit for interacting with GitLab repositories. It can get project details, list and create issues, list and create merge requests (MRs), get project members, labels, snippets, and read/write comments on issues and MRs."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

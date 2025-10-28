@@ -1,0 +1,7 @@
+tool-data:
+  name: "Office365Toolkit"
+  description: "A comprehensive toolkit for interacting with Microsoft Office 365. It can search Outlook emails, send emails, search Outlook calendar events, create calendar events, and list, read, and write files on OneDrive."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"

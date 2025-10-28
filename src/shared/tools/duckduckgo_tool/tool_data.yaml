@@ -1,0 +1,7 @@
+tool-data:
+  name: "DuckDuckGoSearchRun"
+  description: "Tool to perform web searches using DuckDuckGo."
+  args-schema: "args_schema.json"
+  code-file: "main.py"
+  entrypoint: "main"
+  requirements: "requirements.txt"
