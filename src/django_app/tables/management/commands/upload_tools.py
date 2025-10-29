@@ -9,7 +9,7 @@ from tables.models import PythonCodeTool, PythonCode
 from pathlib import Path
 import yaml
 from django.db import transaction
-
+from loguru import logger
 
 @dataclass
 class ToolData:
@@ -22,7 +22,6 @@ class ToolData:
 
 
 BASE_FOLDER_PATH: Path = Path("../shared/tools").absolute().resolve()
-print(BASE_FOLDER_PATH)
 TOOL_DATA_FILE_NAME = "tool_data.yaml"
 
 
@@ -143,7 +142,7 @@ def upload_tools():
                 )
                 tool_name_set.add(name)
             except FileNotFoundError as e:
-                print(f"Error processing {tool_path}: {e}")
+                logger.error(f"Error processing {tool_path}: {e}")
 
         db_tools: set[str] = set(
             PythonCodeTool.objects.filter(built_in=True).values_list("name", flat=True)

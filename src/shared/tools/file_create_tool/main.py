@@ -1,4 +1,4 @@
-# Tool: CreateFileTool
+# CreateFileTool
 
 from pathlib import Path
 import os

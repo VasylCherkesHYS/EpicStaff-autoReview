@@ -1,4 +1,4 @@
-# Tool: AppendFileTool
+# AppendFileTool
 
 import os
 from pathlib import Path

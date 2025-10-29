@@ -1,4 +1,4 @@
-# Tool: FileCountLinesTool
+# FileCountLinesTool
 
 import os
 import encodings

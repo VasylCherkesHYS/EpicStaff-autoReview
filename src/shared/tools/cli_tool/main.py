@@ -1,3 +1,4 @@
+# Cli Tool
 import subprocess
 
 def main(command: str) -> str:
@@ -16,10 +17,9 @@ def main(command: str) -> str:
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         result = f"STDOUT: \n{result.stdout}\nSTDERR: \n{result.stderr}"
         return result
     except Exception as e:
         return "", str(e)
-

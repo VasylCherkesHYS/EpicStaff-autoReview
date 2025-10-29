@@ -181,7 +181,6 @@ class PythonCodeSerializer(serializers.ModelSerializer):
         return internal_value
 
 
-from rest_framework import serializers
 
 class PythonCodeToolSerializer(serializers.ModelSerializer):
     python_code = PythonCodeSerializer()

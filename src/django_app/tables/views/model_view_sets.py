@@ -527,17 +527,6 @@ class PythonCodeToolViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["name", "python_code"]
 
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.built_in:
-            raise BuiltInToolModificationError()
-        return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.built_in:
-            raise BuiltInToolModificationError()
-        return super().partial_update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
