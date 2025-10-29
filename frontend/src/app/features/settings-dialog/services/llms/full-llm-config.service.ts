@@ -28,7 +28,7 @@ export class FullLLMConfigService {
     return forkJoin({
       configs: this.llmConfigService.getAllConfigsLLM(),
       models: this.llmModelsService.getLLMModels(),
-      providers: this.llmProvidersService.getProviders(),
+      providers: this.llmProvidersService.getProvidersLlm(),
     }).pipe(
       map(({ configs, models, providers }) => {
         const modelMap: Record<number, GetLlmModelRequest> = {};

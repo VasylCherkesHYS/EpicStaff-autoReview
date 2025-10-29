@@ -88,7 +88,7 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
   private loadProviders(): void {
     this.isLoading.set(true);
     this.providersService
-      .getProviders()
+      .getProvidersEmbedding()
       .pipe(finalize(() => this.isLoading.set(false)))
       .subscribe({
         next: (providers) => {

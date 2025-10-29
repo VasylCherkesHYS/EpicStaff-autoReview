@@ -98,7 +98,7 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
     private loadProviders(): void {
         this.isLoading.set(true);
         this.providersService
-            .getProviders()
+            .getProvidersLlm()
             .pipe(finalize(() => this.isLoading.set(false)))
             .subscribe({
                 next: (providers) => {

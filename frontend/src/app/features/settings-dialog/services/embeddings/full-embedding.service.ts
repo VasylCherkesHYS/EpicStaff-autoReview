@@ -27,7 +27,7 @@ export class FullEmbeddingConfigService {
     return forkJoin({
       configs: this.embeddingConfigService.getEmbeddingConfigs(),
       models: this.embeddingModelsService.getEmbeddingModels(),
-      providers: this.providersService.getProviders(),
+      providers: this.providersService.getProvidersEmbedding(),
     }).pipe(
       map(({ configs, models, providers }) => {
         // Create lookup tables for models and providers

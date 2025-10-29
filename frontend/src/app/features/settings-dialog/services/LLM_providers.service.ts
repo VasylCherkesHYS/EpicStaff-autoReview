@@ -10,7 +10,7 @@ import { ConfigService } from '../../../services/config/config.service';
   providedIn: 'root',
 })
 export class LLM_Providers_Service {
-  constructor(private http: HttpClient, private configService: ConfigService) {}
+  constructor(private http: HttpClient, private configService: ConfigService) { }
 
   private get apiUrl(): string {
     return this.configService.apiUrl + 'providers/';
@@ -18,6 +18,42 @@ export class LLM_Providers_Service {
 
   getProviders(): Observable<LLM_Provider[]> {
     const params = new HttpParams().set('limit', '1000');
+
+    return this.http
+      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+  }
+
+  getProvidersRealtime(): Observable<LLM_Provider[]> {
+    const params = new HttpParams().set('limit', '1000')
+      .set('model_type', 'realtime');
+
+    return this.http
+      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+  }
+
+  getProvidersLlm(): Observable<LLM_Provider[]> {
+    const params = new HttpParams().set('limit', '1000')
+      .set('model_type', 'llm');
+
+    return this.http
+      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+  }
+
+  getProvidersEmbedding(): Observable<LLM_Provider[]> {
+    const params = new HttpParams().set('limit', '1000')
+      .set('model_type', 'embedding');
+
+    return this.http
+      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+  }
+
+  getProvidersTranscription(): Observable<LLM_Provider[]> {
+    const params = new HttpParams().set('limit', '1000')
+      .set('model_type', 'transcription');
 
     return this.http
       .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })

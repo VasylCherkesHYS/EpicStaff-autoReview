@@ -87,7 +87,7 @@ export class AddVoiceConfigDialogComponent implements OnInit, OnDestroy {
     private loadProviders(): void {
         this.isLoading.set(true);
         this.providersService
-            .getProviders()
+            .getProvidersRealtime()
             .pipe(finalize(() => this.isLoading.set(false)))
             .subscribe({
                 next: (providers) => {

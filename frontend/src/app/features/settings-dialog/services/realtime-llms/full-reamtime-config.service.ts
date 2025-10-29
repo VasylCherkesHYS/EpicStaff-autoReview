@@ -31,7 +31,7 @@ export class FullRealtimeConfigService {
     return forkJoin({
       configs: this.realtimeModelConfigsService.getAllConfigs(),
       models: this.realtimeModelsService.getAllModels(),
-      providers: this.providersService.getProviders(),
+      providers: this.providersService.getProvidersRealtime(),
     }).pipe(
       map(({ configs, models, providers }) => {
         // Build lookup tables for models and providers
