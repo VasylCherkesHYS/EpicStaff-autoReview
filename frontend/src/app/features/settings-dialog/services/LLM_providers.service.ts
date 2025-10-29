@@ -3,8 +3,10 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiGetRequest } from '../../../shared/models/api-request.model';
-import { LLM_Provider } from '../models/LLM_provider.model';
+import { LLM_Provider, ModelTypes } from '../models/LLM_provider.model';
 import { ConfigService } from '../../../services/config/config.service';
+
+
 
 @Injectable({
   providedIn: 'root',
@@ -24,36 +26,27 @@ export class LLM_Providers_Service {
       .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
   }
 
-  getProvidersRealtime(): Observable<LLM_Provider[]> {
-    const params = new HttpParams().set('limit', '1000')
-      .set('model_type', 'realtime');
+  getProvidersByQuery(type: ModelTypes): Observable<LLM_Provider[]> {
+    let typeParam: string;
 
-    return this.http
-      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
-      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
-  }
+    switch (type) {
+      case ModelTypes.EMBEDDING:
+        typeParam = 'embedding';
+        break;
+      case ModelTypes.REALTIME:
+        typeParam = 'realtime';
+        break;
+      case ModelTypes.LLM:
+        typeParam = 'llm';
+        break;
+      case ModelTypes.TRANSCRIPTION:
+        typeParam = 'transcription';
+        break;
+      default:
+        typeParam = '';
+    }
 
-  getProvidersLlm(): Observable<LLM_Provider[]> {
-    const params = new HttpParams().set('limit', '1000')
-      .set('model_type', 'llm');
-
-    return this.http
-      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
-      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
-  }
-
-  getProvidersEmbedding(): Observable<LLM_Provider[]> {
-    const params = new HttpParams().set('limit', '1000')
-      .set('model_type', 'embedding');
-
-    return this.http
-      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
-      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
-  }
-
-  getProvidersTranscription(): Observable<LLM_Provider[]> {
-    const params = new HttpParams().set('limit', '1000')
-      .set('model_type', 'transcription');
+    const params = new HttpParams().set('limit', '1000').set('model_type', `${typeParam}`);
 
     return this.http
       .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
