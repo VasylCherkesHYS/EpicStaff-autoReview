@@ -49,12 +49,14 @@ export class CollectionsService {
 
   patchGetSourceCollectionRequest(
     collectionId: number,
-    collectionName: string
+    newData: any
   ): Observable<GetSourceCollectionRequest> {
+
+    // newData
     return this.http.patch<GetSourceCollectionRequest>(
       `${this.apiUrl}${collectionId}/`,
       {
-        collection_name: collectionName,
+        is_draft: false,
       }
     );
   }

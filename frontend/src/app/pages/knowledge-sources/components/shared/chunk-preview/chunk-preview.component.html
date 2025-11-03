@@ -1,0 +1,28 @@
+<!-- Chunk preview area -->
+<div class="chunk-preview">
+    <div *ngIf="isLoading" class="preview-loading">Loading chunks…</div>
+
+    <div
+        *ngIf="
+            !isLoading &&
+            previewChunks &&
+            previewChunks.results &&
+            previewChunks.results.length
+        "
+        class="preview-list"
+    >
+        <div class="preview-count">Chunks: {{ previewChunks.count }}</div>
+        <ul>
+            <li
+                *ngFor="let item of previewChunks.results | slice : 0 : 5"
+                class="preview-item"
+            >
+                <span class="preview-count">ID: {{ item.id }}</span> —
+                {{ item.text }}
+            </li>
+        </ul>
+        <div *ngIf="previewChunks.count > 5" class="preview-more">
+            ...and {{ previewChunks.count - 5 }} more
+        </div>
+    </div>
+</div>

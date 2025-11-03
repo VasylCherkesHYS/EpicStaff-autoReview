@@ -87,7 +87,7 @@ export class KnowledgeSourcesComponent implements OnInit, OnDestroy {
 
   private get needsPolling(): boolean {
     const collections = this._pageService.collections();
-    return collections.some((collection) => collection.status !== 'completed');
+    return collections.some((collection) => collection.collection_status !== 'completed');
   }
 
   private stopPolling(): void {
@@ -124,7 +124,7 @@ export class KnowledgeSourcesComponent implements OnInit, OnDestroy {
 
           console.log(
             'Collections polling - in progress collections:',
-            updatedCollections.filter((c) => c.status !== 'completed').length
+            updatedCollections.filter((c) => c.collection_status !== 'completed').length
           );
 
           this._cdr.markForCheck();

@@ -1,17 +1,23 @@
 import { Component, Input, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { NgZone, ChangeDetectorRef } from '@angular/core';
 
 import { Source } from '../../../models/source.model';
 import { SourcesService } from '../../../services/collections-files.service';
 import { KnowledgeSourcesPageService } from '../../../services/knowledge-sources-page.service';
 import { ConfirmationDialogService } from '../../../../../shared/components/cofirm-dialog/confimation-dialog.service';
+import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
+import { getChunkingPreview } from '../../../utils/chunking.utils';
+import { PreviewChunks } from '../../../models/embedding-result.model';
+import { SourceEmbeddingService } from '../../../services/source-embedding.service';
+import { ChunkPreviewComponent } from '../../shared/chunk-preview/chunk-preview.component';
 
 @Component({
   selector: 'app-file-item',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ButtonComponent, ChunkPreviewComponent],
   template: `
     <div class="file-item">
       <div class="file-type-icon">
@@ -87,6 +93,9 @@ import { ConfirmationDialogService } from '../../../../../shared/components/cofi
         </div>
       </div>
       <div class="file-actions">
+          <app-button type="secondary" (click)="onClickPreview()">
+            <span>Chunk Preview</span>
+          </app-button>
         <button
           class="action-button close-button"
           (click)="onDeleteClick($event)"
@@ -113,7 +122,14 @@ import { ConfirmationDialogService } from '../../../../../shared/components/cofi
           </svg>
         </button>
       </div>
+
+      
     </div>
+    <!-- Chunk preview area -->
+    <div *ngIf="isLoading || (previewChunks && previewChunks.results?.length)">
+      <app-chunk-preview [previewChunks]="previewChunks" [isLoading]="isLoading"></app-chunk-preview>
+    </div>
+      <!-- </div>  -->
   `,
   styles: [
     `
@@ -244,14 +260,27 @@ export class FileItemComponent implements OnDestroy {
   @Input() source!: Source;
 
   private _destroy$ = new Subject<void>();
+  public previewChunks: PreviewChunks | undefined = undefined;
+  private chunkingSubscription: Subscription | null = null;
+  public isLoading = false;
 
   constructor(
     private _sourcesService: SourcesService,
     private _pageService: KnowledgeSourcesPageService,
-    private _confirmationDialogService: ConfirmationDialogService
-  ) {}
+    private _confirmationDialogService: ConfirmationDialogService,
+    private sourceEmbeddingService: SourceEmbeddingService,
+    private _ngZone: NgZone,
+    private _cdr: ChangeDetectorRef,
+
+  ) { }
 
   ngOnDestroy(): void {
+    // Clean up any in-flight chunking request
+    if (this.chunkingSubscription) {
+      this.chunkingSubscription.unsubscribe();
+      this.chunkingSubscription = null;
+    }
+
     this._destroy$.next();
     this._destroy$.complete();
   }
@@ -259,6 +288,47 @@ export class FileItemComponent implements OnDestroy {
   onDeleteClick(event: MouseEvent): void {
     event.stopPropagation();
     this.deleteSource(this.source);
+  }
+
+  onClickPreview() {
+    const documentId = this.source.document_id;
+    if (!documentId) {
+      console.warn('No server document_id found for selected file. Cannot request chunk preview.');
+      return;
+    }
+
+    // Clear previous result immediately so UI doesn't show stale data
+    this.previewChunks = undefined;
+    this.isLoading = true;
+
+    // Cancel previous in-flight request if any
+    if (this.chunkingSubscription) {
+      this.chunkingSubscription.unsubscribe();
+      this.chunkingSubscription = null;
+    }
+
+    const obs = getChunkingPreview(this.sourceEmbeddingService, documentId);
+    this.chunkingSubscription = obs.subscribe({
+      next: (res: PreviewChunks) => {
+        // Ensure we update the template inside Angular zone
+        this._ngZone.run(() => {
+          // The API returns PreviewChunks; directly assign it.
+          this.previewChunks = res as PreviewChunks;
+          console.log('this.previewChunks', this.previewChunks);
+          this.isLoading = false;
+          // Ensure change detection runs so template reflects new values immediately
+          try { this._cdr.detectChanges(); } catch (e) { /* noop */ }
+        });
+      },
+      error: (err) => {
+        console.error('Failed to get chunking preview', err);
+        this._ngZone.run(() => {
+          this.previewChunks = { results: [], previous: null, count: 0, next: null } as PreviewChunks;
+          this.isLoading = false;
+          try { this._cdr.detectChanges(); } catch (e) { /* noop */ }
+        });
+      }
+    });
   }
 
   getFileExtension(fileName: string): string {

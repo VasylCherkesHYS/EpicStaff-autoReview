@@ -87,7 +87,7 @@ export class EmbeddingModelItemComponent {
   @Input() isSelected: boolean = false;
 
   @Output() selected = new EventEmitter<FullEmbeddingConfig>();
-
+  
   onSelect(): void {
     this.selected.emit(this.config);
   }

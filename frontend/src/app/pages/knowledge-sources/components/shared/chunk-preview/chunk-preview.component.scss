@@ -1,0 +1,37 @@
+.chunk-preview {
+    margin-top: 8px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.preview-loading {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+}
+
+.preview-count {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 6px;
+}
+
+.preview-list ul {
+    margin: 0;
+    padding-left: 16px;
+    max-height: 120px;
+    overflow: auto;
+}
+
+.preview-item {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 4px;
+}
+
+.preview-empty {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+}

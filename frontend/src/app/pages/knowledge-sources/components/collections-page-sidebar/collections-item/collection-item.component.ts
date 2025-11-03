@@ -227,7 +227,7 @@ export class CollectionItemComponent implements OnDestroy {
         private _sourceCollectionService: CollectionsService,
         private _embeddingConfigsService: EmbeddingConfigsService,
         private _confirmationDialogService: ConfirmationDialogService
-    ) {}
+    ) { }
 
     ngOnDestroy(): void {
         this._destroy$.next();

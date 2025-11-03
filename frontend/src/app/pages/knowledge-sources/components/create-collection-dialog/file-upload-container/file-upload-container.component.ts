@@ -39,8 +39,8 @@ export class FileUploadContainerComponent {
   @Input() maxChunkSize: number = 8000;
   @Input() maxOverlapSize: number = 1000;
   @Input() chunkStrategies: { label: string; value: ChunkStrategy }[] = [
-    { label: 'Token', value: 'token' },
     { label: 'Character', value: 'character' },
+    { label: 'Token', value: 'token' },
     { label: 'Markdown', value: 'markdown' },
     { label: 'JSON', value: 'json' },
     { label: 'HTML', value: 'html' },
@@ -56,7 +56,7 @@ export class FileUploadContainerComponent {
   // Default values
   defaultChunkSize = 1000;
   defaultOverlapSize = 200;
-  defaultChunkStrategy: ChunkStrategy = 'token';
+  defaultChunkStrategy: ChunkStrategy = 'character';
 
   // Allowed file types
   allowedFileTypes = ['pdf', 'csv', 'docx', 'txt', 'json', 'html'];
@@ -208,6 +208,27 @@ export class FileUploadContainerComponent {
     console.log('Remaining Files:', this.filesWithSettings);
   }
 
+  // Clear all files and reset the form array
+  public clearAll(): void {
+    this.filesWithSettings = [];
+
+    // Remove all controls from the FormArray
+    while (this.fileSettingsFormArray.length > 0) {
+      this.fileSettingsFormArray.removeAt(0);
+    }
+
+    // Reset invalid state and additional params
+    this.hasInvalidFiles = false;
+    this.additionalParamsInput = '{}';
+    this.hasAdditionalParamsError = false;
+
+    // Clear file inputs in the DOM
+    this.clearFileInput();
+
+    // Emit change so parent can react
+    this.hasInvalidFilesChange.emit(this.hasInvalidFiles);
+  }
+
   // Helper method to clear the file input
   private clearFileInput(): void {
     // Find all file input elements and clear them
@@ -248,7 +269,7 @@ export class FileUploadContainerComponent {
 
   emitChunkParams(index: number): void {
     const file = this.filesWithSettings[index];
-    this.chunkParamsChange.emit({file, index});
+    this.chunkParamsChange.emit({ file, index });
   }
 
   // Method to get files for form submission

@@ -101,7 +101,7 @@
                     <span class="progress-text">{{ progress }}%</span>
                 </div>
             </div>
-            <div class="dialog-content__sidebar" *ngIf="currentFile()">
+            <div class="dialog-content__sidebar">
                 <app-chunk-configuration
                     [selectedFile]="currentFile()"
                     [maxChunkSize]="maxChunkSize"
@@ -109,8 +109,11 @@
                     [chunkStrategies]="chunkStrategies"
                     [fileSettingsFormArray]="fileSettingsFormArray"
                     (chunkParamsChange)="onFileSelected($event)"
-                >
+                    >
                 </app-chunk-configuration>
+                <!-- [additional_params] = "aditional_params_default_value", -->
+                <!-- [aditional_params_info]="aditional_params_info" -->
+
             </div>
         </form>
     </div>

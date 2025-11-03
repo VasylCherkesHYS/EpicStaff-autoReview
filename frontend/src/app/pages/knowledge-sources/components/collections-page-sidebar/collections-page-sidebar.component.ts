@@ -40,7 +40,7 @@ export class CollectionsSidebarComponent implements OnDestroy {
   constructor(
     private _pageService: KnowledgeSourcesPageService,
     private _cdr: ChangeDetectorRef
-  ) {}
+  ) { }
 
   public ngOnDestroy(): void {
     // Cleanup subscriptions
@@ -57,15 +57,25 @@ export class CollectionsSidebarComponent implements OnDestroy {
   }
 
   public get filteredCollections() {
+    const noDraftedCollections = this.notDraftCollections
+
     if (!this.searchQuery.trim()) {
-      return this.collections;
+      return noDraftedCollections;
     }
 
-    return this.collections.filter((collection) => {
+    return noDraftedCollections.filter((collection) => {
       return collection.collection_name
         ?.toLowerCase()
         .includes(this.searchQuery.toLowerCase());
     });
+  }
+
+  public get notDraftCollections() {
+    const noDraftCollectionsArray = this.collections.filter(collection => {
+      return collection.is_draft !== true;
+      // collection.collection_name ?? collection
+    })
+    return noDraftCollectionsArray;
   }
 
   public openCreateCollectionDialog(): void {

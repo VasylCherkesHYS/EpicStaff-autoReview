@@ -1,4 +1,8 @@
-<div>
+<div *ngIf="!selectedFile">
+    <span class="noFiles"> Please add the files and select one of them </span>
+</div>
+
+<div *ngIf="selectedFile">
     <div class="file-info">
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -118,33 +122,56 @@
     </div>
 
     <!-- additional parameters -->
+    <!-- <div class="setting-label">
+        <label>Additional params</label>
+    </div> -->
 
     <!-- <div class="setting-group">
         <div class="setting-label">
-            <label>Additional params</label>
+            <label>Csv strategy</label>
         </div>
-        <select
-            class="chunk-strategy-select"
-            [value]="selectedFile?.file?.chunkStrategy"
+        <input
+            type="number"
+            [value]="selectedFile?.file?.additionalParams?.csvStrategy?.headers_level"
+            min="1"
+            [max]="20"
+            [class.invalid-input]="selectedFile?.file?.hasChunkSizeError"
             (change)="
                 updateFileSettings(
                     selectedFile!.index,
-                    'chunkStrategy',
+                    'overlapSize',
                     $any($event).target.value
                 )
             "
-        >
-            <option
-                *ngFor="let strategy of chunkStrategies"
-                [value]="strategy.value"
-            >
-                {{ strategy.label }}
-            </option>
-        </select>
+            (keydown.enter)="$event.preventDefault()"
+        />
     </div> -->
     <div class="btn-container">
-        <app-button type="primary" (click)="onClick()">
+        <app-button type="primary" (click)="onClickPreview()">
             <span>Chunk Preview</span>
         </app-button>
+    </div>
+
+    <!-- <div *ngIf="previewChunks() as preview" style="max-width: 500px; background: #0f0f0f">
+        <ul>
+            @for (result of preview.results; track result.text) {
+                <li>
+                    <span>{{result.id}}</span>
+                    <p>{{result.text}}</p>
+                </li>
+             }
+        </ul>
+    </div> -->
+
+    <div
+        *ngIf="
+            isLoading || (previewChunks() && previewChunks()?.results?.length)
+        "
+        class="chunk-preview"
+    >
+        <app-chunk-preview
+            [previewChunks]="previewChunks()"
+            [isLoading]="isLoading"
+        ></app-chunk-preview>
     </div>
 </div>

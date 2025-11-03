@@ -111,7 +111,7 @@
           </div>
 
           <!-- Per-file chunk settings -->
-          <div class="file-settings" *ngIf="fileWithSettings.isValid">
+          <div class="file-settings" *ngIf="fileWithSettings.isValid" [formGroup]="$any(fileSettingsFormArray.at(i))">
             <div class="setting-row">
               <div class="setting-group">
                 <div class="setting-label">
@@ -122,19 +122,10 @@
                 </div>
                 <select
                   class="chunk-strategy-select"
-                  [value]="fileWithSettings.chunkStrategy"
-                  (change)="
-                    updateFileSettings(
-                      i,
-                      'chunkStrategy',
-                      $any($event).target.value
-                    )
-                  "
+                  formControlName="chunkStrategy"
+                  (change)="updateFileSettings(i, 'chunkStrategy', $any($event).target.value)"
                 >
-                  <option
-                    *ngFor="let strategy of chunkStrategies"
-                    [value]="strategy.value"
-                  >
+                  <option *ngFor="let strategy of chunkStrategies" [value]="strategy.value">
                     {{ strategy.label }}
                   </option>
                 </select>
@@ -149,17 +140,11 @@
                 </div>
                 <input
                   type="number"
-                  [value]="fileWithSettings.chunkSize"
+                  formControlName="chunkSize"
                   min="1"
                   [max]="maxChunkSize"
                   [class.invalid-input]="fileWithSettings.hasChunkSizeError"
-                  (change)="
-                    updateFileSettings(
-                      i,
-                      'chunkSize',
-                      $any($event).target.value
-                    )
-                  "
+                  (change)="updateFileSettings(i, 'chunkSize', $any($event).target.value)"
                   (keydown.enter)="$event.preventDefault()"
                 />
               </div>
@@ -173,17 +158,11 @@
                 </div>
                 <input
                   type="number"
-                  [value]="fileWithSettings.overlapSize"
+                  formControlName="overlapSize"
                   min="0"
                   [max]="maxOverlapSize"
                   [class.invalid-input]="fileWithSettings.hasChunkSizeError"
-                  (change)="
-                    updateFileSettings(
-                      i,
-                      'overlapSize',
-                      $any($event).target.value
-                    )
-                  "
+                  (change)="updateFileSettings(i, 'overlapSize', $any($event).target.value)"
                   (keydown.enter)="$event.preventDefault()"
                 />
               </div>

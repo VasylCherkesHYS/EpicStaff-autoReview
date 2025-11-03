@@ -267,8 +267,7 @@ import { DropdownManagerService } from '../../services/dropdown-manager.service'
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmbeddingModelSelectorComponent
-    implements OnInit, OnDestroy, OnChanges, ControlValueAccessor
-{
+    implements OnInit, OnDestroy, OnChanges, ControlValueAccessor {
     @Input() placeholder: string = 'Select embedding model';
     @Input() embeddingConfigs: FullEmbeddingConfig[] = [];
 
@@ -283,8 +282,8 @@ export class EmbeddingModelSelectorComponent
     private dropdownId: string;
 
     // ControlValueAccessor implementation
-    private onChange: (value: number | null) => void = () => {};
-    private onTouched: () => void = () => {};
+    private onChange: (value: number | null) => void = () => { };
+    private onTouched: () => void = () => { };
 
     constructor(
         private cdr: ChangeDetectorRef,
@@ -311,15 +310,19 @@ export class EmbeddingModelSelectorComponent
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['embeddingConfigs'] && this.embeddingConfigs) {
             this.filteredConfigs = [...this.embeddingConfigs];
+            console.log("filteredConfigs", this.filteredConfigs);
+
             this.updateSelectedConfig();
             this.cdr.markForCheck();
         }
     }
 
-    ngOnDestroy(): void {}
+    ngOnDestroy(): void { }
 
     toggleDropdown(event?: MouseEvent): void {
         if (event) {
+        console.log("filteredConfigs", this.filteredConfigs);
+
             event.stopPropagation();
         }
 
