@@ -47,3 +47,4 @@ export interface CreateDecisionTableNodeRequest {
     error_next_node: string | null;
 }
 
+
