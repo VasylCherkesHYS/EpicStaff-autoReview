@@ -69,7 +69,24 @@ class EmbeddingConfig(Base):
     # Relationship
     model = relationship("EmbeddingModel", back_populates="embedding_configs")
 
+class BM25Index(Base):
+    __tablename__ = "tables_bm25index"
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    collection_id = Column(
+        Integer,
+        ForeignKey("tables_sourcecollection.collection_id"),
+        unique=True, 
+        nullable=False,
+    )
+    
+    index_data = Column(LargeBinary, nullable=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    collection = relationship("SourceCollection", back_populates="bm25_index")
+    
 class SourceCollection(Base):
     __tablename__ = "tables_sourcecollection"
 
@@ -83,8 +100,6 @@ class SourceCollection(Base):
     embedder_id = Column(
         Integer, ForeignKey("tables_embeddingconfig.id"), nullable=True
     )
-
-    # Relationships
     embedder = relationship("EmbeddingConfig")
     document_metadata = relationship(
         "DocumentMetadata",
@@ -94,7 +109,12 @@ class SourceCollection(Base):
     embeddings_coll = relationship(
         "DocumentEmbedding", back_populates="collection", cascade="all, delete-orphan"
     )
-
+    bm25_index = relationship(
+        "BM25Index",
+        back_populates="collection",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     __table_args__ = (
         UniqueConstraint(
             "user_id", "collection_name", name="unique_collection_name_per_user"
@@ -197,3 +217,4 @@ class DocumentEmbedding(Base):
     collection = relationship("SourceCollection", back_populates="embeddings_coll")
     document = relationship("DocumentMetadata", back_populates="embeddings_doc")
     chunk = relationship("Chunk", back_populates="embeddings_chunk")
+

@@ -114,7 +114,6 @@ class SourceCollection(models.Model):
         self.save()
 
 
-
 class DocumentMetadata(models.Model):
     """
     Model to store file contents as binary (bytea).
@@ -245,3 +244,19 @@ class DocumentEmbedding(models.Model):
 class DocumentContent(models.Model):
 
     content = models.BinaryField(help_text="Binary file content (max 12MB)")
+
+
+class BM25Index(models.Model):
+
+    collection = models.OneToOneField(
+        SourceCollection,
+        on_delete=models.CASCADE,
+        related_name="bm25_index",
+    )
+
+    index_data = models.BinaryField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"BM25 Index for {self.collection.collection_name}"

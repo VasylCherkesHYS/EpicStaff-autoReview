@@ -7,7 +7,35 @@ from models.orm.document_models import Chunk, DocumentMetadata
 from sqlalchemy.orm import Session
 
 class ORMDocumentChunkStorage(BaseORMStorage):
+    def get_all_chunks_by_collection(self, collection_id: int) -> list[ChunkDTO]:
+        try:
+            chunks = (
+                self.session.query(Chunk)
+                .join(DocumentMetadata, Chunk.document_id == DocumentMetadata.document_id)
+                .filter(DocumentMetadata.source_collection_id == collection_id)
+                .order_by(Chunk.id)
+                .all()
+            )
+            return [ChunkDTO.model_validate(c) for c in chunks]
+        except Exception as e:
+            logger.error(f"Failed to get all chunks for collection {collection_id}: {e}")
+            return []
 
+    def get_chunks_by_ids(self, chunk_ids: list[int]) -> list[str]:
+        if not chunk_ids:
+            return []
+        try:
+            chunks_map = {
+                c.id: c.text
+                for c in self.session.query(Chunk.id, Chunk.text)
+                .filter(Chunk.id.in_(chunk_ids))
+                .all()
+            }
+            return [chunks_map[cid] for cid in chunk_ids if cid in chunks_map]
+        except Exception as e:
+            logger.error(f"Failed to get chunks by IDs: {e}")
+            return []
+        
     def delete_chunks(self, document_id: int) -> bool:
         """Delete all chunks for a document by its document_id."""
         try:

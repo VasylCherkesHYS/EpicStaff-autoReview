@@ -2,9 +2,10 @@ from typing import Dict, Optional, List
 from sqlalchemy.orm import joinedload
 from sqlalchemy import delete, select
 from loguru import logger
-
+from sqlalchemy import func
 from .base_storage import BaseORMStorage
 from models.orm.document_models import (
+    BM25Index,
     DocumentEmbedding,
     EmbeddingModel,
     Provider,
@@ -95,42 +96,71 @@ class ORMKnowledgeStorage(BaseORMStorage):
             )
             raise
 
-    def search(
+    def vector_search( # <-- ПЕРЕИМЕНОВАНО И ИЗМЕНЕНО
         self,
         embedded_query: List[float],
         collection_id: int,
-        limit: int = 3,
+        limit: int = 10, # Увеличим лимит для RRF
         similarity_threshold: float = 0.2,
-    ) -> list[str]:
+    ) -> list[tuple[int, float]]: # <-- ИЗМЕНЕН ТИП ВОЗВРАТА
         """
-        Search documents in the knowledge base using vector similarity.
-        similarity_threshold: min similarity (0 = no similarity, 1 = identical)
+        Search documents using vector similarity.
+        Returns list of (chunk_id, similarity_score).
         """
         try:
-            # Compute distance = 1 - similarity
+            # 1. Вычисляем сходство (1 - cosine_distance)
             similarity_expr = (1 - DocumentEmbedding.vector.cosine_distance(embedded_query)).label("similarity")
 
             stmt = (
-                select(Chunk.text, similarity_expr)
+                select(DocumentEmbedding.chunk_id, similarity_expr)
                 .join(Chunk, Chunk.id == DocumentEmbedding.chunk_id)
                 .where(DocumentEmbedding.collection_id == collection_id)
-                .order_by(similarity_expr.desc())  # safer
+                .where(similarity_expr >= similarity_threshold)
+                .order_by(similarity_expr.desc())
                 .limit(limit)
             )
 
             results = self.session.execute(stmt).all()
-
-            final_result = []
-            for i, r in enumerate(results, start=1):
-                similarity = r.similarity
-                if similarity is not None and similarity >= similarity_threshold:
-                    logger.info(f"Chunk #{i} (similarity: {similarity:.4f}): {r.text}")
-                    final_result.append(r.text)
-
-            logger.info(f"Returning {len(final_result)} chunks (threshold={similarity_threshold})")
-            return final_result
+            
+            return [(r.chunk_id, r.similarity) for r in results]
 
         except Exception as e:
-            logger.error(f"Search failed for collection {collection_id}: {e}")
+            logger.error(f"Vector Search failed for collection {collection_id}: {e}")
             return []
 
+
+    def save_bm25_index(self, collection_id: int, index_data: bytes) -> bool:
+        try:
+            existing_index = (
+                self.session.query(BM25Index)
+                .filter(BM25Index.collection_id == collection_id)
+                .one_or_none()
+            )
+            
+            if existing_index:
+                existing_index.index_data = index_data
+                existing_index.created_at = func.now()
+            else:
+                new_index = BM25Index(
+                    collection_id=collection_id, index_data=index_data
+                )
+                self.session.add(new_index)
+                
+            return True
+        except Exception as e:
+            self.session.rollback() # Откатываем в случае ошибки
+            logger.error(f"Failed to save BM25 index for collection {collection_id}: {e}")
+            return False
+
+    def load_bm25_index(self, collection_id: int) -> Optional[bytes]:
+        """Загружает сериализованный индекс BM25 из БД."""
+        try:
+            index = (
+                self.session.query(BM25Index.index_data)
+                .filter(BM25Index.collection_id == collection_id)
+                .one_or_none()
+            )
+            return index[0] if index else None
+        except Exception as e:
+            logger.error(f"Failed to load BM25 index for collection {collection_id}: {e}")
+            return None

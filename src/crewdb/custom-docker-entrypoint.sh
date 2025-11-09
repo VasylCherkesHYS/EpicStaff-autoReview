@@ -132,7 +132,8 @@ create_knowledge_user(){
     -- Optional: also allow insert/delete on metadata and content if needed
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tables_documentmetadata TO "${knowledge_user}";
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tables_documentcontent TO "${knowledge_user}";
-
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tables_bm25index TO "${knowledge_user}";
+    GRANT USAGE, SELECT, UPDATE ON SEQUENCE tables_bm25index_id_seq TO "${knowledge_user}";
     -- Grant access to sequences (needed for autoincrement IDs)
     GRANT USAGE, SELECT, UPDATE ON SEQUENCE tables_chunk_id_seq TO "${knowledge_user}";
     GRANT USAGE, SELECT, UPDATE ON SEQUENCE tables_documentmetadata_document_id_seq TO "${knowledge_user}";

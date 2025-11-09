@@ -1,4 +1,5 @@
 import os
+import pickle
 from loguru import logger
 import cachetools
 
@@ -25,6 +26,8 @@ from embedder.mistral import MistralEmbedder
 from embedder.together_ai import TogetherAIEmbedder
 from models.enums import *
 from utils.singleton_meta import SingletonMeta
+import pickle
+from rank_bm25 import BM25Okapi
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
 
@@ -46,32 +49,124 @@ class CollectionProcessorService(metaclass=SingletonMeta):
 
         _embedder_cache[collection_id] = embedder
         return embedder
+    
+    def _reciprocal_rank_fusion(
+        self,
+        dense_results: list[tuple[int, float]],
+        sparse_results: list[tuple[int, float]],
+        k: int = 60,
+    ) -> list[tuple[int, float]]:
+
+        dense_ranks = {
+            doc_id: i + 1 for i, (doc_id, _) in enumerate(dense_results)
+        }
+        
+        sparse_ranks = {
+            doc_id: i + 1 for i, (doc_id, _) in enumerate(sparse_results)
+        }
+
+        all_doc_ids = set(dense_ranks.keys()) | set(sparse_ranks.keys())
+        fused_scores = {}
+
+        for doc_id in all_doc_ids:
+            dense_rank = dense_ranks.get(doc_id, float("inf"))
+            sparse_rank = sparse_ranks.get(doc_id, float("inf"))
+
+            if dense_rank == float("inf") and sparse_rank == float("inf"):
+                continue
+            
+            fused_scores[doc_id] = (1.0 / (k + dense_rank)) + (1.0 / (k + sparse_rank))
+
+        return sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
+    
+    def _rebuild_bm25_index(self, collection_id: int, uow_ctx: UnitOfWork):
+
+        logger.info(f"Rebuilding BM25 index for collection {collection_id}...")
+        try:
+            all_chunks = uow_ctx.chunk_storage.get_all_chunks_by_collection(
+                collection_id=collection_id
+            )
+            
+            if not all_chunks:
+                logger.warning(f"No chunks found for collection {collection_id}. Skipping BM25 index build.")
+                return
+
+
+            chunk_id_map = [chunk.id for chunk in all_chunks]
+            tokenized_corpus = [chunk.text.split() for chunk in all_chunks]
+            
+            bm25 = BM25Okapi(tokenized_corpus)
+            
+            data_to_pickle = {"index": bm25, "chunk_ids": chunk_id_map}
+            pickled_data = pickle.dumps(data_to_pickle)
+            
+            uow_ctx.knowledge_storage.save_bm25_index(
+                collection_id=collection_id, index_data=pickled_data
+            )
+            logger.success(f"Successfully rebuilt BM25 index for collection {collection_id}.")
+        
+        except Exception as e:
+            logger.error(f"Failed to rebuild BM25 index for collection {collection_id}: {e}")
 
     def search(self, collection_id, uuid, query, search_limit, similarity_threshold):
-        embedder = self._get_cached_embedder(collection_id=collection_id)
-        # Embed the query
 
+        embedder = self._get_cached_embedder(collection_id=collection_id)
         embedded_query = embedder.embed(query)
+        
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
-            # Search in storage
-            knowledge_snippets = uow_ctx.knowledge_storage.search(
+
+            dense_results = uow_ctx.knowledge_storage.vector_search(
                 embedded_query=embedded_query,
                 collection_id=collection_id,
                 limit=search_limit,
                 similarity_threshold=similarity_threshold,
             )
-
-            # Logging results
-            if knowledge_snippets:
-                if len(knowledge_snippets) > 1:
-                    logger.info(
-                        f"KNOWLEDGES: {knowledge_snippets[0][:150]}\n.........\n{knowledge_snippets[-1][-150:]}"
+            
+            sparse_results = []
+            try:
+                pickled_data = uow_ctx.knowledge_storage.load_bm25_index(
+                    collection_id=collection_id
+                )
+                if pickled_data:
+                    data = pickle.loads(pickled_data)
+                    bm25_index: BM25Okapi = data["index"]
+                    chunk_id_map: list[int] = data["chunk_ids"]
+                    
+                    tokenized_query = query.split()
+                    bm25_scores = bm25_index.get_scores(tokenized_query)
+                    
+                    sparse_results_with_scores = sorted(
+                        zip(chunk_id_map, bm25_scores),
+                        key=lambda x: x[1],
+                        reverse=True,
                     )
+                    
+                    sparse_results = [
+                        (cid, score)
+                        for cid, score in sparse_results_with_scores
+                        if score > 0
+                    ][:search_limit]
                 else:
-                    logger.info(f"KNOWLEDGES: {knowledge_snippets[0][:150]}...")
+                    logger.warning(f"No BM25 index found for collection {collection_id}. Skipping sparse search.")
+            
+            except Exception as e:
+                logger.warning(f"Failed to perform BM25 search for collection {collection_id}: {e}")
+
+            fused_ranked_results = self._reciprocal_rank_fusion(
+                dense_results=dense_results, sparse_results=sparse_results
+            )
+            
+            top_chunk_ids = [cid for cid, score in fused_ranked_results[:search_limit]]
+            
+            knowledge_snippets = uow_ctx.chunk_storage.get_chunks_by_ids(
+                chunk_ids=top_chunk_ids
+            )
+
+            if knowledge_snippets:
+                logger.info(f"HYBRID SEARCH: Found {len(knowledge_snippets)} snippets.")
             else:
-                logger.warning(f"NO KNOWLEDGE CHUNKS WERE EXTRACTED!")
+                logger.warning(f"HYBRID SEARCH: NO KNOWLEDGE CHUNKS WERE EXTRACTED!")
 
         return {
             "uuid": uuid,
@@ -165,8 +260,11 @@ class CollectionProcessorService(metaclass=SingletonMeta):
                 )
             logger.error(f"Error processing collection_id {collection_id}: {e}")
         else:
+            with uow.start() as uow_ctx: 
+                self._rebuild_bm25_index(collection_id=collection_id, uow_ctx=uow_ctx)
+            
             self.process_collection_status(collection_id=collection_id)
-            logger.info(f"Embedding finished for collection_id: {collection_id}")
+            logger.info(f"Embedding and BM25 indexing finished for collection_id: {collection_id}")
 
     def _get_chunk_strategy(
         self, chunk_strategy, chunk_size, chunk_overlap, additional_params
