@@ -388,6 +388,7 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
         "full_output",
         "planning",
         "planning_llm_config",
+        "is_template",
     ]
 
     entity_type = EntityType.CREW.value
@@ -405,6 +406,24 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
         if self.action == "import_entity":
             return CrewImportSerializer
         return super().get_serializer_class()
+
+    @action(detail=True, methods=["post"], url_path="save_as_project")
+    def save_as_project(self, request, pk=None):
+        """
+        Custom action to save a template as a project.
+        """
+        crew = self.get_object()
+        if not crew.is_template:
+            return Response(
+                "Project is not a template", status=status.HTTP_400_BAD_REQUEST
+            )
+
+        created_project = self.perform_copy(crew)
+        created_project.is_template = False
+        created_project.save()
+
+        serializer = self.get_serializer(created_project)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TaskReadWriteViewSet(ModelViewSet):
@@ -1004,6 +1023,7 @@ class McpToolViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+
 
 class ChunkViewSet(ReadOnlyModelViewSet):
     queryset = Chunk.objects.all()
