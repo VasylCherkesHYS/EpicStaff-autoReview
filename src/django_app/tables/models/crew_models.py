@@ -251,6 +251,7 @@ class Crew(AbstractDefaultFillableModel):
         related_name="planning_llm_config",
     )
     default_temperature = models.FloatField(null=True, default=None)
+    is_template = models.BooleanField(default=False)
 
     def get_default_model(self):
         return DefaultCrewConfig.load()
