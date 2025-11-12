@@ -57,6 +57,8 @@ import {
     CreateEndNodeRequest,
 } from '../../../pages/flows-page/components/flow-visual-programming/models/end-node.model';
 import { EndNodeService } from '../../../pages/flows-page/components/flow-visual-programming/services/end-node.service';
+import { WebhookTriggerNodeService } from '../../../pages/flows-page/components/flow-visual-programming/services/webhook-trigger.service';
+import { CreateWebhookTriggerNodeRequest, GetWebhookTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/webhook-trigger';
 import {
     GetDecisionTableNodeRequest,
     CreateDecisionTableNodeRequest,
@@ -76,10 +78,11 @@ export class GraphUpdateService {
         private graphService: FlowsApiService,
         private llmNodeService: LLMNodeService,
         private fileExtractorService: FileExtractorService,
+        private webhookTriggerService: WebhookTriggerNodeService,
         private endNodeService: EndNodeService,
         private decisionTableNodeService: DecisionTableNodeService,
         private toastService: ToastService
-    ) {}
+    ) { }
 
     /**
      * Clears all ports on nodes to null before saving
@@ -112,6 +115,7 @@ export class GraphUpdateService {
             fileExtractorNodes: any[];
             conditionalEdges: any[];
             edges: Edge[];
+
             endNodes: EndNode[];
             decisionTableNodes: GetDecisionTableNodeRequest[];
         };
@@ -301,6 +305,39 @@ export class GraphUpdateService {
             })
         );
 
+        // ---- Handle Webhook Trigger Nodes ----
+        let deleteWebhookTriggerNodes$: Observable<any> = of(null);
+        if (graph.webhook_trigger_node_list && graph.webhook_trigger_node_list.length > 0) {
+            const deleteWebhookTriggerReqs = graph.webhook_trigger_node_list.map(
+                (webhookTriggerNode: GetWebhookTriggerNodeRequest) =>
+                    this.webhookTriggerService
+                        .deleteWebhookTriggerNode(webhookTriggerNode.id.toString())
+                        .pipe(catchError((err) => throwError(err)))
+            );
+            deleteWebhookTriggerNodes$ = forkJoin(deleteWebhookTriggerReqs);
+        }
+
+        const webhookTriggerNodes$ = deleteWebhookTriggerNodes$.pipe(
+            switchMap(() => {
+                const webhookTriggerNodes = flowState.nodes.filter(
+                    (node) => node.type === NodeType.WEBHOOK_TRIGGER
+                );
+
+                const requests = webhookTriggerNodes.map((node) => {
+                    const request: CreateWebhookTriggerNodeRequest = {
+                        node_name: node.node_name,
+                        graph: graph.id,
+                        python_code: node.data.python_code,
+                        input_map: node.input_map || {},
+                        output_variable_path: node.output_variable_path,
+                        webhook_trigger_path: node.data.webhook_trigger_path
+                    };
+                    return this.webhookTriggerService.createWebhookTriggerNode(request);
+                });
+                return requests.length ? forkJoin(requests) : of([]);
+            })
+        );
+
         let deleteDecisionTableNodes$: Observable<any> = of(null);
         if (
             graph.decision_table_node_list &&
@@ -437,136 +474,74 @@ export class GraphUpdateService {
         );
         console.log('before', graph.edge_list);
 
+        const decisionTableNodes$ = deleteDecisionTableNodes$.pipe(
+            switchMap(() => {
+                const decisionTableNodes = flowState.nodes.filter(
+                    (node) => node.type === NodeType.TABLE
+                );
+
+                const requests = decisionTableNodes.map((node) => {
+                    const tableData = (node as any).data?.table;
+
+                    const conditionGroups: CreateConditionGroupRequest[] = (
+                        tableData?.condition_groups || []
+                    )
+                        .filter((group: any) => group.valid === true)
+                        .map((group: any) => {
+                            const conditions =
+                                (group.conditions || []).map(
+                                    (condition: any) => ({
+                                        condition_name: condition.condition_name,
+                                        condition: condition.condition,
+                                    })
+                                ) || [];
+
+                            return {
+                                group_name: group.group_name,
+                                group_type: group.group_type || 'complex',
+                                expression: group.expression,
+                                conditions,
+                                manipulation: group.manipulation,
+                                next_node: group.next_node || null,
+                            };
+                        });
+
+                    const payload: CreateDecisionTableNodeRequest = {
+                        graph: graph.id,
+                        node_name: node.node_name,
+                        condition_groups: conditionGroups,
+                        default_next_node: tableData?.default_next_node || null,
+                        next_error_node: tableData?.next_error_node || null,
+                    };
+
+                    return this.decisionTableNodeService
+                        .createDecisionTableNode(payload)
+                        .pipe(catchError((err) => throwError(err)));
+                });
+
+                return requests.length ? forkJoin(requests) : of([]);
+            })
+        );
+
         // ---- Combine and Update Graph ----
         return forkJoin({
             crewNodes: crewNodes$,
             pythonNodes: pythonNodes$,
             llmNodes: llmNodes$,
             fileExtractorNodes: fileExtractorNodes$,
+            webhookTriggerNodes: webhookTriggerNodes$,
             conditionalEdges: conditionalEdges$,
             endNodes: endNodes$,
+            edges: createEdges$,
+            decisionTableNodes: decisionTableNodes$,
         }).pipe(
-            switchMap((results) => {
-                const nodeNameToIdMap = new Map<string, string>();
-
-                results.crewNodes.forEach((node: CrewNode) => {
-                    const uiNode = flowState.nodes.find(
-                        (n) => n.type === NodeType.PROJECT && n.node_name === node.node_name
-                    );
-                    if (uiNode) {
-                        nodeNameToIdMap.set(node.node_name, node.id.toString());
-                    }
-                });
-
-                results.pythonNodes.forEach((node: PythonNode) => {
-                    const uiNode = flowState.nodes.find(
-                        (n) => n.type === NodeType.PYTHON && n.node_name === node.node_name
-                    );
-                    if (uiNode) {
-                        nodeNameToIdMap.set(node.node_name, node.id.toString());
-                    }
-                });
-
-                results.llmNodes.forEach((node: any) => {
-                    const uiNode = flowState.nodes.find(
-                        (n) => n.type === NodeType.LLM && n.node_name === node.node_name
-                    );
-                    if (uiNode) {
-                        nodeNameToIdMap.set(node.node_name, node.id.toString());
-                    }
-                });
-
-                results.fileExtractorNodes.forEach((node: GetFileExtractorNodeRequest) => {
-                    const uiNode = flowState.nodes.find(
-                        (n) => n.type === NodeType.FILE_EXTRACTOR && n.node_name === node.node_name
-                    );
-                    if (uiNode) {
-                        nodeNameToIdMap.set(node.node_name, node.id.toString());
-                    }
-                });
-
-                results.endNodes.forEach((node: EndNode) => {
-                    const uiNode = flowState.nodes.find(
-                        (n) => n.type === NodeType.END && n.id === (node as any).ui_id
-                    );
-                    if (uiNode) {
-                        nodeNameToIdMap.set(uiNode.node_name || uiNode.id, node.id.toString());
-                    }
-                });
-
-                const decisionTableNodes$ = deleteDecisionTableNodes$.pipe(
-                    switchMap(() => {
-                        const decisionTableNodes = flowState.nodes.filter(
-                            (node) => node.type === NodeType.TABLE
-                        );
-
-                        const requests = decisionTableNodes.map((node) => {
-                            const tableData = (node as any).data?.table;
-                            
-                            const conditionGroups: CreateConditionGroupRequest[] = (
-                                tableData?.condition_groups || []
-                            )
-                                .filter((group: any) => group.valid === true)
-                                .map((group: any) => {
-                                    let nextNodeId: string | null = null;
-                                    if (group.next_node) {
-                                        nextNodeId = nodeNameToIdMap.get(group.next_node) || null;
-                                    }
-
-                                    return {
-                                        group_name: group.group_name,
-                                        group_type: group.group_type || 'complex',
-                                        expression: group.expression,
-                                        conditions: group.conditions || [],
-                                        manipulation: group.manipulation,
-                                        next_node: nextNodeId,
-                                    };
-                                });
-
-                            let defaultNextNodeId: string | null = null;
-                            if (tableData?.default_next_node) {
-                                defaultNextNodeId = nodeNameToIdMap.get(tableData.default_next_node) || null;
-                            }
-
-                            let errorNextNodeId: string | null = null;
-                            if (tableData?.error_next_node) {
-                                errorNextNodeId = nodeNameToIdMap.get(tableData.error_next_node) || null;
-                            }
-
-                            const payload: CreateDecisionTableNodeRequest = {
-                                graph: graph.id,
-                                node_name: node.node_name,
-                                condition_groups: conditionGroups,
-                                default_next_node: defaultNextNodeId,
-                                error_next_node: errorNextNodeId,
-                            };
-
-                            return this.decisionTableNodeService
-                                .createDecisionTableNode(payload)
-                                .pipe(catchError((err) => throwError(err)));
-                        });
-
-                        return requests.length ? forkJoin(requests) : of([]);
-                    })
-                );
-
-                return forkJoin({
-                    crewNodes: of(results.crewNodes),
-                    pythonNodes: of(results.pythonNodes),
-                    llmNodes: of(results.llmNodes),
-                    fileExtractorNodes: of(results.fileExtractorNodes),
-                    conditionalEdges: of(results.conditionalEdges),
-                    endNodes: of(results.endNodes),
-                    edges: createEdges$,
-                    decisionTableNodes: decisionTableNodes$,
-                });
-            }),
             switchMap(
                 (results: {
                     crewNodes: CrewNode[];
                     pythonNodes: PythonNode[];
                     llmNodes: any[];
                     fileExtractorNodes: GetFileExtractorNodeRequest[];
+                    webhookTriggerNodes: GetWebhookTriggerNodeRequest[];
                     conditionalEdges: ConditionalEdge[];
                     edges: Edge[];
                     endNodes: EndNode[];
@@ -602,6 +577,7 @@ export class GraphUpdateService {
                                             results.fileExtractorNodes,
                                         conditionalEdges:
                                             results.conditionalEdges,
+                                        webhookTriggerNodes: results.webhookTriggerNodes,
                                         edges: results.edges,
                                         endNodes: results.endNodes,
                                         decisionTableNodes:

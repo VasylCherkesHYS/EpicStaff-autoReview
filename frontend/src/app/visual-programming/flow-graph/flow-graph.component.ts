@@ -33,6 +33,7 @@ import {
 
 import { IPoint, IRect, PointExtensions } from '@foblex/2d';
 import { FlowService } from '../services/flow.service';
+import { SidePanelService } from '../services/side-panel.service';
 
 import { ShortcutListenerDirective } from '../core/directives/shortcut-listener.directive';
 import { UndoRedoService } from '../services/undo-redo.service';
@@ -150,17 +151,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
     public isLoaded = signal<boolean>(false);
     public showContextMenu = signal(false);
 
-    // node side panel logic
-    public selectedNodeId = signal<string | null>(null);
-    public selectedNode = computed(() => {
-        const nodeId = this.selectedNodeId();
-        if (!nodeId) return null;
-        return (
-            this.flowService.nodes().find((node) => node.id === nodeId) || null
-        );
-    });
-    //end node side panel logic
-
     private readonly destroy$ = new Subject<void>();
     public showVariables = signal<boolean>(false);
 
@@ -171,6 +161,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         private readonly undoRedoService: UndoRedoService,
         private readonly clipboardService: ClipboardService,
         private readonly groupCollapserService: GroupCollapserService,
+        public readonly sidePanelService: SidePanelService,
         private readonly cd: ChangeDetectorRef,
         private readonly dialog: Dialog,
         private readonly toastService: ToastService
@@ -232,10 +223,23 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             if (node.ports === null) {
                 node.ports = generatePortsForNode(node.id, node.type, node.data);
             } else if (node.type === NodeType.TABLE) {
-                const conditionGroups = (node.data as any)?.table?.condition_groups ?? [];
-                const expectedPortCount = 1 + conditionGroups.length;
+                const tableData = (node as any)?.data?.table ?? {};
+                const conditionGroups = tableData?.condition_groups ?? [];
+                const validGroups = conditionGroups.filter(
+                    (group: any) => group?.valid === true
+                );
+                const hasDefault = Boolean(tableData?.default_next_node);
+                const hasError = Boolean(tableData?.next_error_node);
+                const expectedPortCount =
+                    1 + validGroups.length + (hasDefault ? 1 : 0) + (hasError ? 1 : 0);
+
                 if (node.ports.length !== expectedPortCount) {
-                    node.ports = generatePortsForNode(node.id, node.type, node.data);
+                    node.ports = generatePortsForDecisionTableNode(
+                        node.id,
+                        conditionGroups,
+                        hasDefault,
+                        hasError
+                    );
                 }
             }
             return node;
@@ -659,7 +663,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             const rowHeight = 46;
             const validGroupsCount = conditionGroups.filter((g: any) => g.valid).length;
             const hasDefaultRow = tableData?.default_next_node ? 1 : 0;
-            const hasErrorRow = tableData?.error_next_node ? 1 : 0;
+            const hasErrorRow = tableData?.next_error_node ? 1 : 0;
             const totalRows = Math.max(validGroupsCount + hasDefaultRow + hasErrorRow, 2);
             const calculatedHeight = headerHeight + rowHeight * totalRows;
             nodeSize = {
@@ -763,7 +767,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
 
     // side panel logic
     public onOpenNodePanel(node: NodeModel): void {
-        if (this.selectedNodeId() === node.id) {
+        if (this.sidePanelService.selectedNodeId() === node.id) {
             return;
         }
 
@@ -815,7 +819,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 }
             });
         } else {
-            this.selectedNodeId.set(node.id);
+            void this.sidePanelService.trySelectNode(node);
         }
     }
 
@@ -825,7 +829,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             updatedNode
         );
         this.flowService.updateNode(updatedNode);
-        this.selectedNodeId.set(null);
+        this.sidePanelService.clearSelection();
     }
 
     public onNodePanelAutosaved(updatedNode: NodeModel): void {
@@ -851,6 +855,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
 
         this.flowService.updateGroup(updatedGroup);
     }
+
     public onNodeSizeChanged(
         event: { width: number; height: number },
         node: NodeModel

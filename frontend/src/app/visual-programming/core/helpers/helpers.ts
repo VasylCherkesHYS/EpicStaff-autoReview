@@ -16,6 +16,7 @@ import { DEFAULT_FILE_EXTRACTOR_NODE_PORTS } from '../rules/file-extractor-ports
 import { DEFAULT_END_NODE_PORTS } from '../rules/end-ports/end-ports-default-ports';
 import { NodeModel } from '../models/node.model';
 import { ConditionGroup } from '../models/decision-table.model';
+import { DEFAULT_WEBHOOK_TRIGGER_NODE_PORTS } from '../rules/webhook-trigger-ports/webhook-trigger-default-ports';
 
 export function parsePortId(
     portId: string
@@ -58,6 +59,8 @@ export function getPortsForType(nodeType: NodeType): BasePort[] {
             return DEFAULT_TABLE_NODE_PORTS;
         case NodeType.FILE_EXTRACTOR:
             return DEFAULT_FILE_EXTRACTOR_NODE_PORTS;
+        case NodeType.WEBHOOK_TRIGGER:
+            return DEFAULT_WEBHOOK_TRIGGER_NODE_PORTS;
         case NodeType.END:
             return DEFAULT_END_NODE_PORTS;
         default:
@@ -241,8 +244,16 @@ export function generatePortsForNode(
 ): ViewPort[] {
     if (nodeType === NodeType.TABLE) {
         // Defensive: check for data.table.condition_groups
-        const conditionGroups = data?.table?.condition_groups ?? [];
-        return generatePortsForDecisionTableNode(newNodeId, conditionGroups);
+        const tableData = data?.table ?? {};
+        const conditionGroups = tableData?.condition_groups ?? [];
+        const hasDefault = Boolean(tableData?.default_next_node);
+        const hasError = Boolean(tableData?.next_error_node);
+        return generatePortsForDecisionTableNode(
+            newNodeId,
+            conditionGroups,
+            hasDefault,
+            hasError
+        );
     }
     const portsConfig: BasePort[] = getPortsForType(nodeType);
     return portsConfig.map((config) => ({
