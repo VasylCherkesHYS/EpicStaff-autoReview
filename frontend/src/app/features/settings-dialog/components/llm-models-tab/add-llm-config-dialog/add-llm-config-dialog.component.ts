@@ -55,6 +55,7 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
     public isLoading = signal<boolean>(false);
     public isSubmitting = signal<boolean>(false);
     public errorMessage = signal<string | null>(null);
+    private lastAutoCustomName: string | null = null;
 
     get temperatureControl(): FormControl {
         return this.form.get('temperature') as FormControl;
@@ -64,6 +65,7 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
         this.initForm();
         this.loadProviders();
         this.setupProviderIdSubscription();
+        this.setupModelIdSubscription();
     }
 
     ngOnDestroy(): void {
@@ -82,7 +84,16 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
                     this.models.set([]);
                     this.form.get('modelId')?.setValue(null);
                 }
+
+                this.updateCustomNameIfNeeded();
             });
+    }
+
+    private setupModelIdSubscription(): void {
+        this.form
+            .get('modelId')
+            ?.valueChanges.pipe(takeUntil(this.destroy$))
+            .subscribe(() => this.updateCustomNameIfNeeded());
     }
 
     private initForm(): void {
@@ -105,6 +116,7 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
                     this.providers.set(providers);
                     if (providers.length > 0) {
                         this.form.get('providerId')?.setValue(providers[0].id);
+                        this.updateCustomNameIfNeeded();
                     }
                 },
                 error: (error) => {
@@ -126,6 +138,7 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
                     this.models.set(models);
                     if (models.length > 0) {
                         this.form.get('modelId')?.setValue(models[0].id);
+                        this.updateCustomNameIfNeeded();
                     } else {
                         this.form.get('modelId')?.setValue(null);
                     }
@@ -179,5 +192,28 @@ export class AddLlmConfigDialogComponent implements OnInit, OnDestroy {
 
     public onCancel(): void {
         this.dialogRef.close(false);
+    }
+
+    private updateCustomNameIfNeeded(): void {
+        const providerId = this.form.get('providerId')?.value;
+        const modelId = this.form.get('modelId')?.value;
+        if (!providerId || !modelId) {
+            return;
+        }
+
+        const provider = this.providers().find((p) => p.id === providerId);
+        const model = this.models().find((m) => m.id === modelId);
+        if (!provider || !model) {
+            return;
+        }
+
+        const autoName = `${provider.name}/${model.name}`;
+        const customNameControl = this.form.get('customName');
+        if (!customNameControl) {
+            return;
+        }
+
+        this.lastAutoCustomName = autoName;
+        customNameControl.setValue(autoName, { emitEvent: false });
     }
 }

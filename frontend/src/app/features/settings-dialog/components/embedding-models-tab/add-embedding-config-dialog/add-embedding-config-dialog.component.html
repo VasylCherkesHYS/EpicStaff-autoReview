@@ -10,7 +10,7 @@
       <div class="form-field">
         <label for="providerId">Provider</label>
         <select id="providerId" formControlName="providerId">
-          <option *ngFor="let provider of providers()" [value]="provider.id">
+          <option *ngFor="let provider of providers()" [ngValue]="provider.id">
             {{ provider.name }}
           </option>
         </select>
@@ -26,10 +26,10 @@
       <div class="form-field">
         <label for="modelId">Model</label>
         <select id="modelId" formControlName="modelId">
-          <option *ngIf="models().length === 0" [value]="null">
+          <option *ngIf="models().length === 0" [ngValue]="null">
             Select a model
           </option>
-          <option *ngFor="let model of models()" [value]="model.id">
+          <option *ngFor="let model of models()" [ngValue]="model.id">
             {{ model.name }}
           </option>
         </select>

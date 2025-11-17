@@ -21,7 +21,7 @@
                 <select id="providerId" formControlName="providerId">
                     <option
                         *ngFor="let provider of providers()"
-                        [value]="provider.id"
+                        [ngValue]="provider.id"
                     >
                         {{ provider.name }}
                     </option>
@@ -40,10 +40,10 @@
             <div class="form-field">
                 <label for="modelId">Model</label>
                 <select id="modelId" formControlName="modelId">
-                    <option *ngIf="models().length === 0" [value]="null">
+                    <option *ngIf="models().length === 0" [ngValue]="null">
                         Select a model
                     </option>
-                    <option *ngFor="let model of models()" [value]="model.id">
+                    <option *ngFor="let model of models()" [ngValue]="model.id">
                         {{ model.name }}
                     </option>
                 </select>

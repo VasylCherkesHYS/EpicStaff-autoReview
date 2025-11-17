@@ -35,8 +35,8 @@
             formControlName="realtime_transcription_model"
             class="select-input"
           >
-            <option value="" disabled>Select a model</option>
-            <option *ngFor="let model of models" [value]="model.id">
+            <option [ngValue]="null" disabled>Select a model</option>
+            <option *ngFor="let model of models" [ngValue]="model.id">
               {{ model.name }}
             </option>
           </select>

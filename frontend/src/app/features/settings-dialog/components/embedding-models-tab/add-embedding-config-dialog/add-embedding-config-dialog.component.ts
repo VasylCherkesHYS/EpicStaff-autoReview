@@ -52,12 +52,21 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
   public isLoading = signal<boolean>(false);
   public isSubmitting = signal<boolean>(false);
   public errorMessage = signal<string | null>(null);
+  private lastAutoCustomName: string | null = null;
 
   ngOnInit(): void {
     this.initForm();
     this.loadProviders();
+    this.setupProviderIdSubscription();
+    this.setupModelIdSubscription();
+  }
 
-    // Listen to provider changes to load models
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private setupProviderIdSubscription(): void {
     this.form
       .get('providerId')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
@@ -68,12 +77,16 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
           this.models.set([]);
           this.form.get('modelId')?.setValue(null);
         }
+
+        this.updateCustomNameIfNeeded();
       });
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  private setupModelIdSubscription(): void {
+    this.form
+      .get('modelId')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.updateCustomNameIfNeeded());
   }
 
   private initForm(): void {
@@ -96,6 +109,7 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
           // Automatically select the first provider if available
           if (providers.length > 0) {
             this.form.get('providerId')?.setValue(providers[0].id);
+            this.updateCustomNameIfNeeded();
           }
         },
         error: (error) => {
@@ -116,6 +130,7 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
 
           if (models.length > 0) {
             this.form.get('modelId')?.setValue(models[0].id);
+            this.updateCustomNameIfNeeded();
           } else {
             this.form.get('modelId')?.setValue(null);
           }
@@ -163,5 +178,31 @@ export class AddEmbeddingConfigDialogComponent implements OnInit, OnDestroy {
 
   public onCancel(): void {
     this.dialogRef.close(false);
+  }
+
+  private updateCustomNameIfNeeded(): void {
+    const providerId = this.form.get('providerId')?.value;
+    const modelId = this.form.get('modelId')?.value;
+
+    if (!providerId || !modelId) {
+      return;
+    }
+
+    const provider = this.providers().find((p) => p.id === providerId);
+    const model = this.models().find((m) => m.id === modelId);
+
+    if (!provider || !model) {
+      return;
+    }
+
+    const autoName = `${provider.name}/${model.name}`;
+    const customNameControl = this.form.get('customName');
+
+    if (!customNameControl) {
+      return;
+    }
+
+    this.lastAutoCustomName = autoName;
+    customNameControl.setValue(autoName, { emitEvent: false });
   }
 }
