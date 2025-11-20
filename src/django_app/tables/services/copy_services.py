@@ -16,6 +16,10 @@ class AgentCopyService(BaseCopyService):
         tags = list(agent.tags.all())
         agent_names = Agent.objects.values_list("name", flat=True)
 
+        configured_tools = agent.configured_tools.all()
+        python_code_tools = agent.python_code_tools.all()
+        mcp_tools = agent.mcp_tools.all()
+
         new_agent = Agent(
             role=agent.role,
             goal=agent.goal,
@@ -41,6 +45,12 @@ class AgentCopyService(BaseCopyService):
 
         if tags:
             new_agent.tags.set(tags)
+        if configured_tools:
+            new_agent.configured_tools.set(configured_tools)
+        if python_code_tools:
+            new_agent.python_code_tools.set(python_code_tools)
+        if mcp_tools:
+            new_agent.mcp_tools.set(mcp_tools)
 
         return new_agent
 
@@ -97,6 +107,10 @@ class CrewCopyService(BaseCopyService):
         """Copy tasks and their contexts from original tasks to the new crew."""
         task_mapping = {}
         for task in original_tasks:
+            configured_tools = task.task_configured_tool_list.all()
+            python_code_tools = task.task_python_code_tool_list.all()
+            mcp_tools = task.task_mcp_tool_list.all()
+
             original_task_id = task.id
 
             new_task = Task(
@@ -113,6 +127,14 @@ class CrewCopyService(BaseCopyService):
                 output_model=task.output_model,
             )
             new_task.save()
+
+            if configured_tools:
+                new_task.task_configured_tool_list.set(configured_tools)
+            if python_code_tools:
+                new_task.task_python_code_tool_list.set(python_code_tools)
+            if mcp_tools:
+                new_task.task_mcp_tool_list.set(mcp_tools)
+
             task_mapping[original_task_id] = new_task.id
 
         for old_task in original_tasks:

@@ -44,6 +44,10 @@ def create_crew_copy(apps, crew, crew_names):
 
     task_mapping = {}
     for task in original_tasks:
+        configured_tools = task.task_configured_tool_list.all()
+        python_code_tools = task.task_python_code_tool_list.all()
+        mcp_tools = task.task_mcp_tool_list.all()
+
         original_task_id = task.id
 
         new_task = Task(
@@ -60,6 +64,14 @@ def create_crew_copy(apps, crew, crew_names):
             output_model=task.output_model,
         )
         new_task.save()
+
+        if configured_tools:
+            new_task.task_configured_tool_list.set(configured_tools)
+        if python_code_tools:
+            new_task.task_python_code_tool_list.set(python_code_tools)
+        if mcp_tools:
+            new_task.task_mcp_tool_list.set(mcp_tools)
+
         task_mapping[original_task_id] = new_task.id
 
     for old_task in original_tasks:
