@@ -451,7 +451,7 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
                 "Project is not a template", status=status.HTTP_400_BAD_REQUEST
             )
 
-        created_project = crew_copy_service.copy(crew)
+        created_project = self.crew_copy_service.copy(crew)
         created_project.is_template = False
         created_project.save()
 
