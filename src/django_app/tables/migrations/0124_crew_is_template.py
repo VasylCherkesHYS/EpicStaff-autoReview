@@ -9,6 +9,9 @@ def create_crew_copy(apps, crew, crew_names):
     TaskContext = apps.get_model("tables", "TaskContext")
     Task = apps.get_model("tables", "Task")
     Crew = apps.get_model("tables", "Crew")
+    TaskConfiguredTools = apps.get_model("tables", "TaskConfiguredTools")
+    TaskPythonCodeTools = apps.get_model("tables", "TaskPythonCodeTools")
+    TaskMcpTools = apps.get_model("tables", "TaskMcpTools")
 
     agent_ids = list(crew.agents.values_list("id", flat=True))
     tag_ids = list(crew.tags.values_list("id", flat=True))
@@ -44,9 +47,13 @@ def create_crew_copy(apps, crew, crew_names):
 
     task_mapping = {}
     for task in original_tasks:
-        configured_tools = task.task_configured_tool_list.all()
-        python_code_tools = task.task_python_code_tool_list.all()
-        mcp_tools = task.task_mcp_tool_list.all()
+        configured_tool_ids = list(
+            task.task_configured_tool_list.values_list("tool_id", flat=True)
+        )
+        python_code_tool_ids = list(
+            task.task_python_code_tool_list.values_list("tool_id", flat=True)
+        )
+        mcp_tool_ids = list(task.task_mcp_tool_list.values_list("tool_id", flat=True))
 
         original_task_id = task.id
 
@@ -65,12 +72,14 @@ def create_crew_copy(apps, crew, crew_names):
         )
         new_task.save()
 
-        if configured_tools:
-            new_task.task_configured_tool_list.set(configured_tools)
-        if python_code_tools:
-            new_task.task_python_code_tool_list.set(python_code_tools)
-        if mcp_tools:
-            new_task.task_mcp_tool_list.set(mcp_tools)
+        for tool_id in configured_tool_ids:
+            TaskConfiguredTools.objects.create(task=new_task, tool_id=tool_id)
+
+        for tool_id in python_code_tool_ids:
+            TaskPythonCodeTools.objects.create(task=new_task, tool_id=tool_id)
+
+        for tool_id in mcp_tool_ids:
+            TaskMcpTools.objects.create(task=new_task, tool_id=tool_id)
 
         task_mapping[original_task_id] = new_task.id
 
