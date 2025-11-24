@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, Inject, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import {
@@ -15,6 +15,7 @@ import {
   GetTranscriptionConfigRequest,
 } from '../../../../../../../shared/models/transcription-config.model';
 import { ApiGetResponse, RealtimeTranscriptionModelsService } from '../../../../../../../services/transcription-models.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 export interface AddTranscriptionConfigDialogData {
   providerId?: number;
@@ -33,6 +34,7 @@ export class AddTranscriptionConfigDialogComponent implements OnInit {
   models: GetRealtimeTranscriptionModelRequest[] = [];
   submitting = false;
   private lastAutoCustomName: string | null = null;
+  private destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -60,7 +62,8 @@ export class AddTranscriptionConfigDialogComponent implements OnInit {
   private setupModelSubscription(): void {
     this.transcriptionForm
       .get('realtime_transcription_model')
-      ?.valueChanges.subscribe(() => this.updateCustomName());
+      ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.updateCustomName());
   }
 
   showError(controlName: string): boolean {
