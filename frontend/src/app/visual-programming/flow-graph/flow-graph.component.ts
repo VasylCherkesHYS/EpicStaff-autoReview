@@ -33,6 +33,7 @@ import {
 
 import { IPoint, IRect, PointExtensions } from '@foblex/2d';
 import { FlowService } from '../services/flow.service';
+import { SidePanelService } from '../services/side-panel.service';
 
 import { ShortcutListenerDirective } from '../core/directives/shortcut-listener.directive';
 import { UndoRedoService } from '../services/undo-redo.service';
@@ -88,8 +89,6 @@ import { ProjectDialogComponent } from '../components/project-dialog/project-dia
 import { NoteNodeComponent } from '../components/nodes-components/note-node/note-node.component';
 import { NoteEditDialogComponent } from '../components/note-edit-dialog/note-edit-dialog.component';
 import { getMinimapClassForNode } from '../core/helpers/get-minimap-class.util'; // Adjust path
-import { NodePanel } from '../core/models/node-panel.interface';
-import { PANEL_COMPONENT_MAP } from '../core/enums/node-panel.map';
 import { ToastService } from '../../services/notifications/toast.service';
 import { DomainDialogComponent } from '../components/domain-dialog/domain-dialog.component';
 import { NodePanelShellComponent } from '../components/node-panels/node-panel-shell/node-panel-shell.component';
@@ -150,18 +149,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
     public isLoaded = signal<boolean>(false);
     public showContextMenu = signal(false);
 
-    // node side panel logic
-    public selectedNodeId = signal<string | null>(null);
-    public selectedNode = computed(() => {
-        const nodeId = this.selectedNodeId();
-        if (!nodeId) return null;
-        return (
-            this.flowService.nodes().find((node) => node.id === nodeId) || null
-        );
-    });
-    public panelComponentType = signal<Type<NodePanel> | null>(null);
-    //end node side panel logic
-
     private readonly destroy$ = new Subject<void>();
     public showVariables = signal<boolean>(false);
 
@@ -172,6 +159,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         private readonly undoRedoService: UndoRedoService,
         private readonly clipboardService: ClipboardService,
         private readonly groupCollapserService: GroupCollapserService,
+        public readonly sidePanelService: SidePanelService,
         private readonly cd: ChangeDetectorRef,
         private readonly dialog: Dialog,
         private readonly toastService: ToastService
@@ -229,10 +217,26 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
     }
 
     private generatePortsForNodesIfNeeded(): void {
-        // Check each node and generate ports if they are null
         this.flowState.nodes = this.flowState.nodes.map((node) => {
             if (node.ports === null) {
-                node.ports = generatePortsForNode(node.id, node.type);
+                node.ports = generatePortsForNode(node.id, node.type, node.data);
+            } else if (node.type === NodeType.TABLE) {
+                const tableData = (node as any)?.data?.table ?? {};
+                const conditionGroups = tableData?.condition_groups ?? [];
+                const validGroups = conditionGroups.filter(
+                    (group: any) => group?.valid === true
+                );
+                const expectedPortCount =
+                    1 + validGroups.length + 2;
+
+                if (node.ports.length !== expectedPortCount) {
+                    node.ports = generatePortsForDecisionTableNode(
+                        node.id,
+                        conditionGroups,
+                        true,
+                        true
+                    );
+                }
             }
             return node;
         });
@@ -301,11 +305,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         const newSourceNodeId = newSourcePortId.split('_')[0];
         const newTargetNodeId = newTargetPortId.split('_')[0];
 
-        // Get nodes for color calculation
-        const nodes = this.flowService.nodes();
-        const sourceNode = nodes.find((node) => node.id === newSourceNodeId);
-        const targetNode = nodes.find((node) => node.id === newTargetNodeId);
-
         // Create the updated connection
         const updatedConnection: ConnectionModel = {
             id: `${newSourcePortId}+${newTargetPortId}`,
@@ -314,8 +313,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             targetNodeId: newTargetNodeId,
             sourcePortId: newSourcePortId as CustomPortId,
             targetPortId: newTargetPortId as CustomPortId,
-            startColor: sourceNode ? NODE_COLORS[sourceNode.type] : '#ddd',
-            endColor: targetNode ? NODE_COLORS[targetNode.type] : '#ddd',
             behavior: 'fixed',
             type: 'segment',
         };
@@ -404,19 +401,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         const sourceNodeId = pair.sourcePortId.split('_')[0];
         const targetNodeId = pair.targetPortId.split('_')[0];
 
-        // Find the corresponding nodes in the flow state
-        const sourceNode = this.flowService
-            .nodes()
-            .find((node) => node.id === sourceNodeId);
-        const targetNode = this.flowService
-            .nodes()
-            .find((node) => node.id === targetNodeId);
-
-        // Get the start and end colors based on node type, using the NODE_COLORS mapping
-        const startColor = sourceNode ? NODE_COLORS[sourceNode.type] : '#ddd';
-        const endColor = targetNode ? NODE_COLORS[targetNode.type] : '#ddd';
-
-        // Create the new connection object based on your models with added color properties
+        // Create the new connection object based on your models
         const newConnection: ConnectionModel = {
             id: newConnectionId,
             category: 'default',
@@ -424,8 +409,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             targetNodeId: targetNodeId,
             sourcePortId: pair.sourcePortId as CustomPortId,
             targetPortId: pair.targetPortId as CustomPortId,
-            startColor,
-            endColor,
             behavior: 'fixed',
             type: 'segment',
         };
@@ -619,7 +602,6 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         this.undoRedoService.stateChanged();
         this.showContextMenu.set(false);
 
-        // Prevent adding a second End node
         if (event.type === NodeType.END && this.flowService.hasEndNode()) {
             this.toastService.warning(
                 'Only one End node is allowed',
@@ -640,12 +622,28 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             )
         );
 
-        // Set different size for note nodes
         let nodeSize: { width: number; height: number };
         if (event.type === NodeType.NOTE) {
             nodeSize = {
                 width: 200,
                 height: 150,
+            };
+        } else if (event.type === NodeType.TABLE) {
+            const tableData = event.data?.table;
+            const conditionGroups = tableData?.condition_groups ?? [];
+            const headerHeight = 60;
+            const rowHeight = 46;
+            const validGroupsCount = conditionGroups.filter((g: any) => g.valid).length;
+            const hasDefaultRow = 1;
+            const hasErrorRow = 1;
+            const totalRows = Math.max(
+                validGroupsCount + hasDefaultRow + hasErrorRow,
+                2
+            );
+            const calculatedHeight = headerHeight + rowHeight * totalRows;
+            nodeSize = {
+                width: 330,
+                height: Math.max(calculatedHeight, 152),
             };
         } else {
             nodeSize = {
@@ -711,6 +709,18 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             this.onDropToGroup(dropEvent);
         } else {
             // Create and add a regular node
+            let nodeData = event.data;
+
+            // Add default output_map for end nodes
+            if (event.type === NodeType.END) {
+                nodeData = {
+                    ...event.data,
+                    output_map: {
+                        context: 'variables',
+                    },
+                };
+            }
+
             const newNode: NodeModel = {
                 id: newNodeId,
                 category: 'web',
@@ -719,7 +729,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 parentId: null,
                 type: event.type,
                 node_name: newNodeName,
-                data: event.data,
+                data: nodeData,
                 color: nodeColor,
                 icon: nodeIcon,
                 input_map: {},
@@ -732,7 +742,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
 
     // side panel logic
     public onOpenNodePanel(node: NodeModel): void {
-        if (this.selectedNodeId() === node.id) {
+        if (this.sidePanelService.selectedNodeId() === node.id) {
             return;
         }
 
@@ -758,30 +768,60 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                     this.cd.detectChanges();
                 }
             });
+        } else if (node.type === NodeType.START) {
+            const startNode = node as StartNodeModel;
+            const startNodeInitialState = startNode.data?.initialState || {};
+
+            const dialogRef = this.dialog.open(DomainDialogComponent, {
+                width: '1000px',
+                height: '800px',
+                maxWidth: '90vw',
+                maxHeight: '90vh',
+                panelClass: 'domain-dialog-panel',
+                backdropClass: 'domain-dialog-backdrop',
+                data: {
+                    initialData: startNodeInitialState,
+                },
+            });
+
+            dialogRef.closed.subscribe((result: unknown) => {
+                if (
+                    result !== null &&
+                    typeof result === 'object' &&
+                    result !== undefined
+                ) {
+                    this.updateStartNodeInitialState(
+                        result as Record<string, unknown>
+                    );
+                }
+            });
         } else {
-            const componentType = PANEL_COMPONENT_MAP[node.type] || null;
-            if (componentType) {
-                this.selectedNodeId.set(node.id);
-                this.panelComponentType.set(componentType);
-            } else {
-                console.warn(
-                    `No panel component found for node type: ${node.type}`
-                );
-            }
+            void this.sidePanelService.trySelectNode(node);
         }
     }
 
-    public onNodePanelClose(): void {
-        this.selectedNodeId.set(null);
-        this.panelComponentType.set(null);
-    }
     public onNodePanelSaved(updatedNode: NodeModel): void {
         console.log(
             'Parent received save event. Calling service with:',
             updatedNode
         );
         this.flowService.updateNode(updatedNode);
-        // Do not close the panel on save; keep it open as requested
+        this.sidePanelService.clearSelection();
+    }
+
+    public onNodePanelAutosaved(updatedNode: NodeModel): void {
+        console.log(
+            'Parent received autosave event. Calling service with:',
+            updatedNode
+        );
+        this.flowService.updateNode(updatedNode);
+    }
+
+    public flushOpenSidePanelState(): void {
+        const updatedNode = this.nodePanelShell?.captureCurrentNodeState();
+        if (updatedNode) {
+            this.flowService.updateNode(updatedNode);
+        }
     }
 
     public onGroupSizeChanged(event: IRect, group: GroupNodeModel): void {
@@ -799,6 +839,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
 
         this.flowService.updateGroup(updatedGroup);
     }
+
     public onNodeSizeChanged(
         event: { width: number; height: number },
         node: NodeModel
@@ -2155,6 +2196,8 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             height: '800px',
             maxWidth: '90vw',
             maxHeight: '90vh',
+            panelClass: 'domain-dialog-panel',
+            backdropClass: 'domain-dialog-backdrop',
             data: {
                 initialData: startNodeInitialState,
             },

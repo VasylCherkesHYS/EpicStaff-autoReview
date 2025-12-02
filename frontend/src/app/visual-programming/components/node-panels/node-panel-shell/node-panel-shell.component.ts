@@ -3,24 +3,39 @@ import {
     Type,
     input,
     output,
-    OnDestroy,
     effect,
     signal,
     computed,
     viewChild,
-    inject,
+    ChangeDetectionStrategy,
 } from '@angular/core';
 import { NgComponentOutlet } from '@angular/common';
 import { NodePanel } from '../../../core/models/node-panel.interface';
 import { NodeModel } from '../../../core/models/node.model';
+import { PANEL_COMPONENT_MAP } from '../../../core/enums/node-panel.map';
+import { ShortcutListenerDirective } from '../../../core/directives/shortcut-listener.directive';
+import { SidePanelService } from '../../../services/side-panel.service';
 
 @Component({
     standalone: true,
     selector: 'app-node-panel-shell',
     imports: [NgComponentOutlet],
+    hostDirectives: [
+        {
+            directive: ShortcutListenerDirective,
+            outputs: ['escape: escape'],
+        },
+    ],
+    host: {
+        '(escape)': 'onEscape()',
+    },
     template: `
         @if (node() && panelComponent()) {
-        <aside class="node-panel" [class.shake-attention]="isShaking()">
+        <aside
+            class="node-panel"
+            [class.shake-attention]="isShaking()"
+            [class.expanded]="isExpanded()"
+        >
             <header class="dialog-header">
                 <div class="icon-and-title">
                     <i
@@ -30,6 +45,21 @@ import { NodeModel } from '../../../core/models/node.model';
                     <span class="title">{{ nodeNameToDisplay() }}</span>
                 </div>
                 <div class="header-actions">
+                    @if (shouldShowExpandButton()) {
+                    <button
+                        class="expand-btn"
+                        aria-label="Toggle panel size"
+                        (click)="toggleExpanded()"
+                    >
+                        <i
+                            [class]="
+                                isExpanded()
+                                    ? 'ti ti-arrows-minimize'
+                                    : 'ti ti-arrows-maximize'
+                            "
+                        ></i>
+                    </button>
+                    }
                     <div class="close-action">
                         <span class="esc-label">ESC</span>
                         <button
@@ -54,12 +84,18 @@ import { NodeModel } from '../../../core/models/node.model';
         }
     `,
     styleUrls: ['./node-panel-shell.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodePanelShellComponent {
     public readonly node = input<NodeModel | null>(null);
-    public readonly panelComponent = input<Type<NodePanel<any>> | null>(null);
     public readonly save = output<NodeModel>();
-    public readonly close = output<void>();
+    public readonly autosave = output<NodeModel>();
+
+    public readonly panelComponent = computed(() => {
+        const node = this.node();
+        if (!node) return null;
+        return PANEL_COMPONENT_MAP[node.type] || null;
+    });
 
     public readonly nodeNameToDisplay = computed(() => {
         const n = this.node();
@@ -69,39 +105,126 @@ export class NodePanelShellComponent {
         return n.node_name;
     });
 
+    public readonly shouldShowExpandButton = computed(() => {
+        const node = this.node();
+        return node && node.type !== 'table';
+    });
+
     protected readonly outlet = viewChild(NgComponentOutlet);
     protected readonly componentInputs = computed(() => ({
         node: this.node(),
+        isExpanded: this.isExpanded(),
     }));
 
     protected readonly isShaking = signal(false);
+    protected readonly isExpanded = signal(false);
     private panelInstance: any = null;
+    private previousNodeId: string | null = null;
+    private isUpdatingNode = false;
+    private isAutosaving = false;
 
-    constructor() {
+    constructor(private sidePanelService: SidePanelService) {
         effect(() => {
-            const outletRef = this.outlet();
-            if (outletRef?.componentInstance) {
-                this.panelInstance = outletRef.componentInstance;
-                this.setupOutputSubscriptions(outletRef.componentInstance);
+            const trigger = this.sidePanelService.autosaveTrigger();
+            if (trigger && this.panelInstance && !this.isAutosaving) {
+                console.log('External autosave triggered:', trigger);
+                this.isAutosaving = true;
+                this.performAutosave();
+                setTimeout(() => {
+                    this.sidePanelService.clearAutosaveTrigger();
+                    this.isAutosaving = false;
+                }, 100);
+            }
+        });
+
+        effect(() => {
+            const node = this.node();
+            if (node) {
+                // Auto-expand for decision table nodes
+                if (node.type === 'table') {
+                    this.isExpanded.set(true);
+                }
+
+                if (
+                    this.previousNodeId &&
+                    this.previousNodeId !== node.id &&
+                    this.panelInstance &&
+                    !this.isUpdatingNode &&
+                    !this.isAutosaving
+                ) {
+                    this.isUpdatingNode = true;
+                    this.performAutosave();
+                }
+
+                setTimeout(() => {
+                    const outletRef = this.outlet();
+                    if (outletRef?.componentInstance) {
+                        this.panelInstance = outletRef.componentInstance;
+                        this.previousNodeId = node.id;
+                        this.isUpdatingNode = false;
+                    }
+                }, 0);
+            } else {
+                // Reset when no node is selected
+                this.panelInstance = null;
+                this.previousNodeId = null;
+                this.isUpdatingNode = false;
+                this.isAutosaving = false;
             }
         });
     }
 
-    private setupOutputSubscriptions(instance: any): void {
-        if (instance.save && typeof instance.save.emit === 'function') {
-            instance.save.subscribe((node: NodeModel) => {
-                this.save.emit(node);
-            });
-        }
+    protected onCloseClick(): void {
+        this.saveSidePanel();
+    }
 
-        if (instance.close && typeof instance.close.emit === 'function') {
-            instance.close.subscribe(() => {
-                this.close.emit();
-            });
+    protected onEscape(): void {
+        this.saveSidePanel();
+    }
+
+    protected toggleExpanded(): void {
+        this.isExpanded.update((expanded) => !expanded);
+    }
+
+    private saveSidePanel(): void {
+        console.log('Saving side panel');
+        if (
+            this.panelInstance &&
+            typeof this.panelInstance.onSave === 'function'
+        ) {
+            console.log('Panel instance found');
+            const updatedNode = this.panelInstance.onSave();
+            if (updatedNode) {
+                this.save.emit(updatedNode);
+            }
         }
     }
 
-    protected onCloseClick(): void {
-        this.close.emit();
+    private performAutosave(): void {
+        console.log('Auto-saving previous node');
+        if (
+            this.panelInstance &&
+            typeof this.panelInstance.onSave === 'function'
+        ) {
+            const updatedNode = this.panelInstance.onSave();
+            if (updatedNode) {
+                this.autosave.emit(updatedNode);
+            }
+        }
+    }
+
+    public captureCurrentNodeState(): NodeModel | null {
+        if (
+            this.panelInstance &&
+            typeof this.panelInstance.onSaveSilently === 'function'
+        ) {
+            try {
+                return this.panelInstance.onSaveSilently();
+            } catch (error) {
+                console.error('Failed to capture node panel state silently', error);
+                return null;
+            }
+        }
+        return null;
     }
 }
