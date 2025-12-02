@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import {
     ReactiveFormsModule,
     FormGroup,
@@ -18,6 +18,12 @@ import { CommonModule } from '@angular/common';
         <div class="panel-container">
             <div class="panel-content">
                 <form [formGroup]="form" class="form-container">
+                    <!-- Helper Text -->
+                    <div class="helper-text">
+                        Here you can define your domain variables that will be
+                        available throughout your workflow execution.
+                    </div>
+
                     <!-- Initial State JSON Editor -->
                     <div class="json-editor-section">
                         <app-json-editor
@@ -63,6 +69,12 @@ import { CommonModule } from '@angular/common';
                 @include mixins.secondary-button;
             }
 
+            .helper-text {
+                color: #6b7280;
+                font-size: 0.875rem;
+                line-height: 1.4;
+            }
+
             .json-editor-section {
                 height: 100%;
                 min-height: 400px;
@@ -76,6 +88,7 @@ import { CommonModule } from '@angular/common';
             }
         `,
     ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StartNodePanelComponent extends BaseSidePanel<StartNodeModel> {
     public initialStateJson: string = '{}';

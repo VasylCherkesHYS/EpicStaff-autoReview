@@ -1,6 +1,7 @@
 from typing import Any
 from django.db import models
 from django.db.models import CheckConstraint
+from tables.models.python_models import PythonCodeTool
 from tables.models import DefaultBaseModel, AbstractDefaultFillableModel, Process
 from django.core.exceptions import ValidationError
 
@@ -74,8 +75,6 @@ class Agent(AbstractDefaultFillableModel):
     role = models.TextField()
     goal = models.TextField()
     backstory = models.TextField()
-    configured_tools = models.ManyToManyField("ToolConfig", blank=True, default=[])
-    python_code_tools = models.ManyToManyField("PythonCodeTool", blank=True, default=[])
     max_iter = models.IntegerField(default=None, null=True)
     max_rpm = models.IntegerField(default=None, null=True)
     max_execution_time = models.IntegerField(default=None, null=True)
@@ -118,14 +117,24 @@ class Agent(AbstractDefaultFillableModel):
     def get_default_model(self):
         return DefaultAgentConfig.load()
 
-    def fill_with_defaults(self):
-        super().fill_with_defaults()
-        self.default_temperature = self.get_default_temperature()
+    def get_crew_temperature(self, crew_id: int | None) -> float | None:
+        if crew_id is not None:
+            crew_temperature = Crew.objects.get(id=crew_id).default_temperature
+            return crew_temperature
+        return None
+
+    def fill_with_defaults(self, crew_id: int | None):
 
         if self.llm_config is not None:
-
-            if self.llm_config.temperature is None:
+            if self.default_temperature is not None:
                 self.llm_config.temperature = self.default_temperature
+            else:
+                crew_temperature = self.get_crew_temperature(crew_id=crew_id)
+                if crew_temperature is not None:
+                    self.llm_config.temperature = crew_temperature
+                # else uses llm temperature
+
+        super().fill_with_defaults()
 
         if self.fcm_llm_config is not None:
             if self.fcm_llm_config.temperature is None:
@@ -141,6 +150,41 @@ class Agent(AbstractDefaultFillableModel):
 
     def __str__(self):
         return self.role
+
+
+class AgentConfiguredTools(models.Model):
+    agent = models.ForeignKey(
+        "Agent", on_delete=models.CASCADE, related_name="configured_tools"
+    )
+    toolconfig = models.ForeignKey("ToolConfig", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_configured_tools_m2m"
+        unique_together = ("agent_id", "toolconfig_id")
+
+
+class AgentPythonCodeTools(models.Model):
+    agent = models.ForeignKey(
+        "Agent",
+        on_delete=models.CASCADE,
+        related_name="python_code_tools",
+    )
+    pythoncodetool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_python_code_tools_m2m"
+        unique_together = ("agent_id", "pythoncodetool_id")
+
+
+class AgentMcpTools(models.Model):
+    agent = models.ForeignKey(
+        "Agent", on_delete=models.CASCADE, related_name="mcp_tools"
+    )
+    mcptool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_agent_mcp_tools_m2m"
+        unique_together = ("agent_id", "mcptool_id")
 
 
 class Crew(AbstractDefaultFillableModel):
@@ -226,11 +270,7 @@ class Crew(AbstractDefaultFillableModel):
         agent_list: list[Agent] = []
         for agent in self.agents.all():
             agent: Agent
-            # set agent default temperature or crew default temperature
-            if agent.default_temperature is None:
-                agent.default_temperature = self.get_default_temperature()
 
-            agent.fill_with_defaults()
             agent_list.append(agent)
         return agent_list
 
@@ -281,7 +321,7 @@ class Tool(models.Model):
     name = models.TextField()
     name_alias = models.TextField()
     description = models.TextField()
-    enabled = models.BooleanField(default=True)
+    enabled = models.BooleanField(default=False)
     favorite = models.BooleanField(default=False)
 
     def __str__(self):
@@ -366,6 +406,7 @@ class Task(models.Model):
         "Agent", on_delete=models.SET_NULL, null=True, default=None
     )
     instructions = models.TextField()
+    knowledge_query = models.TextField(null=True, blank=True)
     expected_output = models.TextField()
     order = models.IntegerField(null=True, default=None)
     human_input = models.BooleanField(default=False)
@@ -394,6 +435,17 @@ class TaskPythonCodeTools(models.Model):
     tool = models.ForeignKey("PythonCodeTool", on_delete=models.CASCADE)
 
     class Meta:
+        unique_together = ("task", "tool")
+
+
+class TaskMcpTools(models.Model):
+    task = models.ForeignKey(
+        "Task", on_delete=models.CASCADE, related_name="task_mcp_tool_list"
+    )
+    tool = models.ForeignKey("McpTool", on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = "tables_task_mcp_tools"
         unique_together = ("task", "tool")
 
 

@@ -11,21 +11,36 @@ import {
     FormsModule,
     NG_VALUE_ACCESSOR,
 } from '@angular/forms';
-import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatIconModule } from '@angular/material/icon';
 
 @Component({
     selector: 'app-custom-input',
     standalone: true,
-    imports: [CommonModule, FormsModule, HelpTooltipComponent],
+    imports: [CommonModule, FormsModule, MatTooltipModule, MatIconModule],
     template: `
         <div class="form-group">
             <div class="label-container" *ngIf="label">
                 <label [for]="id">{{ label }}</label>
-                <app-help-tooltip
-                    *ngIf="tooltipText"
-                    position="right"
-                    [text]="tooltipText"
-                ></app-help-tooltip>
+                <ng-container *ngIf="tooltipText">
+                    <mat-icon
+                        *ngIf="!isClassIcon"
+                        [matTooltip]="tooltipText"
+                        matTooltipPosition="right"
+                        matTooltipClass="custom-tooltip"
+                        class="help-icon"
+                    >
+                        {{ icon || 'help' }}
+                    </mat-icon>
+                    <i
+                        *ngIf="isClassIcon"
+                        [class]="icon"
+                        [matTooltip]="tooltipText"
+                        matTooltipPosition="right"
+                        matTooltipClass="custom-tooltip"
+                        class="help-icon class-icon"
+                    ></i>
+                </ng-container>
             </div>
             <input
                 [type]="type"
@@ -35,9 +50,14 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
                 [(ngModel)]="value"
                 (blur)="onTouched()"
                 class="text-input"
+                [class.error]="errorMessage"
                 [disabled]="disabled"
                 [autofocus]="autofocus"
+                [style.--active-color]="activeColor"
             />
+            <div class="error-message" *ngIf="errorMessage">
+                {{ errorMessage }}
+            </div>
         </div>
     `,
     styles: [
@@ -57,6 +77,25 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
                     margin: 0;
                 }
 
+                .help-icon {
+                    font-size: 18px;
+                    width: 18px;
+                    height: 18px;
+                    color: rgba(255, 255, 255, 0.6);
+                    cursor: help;
+                    transition: color 0.2s ease;
+
+                    &:hover {
+                        color: rgba(255, 255, 255, 0.9);
+                    }
+
+                    &.class-icon {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                }
+
                 .text-input {
                     width: 100%;
                     padding: 8px 12px;
@@ -69,9 +108,29 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
 
                     &:focus {
                         outline: none;
-                        border-color: #685fff;
+                        border-color: var(--active-color, #685fff);
+                    }
+
+                    &.error {
+                        border-color: #ef4444;
                     }
                 }
+
+                .error-message {
+                    color: #ef4444;
+                    font-size: 12px;
+                    margin-top: 4px;
+                    line-height: 1.4;
+                }
+            }
+
+            :host ::ng-deep .custom-tooltip {
+                background: #232323 !important;
+                color: #fff !important;
+                font-size: 0.9rem !important;
+                max-width: 300px !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
             }
         `,
     ],
@@ -91,6 +150,9 @@ export class CustomInputComponent implements ControlValueAccessor {
     @Input() name: string = '';
     @Input() autofocus: boolean = false;
     @Input() tooltipText: string = '';
+    @Input() icon: string = 'help';
+    @Input() activeColor: string = '#685fff';
+    @Input() errorMessage: string = '';
 
     private _value: string = '';
     private _disabled: boolean = false;
@@ -114,6 +176,10 @@ export class CustomInputComponent implements ControlValueAccessor {
 
     set disabled(val: boolean) {
         this._disabled = val;
+    }
+
+    get isClassIcon(): boolean {
+        return !!this.icon && this.icon.trim().includes(' ');
     }
 
     writeValue(value: string): void {

@@ -9,6 +9,7 @@ import {
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { JsonEditorComponent } from '../../../../shared/components/json-editor/json-editor.component';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
 
@@ -17,7 +18,8 @@ export interface AdvancedTaskSettingsData {
     output_model: any | null;
     task_context_list: number[];
     taskName: string;
-    availableTasks?: any[]; // Added availableTasks property
+    taskId: number | string | null;
+    availableTasks?: any[];
 }
 
 @Component({
@@ -28,6 +30,7 @@ export interface AdvancedTaskSettingsData {
         NgFor,
         NgClass,
         FormsModule,
+        MatSlideToggleModule,
         JsonEditorComponent,
         HelpTooltipComponent,
     ],
@@ -41,6 +44,7 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
     public isJsonValid = signal<boolean>(true);
     public selectedTaskIds = signal<number[]>([]);
     public readonly availableTasks: any[];
+    public useOutputModel = signal<boolean>(false);
 
     constructor(
         public dialogRef: DialogRef<AdvancedTaskSettingsData>,
@@ -52,6 +56,7 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
             config: null,
             task_context_list: data.task_context_list || [],
             output_model: data.output_model || null,
+            taskId: data.taskId,
         };
 
         this.availableTasks = [...(data.availableTasks || [])].sort((a, b) => {
@@ -74,14 +79,24 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
             : [];
 
         this.selectedTaskIds.set(initialSelectedIds);
+
+        // Initialize useOutputModel based on whether output_model exists
+        this.useOutputModel.set(
+            this.taskData.output_model !== null &&
+                this.taskData.output_model !== undefined
+        );
     }
 
     public ngOnInit(): void {
-        if (this.taskData.output_model) {
+        const savedSchema = this.loadSchemaFromLocalStorage();
+
+        if (savedSchema) {
+            this.jsonConfig.set(this.stripTypeAndTitle(savedSchema));
+        } else if (this.taskData.output_model) {
             try {
-                // Show the complete output model, including type and title
                 const outputModel = this.taskData.output_model;
-                this.jsonConfig.set(JSON.stringify(outputModel, null, 2));
+                const schemaString = JSON.stringify(outputModel, null, 2);
+                this.jsonConfig.set(this.stripTypeAndTitle(schemaString));
             } catch (e) {
                 this.jsonConfig.set(this.getDefaultJsonSchema());
             }
@@ -91,18 +106,69 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
     }
 
     private getDefaultJsonSchema(): string {
-        // Return a complete default schema including type and title
         const defaultSchema = {
-            type: 'object',
-            title: 'TaskOutputModel',
             properties: {},
             required: [],
         };
         return JSON.stringify(defaultSchema, null, 2);
     }
 
+    private stripTypeAndTitle(schemaString: string): string {
+        try {
+            const schema = JSON.parse(schemaString);
+            const { type, title, ...rest } = schema;
+            return JSON.stringify(rest, null, 2);
+        } catch (e) {
+            return schemaString;
+        }
+    }
+
+    private getLocalStorageKey(): string | null {
+        if (!this.taskData.taskId) {
+            return null;
+        }
+        return `task_output_schema_${this.taskData.taskId}`;
+    }
+
+    private loadSchemaFromLocalStorage(): string | null {
+        const key = this.getLocalStorageKey();
+        if (!key) {
+            return null;
+        }
+
+        try {
+            const savedSchema = localStorage.getItem(key);
+            if (savedSchema) {
+                JSON.parse(savedSchema);
+                return savedSchema;
+            }
+        } catch (e) {
+            localStorage.removeItem(key);
+        }
+        return null;
+    }
+
+    private saveSchemaToLocalStorage(): void {
+        const key = this.getLocalStorageKey();
+        if (!key) {
+            return;
+        }
+
+        try {
+            if (this.jsonConfig()) {
+                localStorage.setItem(key, this.jsonConfig());
+            }
+        } catch (e) {
+            console.error('Error saving schema to localStorage:', e);
+        }
+    }
+
     public onJsonValidChange(isValid: boolean): void {
         this.isJsonValid.set(isValid);
+    }
+
+    public resetToDefault(): void {
+        this.jsonConfig.set(this.getDefaultJsonSchema());
     }
 
     public toggleTaskSelection(taskId: number): void {
@@ -137,7 +203,6 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
         try {
             const parsedJson = JSON.parse(jsonString);
 
-            // If properties are empty or don't exist, return null
             const hasProperties =
                 parsedJson.properties &&
                 Object.keys(parsedJson.properties).length > 0;
@@ -146,8 +211,11 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
                 return null;
             }
 
-            // Use the JSON as provided by the user, don't modify it
-            return parsedJson;
+            return {
+                type: 'object',
+                title: 'TaskOutputModel',
+                ...parsedJson,
+            };
         } catch (e) {
             console.error('Error processing output model:', e);
             return null;
@@ -155,15 +223,19 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
     }
 
     public save(): void {
-        if (!this.isJsonValid()) {
-            return; // Don't save if JSON is invalid
+        if (this.useOutputModel() && !this.isJsonValid()) {
+            return;
         }
 
         try {
-            // Process the output model
-            const outputModel = this.tryProcessOutputModel(this.jsonConfig());
+            let outputModel = null;
 
-            // Update task data with selected task IDs
+            if (this.useOutputModel()) {
+                outputModel = this.tryProcessOutputModel(this.jsonConfig());
+            }
+
+            this.saveSchemaToLocalStorage();
+
             const result = {
                 ...this.taskData,
                 config: null,
@@ -174,10 +246,8 @@ export class AdvancedTaskSettingsDialogComponent implements OnInit {
             console.log('Saving data:', result);
             this.dialogRef.close(result);
         } catch (e) {
-            // Handle JSON parsing error
             console.error('Invalid JSON format:', e);
             this.isJsonValid.set(false);
-            // You might want to display an error message to the user here
         }
     }
 }

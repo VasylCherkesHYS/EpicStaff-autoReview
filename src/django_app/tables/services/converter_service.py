@@ -1,4 +1,6 @@
 from typing import Iterable
+from tables.models.crew_models import AgentConfiguredTools, AgentMcpTools, AgentPythonCodeTools
+from tables.models.mcp_models import McpTool
 from tables.serializers.serializers import BaseToolSerializer
 from tables.models.llm_models import (
     RealtimeConfig,
@@ -28,11 +30,12 @@ from tables.models.graph_models import (
     ConditionalEdge,
     CrewNode,
     DecisionTableNode,
-    Graph,
+    EndNode,
     PythonNode,
+    WebhookTriggerNode,
 )
 from tables.request_models import *
-from tables.request_models import CrewData
+from tables.request_models import CrewData, EndNodeData
 from utils.singleton_meta import SingletonMeta
 
 from tables.serializers.model_serializers import ToolConfigSerializer
@@ -41,6 +44,7 @@ from tables.validators.tool_config_validator import (
     validate_tool_configs,
 )
 from tables.validators.crew_memory_validator import CrewMemoryValidator
+from tables.validators.task_validator import TaskValidator
 
 tool_config_serializer = ToolConfigSerializer(
     ToolConfigValidator(validate_missing_reqired_fields=True, validate_null_fields=True)
@@ -52,6 +56,7 @@ class ConverterService(metaclass=SingletonMeta):
 
     def __init__(self):
         self.memory_validator = CrewMemoryValidator()
+        self.task_validator = TaskValidator()
 
     def convert_crew_to_pydantic(self, crew_id: int) -> CrewData:
         crew = Crew.objects.get(pk=crew_id).fill_with_defaults()
@@ -72,10 +77,11 @@ class ConverterService(metaclass=SingletonMeta):
             embedder = self.convert_embedding_config_to_pydantic(embedding_config)
             memory_llm = self.convert_llm_config_to_pydantic(memory_llm_config)
         task_list = Task.objects.filter(crew_id=crew_id)
-
+        self.task_validator.validate_assigned_agents(task_list)
         task_data_list: list[TaskData] = []
 
         crew_base_tools: list[BaseToolData] = []
+
         for task in task_list:
 
             base_tools = self._get_task_base_tools(task=task)
@@ -90,6 +96,7 @@ class ConverterService(metaclass=SingletonMeta):
                     name=task.name,
                     agent_id=task.agent.pk,
                     instructions=task.instructions,
+                    knowledge_query=task.knowledge_query,
                     expected_output=task.expected_output,
                     order=task.order,
                     human_input=task.human_input,
@@ -106,7 +113,8 @@ class ConverterService(metaclass=SingletonMeta):
         assert len(task_data_list) > 0, "No tasks found for crew"
 
         agents_data = [
-            self.convert_agent_to_pydantic(agent) for agent in crew.agents.all()
+            self.convert_agent_to_pydantic(agent, crew_id)
+            for agent in crew.agents.all()
         ]
         crew_agents: Iterable[Agent] = crew.agents.all()
 
@@ -145,17 +153,34 @@ class ConverterService(metaclass=SingletonMeta):
         return crew_data
 
     def _get_agent_base_tools(self, agent: Agent) -> list[BaseToolData]:
-        tools = list(agent.python_code_tools.all()) + list(agent.configured_tools.all())
-        return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
+        python_tools = PythonCodeTool.objects.filter(
+            id__in=AgentPythonCodeTools.objects.filter(agent_id=agent.id)
+            .values_list("pythoncodetool_id", flat=True)
+        )
+        configured_tools = ToolConfig.objects.filter(
+            id__in=AgentConfiguredTools.objects.filter(agent_id=agent.id)
+            .values_list("toolconfig_id", flat=True)
+        )
+        mcp_tools = McpTool.objects.filter(
+            id__in=AgentMcpTools.objects.filter(agent_id=agent.id)
+            .values_list("mcptool_id", flat=True)
+        )
+
+        all_tools = list(python_tools) + list(configured_tools) + list(mcp_tools)
+
+        return [self.convert_tool_to_base_tool_pydantic(tool) for tool in all_tools]
+    
     def _get_task_base_tools(self, task: Task) -> list[BaseToolData]:
-        tools = [entry.tool for entry in task.task_configured_tool_list.all()] + [
-            entry.tool for entry in task.task_python_code_tool_list.all()
-        ]
+        tools = (
+            [entry.tool for entry in task.task_configured_tool_list.all()]
+            + [entry.tool for entry in task.task_python_code_tool_list.all()]
+            + [entry.tool for entry in task.task_mcp_tool_list.all()]
+        )
         return [self.convert_tool_to_base_tool_pydantic(tool) for tool in tools]
 
     def convert_tool_to_base_tool_pydantic(
-        self, tool: PythonCodeTool | ToolConfig
+        self, tool: PythonCodeTool | ToolConfig | McpTool
     ) -> BaseToolData:
         if isinstance(tool, PythonCodeTool):
             unique_name = f"python-code-tool:{tool.pk}"
@@ -163,13 +188,16 @@ class ConverterService(metaclass=SingletonMeta):
         elif isinstance(tool, ToolConfig):
             unique_name = f"configured-tool:{tool.pk}"
             data = self.convert_configured_tool_to_pydantic(tool)
+        elif isinstance(tool, McpTool):
+            unique_name = f"mcp-tool:{tool.pk}"
+            data = self.convert_mcp_tool_to_pydantic(tool)
         else:
             raise TypeError(f"Tool type of {type(tool)} is not supported")
 
         return BaseToolData(unique_name=unique_name, data=data)
 
-    def convert_agent_to_pydantic(self, agent: Agent) -> AgentData:
-        agent = agent.fill_with_defaults()
+    def convert_agent_to_pydantic(self, agent: Agent, crew_id: int) -> AgentData:
+        agent = agent.fill_with_defaults(crew_id=crew_id)
         agent_base_tool_list = self._get_agent_base_tools(
             agent=agent
         )  # TODO: optimize it, duplicated db requests may occur
@@ -206,7 +234,7 @@ class ConverterService(metaclass=SingletonMeta):
         self, rt_agent_chat: RealtimeAgentChat
     ) -> RealtimeAgentChatData:
 
-        agent: Agent = rt_agent_chat.rt_agent.agent.fill_with_defaults()
+        agent: Agent = rt_agent_chat.rt_agent.agent.fill_with_defaults(crew_id=None)
 
         rt_config: RealtimeConfig = rt_agent_chat.realtime_config
         rt_transcription_config: RealtimeTranscriptionConfig = (
@@ -303,6 +331,15 @@ class ConverterService(metaclass=SingletonMeta):
         return ConfiguredToolData(
             name_alias=tool_config.tool.name_alias,
             tool_config=tool_config_data,
+        )
+
+    def convert_mcp_tool_to_pydantic(self, mcp_tool: McpTool) -> McpToolData:
+        return McpToolData(
+            transport=mcp_tool.transport,
+            tool_name=mcp_tool.tool_name,
+            timeout=mcp_tool.timeout,
+            auth=mcp_tool.auth,
+            init_timeout=mcp_tool.init_timeout,
         )
 
     def convert_llm_config_to_pydantic(self, config: LLMConfig) -> LLMData | None:
@@ -424,4 +461,16 @@ class ConverterService(metaclass=SingletonMeta):
             crew=crew_data,
             input_map=crew_node.input_map,
             output_variable_path=crew_node.output_variable_path,
+        )
+
+    def convert_end_node_to_pydantic(self, end_node: EndNode):
+        return EndNodeData(output_map=end_node.output_map)
+
+    def convert_webhook_trigger_node_to_pydantic(self, webhook_trigger_node: WebhookTriggerNode):
+        python_code: PythonCode = webhook_trigger_node.python_code
+        python_code_data = self.convert_python_code_to_pydantic(python_code=python_code)
+
+        return WebhookTriggerNodeData(
+            node_name=webhook_trigger_node.node_name,
+            python_code=python_code_data,
         )

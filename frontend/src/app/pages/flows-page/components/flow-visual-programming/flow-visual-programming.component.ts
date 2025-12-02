@@ -6,6 +6,7 @@ import {
     OnDestroy,
     HostListener,
     AfterViewInit,
+    ViewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
@@ -74,6 +75,9 @@ import { UnsavedChangesDialogService } from '../../../../shared/components/unsav
 
 import { isEqual } from 'lodash';
 import { CanComponentDeactivate } from '../../../../core/guards/unsaved-changes.guard';
+import { ConfigService } from '../../../../services/config/config.service';
+import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
+
 @Component({
     selector: 'app-flow-visual-programming',
     standalone: true,
@@ -95,6 +99,9 @@ export class FlowVisualProgrammingComponent
     private readonly destroy$ = new Subject<void>();
     private isNavigatingToRun = false;
 
+    @ViewChild(FlowGraphComponent)
+    private flowGraphComponent?: FlowGraphComponent;
+
     constructor(
         private readonly route: ActivatedRoute,
         private readonly router: Router,
@@ -107,7 +114,9 @@ export class FlowVisualProgrammingComponent
         private readonly runGraphService: RunGraphService,
         private readonly startNodeService: StartNodeService,
         private readonly dialog: CdkDialog,
-        private readonly unsavedChangesDialogService: UnsavedChangesDialogService
+        private readonly unsavedChangesDialogService: UnsavedChangesDialogService,
+        private readonly configService: ConfigService,
+        private readonly sidePanelService: SidePanelService
     ) {}
 
     public ngOnInit(): void {
@@ -149,25 +158,34 @@ export class FlowVisualProgrammingComponent
         }
 
         this.isSaving = true;
-        const flowState: FlowModel = this.flowService.getFlowState();
-        console.log(
-            'floew state that i got from service on saveflow',
-            flowState
-        );
+        this.flushActiveSidePanelState();
 
-        const startNodeInFlow = flowState.nodes.find(
-            (node) => node.type === NodeType.START
-        ) as StartNodeModel | undefined;
+        this.sidePanelService.triggerAutosave();
 
-        if (!startNodeInFlow) {
-            console.log('no start node in flow');
-            return this.saveGraphDirectly(flowState, showNotif);
-        }
-        console.log('save graph with start node');
-        return this.saveGraphWithStartNode(
-            flowState,
-            startNodeInFlow,
-            showNotif
+        return of(null).pipe(
+            switchMap(() => new Promise((resolve) => setTimeout(resolve, 200))),
+            switchMap(() => {
+                const flowState: FlowModel = this.flowService.getFlowState();
+                console.log(
+                    'floew state that i got from service on saveflow',
+                    flowState
+                );
+
+                const startNodeInFlow = flowState.nodes.find(
+                    (node) => node.type === NodeType.START
+                ) as StartNodeModel | undefined;
+
+                if (!startNodeInFlow) {
+                    console.log('no start node in flow');
+                    return this.saveGraphDirectly(flowState, showNotif);
+                }
+                console.log('save graph with start node');
+                return this.saveGraphWithStartNode(
+                    flowState,
+                    startNodeInFlow,
+                    showNotif
+                );
+            })
         );
     }
 
@@ -258,52 +276,62 @@ export class FlowVisualProgrammingComponent
     }
 
     private saveGraphForRun(): Observable<any> {
-        const flowState: FlowModel = this.flowService.getFlowState();
+        // Trigger autosave before getting flow state
+        this.flushActiveSidePanelState();
+        this.sidePanelService.triggerAutosave();
 
-        const startNodeInFlow = flowState.nodes.find(
-            (node) => node.type === NodeType.START
-        ) as StartNodeModel | undefined;
+        // Wait for autosave to complete before getting flow state
+        return of(null).pipe(
+            switchMap(() => new Promise((resolve) => setTimeout(resolve, 200))),
+            switchMap(() => {
+                const flowState: FlowModel = this.flowService.getFlowState();
 
-        if (!startNodeInFlow) {
-            return this.graphUpdateService
-                .saveGraph(flowState, this.graph)
-                .pipe(
+                const startNodeInFlow = flowState.nodes.find(
+                    (node) => node.type === NodeType.START
+                ) as StartNodeModel | undefined;
+
+                if (!startNodeInFlow) {
+                    return this.graphUpdateService
+                        .saveGraph(flowState, this.graph)
+                        .pipe(
+                            tap((result) => {
+                                this.graph = result.graph;
+                                this.initialState = flowState;
+                            })
+                        );
+                }
+
+                const initialStateData = startNodeInFlow.data.initialState;
+
+                return this.startNodeService.getStartNodes().pipe(
+                    switchMap((startNodes) => {
+                        const matchingStartNode = startNodes.find(
+                            (sn) => sn.graph === this.graph.id
+                        );
+
+                        if (matchingStartNode) {
+                            return this.startNodeService.updateStartNode(
+                                matchingStartNode.id,
+                                {
+                                    graph: this.graph.id,
+                                    variables: initialStateData,
+                                }
+                            );
+                        }
+
+                        return this.startNodeService.createStartNode({
+                            graph: this.graph.id,
+                            variables: initialStateData,
+                        });
+                    }),
+                    switchMap(() =>
+                        this.graphUpdateService.saveGraph(flowState, this.graph)
+                    ),
                     tap((result) => {
                         this.graph = result.graph;
                         this.initialState = flowState;
                     })
                 );
-        }
-
-        const initialStateData = startNodeInFlow.data.initialState;
-
-        return this.startNodeService.getStartNodes().pipe(
-            switchMap((startNodes) => {
-                const matchingStartNode = startNodes.find(
-                    (sn) => sn.graph === this.graph.id
-                );
-
-                if (matchingStartNode) {
-                    return this.startNodeService.updateStartNode(
-                        matchingStartNode.id,
-                        {
-                            graph: this.graph.id,
-                            variables: initialStateData,
-                        }
-                    );
-                }
-
-                return this.startNodeService.createStartNode({
-                    graph: this.graph.id,
-                    variables: initialStateData,
-                });
-            }),
-            switchMap(() =>
-                this.graphUpdateService.saveGraph(flowState, this.graph)
-            ),
-            tap((result) => {
-                this.graph = result.graph;
-                this.initialState = flowState;
             })
         );
     }
@@ -320,7 +348,12 @@ export class FlowVisualProgrammingComponent
 
         saveFirst$
             .pipe(
-                switchMap(() => this.runGraphService.runGraph(this.graph.id)),
+                switchMap(() =>
+                    this.runGraphService.runGraph(
+                        this.graph.id,
+                        this.graph.start_node_list[0].variables
+                    )
+                ),
                 takeUntil(this.destroy$),
                 finalize(() => {
                     this.isRunning = false;
@@ -354,6 +387,64 @@ export class FlowVisualProgrammingComponent
             data: { flow: this.graph },
             panelClass: 'custom-dialog-panel',
         });
+    }
+
+    public handleGetCurl(): void {
+        const flowId = this.graph?.id;
+        const startNodeInitialState = this.flowService.startNodeInitialState();
+        const apiUrl = this.configService.apiUrl;
+
+        if (flowId && startNodeInitialState) {
+            const curlCommand = this.generateCurlCommand(
+                flowId,
+                startNodeInitialState,
+                apiUrl
+            );
+            this.copyToClipboard(curlCommand);
+            this.toastService.success('CURL command copied to clipboard!');
+        } else {
+            this.toastService.error(
+                'Unable to generate CURL: Missing flow ID or start node data'
+            );
+        }
+    }
+
+    private generateCurlCommand(
+        flowId: number,
+        variables: Record<string, unknown>,
+        apiUrl: string
+    ): string {
+        const variablesJson = JSON.stringify(variables, null, 2);
+        const payload = JSON.stringify(
+            {
+                graph_id: flowId.toString(),
+                variables: variables,
+            },
+            null,
+            2
+        );
+
+        return `curl \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json" \\
+  -X POST \\
+  -d '${payload}' \\
+  ${apiUrl}run-session/`;
+    }
+
+    private async copyToClipboard(text: string): Promise<void> {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (err) {
+            console.error('Failed to copy to clipboard:', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        }
     }
 
     @HostListener('window:beforeunload', ['$event'])
@@ -401,5 +492,9 @@ export class FlowVisualProgrammingComponent
     public ngOnDestroy(): void {
         // this.destroy$.next();
         // this.destroy$.complete();
+    }
+
+    private flushActiveSidePanelState(): void {
+        this.flowGraphComponent?.flushOpenSidePanelState();
     }
 }

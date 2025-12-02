@@ -4,6 +4,7 @@ import time
 from typing import Callable, Optional, Union
 from crewai.agents.crew_agent_executor import KNOWLEDGE_KEYWORD
 
+from services.graph.events import StopEvent
 from models.graph_models import (
     GraphMessage,
     AgentMessageData,
@@ -246,7 +247,12 @@ class CrewCallbackFactory:
     def get_wait_for_user_callback(
         self,
         crew_knowledge_collection_id=None,
+        crew_similarity_threshold=0.2,
+        crew_search_limit=3,
+        agent_similarity_threshold=0.1,
+        agent_search_limit=3,
         agent_knowledge_collection_id=None,
+        stop_event: Optional[StopEvent] = None,
     ) -> Callable[[], str]:
         def inner() -> str:
             update_session_status_message_data = UpdateSessionStatusMessageData(
@@ -293,7 +299,9 @@ class CrewCallbackFactory:
                         f"sessions:{self.session_id}:user_input", subscriber
                     )
                     break
-                time.sleep(0.1)
+                if stop_event is not None:
+                    stop_event.check_stop()
+                time.sleep(0.01)
 
             update_session_status_message_data = UpdateSessionStatusMessageData(
                 crew_id=self.crew_id,
@@ -309,7 +317,13 @@ class CrewCallbackFactory:
                 execution_order=self.execution_order,
                 message_data=update_session_status_message_data,
             )
-
+            self.redis_service.update_session_status(
+                session_id=self.session_id,
+                status="run",
+                crew_id=self.crew_id,
+                execution_order=self.execution_order,
+                name=self.node_name,
+            )
             if self.stream_writer is not None:
                 self.stream_writer(graph_message)
 
@@ -325,8 +339,8 @@ class CrewCallbackFactory:
                         sender="human_agent",
                         knowledge_collection_id=agent_knowledge_collection_id,
                         query=str(user_input),
-                        search_limit=3,
-                        similarity_threshold=0.1,
+                        search_limit=agent_search_limit,
+                        similarity_threshold=agent_similarity_threshold,
                     )
                     user_input_with_knowledges += self._extract_knowledges(
                         agent_knowledges
@@ -337,8 +351,8 @@ class CrewCallbackFactory:
                         sender="human_crew",
                         knowledge_collection_id=crew_knowledge_collection_id,
                         query=str(user_input),
-                        search_limit=3,
-                        similarity_threshold=0.2,
+                        search_limit=crew_search_limit,
+                        similarity_threshold=crew_similarity_threshold,
                     )
                     user_input_with_knowledges += self._extract_knowledges(crew_results)
 

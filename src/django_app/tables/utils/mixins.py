@@ -1,23 +1,46 @@
-import asyncio
 import os
 import json
 import re
 import time
+from datetime import datetime
+
 from typing import AsyncGenerator, AsyncIterable, Callable, Union
 from abc import ABC, abstractmethod
 
-from rest_framework import serializers
+from rest_framework import serializers, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
 from loguru import logger
 from asgiref.sync import sync_to_async
 from django.http import StreamingHttpResponse, HttpResponse
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views import View
+from django.db import IntegrityError, transaction
 
 from tables.models import DocumentMetadata, DocumentContent
+from tables.utils.helpers import generate_file_name
+from tables.serializers.import_serializers import FileImportSerializer
 from .file_text_extractor import extract_text_from_file
+
+from tables.services.redis_service import RedisService
+from functools import partial
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 
 ALLOWED_FILE_TYPES = {choice[0] for choice in DocumentMetadata.DocumentFileType.choices}
 MAX_FILE_SIZE = 12 * 1024 * 1024  # 12MB
+
+
+redis_service = RedisService()
+
+session_status_channel_name = os.environ.get(
+    "SESSION_STATUS_CHANNEL", "sessions:session_status"
+)
+graph_messages_channel_name = os.environ.get(
+    "GRAPH_MESSAGE_UPDATE_CHANNEL", "graph:message:update"
+)
+memory_updates_channel_name = os.environ.get("MEMORY_UPDATE_CHANNEL", "memory:update")
 
 
 class SourceSerializerMixin:
@@ -214,7 +237,7 @@ class SSEMixin(View, ABC):
         pass
 
     @abstractmethod
-    async def get_live_updates(self):
+    async def get_live_updates(self, pubsub):
         """
         Overwrite this function with generator yielding updates in while True loop
         Each item should be either:
@@ -222,6 +245,15 @@ class SSEMixin(View, ABC):
             - or any JSON-serializable primitive (str, int, etc)
         """
         pass
+
+    async def sort_by_timestamp(self, messages: list[dict]) -> list[dict]:
+        """
+        Sort a list of messages by their 'timestamp' field in ascending order.
+        """
+        return sorted(
+            messages,
+            key=lambda m: datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00")),
+        )
 
     async def _data_generator(
         self,
@@ -241,6 +273,7 @@ class SSEMixin(View, ABC):
         """
 
         async for item in callback():
+            logger.debug(f"_data_generator item: {item}")
             if isinstance(item, dict):
                 if "event" in item:
                     yield f"event: {item['event']}\n"
@@ -260,6 +293,14 @@ class SSEMixin(View, ABC):
     async def event_stream(self, test_mode=False):
         self.last_ping = time.time()
         try:
+            channels = [
+                session_status_channel_name,
+                graph_messages_channel_name,
+                memory_updates_channel_name,
+            ]
+            pubsub = redis_service.async_redis_client.pubsub()
+            await pubsub.subscribe(*channels)
+
             async for data in self._data_generator(self.get_initial_data):
                 yield data
 
@@ -267,10 +308,11 @@ class SSEMixin(View, ABC):
                 for i in range(3):
                     yield f"data: test event #{i + 1}\n\n"
                 raise GeneratorExit()
-
-            while True:
-                async for data in self._data_generator(self.get_live_updates):
-                    yield data
+            async for data in self._data_generator(
+                partial(self.get_live_updates, pubsub)
+            ):
+                logger.debug(f"event_stream data: {data}")
+                yield data
 
         except (GeneratorExit, KeyboardInterrupt):
             logger.warning("Sending fatal-error event due to manual stop")
@@ -282,7 +324,6 @@ class SSEMixin(View, ABC):
     async def get(self, request, *args, **kwargs):
         test_mode = bool(request.GET.get("test", ""))
         logger.debug(f"Started SSE {'with' if test_mode else 'without'} test mode")
-
         return StreamingHttpResponse(
             self.event_stream(test_mode=test_mode),
             content_type="text/event-stream",
@@ -294,3 +335,167 @@ class SSEMixin(View, ABC):
                 "Transfer-Encoding": "chunked",
             },
         )
+
+
+class ImportExportMixin:
+    """
+    A mixin that can extend ModelSerializer class with import/export functionality.
+    Creates 2 new action methods: export, import_entity.
+
+    Params:
+        `entity_type`: A string that represents the entity (agent, crew, graph, etc.).
+        `export_prefix`: A string that will be added for export file.
+        `filename_attr`: A string that should be accesible as entity instance attribute.
+            For example:
+
+            If `filename_attr` set to "name", and given `instance` is Agent,
+            we will try to get `agent.name`
+        `serializer_response_class`: A serializer class that will be used for response body
+    """
+
+    entity_type = None
+    export_prefix = None
+    filename_attr = None
+    serializer_response_class = None
+
+    def get_export_filename(self, instance):
+        base_name = getattr(instance, self.filename_attr, "object")
+        return generate_file_name(base_name, prefix=self.export_prefix)
+
+    def get_entity_type(self):
+        if not self.entity_type:
+            raise NotImplementedError("Subclass must define entity_type")
+        return self.entity_type
+
+    def get_serializer_response_class(self):
+        if not self.serializer_response_class:
+            raise NotImplementedError("Subclass must define serializer_response_class")
+        return self.serializer_response_class
+
+    @action(detail=True, methods=["get"])
+    def export(self, request, pk: int):
+        instance = self.get_object()
+        serializer_class = self.get_serializer_class()
+        data = serializer_class(instance).data
+        json_data = json.dumps(data, indent=4)
+        filename = self.get_export_filename(instance)
+
+        response = HttpResponse(json_data, content_type="application/json")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    @action(detail=False, methods=["post"], url_path="import")
+    def import_entity(self, request):
+        serializer_response_class = self.get_serializer_response_class()
+
+        file_serializer = FileImportSerializer(data=request.data)
+        file_serializer.is_valid(raise_exception=True)
+        file = file_serializer.validated_data["file"]
+
+        try:
+            data = json.load(file)
+        except json.JSONDecodeError:
+            return Response(
+                {"message": "Invalid JSON file"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        entity_type = data.pop("entity_type", None)
+        expected_type = self.get_entity_type()
+        if entity_type != expected_type:
+            return Response(
+                {
+                    "message": f"Provided wrong entity. Got: {entity_type}. Expected: {expected_type}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        imported_instance = None
+
+        try:
+            with transaction.atomic():
+                imported_instance = serializer.save()
+        except IntegrityError as e:
+            return Response(
+                {"message": f"Database error: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializer_response_class(instance=imported_instance)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DeepCopyMixin:
+    """
+    A mixin that can extend ModelSerializer class with deep copy functionality.
+    Creates new action method: `copy`.
+
+    Params:
+        `copy_serializer_class`: A serializer class that used for creating copy of the entity (agent, crew, graph).
+        `copy_deserializer_class`: A serializer class that used for creating entity from copied entity.
+        `copy_serializer_response_class`: A serializer class that used in repose body.
+    """
+
+    copy_serializer_class = None
+    copy_deserializer_class = None
+    copy_serializer_response_class = None
+
+    def get_copy_serializer_class(self):
+        if not self.copy_serializer_class:
+            raise NotImplementedError("Subclass must define copy_serializer_class")
+        return self.copy_serializer_class
+
+    def get_copy_deserializer_class(self):
+        if not self.copy_deserializer_class:
+            raise NotImplementedError("Subclass must define copy_deserializer_class")
+        return self.copy_deserializer_class
+
+    def get_copy_serializer_response_class(self):
+        if not self.copy_serializer_response_class:
+            raise NotImplementedError(
+                "Subclass must define copy_serializer_response_class"
+            )
+        return self.copy_serializer_response_class
+
+    @action(detail=True, methods=["post"], url_path="copy")
+    def copy(self, request, pk: int):
+        instance = self.get_object()
+        new_instance = None
+        serializer_class = self.get_copy_serializer_class()
+
+        data = serializer_class(instance).data
+        data = dict(data)
+
+        deserializer_class = self.get_copy_deserializer_class()
+        deserializer = deserializer_class(data=data)
+        deserializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                new_instance = deserializer.save()
+        except IntegrityError as e:
+            return Response(
+                {"message": f"Database error: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "message": f"Something went wrong while copying the instance. {str(e)}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_name = request.data.get("name") if isinstance(request.data, dict) else None
+        current_name = getattr(new_instance, "name", None)
+
+        if new_name and current_name:
+            new_instance.name = new_name
+            new_instance.save()
+
+        response_serializer_class = self.get_copy_serializer_response_class()
+        serializer = response_serializer_class(new_instance)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

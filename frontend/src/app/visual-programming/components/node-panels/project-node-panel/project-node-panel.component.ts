@@ -1,4 +1,9 @@
-import { Component, effect, signal } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    effect,
+    signal,
+} from '@angular/core';
 import {
     ReactiveFormsModule,
     FormGroup,
@@ -36,6 +41,8 @@ interface InputMapPair {
                         tooltipText="The unique identifier used to reference this project node. This name must be unique within the flow."
                         formControlName="node_name"
                         placeholder="Enter node name"
+                        [activeColor]="activeColor"
+                        [errorMessage]="getNodeNameErrorMessage()"
                     ></app-custom-input>
 
                     <div class="input-map">
@@ -49,6 +56,7 @@ interface InputMapPair {
                         tooltipText="The path where the output of this node will be stored in your flow variables. Leave empty if you don't need to store the output."
                         formControlName="output_variable_path"
                         placeholder="Enter output variable path (leave empty for null)"
+                        [activeColor]="activeColor"
                     ></app-custom-input>
                 </form>
             </div>
@@ -63,6 +71,7 @@ interface InputMapPair {
                 flex-direction: column;
                 height: 100%;
                 min-height: 0;
+                z-index: 1000;
             }
 
             .panel-content {
@@ -87,6 +96,7 @@ interface InputMapPair {
             }
         `,
     ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectNodePanelComponent extends BaseSidePanel<ProjectNodeModel> {
     constructor() {
@@ -103,7 +113,7 @@ export class ProjectNodePanelComponent extends BaseSidePanel<ProjectNodeModel> {
 
     protected initializeForm(): FormGroup {
         const form = this.fb.group({
-            node_name: [this.node().node_name, Validators.required],
+            node_name: [this.node().node_name, this.createNodeNameValidators()],
             input_map: this.fb.array([]),
             output_variable_path: [this.node().output_variable_path || ''],
         });
@@ -139,6 +149,13 @@ export class ProjectNodePanelComponent extends BaseSidePanel<ProjectNodeModel> {
                     })
                 );
             });
+        } else {
+            inputMapArray.push(
+                this.fb.group({
+                    key: [''],
+                    value: ['variables.'],
+                })
+            );
         }
     }
 
