@@ -24,7 +24,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
 
-// Single constant with all Material form modules
 export const MATERIAL_FORMS = [
     MatFormFieldModule,
     MatInputModule,

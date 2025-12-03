@@ -1,5 +1,5 @@
-import { Agent, GetAgentRequest } from '../../../shared/models/agent.model';
-import { GetProjectRequest } from '../../../features/projects/models/project.model';
+import { GetAgentRequest } from '../../../shared/models/agent.model';
+import { Project } from '../../../features/projects/models/project.model';
 import { GetTaskRequest } from '../../../shared/models/task.model';
 
 // Base GraphMessage interface
@@ -66,7 +66,7 @@ export interface AgentMessageData {
   result: string;
   message_type: MessageType.AGENT; // Using snake_case from API
   associatedAgent?: GetAgentRequest;
-  associatedProject?: GetProjectRequest;
+  associatedProject?: Project;
 }
 
 export interface AgentFinishMessageData {
@@ -75,17 +75,16 @@ export interface AgentFinishMessageData {
   thought: string;
   text: string;
   output: string;
-  message_type: MessageType.AGENT_FINISH; // Using snake_case from API
+  message_type: MessageType.AGENT_FINISH;
   associatedAgent?: GetAgentRequest;
-  associatedProject?: GetProjectRequest;
+  associatedProject?: Project;
 }
 
 export interface UserMessageData {
   crew_id: number; // Using snake_case from API
   text: string;
-  message_type: MessageType.USER; // Using snake_case from API
-
-  associatedProject?: GetProjectRequest;
+  message_type: MessageType.USER;
+  associatedProject?: Project;
 }
 
 export interface TaskMessageData {
@@ -96,17 +95,17 @@ export interface TaskMessageData {
   name: string;
   expected_output: string; // Using snake_case from API
   agent: string;
-  message_type: MessageType.TASK; // Using snake_case from API
+  message_type: MessageType.TASK;
   associatedTask?: GetTaskRequest;
-  associatedProject?: GetProjectRequest;
+  associatedProject?: Project;
 }
 
 export interface UpdateSessionStatusMessageData {
   crew_id: number; // Using snake_case from API
   status: string;
   status_data: Record<string, any>; // Using snake_case from API
-  message_type: MessageType.UPDATE_SESSION_STATUS; // Using snake_case from API
-  associatedProject?: GetProjectRequest;
+  message_type: MessageType.UPDATE_SESSION_STATUS;
+  associatedProject?: Project;
 }
 
 export interface ExtractedChunk {
@@ -126,7 +125,7 @@ export interface ExtractedChunksMessageData {
   knowledge_query: string;
   chunks: ExtractedChunk[];
   message_type: MessageType.EXTRACTED_CHUNKS;
-  associatedProject?: GetProjectRequest;
+  associatedProject?: Project;
 }
 
 // Type union for all message data types

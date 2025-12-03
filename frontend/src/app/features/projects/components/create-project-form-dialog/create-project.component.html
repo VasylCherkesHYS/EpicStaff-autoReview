@@ -1,226 +1,161 @@
 <div class="create-project">
-    <div class="create-project__header">
-        <h2 class="create-project__title">Create New Project</h2>
-        <button
-            mat-icon-button
-            class="create-project__close-button"
-            (click)="onCancel()"
-            [disabled]="isSubmitting()"
-        >
-            <mat-icon>close</mat-icon>
-        </button>
-    </div>
+  <div class="create-project__header">
+    <h2 class="create-project__title">Create New Project</h2>
+    <button
+      mat-icon-button
+      class="create-project__close-button"
+      (click)="onCancel()"
+      [disabled]="isSubmitting()"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
 
-    <form [formGroup]="projectForm" class="create-project__form">
-        <div class="create-project__body">
-            <div class="create-project__content">
-                <mat-form-field
-                    appearance="outline"
-                    class="create-project__field create-project__field--full-width"
-                >
-                    <mat-label>Project Name</mat-label>
-                    <input
-                        matInput
-                        formControlName="name"
-                        placeholder="Enter project name"
-                        required
-                    />
-                    @if (nameField.hasError('required')) {
-                    <mat-error> Project name is required </mat-error>
-                    }
-                </mat-form-field>
+  <form [formGroup]="projectForm" class="create-project__form">
+    <div class="create-project__body">
+      <div class="create-project__content">
+        <mat-form-field appearance="outline" class="create-project__field create-project__field--full-width">
+          <mat-label>Project Name</mat-label>
+          <input matInput formControlName="name" placeholder="Enter project name" required />
+          @if (nameField.hasError('required')) {
+            <mat-error>Project name is required</mat-error>
+          }
+        </mat-form-field>
 
-                <mat-form-field
-                    appearance="outline"
-                    class="create-project__field create-project__field--full-width"
-                >
-                    <mat-label>Description</mat-label>
-                    <textarea
-                        matInput
-                        formControlName="description"
-                        placeholder="Enter project description (optional)"
-                        rows="4"
-                    ></textarea>
-                </mat-form-field>
+        <mat-form-field appearance="outline" class="create-project__field create-project__field--full-width">
+          <mat-label>Description</mat-label>
+          <textarea
+            matInput
+            formControlName="description"
+            placeholder="Enter project description (optional)"
+            rows="4"
+          ></textarea>
+        </mat-form-field>
 
-                <div class="create-project__process-section">
-                    <h3 class="create-project__setting-label">Process Type</h3>
-                    <mat-radio-group
-                        formControlName="process"
-                        aria-label="Select process type"
-                        class="create-project__process-group"
-                    >
-                        <mat-radio-button [value]="ProjectProcess.SEQUENTIAL"
-                            >Sequential</mat-radio-button
-                        >
-                        <mat-radio-button
-                            [value]="ProjectProcess.HIERARCHICAL"
-                            [disabled]="true"
-                            >Hierarchical
-                            <span class="create-project__coming-soon-title"
-                                >Coming Soon</span
-                            >
-                        </mat-radio-button>
-                    </mat-radio-group>
-                </div>
-            </div>
-
-            <div class="create-project__sidebar">
-                <div class="create-project__settings">
-                    <div class="create-project__setting">
-                        <div class="create-project__setting-label">
-                            Memory
-                            <mat-icon
-                                class="create-project__help-icon"
-                                matTooltip="Enable persistent memory for agents to remember information across conversations and tasks."
-                                matTooltipPosition="above"
-                                matTooltipClass="create-project__tooltip"
-                            >
-                                help_outline
-                            </mat-icon>
-                        </div>
-                        <mat-slide-toggle
-                            formControlName="memory"
-                            class="create-project__setting-toggle"
-                        >
-                        </mat-slide-toggle>
-                    </div>
-
-                    <div class="create-project__setting">
-                        <div class="create-project__setting-label">
-                            Cache
-                            <mat-icon
-                                class="create-project__help-icon"
-                                matTooltip="Enable caching of API responses to improve performance and reduce costs for repeated requests."
-                                matTooltipPosition="above"
-                                matTooltipClass="create-project__tooltip"
-                            >
-                                help_outline
-                            </mat-icon>
-                        </div>
-                        <mat-slide-toggle
-                            formControlName="cache"
-                            class="create-project__setting-toggle"
-                        >
-                        </mat-slide-toggle>
-                    </div>
-
-                    <div class="create-project__setting">
-                        <div class="create-project__setting-header">
-                            <div class="create-project__setting-label">
-                                Max RPM
-                                <mat-icon
-                                    class="create-project__help-icon"
-                                    matTooltip="Maximum requests per minute for API calls. Higher values allow faster processing but may hit rate limits."
-                                    matTooltipPosition="above"
-                                    matTooltipClass="create-project__tooltip"
-                                >
-                                    help_outline
-                                </mat-icon>
-                            </div>
-                            <div class="create-project__setting-value">
-                                {{ maxRpmField.value }} RPM
-                            </div>
-                        </div>
-                        <mat-slider
-                            class="create-project__rpm-container"
-                            min="1"
-                            max="50"
-                            step="1"
-                            discrete
-                        >
-                            <input
-                                matSliderThumb
-                                formControlName="max_rpm"
-                            />
-                        </mat-slider>
-                    </div>
-
-                    <div class="create-project__setting">
-                        <div class="create-project__setting-header">
-                            <div class="create-project__setting-label">
-                                Search Limit
-                                <mat-icon
-                                    class="create-project__help-icon"
-                                    matTooltip="Maximum number of search results to retrieve from the knowledge base. Higher values provide more context but may slow down processing."
-                                    matTooltipPosition="above"
-                                    matTooltipClass="create-project__tooltip"
-                                >
-                                    help_outline
-                                </mat-icon>
-                            </div>
-                            <div class="create-project__setting-value">
-                                {{ searchLimitField.value }}
-                            </div>
-                        </div>
-                        <mat-slider
-                            class="create-project__rpm-container"
-                            min="1"
-                            max="100"
-                            step="1"
-                            discrete
-                        >
-                            <input
-                                matSliderThumb
-                                formControlName="search_limit"
-                            />
-                        </mat-slider>
-                    </div>
-
-                    <div class="create-project__setting">
-                        <div class="create-project__setting-header">
-                            <div class="create-project__setting-label">
-                                Similarity Threshold
-                                <mat-icon
-                                    class="create-project__help-icon"
-                                    matTooltip="Minimum similarity score (0.1-1.0) for knowledge base search results. Higher values return more relevant but fewer results."
-                                    matTooltipPosition="above"
-                                    matTooltipClass="create-project__tooltip"
-                                >
-                                    help_outline
-                                </mat-icon>
-                            </div>
-                            <div class="create-project__setting-value">
-                                {{ thresholdField.value }}
-                            </div>
-                        </div>
-                        <mat-slider
-                            class="create-project__rpm-container"
-                            min="0.0"
-                            max="1.0"
-                            step="0.01"
-                            discrete
-                        >
-                            <input
-                                matSliderThumb
-                                formControlName="similarity_threshold"
-                            />
-                        </mat-slider>
-                    </div>
-                </div>
-            </div>
+        <div class="create-project__process-section">
+          <h3 class="create-project__setting-label">Process Type</h3>
+          <mat-radio-group formControlName="process" class="create-project__process-group">
+            <mat-radio-button [value]="ProjectProcess.SEQUENTIAL">Sequential</mat-radio-button>
+            <mat-radio-button [value]="ProjectProcess.HIERARCHICAL" [disabled]="true">
+              Hierarchical
+              <span class="create-project__coming-soon-title">Coming Soon</span>
+            </mat-radio-button>
+          </mat-radio-group>
         </div>
-    </form>
+      </div>
 
-    <div class="create-project__footer">
-        <button
-            mat-button
-            type="button"
-            class="create-project__button create-project__button--cancel"
-            (click)="onCancel()"
-            [disabled]="isSubmitting()"
-        >
-            Cancel
-        </button>
-        <button
-            mat-flat-button
-            class="create-project__button create-project__button--submit"
-            [disabled]="isSubmitting() || projectForm.invalid"
-            (click)="onSubmit()"
-        >
-            @if (isSubmitting()) {
-            <mat-spinner diameter="16"></mat-spinner>
-            } @else { Create Project }
-        </button>
+      <div class="create-project__sidebar">
+        <div class="create-project__settings">
+          <div class="create-project__setting">
+            <div class="create-project__setting-label">
+              Memory
+              <mat-icon
+                class="create-project__help-icon"
+                matTooltip="Enable persistent memory for agents"
+                matTooltipPosition="above"
+              >
+                help_outline
+              </mat-icon>
+            </div>
+            <mat-slide-toggle formControlName="memory"></mat-slide-toggle>
+          </div>
+
+          <div class="create-project__setting">
+            <div class="create-project__setting-label">
+              Cache
+              <mat-icon
+                class="create-project__help-icon"
+                matTooltip="Enable caching of API responses"
+                matTooltipPosition="above"
+              >
+                help_outline
+              </mat-icon>
+            </div>
+            <mat-slide-toggle formControlName="cache"></mat-slide-toggle>
+          </div>
+
+          <div class="create-project__setting">
+            <div class="create-project__setting-header">
+              <div class="create-project__setting-label">
+                Max RPM
+                <mat-icon
+                  class="create-project__help-icon"
+                  matTooltip="Maximum requests per minute"
+                  matTooltipPosition="above"
+                >
+                  help_outline
+                </mat-icon>
+              </div>
+              <div class="create-project__setting-value">{{ maxRpmField.value }} RPM</div>
+            </div>
+            <mat-slider class="create-project__slider" min="1" max="50" step="1" discrete>
+              <input matSliderThumb formControlName="maxRpm" />
+            </mat-slider>
+          </div>
+
+          <div class="create-project__setting">
+            <div class="create-project__setting-header">
+              <div class="create-project__setting-label">
+                Search Limit
+                <mat-icon
+                  class="create-project__help-icon"
+                  matTooltip="Max search results from knowledge base"
+                  matTooltipPosition="above"
+                >
+                  help_outline
+                </mat-icon>
+              </div>
+              <div class="create-project__setting-value">{{ searchLimitField.value }}</div>
+            </div>
+            <mat-slider class="create-project__slider" min="1" max="100" step="1" discrete>
+              <input matSliderThumb formControlName="searchLimit" />
+            </mat-slider>
+          </div>
+
+          <div class="create-project__setting">
+            <div class="create-project__setting-header">
+              <div class="create-project__setting-label">
+                Similarity Threshold
+                <mat-icon
+                  class="create-project__help-icon"
+                  matTooltip="Min similarity score (0.1-1.0)"
+                  matTooltipPosition="above"
+                >
+                  help_outline
+                </mat-icon>
+              </div>
+              <div class="create-project__setting-value">{{ thresholdField.value }}</div>
+            </div>
+            <mat-slider class="create-project__slider" min="0.0" max="1.0" step="0.01" discrete>
+              <input matSliderThumb formControlName="similarityThreshold" />
+            </mat-slider>
+          </div>
+        </div>
+      </div>
     </div>
+  </form>
+
+  <div class="create-project__footer">
+    <button
+      mat-button
+      type="button"
+      class="create-project__button create-project__button--cancel"
+      (click)="onCancel()"
+      [disabled]="isSubmitting()"
+    >
+      Cancel
+    </button>
+    <button
+      mat-flat-button
+      class="create-project__button create-project__button--submit"
+      [disabled]="isSubmitting() || projectForm.invalid"
+      (click)="onSubmit()"
+    >
+      @if (isSubmitting()) {
+        <mat-spinner diameter="16"></mat-spinner>
+      } @else {
+        Create Project
+      }
+    </button>
+  </div>
 </div>

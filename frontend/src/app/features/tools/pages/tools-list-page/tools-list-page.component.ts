@@ -1,14 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ChangeDetectorRef,
-} from '@angular/core';
-import {
-  RouterOutlet,
-  RouterLink,
-  RouterLinkActive,
-  Router,
-} from '@angular/router';
+import { ChangeDetectionStrategy, Component, ChangeDetectorRef, inject, signal, OnDestroy } from '@angular/core';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { Dialog } from '@angular/cdk/dialog';
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
@@ -38,54 +29,56 @@ import { ToolsSearchService } from '../../services/tools-search.service';
   styleUrls: ['./tools-list-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ToolsListPageComponent {
-  public tabs = [
+export class ToolsListPageComponent implements OnDestroy {
+  private readonly cdkDialog = inject(Dialog);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly router = inject(Router);
+  private readonly customToolsService = inject(CustomToolsService);
+  private readonly toolsEventsService = inject(ToolsEventsService);
+  private readonly toolsSearchService = inject(ToolsSearchService);
+
+  readonly tabs = [
     { label: 'Built-in', link: 'built-in' },
     { label: 'Custom', link: 'custom' },
     { label: 'MCP', link: 'mcp' },
   ];
 
-  public searchTerm: string = '';
+  readonly searchTerm = signal('');
 
-  constructor(
-    private readonly cdkDialog: Dialog,
-    private readonly cdr: ChangeDetectorRef,
-    private readonly router: Router,
-    private readonly customToolsService: CustomToolsService,
-    private readonly toolsEventsService: ToolsEventsService,
-    private readonly toolsSearchService: ToolsSearchService
-  ) {}
-
-  public get isCustomTabActive(): boolean {
+  get isCustomTabActive(): boolean {
     return this.router.url.includes('/custom');
   }
 
-  public get isMcpTabActive(): boolean {
+  get isMcpTabActive(): boolean {
     return this.router.url.includes('/mcp');
   }
 
-  public get createButtonLabel(): string {
+  get createButtonLabel(): string {
     if (this.isMcpTabActive) {
       return 'Add MCP tool';
     }
     return 'Create custom tool';
   }
 
-  public get createButtonIcon(): string {
+  get createButtonIcon(): string {
     return 'ui/plus';
   }
 
-  public onSearchTermChange(term: string): void {
-    this.searchTerm = term;
-    this.toolsSearchService.setSearchTerm(term);
-  }
-
-  public clearSearch(): void {
-    this.searchTerm = '';
+  ngOnDestroy(): void {
     this.toolsSearchService.clearSearch();
   }
 
-  public onCreateToolClick(): void {
+  onSearchTermChange(term: string): void {
+    this.searchTerm.set(term);
+    this.toolsSearchService.setSearchTerm(term);
+  }
+
+  clearSearch(): void {
+    this.searchTerm.set('');
+    this.toolsSearchService.clearSearch();
+  }
+
+  onCreateToolClick(): void {
     if (this.isMcpTabActive) {
       this.openMcpToolDialog();
     } else {
@@ -93,19 +86,15 @@ export class ToolsListPageComponent {
     }
   }
 
-  public openCustomToolDialog(): void {
-    // Load tools fresh for the dialog
-    this.customToolsService.getPythonCodeTools().subscribe(tools => {
+  openCustomToolDialog(): void {
+    this.customToolsService.getPythonCodeTools().subscribe((tools) => {
       const dialogRef = this.cdkDialog.open<GetPythonCodeToolRequest>(CustomToolDialogComponent, {
         data: { pythonTools: tools },
       });
 
       dialogRef.closed.subscribe((result) => {
         if (result) {
-          console.log('New custom tool created:', result);
-          // Emit event to notify custom tools component
           this.toolsEventsService.emitCustomToolCreated(result);
-          // Navigate to custom tools tab after creating a tool
           this.router.navigate(['/tools/custom']);
           this.cdr.markForCheck();
         }
@@ -113,23 +102,17 @@ export class ToolsListPageComponent {
     });
   }
 
-  public openMcpToolDialog(): void {
-    const dialogRef = this.cdkDialog.open<GetMcpToolRequest>(
-      McpToolDialogComponent,
-      {
-        data: {},
-        maxWidth: '95vw',
-        maxHeight: '90vh',
-        autoFocus: true,
-      }
-    );
+  openMcpToolDialog(): void {
+    const dialogRef = this.cdkDialog.open<GetMcpToolRequest>(McpToolDialogComponent, {
+      data: {},
+      maxWidth: '95vw',
+      maxHeight: '90vh',
+      autoFocus: true,
+    });
 
     dialogRef.closed.subscribe((result) => {
       if (result) {
-        console.log('New MCP tool created:', result);
-        // Emit event to notify MCP tools component
         this.toolsEventsService.emitMcpToolCreated(result);
-        // Navigate to MCP tools tab after creating a tool
         this.router.navigate(['/tools/mcp']);
         this.cdr.markForCheck();
       }

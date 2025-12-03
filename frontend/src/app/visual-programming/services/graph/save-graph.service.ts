@@ -3,7 +3,7 @@ import { Observable, forkJoin, of, EMPTY, throwError, from } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
 
 import { FlowsApiService } from '../../../features/flows/services/flows-api.service';
-import { GetProjectRequest } from '../../../features/projects/models/project.model';
+import { Project } from '../../../features/projects/models/project.model';
 import { NodeType } from '../../core/enums/node-type';
 import { ConnectionModel } from '../../core/models/connection.model';
 import { FlowModel } from '../../core/models/flow.model';
@@ -148,7 +148,7 @@ export class GraphUpdateService {
                         const payload: CreateCrewNodeRequest = {
                             node_name: node.node_name,
                             graph: graph.id,
-                            crew_id: (node.data as GetProjectRequest).id,
+                            crew_id: (node.data as Project).id,
                             input_map: node.input_map || {},
                             output_variable_path:
                                 node.output_variable_path || null,

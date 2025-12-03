@@ -48,7 +48,7 @@ import {
     GetConditionalEdgeRequest,
 } from './models/conditional-edge.model';
 import { CreateEdgeRequest, Edge } from './models/edge.model';
-import { GetProjectRequest } from '../../../../features/projects/models/project.model';
+import { Project } from '../../../../features/projects/models/project.model';
 
 import { CreateCrewNodeRequest, CrewNode } from './models/crew-node.model';
 import {

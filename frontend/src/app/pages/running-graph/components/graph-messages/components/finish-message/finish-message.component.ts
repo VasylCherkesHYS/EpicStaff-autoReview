@@ -8,7 +8,7 @@ import {
   MessageType,
 } from '../../../../models/graph-session-message.model';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
-import { GetProjectRequest } from '../../../../../../features/projects/models/project.model';
+import { Project } from '../../../../../../features/projects/models/project.model';
 
 @Component({
   selector: 'app-finish-message',
@@ -219,7 +219,7 @@ import { GetProjectRequest } from '../../../../../../features/projects/models/pr
 })
 export class FinishMessageComponent implements OnInit {
   @Input() message!: GraphMessage;
-  @Input() project: GetProjectRequest | null = null;
+  @Input() project: Partial<Project> | null = null;
 
   isMessageExpanded = false;
   isOutputExpanded = true;

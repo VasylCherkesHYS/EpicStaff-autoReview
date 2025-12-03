@@ -12,8 +12,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
-import { ProjectsStorageService } from '../../features/projects/services/projects-storage.service';
-import { GetProjectRequest } from '../../features/projects/models/project.model';
+import { ProjectStore } from '../../features/projects/services/project.store';
+import { ProjectResponse } from '../../features/projects/models/project.model';
 import { ToastService } from '../../services/notifications/toast.service';
 
 @Component({
@@ -41,7 +41,7 @@ export class DetailsContentComponent implements OnInit, OnChanges {
     private readonly tagsSubject: Subject<string[]> = new Subject();
 
     constructor(
-        private readonly projectsService: ProjectsStorageService,
+        private readonly projectStore: ProjectStore,
         private readonly toastService: ToastService
     ) {}
 
@@ -138,34 +138,16 @@ export class DetailsContentComponent implements OnInit, OnChanges {
             );
             return;
         }
-        this.projectsService
-            .patchUpdateProject(this.projectId, { description })
-            .subscribe({
-                next: (response: GetProjectRequest) => {
-                    console.log('Description updated successfully', response);
-                    this.toastService.success(
-                        'Project description updated successfully'
-                    );
+        this.projectStore.patch(this.projectId, { description }).subscribe({
+            next: () => {
+                this.toastService.success('Project description updated successfully');
                 },
                 error: (error: any) => {
                     console.error('Error updating description:', error);
-
-                    // Revert the description to the original value
                     this.internalDescription = this.description || '';
-
-                    // Show error notification
-                    let errorMessage = 'Failed to update project description';
-                    if (error.error && error.error.message) {
-                        errorMessage = error.error.message;
-                    } else if (error.error && typeof error.error === 'string') {
-                        errorMessage = error.error;
-                    } else if (error.message) {
-                        errorMessage = error.message;
-                    }
-
-                    this.toastService.error(
-                        `Error updating project description: ${errorMessage}`
-                    );
+                const errorMessage =
+                    error.error?.message || error.message || 'Failed to update project description';
+                this.toastService.error(`Error updating project description: ${errorMessage}`);
                 },
             });
     }

@@ -1,0 +1,51 @@
+<div class="agents-page">
+  <div class="agents-page__header">
+    <header class="agents-page__top">
+      <div class="agents-page__title-wrapper">
+        <h1 class="agents-page__title">
+          Agents
+          <span class="agents-page__subtitle">
+            Manage your AI agents and templates.
+          </span>
+        </h1>
+      </div>
+    </header>
+
+    <nav class="agents-page__tabs">
+      <div class="agents-page__tabs-left">
+        @for (tab of tabs; track tab.link) {
+          <app-tab-button
+            [routerLink]="tab.link"
+            routerLinkActive="active"
+            #rla="routerLinkActive"
+            [active]="rla.isActive"
+          >
+            {{ tab.label }}
+          </app-tab-button>
+        }
+      </div>
+      <div class="agents-page__tabs-right">
+        <div class="agents-page__search">
+          <app-icon icon="ui/search" class="agents-page__search-icon" size="1.1rem"></app-icon>
+          <input
+            type="text"
+            class="agents-page__search-input"
+            placeholder="Search agents..."
+            [ngModel]="searchTerm()"
+            (ngModelChange)="onSearchTermChange($event)"
+          />
+          @if (searchTerm()) {
+            <button type="button" class="agents-page__search-clear" aria-label="Clear" (click)="clearSearch()">
+              <app-icon icon="ui/x" size="1.1rem"></app-icon>
+            </button>
+          }
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <section class="agents-page__content">
+    <router-outlet></router-outlet>
+  </section>
+</div>
+

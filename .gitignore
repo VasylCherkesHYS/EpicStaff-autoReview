@@ -179,6 +179,9 @@ cython_debug/
 # VSCode
 /.vscode
 
+# Cursor
+.cursorrules
+
 # Logging files
 log.txt
 .telemetry_log/
@@ -203,8 +206,6 @@ make_scripts/backups
 
 # FRONTEND GIT ignore
 
-
-
 # Compiled output
 frontend/dist
 frontend/tmp
@@ -217,7 +218,6 @@ frontend/npm-debug.log
 frontend/yarn-error.log
 node_modules/
 frontend/package-lock.json
-
 
 # Node modules and package files in libraries
 **/node_modules/
@@ -260,3 +260,4 @@ src/django_app/staticfiles/*
 
 #knowledge data
 knowledge/graph_data/
+

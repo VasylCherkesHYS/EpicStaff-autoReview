@@ -19,7 +19,7 @@ import { LoadingDotsComponent } from './components/loading-animation/loading-ani
 
 import { GetAgentRequest } from '../../../../shared/models/agent.model';
 import { GetTaskRequest } from '../../../../shared/models/task.model';
-import { GetProjectRequest } from '../../../../features/projects/models/project.model';
+import { Project } from '../../../../features/projects/models/project.model';
 import { forkJoin, Observable, of, Subject } from 'rxjs';
 import { takeUntil, map, exhaustMap } from 'rxjs/operators';
 
@@ -339,11 +339,11 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges {
 
   public getProjectFromMessage(
     message: GraphMessage
-  ): GetProjectRequest | null {
+  ): Partial<Project> | null {
     if (!message) return null;
 
     if (message.name) {
-      return { name: message.name } as GetProjectRequest;
+      return { name: message.name } as Partial<Project>;
     }
 
     return null;

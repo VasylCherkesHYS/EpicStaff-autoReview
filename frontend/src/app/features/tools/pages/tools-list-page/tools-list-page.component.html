@@ -1,19 +1,17 @@
-<div class="tools-list-page">
-  <div class="sticky-header">
-    <header class="header">
-      <div class="header-titles">
-        <h1 class="title">
+<div class="tools-page">
+  <div class="tools-page__header">
+    <header class="tools-page__top">
+      <div class="tools-page__title-wrapper">
+        <h1 class="tools-page__title">
           Tools
-          <span class="subtitle-inline">
+          <span class="tools-page__subtitle">
             Manage your built-in and custom tools here.
           </span>
         </h1>
       </div>
-      <div class="header-actions">
-        <!-- <app-button type="ghost" [leftIcon]="'ui/upload'"> Import </app-button> -->
+      <div class="tools-page__actions">
         <app-button
           type="primary"
-          class="btn-primary create-btn"
           [leftIcon]="createButtonIcon"
           (click)="onCreateToolClick()"
         >
@@ -21,48 +19,41 @@
         </app-button>
       </div>
     </header>
-    <nav class="tabs">
-      <div class="tabs-left">
+
+    <nav class="tools-page__tabs">
+      <div class="tools-page__tabs-left">
         @for (tab of tabs; track tab.link) {
-        <app-tab-button
-          routerLink="{{ tab.link }}"
-          routerLinkActive="active"
-          #rla="routerLinkActive"
-          [active]="rla.isActive"
-        >
-          {{ tab.label }}
-        </app-tab-button>
+          <app-tab-button
+            [routerLink]="tab.link"
+            routerLinkActive="active"
+            #rla="routerLinkActive"
+            [active]="rla.isActive"
+          >
+            {{ tab.label }}
+          </app-tab-button>
         }
       </div>
-      <div class="tabs-right">
-        <div class="search-container">
-          <app-icon
-            icon="ui/search"
-            class="search-icon"
-            size="1.1rem"
-          ></app-icon>
+      <div class="tools-page__tabs-right">
+        <div class="tools-page__search">
+          <app-icon icon="ui/search" class="tools-page__search-icon" size="1.1rem"></app-icon>
           <input
             type="text"
-            class="search-input"
+            class="tools-page__search-input"
             placeholder="Search tools..."
-            [(ngModel)]="searchTerm"
+            [ngModel]="searchTerm()"
             (ngModelChange)="onSearchTermChange($event)"
           />
-          @if (searchTerm) {
-          <button
-            type="button"
-            class="clear-btn"
-            aria-label="Clear"
-            (click)="clearSearch()"
-          >
-            <app-icon icon="ui/x" size="1.1rem"></app-icon>
-          </button>
+          @if (searchTerm()) {
+            <button type="button" class="tools-page__search-clear" aria-label="Clear" (click)="clearSearch()">
+              <app-icon icon="ui/x" size="1.1rem"></app-icon>
+            </button>
           }
         </div>
       </div>
     </nav>
   </div>
-  <section class="body">
+
+  <section class="tools-page__content">
     <router-outlet></router-outlet>
   </section>
 </div>

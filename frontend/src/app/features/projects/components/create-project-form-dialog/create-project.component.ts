@@ -1,38 +1,21 @@
-import {
-    Component,
-    OnInit,
-    ChangeDetectionStrategy,
-    signal,
-    Input,
-} from '@angular/core';
-import {
-    FormBuilder,
-    FormGroup,
-    FormControl,
-    Validators,
-    ReactiveFormsModule,
-} from '@angular/forms';
+import { Component, OnInit, ChangeDetectionStrategy, signal, inject } from '@angular/core';
+import { FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MATERIAL_FORMS } from '../../../../shared/material-forms';
-
 import { DialogRef } from '@angular/cdk/dialog';
 import { ErrorStateMatcher } from '@angular/material/core';
 import { CustomErrorStateMatcher } from '../../../../shared/error-state-matcher/custom-error-state-matcher';
-import {
-    ProjectProcess,
-    CreateProjectRequest,
-} from '../../models/project.model';
-import { ProjectsStorageService } from '../../services/projects-storage.service';
+import { Project, ProjectProcess } from '../../models/project.model';
+import { ProjectStore } from '../../services/project.store';
 
-// Typed interface for the form data - all fields are non-nullable
 interface ProjectFormData {
     name: string;
     description: string;
     process: ProjectProcess;
     memory: boolean;
     cache: boolean;
-    max_rpm: number;
-    search_limit: number;
-    similarity_threshold: number;
+  maxRpm: number;
+  searchLimit: number;
+  similarityThreshold: number;
 }
 
 @Component({
@@ -42,35 +25,28 @@ interface ProjectFormData {
     styleUrls: ['./create-project.component.scss'],
     imports: [ReactiveFormsModule, ...MATERIAL_FORMS],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    providers: [
-        {
-            provide: ErrorStateMatcher,
-            useClass: CustomErrorStateMatcher,
-        },
-    ],
+  providers: [{ provide: ErrorStateMatcher, useClass: CustomErrorStateMatcher }],
 })
 export class CreateProjectComponent implements OnInit {
-    public isTemplate: boolean = true;
-    
-    public projectForm!: FormGroup<{
+  private readonly store = inject(ProjectStore);
+  private readonly dialogRef = inject(DialogRef<Project | undefined>);
+
+  isTemplate = true;
+  isSubmitting = signal(false);
+  ProjectProcess = ProjectProcess;
+
+  projectForm!: FormGroup<{
         name: FormControl<string>;
         description: FormControl<string>;
         process: FormControl<ProjectProcess>;
         memory: FormControl<boolean>;
         cache: FormControl<boolean>;
-        max_rpm: FormControl<number>;
-        search_limit: FormControl<number>;
-        similarity_threshold: FormControl<number>;
+    maxRpm: FormControl<number>;
+    searchLimit: FormControl<number>;
+    similarityThreshold: FormControl<number>;
     }>;
-    public isSubmitting = signal(false);
-    public ProjectProcess = ProjectProcess;
 
-    constructor(
-        private fb: FormBuilder,
-        private dialogRef: DialogRef<any>,
-        private projectsStorageService: ProjectsStorageService
-    ) {
-        // Get isTemplate from dialog data, default to true if not provided
+  constructor() {
         this.isTemplate = this.dialogRef.config.data?.isTemplate ?? true;
     }
 
@@ -80,52 +56,43 @@ export class CreateProjectComponent implements OnInit {
 
     private initializeForm(): void {
         this.projectForm = new FormGroup({
-            name: new FormControl<string>('', Validators.required),
-            description: new FormControl<string>(''),
-            process: new FormControl<ProjectProcess>(
-                ProjectProcess.SEQUENTIAL,
-                Validators.required
-            ),
-            memory: new FormControl<boolean>(false),
-            cache: new FormControl<boolean>(false),
-            max_rpm: new FormControl<number>(15, [
-                Validators.min(1),
-                Validators.max(50),
-            ]),
-            search_limit: new FormControl<number>(10, [
-                Validators.min(1),
-                Validators.max(1000),
-            ]),
-            similarity_threshold: new FormControl<number>(0.7, [
-                Validators.min(0.0),
-                Validators.max(1.0),
-            ]),
-        }) as FormGroup<{
-            name: FormControl<string>;
-            description: FormControl<string>;
-            process: FormControl<ProjectProcess>;
-            memory: FormControl<boolean>;
-            cache: FormControl<boolean>;
-            max_rpm: FormControl<number>;
-            search_limit: FormControl<number>;
-            similarity_threshold: FormControl<number>;
-        }>;
+      name: new FormControl<string>('', { nonNullable: true, validators: Validators.required }),
+      description: new FormControl<string>('', { nonNullable: true }),
+      process: new FormControl<ProjectProcess>(ProjectProcess.SEQUENTIAL, {
+        nonNullable: true,
+        validators: Validators.required,
+      }),
+      memory: new FormControl<boolean>(false, { nonNullable: true }),
+      cache: new FormControl<boolean>(false, { nonNullable: true }),
+      maxRpm: new FormControl<number>(15, {
+        nonNullable: true,
+        validators: [Validators.min(1), Validators.max(50)],
+      }),
+      searchLimit: new FormControl<number>(10, {
+        nonNullable: true,
+        validators: [Validators.min(1), Validators.max(1000)],
+      }),
+      similarityThreshold: new FormControl<number>(0.7, {
+        nonNullable: true,
+        validators: [Validators.min(0.0), Validators.max(1.0)],
+      }),
+    });
     }
 
-    get nameField(): FormControl<string> {
+  get nameField() {
         return this.projectForm.controls.name;
     }
 
-    get maxRpmField(): FormControl<number> {
-        return this.projectForm.controls.max_rpm;
+  get maxRpmField() {
+    return this.projectForm.controls.maxRpm;
     }
 
-    get searchLimitField(): FormControl<number> {
-        return this.projectForm.controls.search_limit;
+  get searchLimitField() {
+    return this.projectForm.controls.searchLimit;
     }
 
-    get thresholdField(): FormControl<number> {
-        return this.projectForm.controls.similarity_threshold;
+  get thresholdField() {
+    return this.projectForm.controls.similarityThreshold;
     }
 
     formatRpmLabel(value: number): string {
@@ -141,49 +108,49 @@ export class CreateProjectComponent implements OnInit {
     }
 
     onSubmit(): void {
-        if (this.projectForm.invalid || this.isSubmitting()) {
-            return;
-        }
+    if (this.projectForm.invalid || this.isSubmitting()) return;
 
         this.isSubmitting.set(true);
+    const form = this.projectForm.getRawValue();
 
-        const formData = this.projectForm.value as ProjectFormData;
-        console.log('Form submitted:', formData);
+    const project = new Project(
+      0,
+      form.name,
+      form.description || null,
+      form.process,
+      [],
+      [],
+      [],
+      form.memory,
+      null,
+      form.maxRpm,
+      form.cache,
+      false,
+      null,
+      false,
+      form.similarityThreshold.toString(),
+      form.searchLimit,
+      null,
+      null,
+      null,
+      null,
+      null,
+      this.isTemplate
+    );
 
-        const createProjectRequest: CreateProjectRequest = {
-            name: formData.name,
-            description: formData.description || null,
-            process: formData.process,
-            memory: formData.memory,
-            cache: formData.cache,
-            max_rpm: formData.max_rpm,
-            search_limit: formData.search_limit,
-            similarity_threshold: formData.similarity_threshold.toString(),
-            is_template: this.isTemplate,
-        };
-
-        // Call the actual service
-        this.projectsStorageService
-            .createProject(createProjectRequest)
-            .subscribe({
-                next: (newProject) => {
-                    console.log('Project created successfully:', newProject);
+    this.store.create(project).subscribe({
+      next: (created) => {
                     this.isSubmitting.set(false);
-                    // Close dialog and return the created project
-                    this.dialogRef.close(newProject);
+        this.dialogRef.close(created);
                 },
-                error: (error) => {
-                    console.error('Error creating project:', error);
+      error: (err) => {
+        console.error('Error creating project:', err);
                     this.isSubmitting.set(false);
-                    // TODO: Show error message to user (snackbar, toast, etc.)
-                    // For now, just log the error
                 },
             });
     }
 
     onCancel(): void {
-        console.log('Form cancelled');
-        // Close dialog without returning data
         this.dialogRef.close();
     }
 }

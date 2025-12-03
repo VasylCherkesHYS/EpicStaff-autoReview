@@ -1,26 +1,18 @@
-import {
-  Component,
-  Input,
-  Output,
-  EventEmitter,
-  ChangeDetectionStrategy,
-} from '@angular/core';
-import { NgClass } from '@angular/common';
+import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-project-menu-item',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
   templateUrl: './project-menu-item.component.html',
   styleUrls: ['./project-menu-item.component.scss'],
 })
 export class ProjectMenuItemComponent {
-  @Input() public label!: string;
-  @Input() public isDelete: boolean = false;
-  @Output() public itemClick = new EventEmitter<MouseEvent>();
+  label = input.required<string>();
+  isDelete = input(false);
+  itemClick = output<MouseEvent>();
 
-  public onClick(event: MouseEvent): void {
+  onClick(event: MouseEvent): void {
     this.itemClick.emit(event);
   }
 }

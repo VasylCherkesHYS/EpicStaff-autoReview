@@ -7,7 +7,7 @@ import { LLM_Config_Service } from '../features/settings-dialog/services/llms/LL
 import { ToolConfigService } from './tool_config.service';
 import { PythonCodeToolService } from '../user-settings-page/tools/custom-tool-editor/services/pythonCodeToolService.service';
 import { LLM_Models_Service } from '../features/settings-dialog/services/llms/LLM_models.service';
-import { ProjectsStorageService } from '../features/projects/services/projects-storage.service';
+import { ProjectStore } from '../features/projects/services/project.store';
 import { LLM_Providers_Service } from '../features/settings-dialog/services/LLM_providers.service';
 import { BuiltinToolsService } from '../features/tools/services/builtin-tools/builtin-tools.service';
 import { McpToolsService } from '../features/tools/services/mcp-tools/mcp-tools.service';
@@ -81,7 +81,7 @@ export class FullAgentService {
     private toolConfigService: ToolConfigService,
     private pythonCodeToolService: PythonCodeToolService,
     private llmModelsService: LLM_Models_Service,
-    private projectsService: ProjectsStorageService,
+    private projectsService: ProjectStore,
     private realtimeModelConfigsService: RealtimeModelConfigsService,
     private realtimeModelsService: RealtimeModelsService,
     private llmProvidersService: LLM_Providers_Service,

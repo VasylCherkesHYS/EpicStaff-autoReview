@@ -1,0 +1,31 @@
+.custom-tools {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(335px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+    contain: layout;
+  }
+
+  &__empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem;
+    color: var(--color-text-secondary);
+    font-size: 1.1rem;
+    background: var(--color-sidenav-background);
+    border-radius: 8px;
+    margin-top: 1rem;
+  }
+
+  &__error {
+    color: #d32f2f;
+    font-size: 1.1rem;
+    margin-top: 2rem;
+  }
+}
+

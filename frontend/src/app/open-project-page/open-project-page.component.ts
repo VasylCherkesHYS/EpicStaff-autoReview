@@ -17,10 +17,10 @@ import { AgentsSectionComponent } from './agents-section/agents-section.componen
 import { TasksSectionComponent } from './tasks-section/tasks-section.component';
 import { SettingsSectionComponent } from './settings-section/settings-section.component';
 import { FormsModule } from '@angular/forms';
-import { ProjectsStorageService } from '../features/projects/services/projects-storage.service';
+import { ProjectStore } from '../features/projects/services/project.store';
 import { TasksService } from '../services/tasks.service';
 import { finalize, forkJoin, Subscription } from 'rxjs';
-import { GetProjectRequest } from '../features/projects/models/project.model';
+import { Project, ProjectResponse } from '../features/projects/models/project.model';
 import { Dialog } from '@angular/cdk/dialog';
 import { FullTask } from '../shared/models/full-task.model';
 import { FullAgentService, FullAgent } from '../services/full-agent.service';
@@ -109,7 +109,7 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
     @Input() inputProjectId?: string | number;
 
     public projectId!: string;
-    public project!: GetProjectRequest;
+    public project!: ProjectResponse;
     private subscription = new Subscription();
     public isLoading = signal(true);
 
@@ -126,7 +126,7 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
     public sections: SectionConfig[] = [];
 
     constructor(
-        private projectsService: ProjectsStorageService,
+        private projectStore: ProjectStore,
         private tasksService: TasksService,
         private cdr: ChangeDetectorRef,
         private fullAgentService: FullAgentService,
@@ -238,9 +238,7 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
             this.projectId
         );
 
-        const projectRequest = this.projectsService.getProjectById(
-            +this.projectId
-        );
+            const projectRequest = this.projectStore.getProjectById(+this.projectId);
 
         const tasksRequest = this.fullTaskService.getFullTasksByProject(
             +this.projectId
@@ -281,14 +279,14 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
                         console.log('loadData - Tasks:', tasks);
                         console.log('loadData - Agents:', agents);
 
-                        this.projectStateService.setProject(project ?? null);
+                        this.projectStateService.setProject(project ? project.toResponse() : null);
 
                         if (!project) {
                             throw new Error(
                                 `Project with ID ${this.projectId} not found or essential data is missing.`
                             );
                         }
-                        this.project = project;
+                        this.project = project.toResponse();
                         console.log('project', this.project);
 
                         this.projectStateService.updateTasks(tasks);
@@ -357,14 +355,8 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
         }
     }
 
-    onSettingsChanged(formValue: Partial<GetProjectRequest>) {
-        console.log(
-            '🎯 Parent component received reactive form value:',
-            formValue
-        );
-
-        // Convert form value to the format expected by the API
-        const updateData: Partial<GetProjectRequest> = {};
+    onSettingsChanged(formValue: Partial<ProjectResponse>) {
+        const updateData: Partial<ProjectResponse> = {};
 
         // Handle each field from the form
         if (formValue.memory !== undefined) {
@@ -396,51 +388,24 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
             updateData.embedding_config = formValue.embedding_config;
         }
 
-        console.log('Processed update data:', updateData);
-
-        // Send the update request with all changed values
         if (Object.keys(updateData).length > 0) {
             this.updateProjectSettings(updateData);
         }
     }
 
-    private updateProjectSettings(updateData: Partial<GetProjectRequest>) {
-        console.log('Sending batch update with data:', updateData);
-
-        this.projectsService
-            .patchUpdateProject(this.project.id, updateData)
-            .subscribe({
-                next: (updatedProject) => {
-                    this.project = updatedProject;
-                    this.projectStateService.setProject(updatedProject);
-
-                    // Update cache
-                    this.projectsService.updateProjectInCache(updatedProject);
-
+    private updateProjectSettings(updateData: Partial<ProjectResponse>) {
+        this.projectStore.patch(this.project.id, updateData).subscribe({
+            next: (updatedProject: Project) => {
+                this.project = updatedProject.toResponse();
+                this.projectStateService.setProject(updatedProject.toResponse());
                     this.cdr.markForCheck();
-                    this.toastService.success(
-                        'Project settings updated successfully'
-                    );
-                    console.log(
-                        'Project updated successfully:',
-                        updatedProject
-                    );
+                this.toastService.success('Project settings updated successfully');
                 },
-                error: (error) => {
+            error: (error: any) => {
                     console.error('Error updating project settings:', error);
-
-                    let errorMessage = 'Failed to update project settings';
-                    if (error.error && error.error.message) {
-                        errorMessage = error.error.message;
-                    } else if (error.error && typeof error.error === 'string') {
-                        errorMessage = error.error;
-                    } else if (error.message) {
-                        errorMessage = error.message;
-                    }
-
-                    this.toastService.error(
-                        `Error updating project: ${errorMessage}`
-                    );
+                const errorMessage =
+                    error.error?.message || error.message || 'Failed to update project settings';
+                this.toastService.error(`Error updating project: ${errorMessage}`);
                 },
             });
     }

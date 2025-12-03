@@ -1,3 +1,7 @@
-<div class="menu-item" [class.delete]="isDelete" (click)="onClick($event)">
-  <span>{{ label }}</span>
+<div
+  class="menu-item"
+  [class.menu-item--delete]="isDelete()"
+  (click)="onClick($event)"
+>
+  <span class="menu-item__label">{{ label() }}</span>
 </div>

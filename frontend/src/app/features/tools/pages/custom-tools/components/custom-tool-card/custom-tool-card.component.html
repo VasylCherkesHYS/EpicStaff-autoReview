@@ -1,0 +1,35 @@
+<div class="tool-card">
+  <div class="tool-card__badge" [style.display]="tool.built_in ? 'block' : 'none'">
+    Built in
+  </div>
+  <div class="tool-card__header">
+    <div class="tool-card__icon">
+      <app-icon icon="ui/python" size="35"></app-icon>
+    </div>
+    <div class="tool-card__info">
+      <div class="tool-card__name">{{ tool.name }}</div>
+      <div class="tool-card__type">python</div>
+    </div>
+  </div>
+
+  <div class="tool-card__description">{{ tool.description }}</div>
+
+  <div class="tool-card__footer">
+    <app-button type="ghost" (click)="onConfigure()">Configure</app-button>
+    <div class="tool-card__footer-actions">
+      <app-toggle-switch [checked]="enabled" (checkedChange)="onToggle($event)"></app-toggle-switch>
+      <button
+        class="tool-card__star-btn"
+        aria-label="Favorite"
+        (click)="onStar()"
+        [class.active]="starred"
+      >
+        <app-icon [icon]="starIcon" size="1.2rem"></app-icon>
+      </button>
+      <button class="tool-card__delete-btn" aria-label="Delete tool" (click)="onDelete()">
+        <app-icon icon="ui/x" size="1.2rem"></app-icon>
+      </button>
+    </div>
+  </div>
+</div>
+

@@ -1,7 +1,7 @@
 import { CustomConditionalEdgeModelForNode } from '../../../pages/flows-page/components/flow-visual-programming/models/conditional-edge.model';
 import { GetAgentRequest } from '../../../shared/models/agent.model';
 import { GetLlmConfigRequest } from '../../../features/settings-dialog/models/llms/LLM_config.model';
-import { GetProjectRequest } from '../../../features/projects/models/project.model';
+import { Project } from '../../../features/projects/models/project.model';
 import { CreateTaskRequest } from '../../../shared/models/task.model';
 import { ToolConfig } from '../../../features/tools/models/tool_config.model';
 import { GetPythonCodeToolRequest } from '../../../features/tools/models/python-code-tool.model';
@@ -47,7 +47,7 @@ export interface PythonNodeModel extends BaseNodeModel {
 
 export interface ProjectNodeModel extends BaseNodeModel {
     type: NodeType.PROJECT;
-    data: GetProjectRequest;
+    data: Project;
 }
 export interface TaskNodeModel extends BaseNodeModel {
     type: NodeType.TASK;

@@ -13,7 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { GetProjectRequest } from '../../features/projects/models/project.model';
+import { ProjectResponse } from '../../features/projects/models/project.model';
 import { LLM_Config_Service } from '../../features/settings-dialog/services/llms/LLM_config.service';
 import { EmbeddingConfigsService } from '../../features/settings-dialog/services/embeddings/embedding_configs.service';
 import { GetLlmConfigRequest } from '../../features/settings-dialog/models/llms/LLM_config.model';
@@ -43,10 +43,8 @@ import { RangeSliderComponent } from '../../shared/components/range-slider/range
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsSectionComponent implements OnInit, OnChanges {
-    @Input() public project!: GetProjectRequest;
-    @Output() public settingsChange = new EventEmitter<
-        Partial<GetProjectRequest>
-    >();
+    @Input() public project!: ProjectResponse;
+    @Output() public settingsChange = new EventEmitter<Partial<ProjectResponse>>();
 
     // Project settings as signals
     public memory = signal<boolean>(false);
@@ -255,7 +253,7 @@ export class SettingsSectionComponent implements OnInit, OnChanges {
     public onSettingChange(setting: string, value: any): void {
         if (!this.project || !this.project.id) return;
 
-        const updateData: Partial<GetProjectRequest> = {
+        const updateData: Partial<ProjectResponse> = {
             [setting]: value,
         };
 

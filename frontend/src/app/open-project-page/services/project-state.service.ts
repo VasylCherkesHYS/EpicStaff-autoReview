@@ -1,17 +1,15 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap, map } from 'rxjs/operators';
 import { FullAgent, FullAgentService } from '../../services/full-agent.service';
 import { FullTask } from '../../shared/models/full-task.model';
-import { GetProjectRequest } from '../../features/projects/models/project.model';
-import { ProjectsStorageService } from '../../features/projects/services/projects-storage.service';
+import { Project, ProjectResponse } from '../../features/projects/models/project.model';
+import { ProjectStore } from '../../features/projects/services/project.store';
 import { ToastService } from '../../services/notifications/toast.service';
 
 @Injectable()
 export class ProjectStateService {
-    private projectSubject = new BehaviorSubject<GetProjectRequest | null>(
-        null
-    );
+    private projectSubject = new BehaviorSubject<ProjectResponse | null>(null);
     private tasksSubject = new BehaviorSubject<FullTask[]>([]);
     private agentsSubject = new BehaviorSubject<FullAgent[]>([]);
 
@@ -25,7 +23,7 @@ export class ProjectStateService {
     public project$ = this.projectSubject.asObservable();
 
     constructor(
-        private projectsService: ProjectsStorageService,
+        private projectStore: ProjectStore,
         private toastService: ToastService,
         private fullAgentService: FullAgentService
     ) {
@@ -38,7 +36,7 @@ export class ProjectStateService {
         });
     }
 
-    setProject(project: GetProjectRequest | null): void {
+    setProject(project: ProjectResponse | null): void {
         this.projectSubject.next(project);
     }
 
@@ -52,24 +50,20 @@ export class ProjectStateService {
         this.agentsSubject.next(agents);
     }
 
-    updateProjectField<K extends keyof GetProjectRequest>(
+    updateProjectField<K extends keyof ProjectResponse>(
         projectId: number,
         fieldName: K,
-        fieldValue: GetProjectRequest[K]
-    ): Observable<GetProjectRequest> {
-        // Create update data object with the field to update
-        const updateData: Partial<GetProjectRequest> = {
+        fieldValue: ProjectResponse[K]
+    ): Observable<ProjectResponse> {
+        const updateData: Partial<ProjectResponse> = {
             [fieldName]: fieldValue,
         };
 
-        return this.projectsService
-            .patchUpdateProject(projectId, updateData)
-            .pipe(
-                tap((updatedProject) => {
-                    // Update the local project state with the updated project
-
-                    this.projectSubject.next(updatedProject);
-                })
+        return this.projectStore.patch(projectId, updateData).pipe(
+            tap((updatedProject: Project) => {
+                this.projectSubject.next(updatedProject.toResponse());
+            }),
+            map((project: Project) => project.toResponse())
             );
     }
 
@@ -83,16 +77,14 @@ export class ProjectStateService {
 
         const currentProject = this.projectSubject.getValue();
         if (currentProject) {
-            this.projectsService
-                .patchUpdateProject(currentProject.id, { agents: agentIds })
+            this.projectStore
+                .patch(currentProject.id, { agents: agentIds })
                 .subscribe({
-                    next: (updatedProject) => {
-                        console.log(updatedProject);
-                        this.projectSubject.next(updatedProject);
+                    next: (updatedProject: Project) => {
+                        this.projectSubject.next(updatedProject.toResponse());
                     },
-                    error: (error) => {
+                    error: (error: any) => {
                         console.error('Error updating project agents:', error);
-                        // Revert the change by removing the agent we just added.
                         this.agentsSubject.next(currentAgents);
                     },
                 });
@@ -125,19 +117,16 @@ export class ProjectStateService {
 
         const currentProject = this.projectSubject.getValue();
         if (currentProject) {
-            this.projectsService
-                .patchUpdateProject(currentProject.id, { agents: agentIds })
+            this.projectStore
+                .patch(currentProject.id, { agents: agentIds })
                 .subscribe({
-                    next: (updatedProject) => {
-                        console.log(updatedProject);
-                        this.projectSubject.next(updatedProject);
+                    next: (updatedProject: Project) => {
+                        this.projectSubject.next(updatedProject.toResponse());
                         this.toastService.success('Agent removed successfully');
                     },
-                    error: (error) => {
+                    error: (error: any) => {
                         console.error('Error updating project agents:', error);
-                        // Revert the change by adding back the agent we just removed
                         this.agentsSubject.next(currentAgents);
-                        // Also revert the task changes
                         this.tasksSubject.next(currentTasks);
                         this.toastService.error('Error removing agent');
                     },

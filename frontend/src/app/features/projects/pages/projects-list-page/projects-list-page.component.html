@@ -1,19 +1,17 @@
-<div class="projects-list-page">
-    <div class="sticky-header">
-        <header class="header">
-            <div class="header-titles">
-                <h1 class="title">
+<div class="projects-page">
+  <div class="projects-page__header">
+    <header class="projects-page__top">
+      <div class="projects-page__title-wrapper">
+        <h1 class="projects-page__title">
                     Templates
-                    <span class="subtitle-inline"
-                        >A template is a workspace to organize your AI agents and
-                        tasks.</span
-                    >
+          <span class="projects-page__subtitle">
+            A template is a workspace to organize your AI agents and tasks.
+          </span>
                 </h1>
             </div>
-            <div class="header-actions">
+      <div class="projects-page__actions">
                 <app-button
                     type="primary"
-                    class="btn-primary create-btn"
                     [leftIcon]="'ui/plus'"
                     (click)="openCreateProjectDialog()"
                 >
@@ -21,11 +19,12 @@
                 </app-button>
             </div>
         </header>
-        <nav class="tabs">
-            <div class="tabs-left">
+
+    <nav class="projects-page__tabs">
+      <div class="projects-page__tabs-left">
                 @for (tab of tabs; track tab.link) {
                 <app-tab-button
-                    routerLink="{{ tab.link }}"
+            [routerLink]="tab.link"
                     routerLinkActive="active"
                     #rla="routerLinkActive"
                     [active]="rla.isActive"
@@ -34,30 +33,18 @@
                 </app-tab-button>
                 }
             </div>
-            <div class="tabs-right">
-                <!-- <app-project-tags-filter (change)="onProjectTagsChange($event)">
-                </app-project-tags-filter> -->
-
-                <div class="search-container">
-                    <app-icon
-                        icon="ui/search"
-                        class="search-icon"
-                        size="1.1rem"
-                    ></app-icon>
+      <div class="projects-page__tabs-right">
+        <div class="projects-page__search">
+          <app-icon icon="ui/search" class="projects-page__search-icon" size="1.1rem"></app-icon>
                     <input
                         type="text"
-                        class="search-input"
+            class="projects-page__search-input"
                         placeholder="Search templates..."
-                        [(ngModel)]="searchTerm"
+            [ngModel]="searchTerm()"
                         (ngModelChange)="onSearchTermChange($event)"
                     />
-                    @if (searchTerm) {
-                    <button
-                        type="button"
-                        class="clear-btn"
-                        aria-label="Clear"
-                        (click)="clearSearch()"
-                    >
+          @if (searchTerm()) {
+            <button type="button" class="projects-page__search-clear" aria-label="Clear" (click)="clearSearch()">
                         <app-icon icon="ui/x" size="1.1rem"></app-icon>
                     </button>
                     }
@@ -65,7 +52,8 @@
             </div>
         </nav>
     </div>
-    <section class="body">
+
+  <section class="projects-page__content">
         <router-outlet></router-outlet>
     </section>
 </div>

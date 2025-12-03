@@ -8,8 +8,8 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule, NgFor } from '@angular/common';
-import { ProjectsStorageService } from '../../../../features/projects/services/projects-storage.service';
-import { GetProjectRequest } from '../../../../features/projects/models/project.model';
+import { ProjectStore } from '../../../../features/projects/services/project.store';
+import { Project } from '../../../../features/projects/models/project.model';
 import { NodeType } from '../../../core/enums/node-type';
 
 @Component({
@@ -18,7 +18,6 @@ import { NodeType } from '../../../core/enums/node-type';
   standalone: true,
   template: `
     <div class="templates-container">
-      <!-- Create New Project Option -->
       <div class="template-section">
         <button class="create-new-btn" (click)="onCreateNewProject()">
           <i class="ti ti-plus"></i>
@@ -26,7 +25,6 @@ import { NodeType } from '../../../core/enums/node-type';
         </button>
       </div>
 
-      <!-- Create from Template Option -->
       <div class="template-section">
         <div class="section-title">
           <i class="ti ti-copy"></i>
@@ -141,48 +139,43 @@ export class TemplatesContextMenuComponent implements OnInit {
   
   @Output() public nodeSelected: EventEmitter<{
     type: NodeType;
-    data: any;
+    data: Project;
   }> = new EventEmitter();
 
   @Output() public createNewProject: EventEmitter<void> = new EventEmitter();
 
-  public projects: GetProjectRequest[] = [];
+  public projects: Project[] = [];
   public creatingProjectFromTemplateId: number | null = null;
 
   constructor(
-    private projectsService: ProjectsStorageService,
+    private projectStore: ProjectStore,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.projectsService.getProjects().subscribe({
-      next: (projects: GetProjectRequest[]) => {
+    this.projectStore.getProjects().subscribe({
+      next: (projects: Project[]) => {
         this.projects = projects;
-
         this.cdr.markForCheck();
       },
-      error: (err) => console.error('Error fetching projects:', err),
+      error: (err: any) => console.error('Error fetching projects:', err),
     });
   }
 
-  public get filteredProjects(): GetProjectRequest[] {
+  public get filteredProjects(): Project[] {
     return this.projects
-      .filter((project) => project.is_template)
+      .filter((project) => project.isTemplate)
       .filter((project) =>
         project.name.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
   }
 
-  public onProjectClicked(project: GetProjectRequest): void {
+  public onProjectClicked(project: Project): void {
     this.nodeSelected.emit({ type: NodeType.PROJECT, data: project });
   }
 
-  public onCreateFromTemplate(template: GetProjectRequest): void {
-    if (!template.is_template) {
-      console.warn(
-        'Attempted to create a project from a non-template project.',
-        template
-      );
+  public onCreateFromTemplate(template: Project): void {
+    if (!template.isTemplate) {
       return;
     }
 
@@ -193,19 +186,14 @@ export class TemplatesContextMenuComponent implements OnInit {
     this.creatingProjectFromTemplateId = template.id;
     this.cdr.markForCheck();
 
-    this.projectsService.saveAsProject(template.id).subscribe({
-      next: (newProject) => {
-        const projectData: GetProjectRequest = {
-          ...newProject,
-          is_template: false,
-        };
-
+    this.projectStore.saveAsProject(template.id).subscribe({
+      next: (newProject: Project) => {
         this.nodeSelected.emit({
           type: NodeType.PROJECT,
-          data: projectData,
+          data: newProject,
         });
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Error creating project from template:', err);
         this.creatingProjectFromTemplateId = null;
         this.cdr.markForCheck();

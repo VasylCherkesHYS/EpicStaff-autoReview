@@ -1,0 +1,19 @@
+<div class="agent-card" (click)="cardClick.emit()">
+  <div class="agent-card__header">
+    <div class="agent-card__icon">
+      <app-icon icon="ui/user" size="20"></app-icon>
+    </div>
+    <div class="agent-card__info">
+      <h3 class="agent-card__title">{{ agent().role }}</h3>
+      <div class="agent-card__meta">
+        <span>{{ agent().configuredTools.length }} tools</span>
+        <span class="agent-card__meta-sep">~</span>
+        <span>{{ agent().memory ? 'Memory' : 'No memory' }}</span>
+      </div>
+    </div>
+  </div>
+  <p class="agent-card__description">
+    {{ agent().goal || 'No goal provided.' }}
+  </p>
+</div>
+

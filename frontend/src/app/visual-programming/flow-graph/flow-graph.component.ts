@@ -93,7 +93,7 @@ import { ToastService } from '../../services/notifications/toast.service';
 import { DomainDialogComponent } from '../components/domain-dialog/domain-dialog.component';
 import { NodePanelShellComponent } from '../components/node-panels/node-panel-shell/node-panel-shell.component';
 import { CreateProjectComponent } from '../../features/projects/components/create-project-form-dialog/create-project.component';
-import { GetProjectRequest } from '../../features/projects/models/project.model';
+import { Project } from '../../features/projects/models/project.model';
 
 @Component({
     selector: 'app-flow-graph',
@@ -601,7 +601,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         this.showContextMenu.set(false);
 
         const dialogRef = this.dialog.open<
-            GetProjectRequest,
+            Project,
             { isTemplate: boolean },
             CreateProjectComponent
         >(CreateProjectComponent, {

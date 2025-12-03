@@ -1,0 +1,36 @@
+<div class="built-in-tools">
+  <div class="built-in-tools__categories">
+    @for (cat of TOOL_CATEGORIES_CONFIG; track cat.name) {
+      <app-category-button
+        [label]="cat.name"
+        [selected]="selectedCategory() === cat.name"
+        [icon]="cat.icon"
+        (clicked)="toggleCategory(cat.name)"
+      ></app-category-button>
+    }
+  </div>
+
+  @if (!isLoaded()) {
+    <app-loading-spinner size="md" message="Loading tools..."></app-loading-spinner>
+  } @else if (error()) {
+    <div class="built-in-tools__error">{{ error() }}</div>
+    <button type="button" (click)="ngOnInit()">Retry</button>
+  } @else {
+    <div class="built-in-tools__grid">
+      @if (filteredTools().length === 0) {
+        <div class="built-in-tools__empty">
+          <p>No built-in tools found for selected category.</p>
+        </div>
+      } @else {
+        @for (tool of filteredTools(); track tool.id) {
+          <app-built-in-tool-card
+            [tool]="tool"
+            (configure)="onToolConfigure($event)"
+            (enabledChange)="onToolEnabledChange($event)"
+          ></app-built-in-tool-card>
+        }
+      }
+    </div>
+  }
+</div>
+
