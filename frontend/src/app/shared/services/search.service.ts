@@ -1,18 +1,17 @@
 import { inject, Injectable, InjectionToken } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
-import { BehaviorSubject, debounceTime, distinctUntilChanged, filter } from "rxjs";
+import { BehaviorSubject, debounceTime, distinctUntilChanged, filter, Subject } from "rxjs";
 
 export interface SearchConfig {
     debounceMs?: number;
     minLength?: number;
-  }
+}
   
   export const SEARCH_CONFIG = new InjectionToken<SearchConfig>('SearchConfig');
-  
   @Injectable()
   export class SearchService {
     private config = inject(SEARCH_CONFIG, { optional: true });
-    private searchSubject$ = new BehaviorSubject('');
+    private searchSubject$ = new Subject<string>();
     
     searchTerm = toSignal(
       this.searchSubject$.pipe(
@@ -20,7 +19,7 @@ export interface SearchConfig {
         distinctUntilChanged(),
         filter(term => term.length >= (this.config?.minLength ?? 0))
       ),
-      { requireSync: true }
+      { initialValue: '' }
     );
     
     search(term: string) {

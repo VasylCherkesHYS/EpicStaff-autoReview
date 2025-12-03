@@ -33,7 +33,7 @@ export class ProjectsListPageComponent implements OnDestroy {
   readonly tabs = [{ label: 'My templates', link: 'my' }];
   readonly searchTerm = signal('');
 
-    ngOnDestroy(): void {
+  ngOnDestroy(): void {
     this.searchService.clear();
     }
 

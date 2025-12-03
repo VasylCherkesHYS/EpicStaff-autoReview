@@ -5,15 +5,15 @@
     height: 100%;
     overflow: auto;
 
-  &__header {
+   &__header {
         position: sticky;
         top: 0;
         z-index: 5;
         padding: 2rem 2.5rem 0;
         background-color: var(--color-background-body);
-  }
+   }
 
-  &__top {
+   &__top {
             display: flex;
             align-items: center;
             justify-content: space-between;
