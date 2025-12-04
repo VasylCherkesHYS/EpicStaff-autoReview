@@ -1,48 +1,50 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
 import { ProjectApi } from './project.api';
-import { Project } from '../models/project.model';
+import { Project, ProjectDto } from '../models/project.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProjectStore {
   private readonly api = inject(ProjectApi);
 
-  private readonly _projectsSig = signal<Project[] | null>(null);
+  private readonly _projects = signal<Project[]>([]);
+  private readonly _loaded = signal(false);
 
-  readonly projectsSig = computed(() => this._projectsSig() ?? []);
-  readonly loadedSig = computed(() => this._projectsSig() !== null);
-  readonly templatesSig = computed(() => this.projectsSig().filter((p) => p.isTemplate));
-  readonly myProjectsSig = computed(() => this.projectsSig().filter((p) => !p.isTemplate));
+  readonly projects = this._projects.asReadonly();
+  readonly loaded = this._loaded.asReadonly();
+  readonly templatesSig = computed(() => this._projects().filter((p) => p.isTemplate));
+  readonly myProjectsSig = computed(() => this._projects().filter((p) => !p.isTemplate));
 
   getProjects(fresh = false): Observable<Project[]> {
-    if (this._projectsSig() && !fresh) {
-      return of(this.projectsSig());
+    if (this._loaded() && !fresh) {
+      return of(this._projects());
     }
-    return this.api.getProjects().pipe(tap((projects) => this._projectsSig.set(projects)));
+    return this.api.getProjects().pipe(
+      tap((projects) => {
+        this._projects.set(projects);
+        this._loaded.set(true);
+      })
+    );
   }
 
   getProjectById(id: number): Observable<Project> {
-    const cached = this._projectsSig()?.find(p => p.id === id);
-    if (cached) {
-      return of(cached);
-    }
     return this.api.getProjectById(id).pipe(
       tap((project) => {
-        this._projectsSig.update((p) => {
-          const exists = (p ?? []).some(x => x.id === id);
+        this._projects.update((p) => {
+          const exists = p.some(x => x.id === id);
           if (!exists) {
-            return [...(p ?? []), project];
+            return [...p, project];
           }
-          return (p ?? []).map(x => x.id === id ? project : x);
+          return p.map(x => x.id === id ? project : x);
         });
       })
     );
   }
 
-  create(project: Project): Observable<Project> {
-    return this.api.create(project).pipe(
+  create(data: Partial<ProjectDto>): Observable<Project> {
+    return this.api.create(data).pipe(
       tap((created) => {
-        this._projectsSig.update((p) => [...(p ?? []), created]);
+        this._projects.update((p) => [...p, created]);
       })
     );
   }
@@ -50,18 +52,18 @@ export class ProjectStore {
   update(project: Project): Observable<Project> {
     return this.api.update(project).pipe(
       tap((updated) => {
-        this._projectsSig.update((p) =>
-          (p ?? []).map((x) => (x.id === updated.id ? updated : x))
+        this._projects.update((p) =>
+          p.map((x) => (x.id === updated.id ? updated : x))
         );
       })
     );
   }
 
-  patch(id: number, updates: Partial<import('../models/project.model').ProjectResponse>): Observable<Project> {
+  patch(id: number, updates: Partial<ProjectDto>): Observable<Project> {
     return this.api.patch(id, updates).pipe(
       tap((updated) => {
-        this._projectsSig.update((p) =>
-          (p ?? []).map((x) => (x.id === updated.id ? updated : x))
+        this._projects.update((p) =>
+          p.map((x) => (x.id === updated.id ? updated : x))
         );
       })
     );
@@ -70,7 +72,7 @@ export class ProjectStore {
   delete(id: number): Observable<void> {
     return this.api.delete(id).pipe(
       tap(() => {
-        this._projectsSig.update((p) => (p ?? []).filter((x) => x.id !== id));
+        this._projects.update((p) => p.filter((x) => x.id !== id));
       })
     );
   }
@@ -78,7 +80,7 @@ export class ProjectStore {
   copy(id: number): Observable<Project> {
     return this.api.copy(id).pipe(
       tap((copied) => {
-        this._projectsSig.update((p) => [...(p ?? []), copied]);
+        this._projects.update((p) => [...p, copied]);
       })
     );
   }
@@ -86,7 +88,7 @@ export class ProjectStore {
   saveAsProject(id: number): Observable<Project> {
     return this.api.saveAsProject(id).pipe(
       tap((saved) => {
-        this._projectsSig.update((p) => [...(p ?? []), saved]);
+        this._projects.update((p) => [...p, saved]);
       })
     );
   }

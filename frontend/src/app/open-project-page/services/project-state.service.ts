@@ -3,13 +3,13 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { tap, map } from 'rxjs/operators';
 import { FullAgent, FullAgentService } from '../../services/full-agent.service';
 import { FullTask } from '../../shared/models/full-task.model';
-import { Project, ProjectResponse } from '../../features/projects/models/project.model';
+import { Project, ProjectDto } from '../../features/projects/models/project.model';
 import { ProjectStore } from '../../features/projects/services/project.store';
 import { ToastService } from '../../services/notifications/toast.service';
 
 @Injectable()
 export class ProjectStateService {
-    private projectSubject = new BehaviorSubject<ProjectResponse | null>(null);
+    private projectSubject = new BehaviorSubject<ProjectDto | null>(null);
     private tasksSubject = new BehaviorSubject<FullTask[]>([]);
     private agentsSubject = new BehaviorSubject<FullAgent[]>([]);
 
@@ -36,7 +36,7 @@ export class ProjectStateService {
         });
     }
 
-    setProject(project: ProjectResponse | null): void {
+    setProject(project: ProjectDto | null): void {
         this.projectSubject.next(project);
     }
 
@@ -50,20 +50,20 @@ export class ProjectStateService {
         this.agentsSubject.next(agents);
     }
 
-    updateProjectField<K extends keyof ProjectResponse>(
+    updateProjectField<K extends keyof ProjectDto>(
         projectId: number,
         fieldName: K,
-        fieldValue: ProjectResponse[K]
-    ): Observable<ProjectResponse> {
-        const updateData: Partial<ProjectResponse> = {
+        fieldValue: ProjectDto[K]
+    ): Observable<ProjectDto> {
+        const updateData: Partial<ProjectDto> = {
             [fieldName]: fieldValue,
         };
 
         return this.projectStore.patch(projectId, updateData).pipe(
             tap((updatedProject: Project) => {
-                this.projectSubject.next(updatedProject.toResponse());
+                this.projectSubject.next(updatedProject.toDto());
             }),
-            map((project: Project) => project.toResponse())
+            map((project: Project) => project.toDto())
             );
     }
 
@@ -81,7 +81,7 @@ export class ProjectStateService {
                 .patch(currentProject.id, { agents: agentIds })
                 .subscribe({
                     next: (updatedProject: Project) => {
-                        this.projectSubject.next(updatedProject.toResponse());
+                        this.projectSubject.next(updatedProject.toDto());
                     },
                     error: (error: any) => {
                         console.error('Error updating project agents:', error);
@@ -121,7 +121,7 @@ export class ProjectStateService {
                 .patch(currentProject.id, { agents: agentIds })
                 .subscribe({
                     next: (updatedProject: Project) => {
-                        this.projectSubject.next(updatedProject.toResponse());
+                        this.projectSubject.next(updatedProject.toDto());
                         this.toastService.success('Agent removed successfully');
                     },
                     error: (error: any) => {

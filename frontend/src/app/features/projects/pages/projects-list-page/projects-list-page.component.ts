@@ -1,7 +1,6 @@
-import { Component, ChangeDetectionStrategy, inject, signal, OnDestroy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, OnDestroy } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { Dialog } from '@angular/cdk/dialog';
-import { FormsModule } from '@angular/forms';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { AppIconComponent } from '../../../../shared/components/app-icon/app-icon.component';
@@ -10,20 +9,19 @@ import { Project } from '../../models/project.model';
 import { SearchService } from '../../../../shared/services/search.service';
 
 @Component({
-    selector: 'app-projects-list-page',
-    standalone: true,
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    templateUrl: './projects-list-page.component.html',
-    styleUrls: ['./projects-list-page.component.scss'],
-    imports: [
-        RouterOutlet,
-        RouterLink,
-        RouterLinkActive,
-        ButtonComponent,
-        TabButtonComponent,
-        FormsModule,
-        AppIconComponent,
-    ],
+  selector: 'app-projects-list-page',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './projects-list-page.component.html',
+  styleUrls: ['./projects-list-page.component.scss'],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    ButtonComponent,
+    TabButtonComponent,
+    AppIconComponent,
+  ],
 })
 export class ProjectsListPageComponent implements OnDestroy {
   private readonly router = inject(Router);
@@ -31,19 +29,18 @@ export class ProjectsListPageComponent implements OnDestroy {
   private readonly searchService = inject(SearchService);
 
   readonly tabs = [{ label: 'My templates', link: 'my' }];
-  readonly searchTerm = signal('');
+  readonly searchTerm = this.searchService.rawTerm;
 
   ngOnDestroy(): void {
     this.searchService.clear();
-    }
+  }
 
-  onSearchTermChange(term: string): void {
-    this.searchTerm.set(term);
+  onSearchChange(event: Event): void {
+    const term = (event.target as HTMLInputElement).value;
     this.searchService.search(term);
-    }
+  }
 
   clearSearch(): void {
-    this.searchTerm.set('');
     this.searchService.clear();
   }
 

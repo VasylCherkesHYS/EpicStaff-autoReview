@@ -72,7 +72,7 @@ import {
 import { FullTaskService } from '../../../services/full-task.service';
 import { buildToolIdsArray } from '../../../shared/utils/tool-ids-builder.util';
 import { AgentSelectionPopupComponent } from './popups/agent-select-popup/agent-selection-popup.component';
-import { ProjectResponse } from '../../../features/projects/models/project.model';
+import { ProjectDto } from '../../../features/projects/models/project.model';
 import { TasksService } from '../../../services/tasks.service';
 import { ProjectStateService } from '../../services/project-state.service';
 import {
@@ -132,7 +132,7 @@ export class TasksTableComponent implements OnChanges {
         return this._tasks;
     }
     @Input() agents: FullAgent[] = [];
-    @Input() project!: ProjectResponse;
+    @Input() project!: ProjectDto;
 
     public rowData: TableFullTask[] = [];
 

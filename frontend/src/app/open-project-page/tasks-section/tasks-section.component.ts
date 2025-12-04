@@ -12,7 +12,7 @@ import { FullAgent } from '../../services/full-agent.service';
 import { ProjectStateService } from '../services/project-state.service';
 import { Subscription } from 'rxjs';
 import { TasksTableComponent } from './tasks-table/tasks-table.component';
-import { ProjectResponse } from '../../features/projects/models/project.model';
+import { ProjectDto } from '../../features/projects/models/project.model';
 import {
   CreateTaskRequest,
   UpdateTaskRequest,
@@ -29,7 +29,7 @@ import { TasksService } from '../../services/tasks.service'; // Import the Tasks
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TasksSectionComponent implements OnInit, OnDestroy {
-  @Input() project!: ProjectResponse;
+  @Input() project!: ProjectDto;
   public tasks: FullTask[] = [];
   public agents: FullAgent[] = [];
 

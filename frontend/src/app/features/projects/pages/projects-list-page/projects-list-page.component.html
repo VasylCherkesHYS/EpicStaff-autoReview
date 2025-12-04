@@ -36,19 +36,19 @@
       <div class="projects-page__tabs-right">
         <div class="projects-page__search">
           <app-icon icon="ui/search" class="projects-page__search-icon" size="1.1rem"></app-icon>
-                    <input
-                        type="text"
+          <input
+            type="text"
             class="projects-page__search-input"
-                        placeholder="Search templates..."
-            [ngModel]="searchTerm()"
-                        (ngModelChange)="onSearchTermChange($event)"
-                    />
+            placeholder="Search templates..."
+            [value]="searchTerm()"
+            (input)="onSearchChange($event)"
+          />
           @if (searchTerm()) {
             <button type="button" class="projects-page__search-clear" aria-label="Clear" (click)="clearSearch()">
-                        <app-icon icon="ui/x" size="1.1rem"></app-icon>
-                    </button>
-                    }
-                </div>
+              <app-icon icon="ui/x" size="1.1rem"></app-icon>
+            </button>
+          }
+        </div>
             </div>
         </nav>
     </div>

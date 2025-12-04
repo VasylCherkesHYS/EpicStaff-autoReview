@@ -17,7 +17,7 @@ import { ProjectStateService } from '../services/project-state.service';
 import { ToastService } from '../../services/notifications/toast.service';
 import { Subject } from 'rxjs';
 import {
-    ProjectResponse,
+    ProjectDto,
     ProjectProcess,
 } from '../../features/projects/models/project.model';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
@@ -45,7 +45,7 @@ import { ConfirmationDialogService } from '../../shared/components/cofirm-dialog
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HeaderComponent implements OnInit, OnDestroy {
-    public project: ProjectResponse | null = null;
+    public project: ProjectDto | null = null;
 
     private destroy$ = new Subject<void>();
 

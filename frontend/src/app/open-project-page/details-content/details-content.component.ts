@@ -13,7 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ProjectStore } from '../../features/projects/services/project.store';
-import { ProjectResponse } from '../../features/projects/models/project.model';
+import { ProjectDto } from '../../features/projects/models/project.model';
 import { ToastService } from '../../services/notifications/toast.service';
 
 @Component({

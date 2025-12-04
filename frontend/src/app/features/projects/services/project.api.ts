@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ConfigService } from '../../../services/config/config.service';
 import { ApiGetRequest } from '../../../shared/models/api-request.model';
-import { Project, ProjectResponse } from '../models/project.model';
+import { Project, ProjectDto } from '../models/project.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProjectApi {
@@ -16,32 +16,34 @@ export class ProjectApi {
 
   getProjects(): Observable<Project[]> {
     return this.http
-      .get<ApiGetRequest<ProjectResponse>>(this.url)
-      .pipe(map((res) => res.results.map(Project.fromResponse)));
+      .get<ApiGetRequest<ProjectDto>>(this.url)
+      .pipe(map((res) => res.results.map(Project.fromDto)));
   }
 
+  //will return PROJECT DETAIL in future
   getProjectById(id: number): Observable<Project> {
     return this.http
-      .get<ProjectResponse>(`${this.url}${id}/`)
-      .pipe(map(Project.fromResponse));
+      .get<ProjectDto>(`${this.url}${id}/`)
+      .pipe(map(Project.fromDto));
   }
 
-  create(project: Project): Observable<Project> {
+  create(data: Partial<ProjectDto>): Observable<Project> {
     return this.http
-      .post<ProjectResponse>(this.url, project.toPayload())
-      .pipe(map(Project.fromResponse));
+      .post<ProjectDto>(this.url, data)
+      .pipe(map(Project.fromDto));
   }
 
   update(project: Project): Observable<Project> {
+    const { id, ...payload } = project.toDto();
     return this.http
-      .patch<ProjectResponse>(`${this.url}${project.id}/`, project.toPayload())
-      .pipe(map(Project.fromResponse));
+      .patch<ProjectDto>(`${this.url}${project.id}/`, payload)
+      .pipe(map(Project.fromDto));
   }
 
-  patch(id: number, updates: Partial<ProjectResponse>): Observable<Project> {
+  patch(id: number, updates: Partial<ProjectDto>): Observable<Project> {
     return this.http
-      .patch<ProjectResponse>(`${this.url}${id}/`, updates)
-      .pipe(map(Project.fromResponse));
+      .patch<ProjectDto>(`${this.url}${id}/`, updates)
+      .pipe(map(Project.fromDto));
   }
 
   delete(id: number): Observable<void> {
@@ -50,14 +52,13 @@ export class ProjectApi {
 
   copy(id: number): Observable<Project> {
     return this.http
-      .post<ProjectResponse>(`${this.url}${id}/copy/`, {})
-      .pipe(map(Project.fromResponse));
+      .post<ProjectDto>(`${this.url}${id}/copy/`, {})
+      .pipe(map(Project.fromDto));
   }
 
   saveAsProject(id: number): Observable<Project> {
     return this.http
-      .post<ProjectResponse>(`${this.url}${id}/save_as_project/`, {})
-      .pipe(map(Project.fromResponse));
+      .post<ProjectDto>(`${this.url}${id}/save_as_project/`, {})
+      .pipe(map(Project.fromDto));
   }
 }
-

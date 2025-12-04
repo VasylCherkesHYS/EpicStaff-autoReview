@@ -20,7 +20,7 @@ import { FormsModule } from '@angular/forms';
 import { ProjectStore } from '../features/projects/services/project.store';
 import { TasksService } from '../services/tasks.service';
 import { finalize, forkJoin, Subscription } from 'rxjs';
-import { Project, ProjectResponse } from '../features/projects/models/project.model';
+import { Project, ProjectDto } from '../features/projects/models/project.model';
 import { Dialog } from '@angular/cdk/dialog';
 import { FullTask } from '../shared/models/full-task.model';
 import { FullAgentService, FullAgent } from '../services/full-agent.service';
@@ -109,7 +109,7 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
     @Input() inputProjectId?: string | number;
 
     public projectId!: string;
-    public project!: ProjectResponse;
+    public project!: ProjectDto;
     private subscription = new Subscription();
     public isLoading = signal(true);
 
@@ -279,14 +279,14 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
                         console.log('loadData - Tasks:', tasks);
                         console.log('loadData - Agents:', agents);
 
-                        this.projectStateService.setProject(project ? project.toResponse() : null);
+                        this.projectStateService.setProject(project ? project.toDto() : null);
 
                         if (!project) {
                             throw new Error(
                                 `Project with ID ${this.projectId} not found or essential data is missing.`
                             );
                         }
-                        this.project = project.toResponse();
+                        this.project = project.toDto();
                         console.log('project', this.project);
 
                         this.projectStateService.updateTasks(tasks);
@@ -355,8 +355,8 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
         }
     }
 
-    onSettingsChanged(formValue: Partial<ProjectResponse>) {
-        const updateData: Partial<ProjectResponse> = {};
+    onSettingsChanged(formValue: Partial<ProjectDto>) {
+        const updateData: Partial<ProjectDto> = {};
 
         // Handle each field from the form
         if (formValue.memory !== undefined) {
@@ -393,11 +393,11 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
         }
     }
 
-    private updateProjectSettings(updateData: Partial<ProjectResponse>) {
+    private updateProjectSettings(updateData: Partial<ProjectDto>) {
         this.projectStore.patch(this.project.id, updateData).subscribe({
             next: (updatedProject: Project) => {
-                this.project = updatedProject.toResponse();
-                this.projectStateService.setProject(updatedProject.toResponse());
+                this.project = updatedProject.toDto();
+                this.projectStateService.setProject(updatedProject.toDto());
                     this.cdr.markForCheck();
                 this.toastService.success('Project settings updated successfully');
                 },

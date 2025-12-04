@@ -3,7 +3,19 @@ export enum ProjectProcess {
   HIERARCHICAL = 'hierarchical',
 }
 
-export interface ProjectResponse {
+// TODO: Replace with actual Agent interface when available
+export interface AgentDto {
+  id: number;
+  [key: string]: unknown;
+}
+
+// TODO: Replace with actual Task interface when available
+export interface TaskDto {
+  id: number;
+  [key: string]: unknown;
+}
+
+export interface ProjectDto {
   id: number;
   name: string;
   description: string | null;
@@ -26,6 +38,11 @@ export interface ProjectResponse {
   memory_llm_config: number | null;
   metadata?: unknown | null;
   is_template: boolean;
+}
+
+export interface ProjectDetailDto extends ProjectDto {
+  agents_data: AgentDto[];
+  tasks_data: TaskDto[];
 }
 
 export class Project {
@@ -54,61 +71,34 @@ export class Project {
     public isTemplate: boolean
   ) {}
 
-  static fromResponse(data: ProjectResponse): Project {
+  static fromDto(dto: ProjectDto): Project {
     return new Project(
-      data.id,
-      data.name,
-      data.description,
-      data.process,
-      data.tasks,
-      data.agents,
-      data.tags,
-      data.memory,
-      data.config,
-      data.max_rpm,
-      data.cache,
-      data.full_output,
-      data.default_temperature,
-      data.planning,
-      data.similarity_threshold ?? null,
-      data.search_limit ?? null,
-      data.planning_llm_config,
-      data.manager_llm_config,
-      data.embedding_config,
-      data.memory_llm_config,
-      data.metadata ?? null,
-      data.is_template
+      dto.id,
+      dto.name,
+      dto.description,
+      dto.process,
+      dto.tasks,
+      dto.agents,
+      dto.tags,
+      dto.memory,
+      dto.config,
+      dto.max_rpm,
+      dto.cache,
+      dto.full_output,
+      dto.default_temperature,
+      dto.planning,
+      dto.similarity_threshold ?? null,
+      dto.search_limit ?? null,
+      dto.planning_llm_config,
+      dto.manager_llm_config,
+      dto.embedding_config,
+      dto.memory_llm_config,
+      dto.metadata ?? null,
+      dto.is_template
     );
   }
 
-  toPayload() {
-    return {
-      name: this.name,
-      description: this.description,
-      process: this.process,
-      tasks: this.tasks,
-      agents: this.agents,
-      tags: this.tags,
-      memory: this.memory,
-      config: this.config,
-      max_rpm: this.maxRpm,
-      cache: this.cache,
-      full_output: this.fullOutput,
-      default_temperature: this.defaultTemperature,
-      planning: this.planning,
-      planning_llm_config: this.planningLlmConfig,
-      manager_llm_config: this.managerLlmConfig,
-      embedding_config: this.embeddingConfig,
-      memory_llm_config: this.memoryLlmConfig,
-      metadata: this.metadata,
-      similarity_threshold: this.similarityThreshold,
-      search_limit: this.searchLimit,
-      is_template: this.isTemplate,
-    };
-  }
-
-  /** Converts to API format (snake_case). Used for backwards compatibility with open-project-page components. */
-  toResponse(): ProjectResponse {
+  toDto(): ProjectDto {
     return {
       id: this.id,
       name: this.name,
@@ -133,5 +123,43 @@ export class Project {
       metadata: this.metadata,
       is_template: this.isTemplate,
     };
+  }
+}
+
+export class ProjectDetail extends Project {
+  constructor(
+    base: Project,
+    public agentsData: AgentDto[],
+    public tasksData: TaskDto[]
+  ) {
+    super(
+      base.id,
+      base.name,
+      base.description,
+      base.process,
+      base.tasks,
+      base.agents,
+      base.tags,
+      base.memory,
+      base.config,
+      base.maxRpm,
+      base.cache,
+      base.fullOutput,
+      base.defaultTemperature,
+      base.planning,
+      base.similarityThreshold,
+      base.searchLimit,
+      base.planningLlmConfig,
+      base.managerLlmConfig,
+      base.embeddingConfig,
+      base.memoryLlmConfig,
+      base.metadata,
+      base.isTemplate
+    );
+  }
+
+  static override fromDto(dto: ProjectDetailDto): ProjectDetail {
+    const base = Project.fromDto(dto);
+    return new ProjectDetail(base, dto.agents_data, dto.tasks_data);
   }
 }
