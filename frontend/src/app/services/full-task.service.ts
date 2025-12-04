@@ -2,14 +2,15 @@ import { Injectable } from '@angular/core';
 import { forkJoin, map, Observable } from 'rxjs';
 import { TasksService } from './tasks.service';
 import { AgentsService } from './staff.service';
-import { ToolConfigService } from './tool_config.service';
+import { ToolConfigService } from '../features/tools/services/builtin-tools/tool-config.service';
 import { PythonCodeToolService } from '../user-settings-page/tools/custom-tool-editor/services/pythonCodeToolService.service';
+import { PythonCodeToolConfigService } from '../features/tools/services/custom-tools/python-code-tool-config.service';
 import { BuiltinToolsService } from '../features/tools/services/builtin-tools/builtin-tools.service';
 import { McpToolsService } from '../features/tools/services/mcp-tools/mcp-tools.service';
 import { FullTask } from '../shared/models/full-task.model';
 import { GetTaskRequest } from '../shared/models/task.model';
 import { GetAgentRequest } from '../shared/models/agent.model';
-import { GetToolConfigRequest } from '../features/tools/models/tool_config.model';
+import { GetToolConfigRequest, PythonCodeToolConfig } from '../features/tools/models/tool_config.model';
 import { GetPythonCodeToolRequest } from '../features/tools/models/python-code-tool.model';
 import { GetMcpToolRequest } from '../features/tools/models/mcp-tool.model';
 import { Tool } from '../features/tools/models/tool.model';
@@ -27,6 +28,7 @@ export class FullTaskService {
     private agentsService: AgentsService,
     private toolConfigService: ToolConfigService,
     private pythonCodeToolService: PythonCodeToolService,
+    private pythonCodeToolConfigService: PythonCodeToolConfigService,
     private toolsService: BuiltinToolsService,
     private mcpToolsService: McpToolsService
   ) {}
@@ -37,36 +39,41 @@ export class FullTaskService {
       agents: this.agentsService.getAgents(),
       toolConfigs: this.toolConfigService.getToolConfigs(),
       pythonTools: this.pythonCodeToolService.getPythonCodeTools(),
+      pythonToolConfigs: this.pythonCodeToolConfigService.getConfigs(),
       mcpTools: this.mcpToolsService.getMcpTools(),
       tools: this.toolsService.getTools(),
     }).pipe(
-      map(({ tasks, agents, toolConfigs, pythonTools, mcpTools, tools }) => {
-        // Create agent lookup map
+      map(({ tasks, agents, toolConfigs, pythonTools, pythonToolConfigs, mcpTools, tools }) => {
         const agentMap = new Map<number, GetAgentRequest>();
         agents.forEach((agent) => {
           agentMap.set(agent.id, agent);
         });
 
-        // Create tool lookup map
         const toolsMap = new Map<number, string>();
         tools.forEach((tool: Tool) => {
           toolsMap.set(tool.id, tool.name);
         });
 
+        const pythonToolsMap = new Map<number, string>();
+        pythonTools.forEach((pt) => {
+          pythonToolsMap.set(pt.id, pt.name);
+        });
+
         return tasks.map((task) => {
-          // Get agent data
           const agentData = task.agent
             ? agentMap.get(task.agent) || null
             : null;
 
-          // Parse tools from the unified tools array
           const configuredToolIds: number[] = [];
           const pythonToolIds: number[] = [];
+          const pythonToolConfigIds: number[] = [];
           const mcpToolIds: number[] = [];
 
           task.tools.forEach((tool) => {
             if (tool.unique_name.startsWith('configured-tool:')) {
               configuredToolIds.push(tool.data.id);
+            } else if (tool.unique_name.startsWith('python-code-tool-config:')) {
+              pythonToolConfigIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('python-code-tool:')) {
               pythonToolIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('mcp-tool:')) {
@@ -74,35 +81,42 @@ export class FullTaskService {
             }
           });
 
-          // Get full tool configs based on parsed IDs
           const fullConfiguredTools = toolConfigs.filter((tool) =>
             configuredToolIds.includes(tool.id)
           );
           const fullPythonTools = pythonTools.filter((pt) =>
             pythonToolIds.includes(pt.id)
           );
+          const fullPythonToolConfigs = pythonToolConfigs.filter((ptc) =>
+            pythonToolConfigIds.includes(ptc.id)
+          );
           const fullMcpTools = mcpTools.filter((mcp: GetMcpToolRequest) =>
             mcpToolIds.includes(mcp.id)
           );
 
-          // Create merged tools with configName and toolName
           const mergedTools = [
             ...fullConfiguredTools.map((tc) => ({
               id: tc.id,
-              configName: tc.name, // This is the config name
-              toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name
+              configName: tc.name,
+              toolName: toolsMap.get(tc.tool) || 'Unknown Tool',
               type: 'tool-config',
             })),
             ...fullPythonTools.map((pt) => ({
               id: pt.id,
-              configName: pt.name, // For python tools, the name is both config and tool name
-              toolName: pt.name, // Python tools have the same name for both
+              configName: pt.name,
+              toolName: pt.name,
               type: 'python-tool',
+            })),
+            ...fullPythonToolConfigs.map((ptc) => ({
+              id: ptc.id,
+              configName: ptc.name,
+              toolName: pythonToolsMap.get(ptc.tool) || 'Unknown Tool',
+              type: 'python-tool-config',
             })),
             ...fullMcpTools.map((mcp: GetMcpToolRequest) => ({
               id: mcp.id,
-              configName: mcp.name, // MCP tool configuration name
-              toolName: mcp.tool_name, // MCP tool name
+              configName: mcp.name,
+              toolName: mcp.tool_name,
               type: 'mcp-tool',
             })),
           ];
@@ -123,36 +137,41 @@ export class FullTaskService {
       agents: this.agentsService.getAgents(),
       toolConfigs: this.toolConfigService.getToolConfigs(),
       pythonTools: this.pythonCodeToolService.getPythonCodeTools(),
+      pythonToolConfigs: this.pythonCodeToolConfigService.getConfigs(),
       mcpTools: this.mcpToolsService.getMcpTools(),
       tools: this.toolsService.getTools(),
     }).pipe(
-      map(({ tasks, agents, toolConfigs, pythonTools, mcpTools, tools }) => {
-        // Create agent lookup map
+      map(({ tasks, agents, toolConfigs, pythonTools, pythonToolConfigs, mcpTools, tools }) => {
         const agentMap = new Map<number, GetAgentRequest>();
         agents.forEach((agent) => {
           agentMap.set(agent.id, agent);
         });
 
-        // Create tool lookup map
         const toolsMap = new Map<number, string>();
         tools.forEach((tool: Tool) => {
           toolsMap.set(tool.id, tool.name);
         });
 
+        const pythonToolsMap = new Map<number, string>();
+        pythonTools.forEach((pt) => {
+          pythonToolsMap.set(pt.id, pt.name);
+        });
+
         return tasks.map((task) => {
-          // Get agent data
           const agentData = task.agent
             ? agentMap.get(task.agent) || null
             : null;
 
-          // Parse tools from the unified tools array
           const configuredToolIds: number[] = [];
           const pythonToolIds: number[] = [];
+          const pythonToolConfigIds: number[] = [];
           const mcpToolIds: number[] = [];
 
           task.tools.forEach((tool) => {
             if (tool.unique_name.startsWith('configured-tool:')) {
               configuredToolIds.push(tool.data.id);
+            } else if (tool.unique_name.startsWith('python-code-tool-config:')) {
+              pythonToolConfigIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('python-code-tool:')) {
               pythonToolIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('mcp-tool:')) {
@@ -160,35 +179,42 @@ export class FullTaskService {
             }
           });
 
-          // Get full tool configs based on parsed IDs
           const fullConfiguredTools = toolConfigs.filter((tool) =>
             configuredToolIds.includes(tool.id)
           );
           const fullPythonTools = pythonTools.filter((pt) =>
             pythonToolIds.includes(pt.id)
           );
+          const fullPythonToolConfigs = pythonToolConfigs.filter((ptc) =>
+            pythonToolConfigIds.includes(ptc.id)
+          );
           const fullMcpTools = mcpTools.filter((mcp: GetMcpToolRequest) =>
             mcpToolIds.includes(mcp.id)
           );
 
-          // Create merged tools with configName and toolName
           const mergedTools = [
             ...fullConfiguredTools.map((tc) => ({
               id: tc.id,
-              configName: tc.name, // This is the config name
-              toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name
+              configName: tc.name,
+              toolName: toolsMap.get(tc.tool) || 'Unknown Tool',
               type: 'tool-config',
             })),
             ...fullPythonTools.map((pt) => ({
               id: pt.id,
-              configName: pt.name, // For python tools, the name is both config and tool name
-              toolName: pt.name, // Python tools have the same name for both
+              configName: pt.name,
+              toolName: pt.name,
               type: 'python-tool',
+            })),
+            ...fullPythonToolConfigs.map((ptc) => ({
+              id: ptc.id,
+              configName: ptc.name,
+              toolName: pythonToolsMap.get(ptc.tool) || 'Unknown Tool',
+              type: 'python-tool-config',
             })),
             ...fullMcpTools.map((mcp: GetMcpToolRequest) => ({
               id: mcp.id,
-              configName: mcp.name, // MCP tool configuration name
-              toolName: mcp.tool_name, // MCP tool name
+              configName: mcp.name,
+              toolName: mcp.tool_name,
               type: 'mcp-tool',
             })),
           ];
@@ -209,37 +235,42 @@ export class FullTaskService {
       agents: this.agentsService.getAgents(),
       toolConfigs: this.toolConfigService.getToolConfigs(),
       pythonTools: this.pythonCodeToolService.getPythonCodeTools(),
+      pythonToolConfigs: this.pythonCodeToolConfigService.getConfigs(),
       mcpTools: this.mcpToolsService.getMcpTools(),
       tools: this.toolsService.getTools(),
     }).pipe(
-      map(({ task, agents, toolConfigs, pythonTools, mcpTools, tools }) => {
+      map(({ task, agents, toolConfigs, pythonTools, pythonToolConfigs, mcpTools, tools }) => {
         if (!task) {
           return null;
         }
 
-        // Create agent lookup map
         const agentMap = new Map<number, GetAgentRequest>();
         agents.forEach((agent) => {
           agentMap.set(agent.id, agent);
         });
 
-        // Create tool lookup map
         const toolsMap = new Map<number, string>();
         tools.forEach((tool: Tool) => {
           toolsMap.set(tool.id, tool.name);
         });
 
-        // Get agent data
+        const pythonToolsMap = new Map<number, string>();
+        pythonTools.forEach((pt) => {
+          pythonToolsMap.set(pt.id, pt.name);
+        });
+
         const agentData = task.agent ? agentMap.get(task.agent) || null : null;
 
-        // Parse tools from the unified tools array
         const configuredToolIds: number[] = [];
         const pythonToolIds: number[] = [];
+        const pythonToolConfigIds: number[] = [];
         const mcpToolIds: number[] = [];
 
         task.tools.forEach((tool) => {
           if (tool.unique_name.startsWith('configured-tool:')) {
             configuredToolIds.push(tool.data.id);
+          } else if (tool.unique_name.startsWith('python-code-tool-config:')) {
+            pythonToolConfigIds.push(tool.data.id);
           } else if (tool.unique_name.startsWith('python-code-tool:')) {
             pythonToolIds.push(tool.data.id);
           } else if (tool.unique_name.startsWith('mcp-tool:')) {
@@ -247,35 +278,42 @@ export class FullTaskService {
           }
         });
 
-        // Get full tool configs based on parsed IDs
         const fullConfiguredTools = toolConfigs.filter((tool) =>
           configuredToolIds.includes(tool.id)
         );
         const fullPythonTools = pythonTools.filter((pt) =>
           pythonToolIds.includes(pt.id)
         );
+        const fullPythonToolConfigs = pythonToolConfigs.filter((ptc) =>
+          pythonToolConfigIds.includes(ptc.id)
+        );
         const fullMcpTools = mcpTools.filter((mcp: GetMcpToolRequest) =>
           mcpToolIds.includes(mcp.id)
         );
 
-        // Create merged tools with configName and toolName
         const mergedTools = [
           ...fullConfiguredTools.map((tc) => ({
             id: tc.id,
-            configName: tc.name, // This is the config name
-            toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name
+            configName: tc.name,
+            toolName: toolsMap.get(tc.tool) || 'Unknown Tool',
             type: 'tool-config',
           })),
           ...fullPythonTools.map((pt) => ({
             id: pt.id,
-            configName: pt.name, // For python tools, the name is both config and tool name
-            toolName: pt.name, // Python tools have the same name for both
+            configName: pt.name,
+            toolName: pt.name,
             type: 'python-tool',
+          })),
+          ...fullPythonToolConfigs.map((ptc) => ({
+            id: ptc.id,
+            configName: ptc.name,
+            toolName: pythonToolsMap.get(ptc.tool) || 'Unknown Tool',
+            type: 'python-tool-config',
           })),
           ...fullMcpTools.map((mcp: GetMcpToolRequest) => ({
             id: mcp.id,
-            configName: mcp.name, // MCP tool configuration name
-            toolName: mcp.tool_name, // MCP tool name
+            configName: mcp.name,
+            toolName: mcp.tool_name,
             type: 'mcp-tool',
           })),
         ];

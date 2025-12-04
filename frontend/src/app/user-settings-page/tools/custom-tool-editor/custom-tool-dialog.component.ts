@@ -23,7 +23,7 @@ import { CommonModule } from '@angular/common';
 // Child components and services
 import { ToolLibrariesComponent } from './tool-libraries/tool-libraries.component';
 import { CodeEditorComponent } from './code-editor/code-editor.component';
-import { CustomToolsService } from '../../../features/tools/services/custom-tools/custom-tools.service';
+import { CustomToolsService } from '../../../features/tools/services/custom-tools/custom-tools-api.service';
 import { ToastService } from '../../../services/notifications/toast.service';
 import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
 import { ButtonComponent } from '../../../shared/components/buttons/button/button.component';

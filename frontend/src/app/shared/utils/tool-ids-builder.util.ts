@@ -3,7 +3,8 @@ import { ToolUniqueName } from '../models/agent.model';
 export function buildToolIdsArray(
   configuredToolIds: number[],
   pythonToolIds: number[],
-  mcpToolIds: number[] = []
+  mcpToolIds: number[] = [],
+  pythonToolConfigIds: number[] = []
 ): ToolUniqueName[] {
   const toolIds: ToolUniqueName[] = [];
 
@@ -13,6 +14,10 @@ export function buildToolIdsArray(
 
   pythonToolIds.forEach((id) => {
     toolIds.push(`python-code-tool:${id}`);
+  });
+
+  pythonToolConfigIds.forEach((id) => {
+    toolIds.push(`python-code-tool-config:${id}`);
   });
 
   mcpToolIds.forEach((id) => {

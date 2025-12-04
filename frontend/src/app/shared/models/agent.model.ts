@@ -1,11 +1,12 @@
 import { GetPythonCodeToolRequest } from '../../features/tools/models/python-code-tool.model';
 import { GetToolRequest } from '../../features/tools/models/tool.model';
-import { GetToolConfigRequest } from '../../features/tools/models/tool_config.model';
+import { GetToolConfigRequest, PythonCodeToolConfig } from '../../features/tools/models/tool_config.model';
 import { GetMcpToolRequest } from '../../features/tools/models/mcp-tool.model';
 
 export type ToolUniqueName =
     | `configured-tool:${number}`
     | `python-code-tool:${number}`
+    | `python-code-tool-config:${number}`
     | `mcp-tool:${number}`;
 
 export interface Agent {
@@ -17,6 +18,7 @@ export interface Agent {
 
     configured_tools: number[];
     python_code_tools: number[];
+    python_code_tool_configs: number[];
 
     llm_config: number | null;
     fcm_llm_config: number | null;
@@ -38,7 +40,7 @@ export interface Agent {
     realtime_agent: RealtimeAgentConfig;
     tools: {
         unique_name: ToolUniqueName;
-        data: GetToolRequest | GetPythonCodeToolRequest | GetMcpToolRequest;
+        data: GetToolRequest | GetPythonCodeToolRequest | PythonCodeToolConfig | GetMcpToolRequest;
     }[];
 }
 
@@ -62,6 +64,7 @@ export interface GetAgentRequest {
 
     configured_tools: number[];
     python_code_tools: number[];
+    python_code_tool_configs: number[];
     mcp_tools: number[];
 
     llm_config: number | null;
@@ -83,7 +86,7 @@ export interface GetAgentRequest {
     realtime_agent: RealtimeAgentConfig;
     tools: {
         unique_name: ToolUniqueName;
-        data: GetToolConfigRequest | GetPythonCodeToolRequest | GetMcpToolRequest;
+        data: GetToolConfigRequest | GetPythonCodeToolRequest | PythonCodeToolConfig | GetMcpToolRequest;
     }[];
 
     search_limit: number | null;
@@ -98,6 +101,7 @@ export interface CreateAgentRequest {
 
     configured_tools?: number[];
     python_code_tools?: number[];
+    python_code_tool_configs?: number[];
     mcp_tools?: number[];
 
     llm_config?: number | null;
@@ -134,6 +138,7 @@ export interface UpdateAgentRequest {
 
     configured_tools: number[];
     python_code_tools: number[];
+    python_code_tool_configs: number[];
     mcp_tools: number[];
 
     llm_config: number | null;

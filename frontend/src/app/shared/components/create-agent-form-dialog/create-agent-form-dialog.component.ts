@@ -57,6 +57,7 @@ interface AgentFormData {
     knowledge_collection: number | null;
     configured_tools: number[];
     python_code_tools: number[];
+    python_code_tool_configs: number[];
     mcp_tools: number[];
     search_limit: number;
     similarity_threshold: number;
@@ -102,6 +103,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
         knowledge_collection: FormControl<number | null>;
         configured_tools: FormControl<number[]>;
         python_code_tools: FormControl<number[]>;
+        python_code_tool_configs: FormControl<number[]>;
         mcp_tools: FormControl<number[]>;
         search_limit: FormControl<number>;
         similarity_threshold: FormControl<number>;
@@ -193,7 +195,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                     agent.max_retry_limit ?? 3,
                     [Validators.min(0), Validators.max(10)]
                 ),
-                default_temperature: new FormControl<number | null>(null), // Set to null as requested
+                default_temperature: new FormControl<number | null>(null),
                 llm_config: new FormControl<number | null>(agent.llm_config),
                 fcm_llm_config: new FormControl<number | null>(
                     agent.fcm_llm_config
@@ -206,6 +208,9 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 ),
                 python_code_tools: new FormControl<number[]>(
                     agent.python_code_tools || []
+                ),
+                python_code_tool_configs: new FormControl<number[]>(
+                    agent.python_code_tool_configs || []
                 ),
                 mcp_tools: new FormControl<number[]>(
                     agent.mcp_tools || []
@@ -238,6 +243,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 knowledge_collection: FormControl<number | null>;
                 configured_tools: FormControl<number[]>;
                 python_code_tools: FormControl<number[]>;
+                python_code_tool_configs: FormControl<number[]>;
                 mcp_tools: FormControl<number[]>;
                 search_limit: FormControl<number>;
                 similarity_threshold: FormControl<number>;
@@ -276,6 +282,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 knowledge_collection: new FormControl<number | null>(null),
                 configured_tools: new FormControl<number[]>([]),
                 python_code_tools: new FormControl<number[]>([]),
+                python_code_tool_configs: new FormControl<number[]>([]),
                 mcp_tools: new FormControl<number[]>([]),
                 search_limit: new FormControl<number>(10, [
                     Validators.min(1),
@@ -303,6 +310,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 knowledge_collection: FormControl<number | null>;
                 configured_tools: FormControl<number[]>;
                 python_code_tools: FormControl<number[]>;
+                python_code_tool_configs: FormControl<number[]>;
                 mcp_tools: FormControl<number[]>;
                 search_limit: FormControl<number>;
                 similarity_threshold: FormControl<number>;
@@ -355,6 +363,11 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
 
     public onPythonToolsChange(pythonToolIds: number[]): void {
         this.agentForm.patchValue({ python_code_tools: pythonToolIds });
+        this.cdr.markForCheck();
+    }
+
+    public onPythonToolConfigsChange(pythonToolConfigIds: number[]): void {
+        this.agentForm.patchValue({ python_code_tool_configs: pythonToolConfigIds });
         this.cdr.markForCheck();
     }
 
@@ -442,8 +455,9 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
         // Build tool_ids array
         const configuredToolIds = formData.configured_tools || [];
         const pythonToolIds = formData.python_code_tools || [];
+        const pythonToolConfigIds = formData.python_code_tool_configs || [];
         const mcpToolIds = formData.mcp_tools || [];
-        const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds);
+        const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds, pythonToolConfigIds);
 
         console.log('=== Agent Form Submission ===');
         console.log('Form data:', formData);
@@ -469,6 +483,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 knowledge_collection: formData.knowledge_collection,
                 configured_tools: configuredToolIds,
                 python_code_tools: pythonToolIds,
+                python_code_tool_configs: pythonToolConfigIds,
                 mcp_tools: mcpToolIds,
                 tool_ids: toolIds as ToolUniqueName[],
                 search_limit: formData.search_limit,
@@ -514,6 +529,7 @@ export class CreateAgentFormComponent implements OnInit, OnDestroy {
                 knowledge_collection: formData.knowledge_collection,
                 configured_tools: configuredToolIds,
                 python_code_tools: pythonToolIds,
+                python_code_tool_configs: pythonToolConfigIds,
                 mcp_tools: mcpToolIds,
                 tool_ids: toolIds as ToolUniqueName[],
                 search_limit: formData.search_limit,

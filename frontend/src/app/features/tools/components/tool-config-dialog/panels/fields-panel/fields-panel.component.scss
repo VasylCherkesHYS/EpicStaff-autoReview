@@ -1,0 +1,62 @@
+@use '../panel-shared';
+
+.fields-panel {
+  @include panel-shared.panel-layout;
+
+  &__sidebar { @include panel-shared.sidebar; }
+  &__sidebar-header { @include panel-shared.sidebar-header; }
+  &__add-btn { @include panel-shared.add-btn; }
+  &__divider { @include panel-shared.divider; }
+  &__list { @include panel-shared.list; }
+  &__empty { @include panel-shared.empty; }
+
+  &__list-item {
+    @include panel-shared.list-item;
+
+    &--selected {
+      @include panel-shared.list-item-selected;
+    }
+  }
+
+  &__list-item-info { @include panel-shared.list-item-info; }
+  &__list-item-name { @include panel-shared.list-item-name; }
+  &__list-item-type { @include panel-shared.list-item-type; }
+
+  &__main { @include panel-shared.main; }
+
+  &__placeholder {
+    @include panel-shared.placeholder;
+  }
+
+  &__placeholder-hint {
+    @include panel-shared.placeholder-hint;
+  }
+
+  &__error-banner { @include panel-shared.error-banner; }
+  &__form { @include panel-shared.form; }
+  &__form-section { @include panel-shared.form-section; }
+  &__section-title { @include panel-shared.section-title; }
+  &__field-row { @include panel-shared.field-row; }
+  &__checkbox-row { @include panel-shared.checkbox-row; }
+  &__form-actions { @include panel-shared.form-actions; }
+  &__spacer { flex: 1; }
+
+  &__btn {
+    @include panel-shared.btn;
+
+    &--primary {
+      @include panel-shared.btn-primary;
+    }
+
+    &--secondary {
+      @include panel-shared.btn-secondary;
+    }
+
+    &--danger {
+      @include panel-shared.btn-danger;
+    }
+  }
+
+  &__spinner { @include panel-shared.spinner; }
+}
+

@@ -672,7 +672,6 @@ export class TasksTableComponent implements OnChanges {
         const agentId = agentData ? agentData.id : null;
         const crew = this.project ? this.project.id : null;
 
-        // Process merged tools similar to agents table
         const mergedTools = (taskData as any).mergedTools || [];
 
         const parsed = {
@@ -685,14 +684,15 @@ export class TasksTableComponent implements OnChanges {
             python_code_tools: mergedTools
                 .filter((tool: any) => tool.type === 'python-tool')
                 .map((tool: any) => tool.id),
+            python_code_tool_configs: mergedTools
+                .filter((tool: any) => tool.type === 'python-tool-config')
+                .map((tool: any) => tool.id),
             mcp_tools: mergedTools
                 .filter((tool: any) => tool.type === 'mcp-tool')
                 .map((tool: any) => tool.id),
-            // Explicitly preserve mergedTools for state updates
             mergedTools: mergedTools,
         };
 
-        // Delete tools field to ensure it's never included in update requests
         delete (parsed as any).tools;
 
         return parsed;
@@ -729,8 +729,9 @@ export class TasksTableComponent implements OnChanges {
             // Build tool_ids array for task creation
             const configuredToolIds = parsedData.configured_tools || [];
             const pythonToolIds = parsedData.python_code_tools || [];
+            const pythonToolConfigIds = parsedData.python_code_tool_configs || [];
             const mcpToolIds = parsedData.mcp_tools || [];
-            const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds);
+            const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds, pythonToolConfigIds);
 
             // Create the new task
             const createTaskData: CreateTaskRequest = {
@@ -749,6 +750,7 @@ export class TasksTableComponent implements OnChanges {
                 task_context_list: parsedData.task_context_list ?? [],
                 configured_tools: configuredToolIds,
                 python_code_tools: pythonToolIds,
+                python_code_tool_configs: pythonToolConfigIds,
                 mcp_tools: mcpToolIds,
                 tool_ids: toolIds,
             };
@@ -820,23 +822,25 @@ export class TasksTableComponent implements OnChanges {
         // Build tool_ids array for task update
         const updateConfiguredToolIds = parsedUpdateData.configured_tools || [];
         const updatePythonToolIds = parsedUpdateData.python_code_tools || [];
+        const updatePythonToolConfigIds = parsedUpdateData.python_code_tool_configs || [];
         const updateMcpToolIds = parsedUpdateData.mcp_tools || [];
         const updateToolIds = buildToolIdsArray(
             updateConfiguredToolIds,
             updatePythonToolIds,
-            updateMcpToolIds
+            updateMcpToolIds,
+            updatePythonToolConfigIds
         );
 
         if (typeof parsedUpdateData.id === 'string') {
             parsedUpdateData.id = +parsedUpdateData.id;
         }
 
-        // Create update request with all tool arrays, explicitly excluding tools field
         const updateTaskRequest: UpdateTaskRequest = {
             ...parsedUpdateData,
             knowledge_query: parsedUpdateData.knowledge_query ?? null,
             configured_tools: updateConfiguredToolIds,
             python_code_tools: updatePythonToolIds,
+            python_code_tool_configs: updatePythonToolConfigIds,
             mcp_tools: updateMcpToolIds,
             tool_ids: updateToolIds,
         };
@@ -976,14 +980,15 @@ export class TasksTableComponent implements OnChanges {
         // Build tool_ids array for settings update
         const settingsConfiguredToolIds = parsedTaskData.configured_tools || [];
         const settingsPythonToolIds = parsedTaskData.python_code_tools || [];
+        const settingsPythonToolConfigIds = parsedTaskData.python_code_tool_configs || [];
         const settingsMcpToolIds = parsedTaskData.mcp_tools || [];
         const settingsToolIds = buildToolIdsArray(
             settingsConfiguredToolIds,
             settingsPythonToolIds,
-            settingsMcpToolIds
+            settingsMcpToolIds,
+            settingsPythonToolConfigIds
         );
 
-        // Prepare the payload for the backend update request (excluding tools field)
         const updateTaskData: UpdateTaskRequest = {
             ...parsedTaskData,
             id: +updatedTask.id,
@@ -1001,6 +1006,7 @@ export class TasksTableComponent implements OnChanges {
             task_context_list: updatedTask.task_context_list,
             configured_tools: settingsConfiguredToolIds,
             python_code_tools: settingsPythonToolIds,
+            python_code_tool_configs: settingsPythonToolConfigIds,
             mcp_tools: settingsMcpToolIds,
             tool_ids: settingsToolIds,
         };
@@ -1201,11 +1207,13 @@ export class TasksTableComponent implements OnChanges {
         // Build tool_ids array for paste operation
         const pasteConfiguredToolIds = parsedTaskData.configured_tools || [];
         const pastePythonToolIds = parsedTaskData.python_code_tools || [];
+        const pastePythonToolConfigIds = parsedTaskData.python_code_tool_configs || [];
         const pasteMcpToolIds = parsedTaskData.mcp_tools || [];
         const pasteToolIds = buildToolIdsArray(
             pasteConfiguredToolIds,
             pastePythonToolIds,
-            pasteMcpToolIds
+            pasteMcpToolIds,
+            pastePythonToolConfigIds
         );
 
         const createTaskData: CreateTaskRequest = {
@@ -1224,6 +1232,7 @@ export class TasksTableComponent implements OnChanges {
             task_context_list: newTaskData.task_context_list ?? [],
             configured_tools: pasteConfiguredToolIds,
             python_code_tools: pastePythonToolIds,
+            python_code_tool_configs: pastePythonToolConfigIds,
             mcp_tools: pasteMcpToolIds,
             tool_ids: pasteToolIds,
         };

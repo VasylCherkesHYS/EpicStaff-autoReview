@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { forkJoin, map, Observable } from 'rxjs';
+import { forkJoin, map, Observable, tap } from 'rxjs';
 import {
   Agent,
   CreateAgentRequest,
@@ -49,30 +49,63 @@ export class AgentsService {
 
   // POST create agent
   createAgent(agent: CreateAgentRequest): Observable<GetAgentRequest> {
+    console.log('🚀 [AgentService] CREATE Agent - Request Payload:', {
+      tool_ids: agent.tool_ids,
+      fullPayload: agent,
+    });
     return this.http.post<GetAgentRequest>(this.apiUrl, agent, {
       headers: this.headers,
-    });
+    }).pipe(
+      tap((response) => {
+        console.log('✅ [AgentService] CREATE Agent - Response:', {
+          tools: response.tools,
+          fullResponse: response,
+        });
+      })
+    );
   }
 
   // PATCH update agent
   partialUpdateAgent(agent: PartialUpdateAgentRequest): Observable<PartialUpdateAgentRequest> {
+    console.log('🚀 [AgentService] PATCH Agent - Request Payload:', {
+      id: agent.id,
+      tool_ids: agent.tool_ids,
+      fullPayload: agent,
+    });
     return this.http.patch<PartialUpdateAgentRequest>(
       `${this.apiUrl}${agent.id}/`,
       agent,
       {
         headers: this.headers,
       }
+    ).pipe(
+      tap((response) => {
+        console.log('✅ [AgentService] PATCH Agent - Response:', {
+          fullResponse: response,
+        });
+      })
     );
   }
 
   // PUT update agent
   updateAgent(agent: UpdateAgentRequest): Observable<UpdateAgentRequest> {
+    console.log('🚀 [AgentService] PUT Agent - Request Payload:', {
+      id: agent.id,
+      tool_ids: agent.tool_ids,
+      fullPayload: agent,
+    });
     return this.http.put<UpdateAgentRequest>(
       `${this.apiUrl}${agent.id}/`,
       agent,
       {
         headers: this.headers,
       }
+    ).pipe(
+      tap((response) => {
+        console.log('✅ [AgentService] PUT Agent - Response:', {
+          fullResponse: response,
+        });
+      })
     );
   }
 

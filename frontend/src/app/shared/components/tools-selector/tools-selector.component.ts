@@ -18,12 +18,17 @@ import {
     FullToolConfig,
 } from '../../../services/full-tool-config.service';
 import { PythonCodeToolService } from '../../../user-settings-page/tools/custom-tool-editor/services/pythonCodeToolService.service';
+import { PythonCodeToolConfigService } from '../../../features/tools/services/custom-tools/python-code-tool-config.service';
 import { GetPythonCodeToolRequest } from '../../../features/tools/models/python-code-tool.model';
-import { GetToolConfigRequest } from '../../../features/tools/models/tool_config.model';
+import { GetToolConfigRequest, PythonCodeToolConfig } from '../../../features/tools/models/tool_config.model';
 import { McpToolsService } from '../../../features/tools/services/mcp-tools/mcp-tools.service';
 import { GetMcpToolRequest } from '../../../features/tools/models/mcp-tool.model';
 import { IconButtonComponent } from '../buttons/icon-button/icon-button.component';
 import { AppIconComponent } from '../app-icon/app-icon.component';
+
+export interface FullPythonTool extends GetPythonCodeToolRequest {
+    toolConfigs: PythonCodeToolConfig[];
+}
 
 @Component({
     selector: 'app-tools-selector',
@@ -260,32 +265,94 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
                         <!-- Tools List -->
                         <div
                             *ngFor="let tool of filteredPythonTools"
-                            class="tool-item"
-                            [class.selected]="
-                                selectedPythonToolIds.has(tool.id)
-                            "
-                            (click)="togglePythonTool(tool)"
+                            class="tool-item-container"
                         >
-                            <div class="tool-info">
-                                <div class="tool-name">{{ tool.name }}</div>
-                                <div class="tool-description">
-                                    {{
-                                        tool.description ||
-                                            'No description available'
-                                    }}
+                            <!-- Tool without configs (no tool_fields) - direct selection -->
+                            <div
+                                *ngIf="!tool.tool_fields || tool.tool_fields.length === 0"
+                                class="tool-item"
+                                [class.selected]="isPythonToolSelected(tool)"
+                                (click)="togglePythonTool(tool)"
+                            >
+                                <div class="tool-info">
+                                    <div class="tool-name">{{ tool.name }}</div>
+                                    <div class="tool-description">
+                                        {{ tool.description || 'No description available' }}
+                                    </div>
+                                </div>
+                                <div class="tool-checkbox">
+                                    <input
+                                        type="checkbox"
+                                        [checked]="isPythonToolSelected(tool)"
+                                        (click)="$event.stopPropagation(); togglePythonTool(tool)"
+                                    />
                                 </div>
                             </div>
-                            <div class="tool-checkbox">
-                                <input
-                                    type="checkbox"
-                                    [checked]="
-                                        selectedPythonToolIds.has(tool.id)
-                                    "
-                                    (click)="
-                                        $event.stopPropagation();
-                                        togglePythonTool(tool)
-                                    "
-                                />
+
+                            <!-- Tool with configs (has tool_fields) - expandable -->
+                            <div
+                                *ngIf="tool.tool_fields && tool.tool_fields.length > 0"
+                                class="tool-item expandable"
+                                [class.selected]="isPythonToolSelected(tool)"
+                                [class.expanded]="expandedPythonTools.has(tool.id)"
+                                (click)="togglePythonToolExpand(tool)"
+                            >
+                                <div class="tool-expand-icon">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        [class.rotated]="expandedPythonTools.has(tool.id)"
+                                    >
+                                        <path
+                                            d="M9 6L15 12L9 18"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        />
+                                    </svg>
+                                </div>
+                                <div class="tool-info">
+                                    <div class="tool-name">{{ tool.name }}</div>
+                                    <div class="tool-description">
+                                        {{ tool.description || 'No description available' }}
+                                    </div>
+                                </div>
+                                <div class="tool-configs-count" *ngIf="tool.toolConfigs.length > 0">
+                                    {{ tool.toolConfigs.length }} config(s)
+                                </div>
+                            </div>
+
+                            <!-- Expanded Configs List -->
+                            <div
+                                *ngIf="tool.tool_fields && tool.tool_fields.length > 0 && expandedPythonTools.has(tool.id)"
+                                class="tool-configs-list"
+                            >
+                                <div
+                                    *ngIf="tool.toolConfigs.length === 0"
+                                    class="no-configs"
+                                >
+                                    No configurations created yet
+                                </div>
+                                <div
+                                    *ngFor="let config of tool.toolConfigs"
+                                    class="config-item"
+                                    [class.selected]="selectedPythonToolConfigIds.has(config.id)"
+                                    (click)="$event.stopPropagation(); togglePythonToolConfig(config)"
+                                >
+                                    <div class="config-info">
+                                        <div class="config-name">{{ config.name }}</div>
+                                    </div>
+                                    <div class="config-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            [checked]="selectedPythonToolConfigIds.has(config.id)"
+                                            (click)="$event.stopPropagation(); togglePythonToolConfig(config)"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -641,6 +708,10 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
                             }
                         }
 
+                        .tool-item-container {
+                            margin-bottom: 0.5rem;
+                        }
+
                         .tool-item {
                             display: flex;
                             justify-content: space-between;
@@ -660,6 +731,29 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
                             &.selected {
                                 border-color: var(--accent-color);
                                 background: rgba(104, 95, 255, 0.12);
+                            }
+
+                            &.expandable {
+                                border-radius: 6px 6px 0 0;
+
+                                &.expanded {
+                                    border-bottom: none;
+                                }
+                            }
+
+                            .tool-expand-icon {
+                                margin-right: 0.5rem;
+                                color: var(--color-text-secondary);
+                                display: flex;
+                                align-items: center;
+
+                                svg {
+                                    transition: transform 0.2s ease;
+
+                                    &.rotated {
+                                        transform: rotate(90deg);
+                                    }
+                                }
                             }
 
                             .tool-info {
@@ -682,10 +776,63 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
                                 }
                             }
 
+                            .tool-configs-count {
+                                font-size: 0.75rem;
+                                color: var(--color-text-secondary);
+                                margin-left: 0.5rem;
+                            }
+
                             .tool-checkbox input {
                                 width: 16px;
                                 height: 16px;
                                 cursor: pointer;
+                            }
+                        }
+
+                        .tool-configs-list {
+                            background: rgba(0, 0, 0, 0.2);
+                            border: 1px solid var(--color-divider-subtle);
+                            border-top: none;
+                            border-radius: 0 0 6px 6px;
+                            padding: 0.5rem 0;
+
+                            .no-configs {
+                                padding: 0.75rem 1rem 0.75rem 2.5rem;
+                                font-size: 0.75rem;
+                                color: var(--color-text-secondary);
+                                font-style: italic;
+                            }
+
+                            .config-item {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: 0.5rem 1rem 0.5rem 2.5rem;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+
+                                &:hover {
+                                    background: rgba(104, 95, 255, 0.08);
+                                }
+
+                                &.selected {
+                                    background: rgba(104, 95, 255, 0.12);
+                                }
+
+                                .config-info {
+                                    flex: 1;
+
+                                    .config-name {
+                                        font-size: 0.8125rem;
+                                        color: var(--color-text-primary);
+                                    }
+                                }
+
+                                .config-checkbox input {
+                                    width: 16px;
+                                    height: 16px;
+                                    cursor: pointer;
+                                }
                             }
                         }
                     }
@@ -752,14 +899,16 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
 export class ToolsSelectorComponent implements OnInit, OnDestroy {
     @Input() selectedConfiguredTools: number[] = [];
     @Input() selectedPythonCodeTools: number[] = [];
+    @Input() selectedPythonCodeToolConfigs: number[] = [];
     @Input() selectedMcpTools: number[] = [];
 
     @Output() configuredToolsChange = new EventEmitter<number[]>();
     @Output() pythonCodeToolsChange = new EventEmitter<number[]>();
+    @Output() pythonCodeToolConfigsChange = new EventEmitter<number[]>();
     @Output() mcpToolsChange = new EventEmitter<number[]>();
 
     public builtinTools: FullToolConfig[] = [];
-    public pythonTools: GetPythonCodeToolRequest[] = [];
+    public pythonTools: FullPythonTool[] = [];
     public mcpTools: GetMcpToolRequest[] = [];
     public isLoadingTools = false;
     public showToolsDialog = false;
@@ -769,14 +918,17 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
     // Selection tracking
     public selectedToolConfigIds = new Set<number>();
     public selectedPythonToolIds = new Set<number>();
+    public selectedPythonToolConfigIds = new Set<number>();
     public selectedMcpToolIds = new Set<number>();
     public expandedTools = new Set<number>();
+    public expandedPythonTools = new Set<number>();
 
     private readonly destroy$ = new Subject<void>();
 
     constructor(
         private fullToolConfigService: FullToolConfigService,
         private pythonCodeToolService: PythonCodeToolService,
+        private pythonCodeToolConfigService: PythonCodeToolConfigService,
         private mcpToolsService: McpToolsService,
         private cdr: ChangeDetectorRef
     ) {}
@@ -785,31 +937,20 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
         this.loadTools();
 
         // Initialize selections from inputs
-        if (
-            this.selectedConfiguredTools &&
-            this.selectedConfiguredTools.length > 0
-        ) {
-            this.selectedToolConfigIds = new Set<number>(
-                this.selectedConfiguredTools
-            );
+        if (this.selectedConfiguredTools?.length > 0) {
+            this.selectedToolConfigIds = new Set<number>(this.selectedConfiguredTools);
         }
 
-        if (
-            this.selectedPythonCodeTools &&
-            this.selectedPythonCodeTools.length > 0
-        ) {
-            this.selectedPythonToolIds = new Set<number>(
-                this.selectedPythonCodeTools
-            );
+        if (this.selectedPythonCodeTools?.length > 0) {
+            this.selectedPythonToolIds = new Set<number>(this.selectedPythonCodeTools);
         }
 
-        if (
-            this.selectedMcpTools &&
-            this.selectedMcpTools.length > 0
-        ) {
-            this.selectedMcpToolIds = new Set<number>(
-                this.selectedMcpTools
-            );
+        if (this.selectedPythonCodeToolConfigs?.length > 0) {
+            this.selectedPythonToolConfigIds = new Set<number>(this.selectedPythonCodeToolConfigs);
+        }
+
+        if (this.selectedMcpTools?.length > 0) {
+            this.selectedMcpToolIds = new Set<number>(this.selectedMcpTools);
         }
     }
 
@@ -819,13 +960,18 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
         forkJoin({
             builtinTools: this.fullToolConfigService.getFullToolConfigs(),
             pythonTools: this.pythonCodeToolService.getPythonCodeTools(),
+            pythonToolConfigs: this.pythonCodeToolConfigService.getConfigs(),
             mcpTools: this.mcpToolsService.getMcpTools(),
         })
             .pipe(takeUntil(this.destroy$))
             .subscribe({
-                next: ({ builtinTools, pythonTools, mcpTools }) => {
+                next: ({ builtinTools, pythonTools, pythonToolConfigs, mcpTools }) => {
                     this.builtinTools = builtinTools;
-                    this.pythonTools = pythonTools;
+                    // Create FullPythonTool objects with configs
+                    this.pythonTools = pythonTools.map((tool) => ({
+                        ...tool,
+                        toolConfigs: pythonToolConfigs.filter((cfg) => cfg.tool === tool.id),
+                    }));
                     this.mcpTools = mcpTools;
                     this.isLoadingTools = false;
                     this.cdr.markForCheck();
@@ -908,13 +1054,44 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
     }
 
-    public togglePythonTool(tool: GetPythonCodeToolRequest): void {
-        if (this.selectedPythonToolIds.has(tool.id)) {
-            this.selectedPythonToolIds.delete(tool.id);
+    public togglePythonTool(tool: FullPythonTool): void {
+        // For tools without config fields, toggle the base tool
+        if (!tool.tool_fields || tool.tool_fields.length === 0) {
+            if (this.selectedPythonToolIds.has(tool.id)) {
+                this.selectedPythonToolIds.delete(tool.id);
+            } else {
+                this.selectedPythonToolIds.add(tool.id);
+            }
+        }
+        // Tools with config fields should have their configs toggled via togglePythonToolConfig
+        this.cdr.markForCheck();
+    }
+
+    public togglePythonToolConfig(config: PythonCodeToolConfig): void {
+        if (this.selectedPythonToolConfigIds.has(config.id)) {
+            this.selectedPythonToolConfigIds.delete(config.id);
         } else {
-            this.selectedPythonToolIds.add(tool.id);
+            this.selectedPythonToolConfigIds.add(config.id);
         }
         this.cdr.markForCheck();
+    }
+
+    public togglePythonToolExpand(tool: FullPythonTool): void {
+        if (this.expandedPythonTools.has(tool.id)) {
+            this.expandedPythonTools.delete(tool.id);
+        } else {
+            this.expandedPythonTools.add(tool.id);
+        }
+        this.cdr.markForCheck();
+    }
+
+    public isPythonToolSelected(tool: FullPythonTool): boolean {
+        if (!tool.tool_fields || tool.tool_fields.length === 0) {
+            return this.selectedPythonToolIds.has(tool.id);
+        }
+        return tool.toolConfigs.some((config) =>
+            this.selectedPythonToolConfigIds.has(config.id)
+        );
     }
 
     public toggleMcpTool(tool: GetMcpToolRequest): void {
@@ -929,6 +1106,7 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
     public saveToolSelection(): void {
         this.configuredToolsChange.emit(Array.from(this.selectedToolConfigIds));
         this.pythonCodeToolsChange.emit(Array.from(this.selectedPythonToolIds));
+        this.pythonCodeToolConfigsChange.emit(Array.from(this.selectedPythonToolConfigIds));
         this.mcpToolsChange.emit(Array.from(this.selectedMcpToolIds));
         this.closeToolsDialog();
     }
@@ -947,7 +1125,7 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
         );
     }
 
-    public get filteredPythonTools(): GetPythonCodeToolRequest[] {
+    public get filteredPythonTools(): FullPythonTool[] {
         if (!this.toolsSearchTerm) return this.pythonTools;
 
         const search = this.toolsSearchTerm.toLowerCase();
@@ -974,6 +1152,7 @@ export class ToolsSelectorComponent implements OnInit, OnDestroy {
         return (
             this.selectedToolConfigIds.size + 
             this.selectedPythonToolIds.size + 
+            this.selectedPythonToolConfigIds.size +
             this.selectedMcpToolIds.size
         );
     }

@@ -1,0 +1,75 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.tcf-code-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  &__label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #9aa0a6;
+  }
+
+  &__required {
+    color: #f28b82;
+    margin-left: 2px;
+    font-weight: 700;
+  }
+
+  &__container {
+    position: relative;
+    border: 1px solid #3c4043;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #1e1e1e;
+
+    &:hover {
+      border-color: #5f6368;
+    }
+
+    &:focus-within {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 2px rgba(104, 95, 255, 0.15);
+    }
+
+    &--error {
+      border-color: #f28b82;
+
+      &:focus-within {
+        border-color: #f28b82;
+        box-shadow: 0 0 0 2px rgba(242, 139, 130, 0.15);
+      }
+    }
+  }
+
+  &__monaco {
+    display: block;
+    width: 100%;
+  }
+
+  &__loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1e1e1e;
+    color: #9aa0a6;
+    font-size: 0.85rem;
+  }
+
+  &__hint {
+    font-size: 0.75rem;
+    color: #5f6368;
+  }
+
+  &__error {
+    font-size: 0.75rem;
+    color: #f28b82;
+  }
+}
+

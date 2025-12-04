@@ -24,6 +24,7 @@ export class CustomToolCardComponent {
   @Input() public enabled: boolean = false;
   @Input() public starred: boolean = false;
   @Output() public configure = new EventEmitter<GetPythonCodeToolRequest>();
+  @Output() public manageConfigs = new EventEmitter<GetPythonCodeToolRequest>();
   @Output() public toggle = new EventEmitter<{
     tool: GetPythonCodeToolRequest;
     enabled: boolean;
@@ -43,6 +44,10 @@ export class CustomToolCardComponent {
   public onConfigure(): void {
     console.log('Configure clicked for tool:', this.tool);
     this.configure.emit(this.tool);
+  }
+
+  public onManageConfigs(): void {
+    this.manageConfigs.emit(this.tool);
   }
 
   public onToggle(val: boolean): void {

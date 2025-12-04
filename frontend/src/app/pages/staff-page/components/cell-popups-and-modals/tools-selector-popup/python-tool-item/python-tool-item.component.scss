@@ -6,13 +6,16 @@ $text-primary: #f5f5f5;
 $text-secondary: #a0a0a0;
 $border-color: rgba(255, 255, 255, 0.1);
 
+.python-tool-item-container {
+  margin-bottom: 8px;
+}
+
 .python-tool-item {
   display: flex;
   align-items: center;
   padding: 10px 12px;
   background-color: $bg-item;
   border-radius: 4px;
-  margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid #404040;
@@ -56,6 +59,17 @@ $border-color: rgba(255, 255, 255, 0.1);
     margin-right: 16px;
   }
 
+  .chevron-icon {
+    transition: transform 0.3s ease;
+    color: $text-secondary;
+    flex-shrink: 0;
+    margin-left: auto;
+
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
+
   input[type="checkbox"] {
     appearance: none;
     -webkit-appearance: none;
@@ -86,5 +100,87 @@ $border-color: rgba(255, 255, 255, 0.1);
       background-color: rgba($accent-blue, 0.8);
       color: white;
     }
+  }
+}
+
+.tool-configs {
+  margin-top: 4px;
+  margin-left: 16px;
+  margin-bottom: 8px;
+  overflow: hidden;
+
+  .tool-config-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: rgba($bg-item, 0.7);
+    border-radius: 4px;
+    margin-top: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    gap: 8px;
+    border: 1px solid transparent;
+
+    &:hover {
+      background-color: $bg-item-hover;
+    }
+
+    &.selected-config {
+      background-color: rgba($accent-blue, 0.15);
+      border-color: $accent-blue;
+      box-shadow: 0 0 0 1px rgba($accent-blue, 0.4);
+    }
+
+    .config-name {
+      flex: 1;
+      font-size: 12px;
+      color: $text-primary;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: auto;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid $border-color;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+
+      &:checked {
+        background-color: $accent-blue;
+        border-color: $accent-blue;
+
+        &::after {
+          content: "✓";
+          color: white;
+          font-size: 9px;
+        }
+      }
+
+      &:hover:not(:checked) {
+        background-color: rgba($accent-blue, 0.8);
+        color: white;
+      }
+    }
+  }
+
+  .no-config-message {
+    padding: 8px 12px;
+    background-color: rgba($bg-item, 0.7);
+    border-radius: 4px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: $text-secondary;
+    text-align: center;
   }
 }

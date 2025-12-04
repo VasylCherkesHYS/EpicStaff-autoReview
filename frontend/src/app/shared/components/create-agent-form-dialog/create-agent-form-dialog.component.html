@@ -238,6 +238,9 @@
                             [selectedPythonCodeTools]="
                                 agentForm.get('python_code_tools')?.value || []
                             "
+                            [selectedPythonCodeToolConfigs]="
+                                agentForm.get('python_code_tool_configs')?.value || []
+                            "
                             [selectedMcpTools]="
                                 agentForm.get('mcp_tools')?.value || []
                             "
@@ -246,6 +249,9 @@
                             "
                             (pythonCodeToolsChange)="
                                 onPythonToolsChange($event)
+                            "
+                            (pythonCodeToolConfigsChange)="
+                                onPythonToolConfigsChange($event)
                             "
                             (mcpToolsChange)="
                                 onMcpToolsChange($event)

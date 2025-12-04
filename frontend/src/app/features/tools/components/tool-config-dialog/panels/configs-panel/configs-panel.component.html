@@ -1,0 +1,156 @@
+<div class="configs-panel">
+  <div class="configs-panel__sidebar">
+    <div class="configs-panel__sidebar-header">
+      <span>Saved Configs</span>
+      <button class="configs-panel__add-btn" (click)="startNew()" title="Create new configuration">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+    <div class="configs-panel__divider"></div>
+    <div class="configs-panel__list">
+      @if (configs().length === 0) {
+        <div class="configs-panel__empty">
+          <mat-icon>folder_open</mat-icon>
+          <span>No configs yet</span>
+        </div>
+      } @else {
+        @for (config of configs(); track config.id) {
+          <div
+            class="configs-panel__list-item"
+            [class.configs-panel__list-item--selected]="selectedConfig()?.id === config.id"
+            (click)="selectConfig(config)"
+          >
+            <mat-icon>description</mat-icon>
+            <span>{{ config.name }}</span>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <div class="configs-panel__main">
+    @if (showForm()) {
+      @if (backendErrorMessage) {
+        <div class="configs-panel__error-banner">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ backendErrorMessage }}</span>
+        </div>
+      }
+
+      <form [formGroup]="configForm" class="configs-panel__form">
+        <div class="configs-panel__form-section">
+          <tcf-input
+            label="Configuration Name"
+            placeholder="e.g. Production, Development"
+            formControlName="name"
+            [required]="true"
+            [error]="getFieldError('name')"
+          />
+        </div>
+
+        @if (hasFields()) {
+          <div class="configs-panel__form-section">
+            <h3 class="configs-panel__section-title">Configuration Values</h3>
+
+            @for (field of toolFields(); track field.id) {
+              <div class="configs-panel__config-field">
+                <div class="configs-panel__field-header">
+                  <span class="configs-panel__field-name">
+                    {{ field.name }}
+                    @if (field.required) { <span class="required-marker">*</span> }
+                  </span>
+                  <span class="configs-panel__field-type" [attr.data-type]="field.data_type">
+                    {{ getFieldTypeLabel(field.data_type) }}
+                  </span>
+                </div>
+
+                @if (isSelectField(field.data_type)) {
+                  <tcf-select
+                    [formControlName]="field.name"
+                    [options]="getSelectOptions(field)"
+                    [error]="getFieldError(field.name)"
+                  />
+                } @else if (isBooleanField(field.data_type)) {
+                  <tcf-checkbox [formControlName]="field.name" label="Enable this option" />
+                } @else if (isJsonField(field.data_type)) {
+                  <tcf-code-editor
+                    [formControlName]="field.name"
+                    language="json"
+                    [height]="150"
+                    [error]="getFieldError(field.name)"
+                  />
+                } @else if (isTextField(field)) {
+                  <tcf-textarea
+                    [formControlName]="field.name"
+                    [placeholder]="getPlaceholder(field)"
+                    [error]="getFieldError(field.name)"
+                    [rows]="3"
+                  />
+                } @else if (isNumberField(field.data_type)) {
+                  <tcf-input
+                    [formControlName]="field.name"
+                    type="number"
+                    [step]="field.data_type === 'integer' ? 1 : 'any'"
+                    [placeholder]="getPlaceholder(field)"
+                    [error]="getFieldError(field.name)"
+                  />
+                } @else {
+                  <tcf-input
+                    [formControlName]="field.name"
+                    type="password"
+                    [placeholder]="getPlaceholder(field)"
+                    [error]="getFieldError(field.name)"
+                  />
+                }
+
+                @if (field.description) {
+                  <p class="configs-panel__field-desc">{{ field.description }}</p>
+                }
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="configs-panel__no-fields-hint">
+            <mat-icon>info_outline</mat-icon>
+            <div>
+              <strong>No fields defined</strong>
+              <p>Go to the <strong>Fields</strong> tab to define what configuration values this tool needs.</p>
+            </div>
+          </div>
+        }
+      </form>
+
+      <div class="configs-panel__form-actions">
+        @if (selectedConfig()) {
+          <button class="configs-panel__btn configs-panel__btn--danger" (click)="delete()" [disabled]="isSaving()">
+            <mat-icon>delete_outline</mat-icon>
+            <span>Delete</span>
+          </button>
+        }
+        <span class="configs-panel__spacer"></span>
+        <button class="configs-panel__btn configs-panel__btn--secondary" (click)="cancel()" [disabled]="isSaving()">
+          Cancel
+        </button>
+        <button
+          class="configs-panel__btn configs-panel__btn--primary"
+          (click)="save()"
+          [disabled]="configForm.invalid || isSaving()"
+        >
+          @if (isSaving()) {
+            <mat-icon class="configs-panel__spinner">sync</mat-icon>
+          }
+          <span>{{ selectedConfig() ? 'Update' : 'Create' }}</span>
+        </button>
+      </div>
+    } @else {
+      <div class="configs-panel__placeholder">
+        <mat-icon>tune</mat-icon>
+        <p>Select a configuration to edit or create a new one</p>
+        <button class="configs-panel__btn configs-panel__btn--primary" (click)="startNew()">
+          <mat-icon>add</mat-icon>
+          <span>New Configuration</span>
+        </button>
+      </div>
+    }
+  </div>
+</div>

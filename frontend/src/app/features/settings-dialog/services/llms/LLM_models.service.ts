@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiGetRequest } from '../../../../shared/models/api-request.model';
-import { GetLlmModelRequest, LLM_Model } from '../../models/llms/LLM.model';
+import { GetLlmModelRequest } from '../../models/llms/LLM.model';
 import { ConfigService } from '../../../../services/config/config.service';
 
 @Injectable({
@@ -20,7 +20,7 @@ export class LLM_Models_Service {
     return this.configService.apiUrl + 'llm-models/';
   }
 
-  getLLMModels(providerId?: number): Observable<LLM_Model[]> {
+  getLLMModels(providerId?: number): Observable<GetLlmModelRequest[]> {
     let params = new HttpParams().set('limit', '1000');
 
     if (providerId) {
@@ -28,15 +28,15 @@ export class LLM_Models_Service {
     }
 
     return this.http
-      .get<ApiGetRequest<LLM_Model>>(this.apiUrl, {
+      .get<ApiGetRequest<GetLlmModelRequest>>(this.apiUrl, {
         headers: this.headers,
         params,
       })
       .pipe(map((response) => response.results));
   }
 
-  getLLMModelById(id: number): Observable<LLM_Model> {
-    return this.http.get<LLM_Model>(`${this.apiUrl}${id}/`, {
+  getLLMModelById(id: number): Observable<GetLlmModelRequest> {
+    return this.http.get<GetLlmModelRequest>(`${this.apiUrl}${id}/`, {
       headers: this.headers,
     });
   }

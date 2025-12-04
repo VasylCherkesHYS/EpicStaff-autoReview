@@ -13,7 +13,7 @@ import { Dialog } from '@angular/cdk/dialog';
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
 import { CustomToolDialogComponent } from '../../../../user-settings-page/tools/custom-tool-editor/custom-tool-dialog.component';
-import { CustomToolsService } from '../../services/custom-tools/custom-tools.service';
+import { CustomToolsService } from '../../services/custom-tools/custom-tools-api.service';
 import { GetPythonCodeToolRequest } from '../../models/python-code-tool.model';
 import { FormsModule } from '@angular/forms';
 import { AppIconComponent } from '../../../../shared/components/app-icon/app-icon.component';

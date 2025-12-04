@@ -3,7 +3,7 @@ import { GetMcpToolRequest } from '../../features/tools/models/mcp-tool.model';
 import { FullTask } from './full-task.model';
 import { GetToolRequest } from '../../features/tools/models/tool.model';
 import { ToolUniqueName } from './agent.model';
-import { GetToolConfigRequest } from '../../features/tools/models/tool_config.model';
+import { GetToolConfigRequest, PythonCodeToolConfig } from '../../features/tools/models/tool_config.model';
 
 export interface GetTaskRequest {
     id: number;
@@ -26,7 +26,7 @@ export interface GetTaskRequest {
 
     tools: {
         unique_name: ToolUniqueName;
-        data: GetToolConfigRequest | GetPythonCodeToolRequest | GetMcpToolRequest;
+        data: GetToolConfigRequest | GetPythonCodeToolRequest | PythonCodeToolConfig | GetMcpToolRequest;
     }[];
 }
 
@@ -47,6 +47,7 @@ export interface CreateTaskRequest {
     task_context_list?: number[];
     configured_tools?: number[];
     python_code_tools?: number[];
+    python_code_tool_configs?: number[];
     mcp_tools?: number[];
     tool_ids?: ToolUniqueName[];
 }
@@ -69,6 +70,7 @@ export interface UpdateTaskRequest {
     task_context_list?: number[];
     configured_tools?: number[];
     python_code_tools?: number[];
+    python_code_tool_configs?: number[];
     mcp_tools?: number[];
     tool_ids?: ToolUniqueName[];
 }

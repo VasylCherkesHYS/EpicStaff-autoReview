@@ -200,6 +200,7 @@ export class AgentsTableComponent {
             backstory: '',
             configured_tools: [],
             python_code_tools: [],
+            python_code_tool_configs: [],
             mcp_tools: [],
             llm_config: null,
             fcm_llm_config: null,
@@ -218,7 +219,6 @@ export class AgentsTableComponent {
             tools: [],
             search_limit: 3,
             similarity_threshold: '0.65',
-            // Replace realtime_config with realtime_agent object using provided defaults
             realtime_agent: {
                 similarity_threshold: '0.65',
                 search_limit: 3,
@@ -230,12 +230,12 @@ export class AgentsTableComponent {
                 realtime_config: null,
                 realtime_transcription_config: null,
             },
-            // Additional fields from FullAgent
             fullLlmConfig: undefined,
             fullFcmLlmConfig: undefined,
             fullRealtimeConfig: undefined,
             fullConfiguredTools: [],
             fullPythonTools: [],
+            fullPythonToolConfigs: [],
             fullMcpTools: [],
             mergedTools: [],
             mergedConfigs: [],
@@ -609,13 +609,16 @@ export class AgentsTableComponent {
         const parsed = {
             ...agentData,
             llm_config: llmConfigId,
-            fcm_llm_config: agentData.fcm_llm_config || llmConfigId, // Maintain existing logic
-            realtime_agent: realtime_agent, // Use the properly structured realtime_agent object
+            fcm_llm_config: agentData.fcm_llm_config || llmConfigId,
+            realtime_agent: realtime_agent,
             configured_tools: mergedTools
                 .filter((tool: any) => tool.type === 'tool-config')
                 .map((tool: any) => tool.id),
             python_code_tools: mergedTools
                 .filter((tool: any) => tool.type === 'python-tool')
+                .map((tool: any) => tool.id),
+            python_code_tool_configs: mergedTools
+                .filter((tool: any) => tool.type === 'python-tool-config')
                 .map((tool: any) => tool.id),
             mcp_tools: mergedTools
                 .filter((tool: any) => tool.type === 'mcp-tool')
@@ -669,14 +672,16 @@ export class AgentsTableComponent {
             // Build tool_ids array
             const configuredToolIds = parsedData.configured_tools || [];
             const pythonToolIds = parsedData.python_code_tools || [];
+            const pythonToolConfigIds = parsedData.python_code_tool_configs || [];
             const mcpToolIds = parsedData.mcp_tools || [];
-            const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds);
+            const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds, pythonToolConfigIds);
 
             // Create the new agent by sending the full row data
             const createAgentData: CreateAgentRequest = {
                 ...parsedData,
                 configured_tools: configuredToolIds,
                 python_code_tools: pythonToolIds,
+                python_code_tool_configs: pythonToolConfigIds,
                 mcp_tools: mcpToolIds,
                 tool_ids: toolIds,
             };
@@ -769,11 +774,13 @@ export class AgentsTableComponent {
         // Build tool_ids array for update
         const updateConfiguredToolIds = parsedUpdateData.configured_tools || [];
         const updatePythonToolIds = parsedUpdateData.python_code_tools || [];
+        const updatePythonToolConfigIds = parsedUpdateData.python_code_tool_configs || [];
         const updateMcpToolIds = parsedUpdateData.mcp_tools || [];
         const updateToolIds = buildToolIdsArray(
             updateConfiguredToolIds,
             updatePythonToolIds,
-            updateMcpToolIds
+            updateMcpToolIds,
+            updatePythonToolConfigIds
         );
 
         // Update the agent using the id if all fields are valid
@@ -781,6 +788,7 @@ export class AgentsTableComponent {
             ...parsedUpdateData,
             configured_tools: updateConfiguredToolIds,
             python_code_tools: updatePythonToolIds,
+            python_code_tool_configs: updatePythonToolConfigIds,
             mcp_tools: updateMcpToolIds,
             tool_ids: updateToolIds,
         };
@@ -918,6 +926,9 @@ export class AgentsTableComponent {
             python_code_tools: this.rowData[index].mergedTools
                 .filter((tool: any) => tool.type === 'python-tool')
                 .map((tool: any) => tool.id),
+            python_code_tool_configs: this.rowData[index].mergedTools
+                .filter((tool: any) => tool.type === 'python-tool-config')
+                .map((tool: any) => tool.id),
             mcp_tools: this.rowData[index].mergedTools
                 .filter((tool: any) => tool.type === 'mcp-tool')
                 .map((tool: any) => tool.id),
@@ -928,13 +939,16 @@ export class AgentsTableComponent {
             allToolsPreBuilding.configured_tools || [];
         const settingsPythonToolIds =
             allToolsPreBuilding.python_code_tools || [];
+        const settingsPythonToolConfigIds =
+            allToolsPreBuilding.python_code_tool_configs || [];
         const settingsMcpToolIds =
             allToolsPreBuilding.mcp_tools || [];
 
         const settingsToolIds = buildToolIdsArray(
             settingsConfiguredToolIds,
             settingsPythonToolIds,
-            settingsMcpToolIds
+            settingsMcpToolIds,
+            settingsPythonToolConfigIds
         );
 
         const parsedUpdateData = this.parseAgentData(this.rowData[index]);
@@ -946,6 +960,7 @@ export class AgentsTableComponent {
             realtime_agent: realtime_agent,
             configured_tools: settingsConfiguredToolIds,
             python_code_tools: settingsPythonToolIds,
+            python_code_tool_configs: settingsPythonToolConfigIds,
             mcp_tools: settingsMcpToolIds,
             tool_ids: settingsToolIds,
         };
@@ -1198,14 +1213,16 @@ export class AgentsTableComponent {
         
         const configuredToolIds = parsedAgentData.configured_tools || [];
         const pythonToolIds = parsedAgentData.python_code_tools || [];
+        const pythonToolConfigIds = parsedAgentData.python_code_tool_configs || [];
         const mcpToolIds = parsedAgentData.mcp_tools || [];
-        const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds);
+        const toolIds = buildToolIdsArray(configuredToolIds, pythonToolIds, mcpToolIds, pythonToolConfigIds);
 
         const createAgentData: CreateAgentRequest = {
             ...parsedAgentData,
             realtime_agent: realtime_agent,
             configured_tools: configuredToolIds,
             python_code_tools: pythonToolIds,
+            python_code_tool_configs: pythonToolConfigIds,
             mcp_tools: mcpToolIds,
             tool_ids: toolIds as ToolUniqueName[],
         };

@@ -21,3 +21,22 @@ export interface CreateToolConfigRequest {
   configuration: Record<string, any>;
   tool: number;
 }
+
+export interface PythonCodeToolConfig {
+  id: number;
+  name: string;
+  tool: number;
+  configuration: Record<string, any>;
+}
+
+export interface CreatePythonCodeToolConfigRequest {
+  name: string;
+  tool: number;
+  configuration: Record<string, any>;
+}
+
+export interface UpdatePythonCodeToolConfigRequest {
+  name: string;
+  tool: number;
+  configuration: Record<string, any>;
+}

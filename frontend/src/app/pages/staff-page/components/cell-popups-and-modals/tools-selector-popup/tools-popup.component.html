@@ -88,8 +88,12 @@
         <app-python-tool-item
           *ngFor="let pTool of filteredPythonTools"
           [tool]="pTool"
-          [isSelected]="selectedPythonTools.has(pTool.id)"
+          [isSelected]="isPythonToolSelected(pTool)"
+          [isExpanded]="expandedPythonToolConfigs.has(pTool.id)"
+          [selectedConfigIds]="selectedPythonToolConfigs"
           (toolToggled)="onPythonToolToggle($event)"
+          (configToggled)="onPythonToolConfigToggle($event)"
+          (toolConfigsToggled)="togglePythonToolConfigs($event)"
         >
         </app-python-tool-item>
         <div class="add-tool-button-container">

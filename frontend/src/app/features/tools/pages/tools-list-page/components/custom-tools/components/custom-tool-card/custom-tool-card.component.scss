@@ -119,7 +119,13 @@
   transition: opacity 0.22s ease-out, transform 0.22s ease-out;
   z-index: 2;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
-  will-change: transform, opacity; /* Optimize for animations */
+  will-change: transform, opacity;
+
+  .footer-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
 
   .configure-btn {
     background: var(--accent-color);

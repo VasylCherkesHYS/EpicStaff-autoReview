@@ -1,0 +1,121 @@
+<div class="fields-panel">
+  <div class="fields-panel__sidebar">
+    <div class="fields-panel__sidebar-header">
+      <span>Config Fields</span>
+      <button class="fields-panel__add-btn" (click)="startNew()" title="Add new field">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+    <div class="fields-panel__divider"></div>
+    <div class="fields-panel__list">
+      @if (fields().length === 0) {
+        <div class="fields-panel__empty">
+          <mat-icon>view_list</mat-icon>
+          <span>No fields yet</span>
+        </div>
+      } @else {
+        @for (field of fields(); track field.id) {
+          <div
+            class="fields-panel__list-item"
+            [class.fields-panel__list-item--selected]="selectedField()?.id === field.id"
+            (click)="selectField(field)"
+          >
+            <div class="fields-panel__list-item-info">
+              <span class="fields-panel__list-item-name">{{ field.name }}</span>
+              <span class="fields-panel__list-item-type">{{ getFieldTypeLabel(field.data_type) }}</span>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <div class="fields-panel__main">
+    @if (showForm()) {
+      @if (backendErrorMessage) {
+        <div class="fields-panel__error-banner">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ backendErrorMessage }}</span>
+        </div>
+      }
+
+      <form [formGroup]="fieldForm" class="fields-panel__form">
+        <div class="fields-panel__form-section">
+          <h3 class="fields-panel__section-title">Field Details</h3>
+
+          <div class="fields-panel__field-row">
+            <tcf-input
+              label="Field Name"
+              placeholder="e.g. api_key, max_tokens"
+              hint="Unique identifier (snake_case recommended)"
+              formControlName="name"
+              [required]="true"
+              [error]="getFieldError('name')"
+            />
+          </div>
+
+          <div class="fields-panel__field-row">
+            <tcf-textarea
+              label="Description"
+              placeholder="What is this field for?"
+              hint="Help text shown to users"
+              formControlName="description"
+              [rows]="3"
+            />
+          </div>
+
+          <div class="fields-panel__field-row">
+            <tcf-select
+              label="Field Type"
+              hint="Determines input type and validation"
+              formControlName="data_type"
+              [options]="fieldTypeOptions"
+            />
+          </div>
+
+          <div class="fields-panel__checkbox-row">
+            <tcf-checkbox formControlName="required" label="Required field" icon="verified" />
+            <tcf-checkbox formControlName="secret" label="Secret (password input)" icon="visibility_off" />
+          </div>
+        </div>
+      </form>
+
+      <div class="fields-panel__form-actions">
+        @if (selectedField()) {
+          <button class="fields-panel__btn fields-panel__btn--danger" (click)="delete()" [disabled]="isSaving()">
+            <mat-icon>delete_outline</mat-icon>
+            <span>Delete</span>
+          </button>
+        }
+        <span class="fields-panel__spacer"></span>
+        <button class="fields-panel__btn fields-panel__btn--secondary" (click)="cancel()" [disabled]="isSaving()">
+          Cancel
+        </button>
+        <button
+          class="fields-panel__btn fields-panel__btn--primary"
+          (click)="save()"
+          [disabled]="fieldForm.invalid || isSaving()"
+        >
+          @if (isSaving()) {
+            <mat-icon class="fields-panel__spinner">sync</mat-icon>
+          }
+          <span>{{ selectedField() ? 'Update' : 'Create' }}</span>
+        </button>
+      </div>
+    } @else {
+      <div class="fields-panel__placeholder">
+        <mat-icon>view_list</mat-icon>
+        <p>Define what configuration values this tool needs</p>
+        <button class="fields-panel__btn fields-panel__btn--primary" (click)="startNew()">
+          <mat-icon>add</mat-icon>
+          <span>Add Field</span>
+        </button>
+        <div class="fields-panel__placeholder-hint">
+          Fields define the schema for configurations.<br />
+          Examples: <code>api_key</code> (text), <code>temperature</code> (decimal), <code>llm</code> (LLM Config)
+        </div>
+      </div>
+    }
+  </div>
+</div>
+

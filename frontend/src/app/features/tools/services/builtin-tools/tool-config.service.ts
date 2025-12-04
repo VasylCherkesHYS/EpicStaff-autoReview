@@ -1,29 +1,28 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 
-import { ApiGetRequest } from '../shared/models/api-request.model';
+import { ApiGetRequest } from '../../../../shared/models/api-request.model';
 import {
   CreateToolConfigRequest,
   GetToolConfigRequest,
   ToolConfig,
-} from '../features/tools/models/tool_config.model';
-import { ConfigService } from './config/config.service';
+} from '../../models/tool_config.model';
+import { ConfigService } from '../../../../services/config/config.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class ToolConfigService {
-  private headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+  private readonly http = inject(HttpClient);
+  private readonly configService = inject(ConfigService);
 
-  constructor(private http: HttpClient, private configService: ConfigService) {}
+  private readonly headers = new HttpHeaders({ 'Content-Type': 'application/json' });
 
-  // Dynamically retrieve the API URL from ConfigService
   private get apiUrl(): string {
     return this.configService.apiUrl + 'tool-configs/';
   }
 
-  // GET all tool configs
   getToolConfigs(): Observable<GetToolConfigRequest[]> {
     const params = new HttpParams().set('limit', '1000');
     return this.http
@@ -33,14 +32,13 @@ export class ToolConfigService {
       })
       .pipe(map((res) => res.results));
   }
-  // POST create tool config
+
   createToolConfig(config: CreateToolConfigRequest): Observable<ToolConfig> {
     return this.http.post<ToolConfig>(this.apiUrl, config, {
       headers: this.headers,
     });
   }
 
-  // PUT update tool config
   updateToolConfig(
     id: number,
     config: CreateToolConfigRequest
@@ -50,10 +48,10 @@ export class ToolConfigService {
     });
   }
 
-  // DELETE delete tool config
-  deleteToolConfig(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}${id}/`, {
+  deleteToolConfig(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}${id}/`, {
       headers: this.headers,
     });
   }
 }
+

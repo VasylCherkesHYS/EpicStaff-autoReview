@@ -1,0 +1,318 @@
+<div class="tool-config-dialog">
+  <div class="tool-config-dialog__header">
+    <h2 class="tool-config-dialog__title">{{ tool.name }}</h2>
+    <button class="tool-config-dialog__close-button" (click)="onClose()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="tool-config-dialog__content">
+    @if (isLoading()) {
+      <div class="tool-config-dialog__loading">
+        <mat-icon class="tool-config-dialog__spinner">sync</mat-icon>
+        <span>Loading...</span>
+      </div>
+    } @else {
+      <tcf-tabs [tabs]="tabs()" [activeIndex]="activeTabIndex()" (tabChange)="onTabChange($event)">
+        <!-- CONFIGURATIONS TAB -->
+        @if (activeTabIndex() === 0) {
+          <div class="tool-config-dialog__tab-content">
+            <div class="tool-config-dialog__layout">
+              <div class="tool-config-dialog__sidebar">
+                <div class="tool-config-dialog__sidebar-header">
+                  <span>Saved Configs</span>
+                  <button class="tool-config-dialog__add-btn" (click)="startNewConfig()" title="Create new configuration">
+                    <mat-icon>add</mat-icon>
+                  </button>
+                </div>
+                <div class="tool-config-dialog__divider"></div>
+                <div class="tool-config-dialog__list">
+                  @if (configs().length === 0) {
+                    <div class="tool-config-dialog__empty">
+                      <mat-icon>folder_open</mat-icon>
+                      <span>No configs yet</span>
+                    </div>
+                  } @else {
+                    @for (config of configs(); track config.id) {
+                      <div
+                        class="tool-config-dialog__list-item"
+                        [class.tool-config-dialog__list-item--selected]="selectedConfig()?.id === config.id"
+                        (click)="selectConfig(config)"
+                      >
+                        <mat-icon>description</mat-icon>
+                        <span>{{ config.name }}</span>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+
+              <div class="tool-config-dialog__main">
+                @if (showConfigForm()) {
+                  @if (backendErrorMessage) {
+                    <div class="tool-config-dialog__error-banner">
+                      <mat-icon>error_outline</mat-icon>
+                      <span>{{ backendErrorMessage }}</span>
+                    </div>
+                  }
+
+                  <form [formGroup]="configForm" class="tool-config-dialog__form">
+                    <div class="tool-config-dialog__form-section">
+                      <tcf-input
+                        label="Configuration Name"
+                        placeholder="e.g. Production, Development"
+                        formControlName="name"
+                        [required]="true"
+                        [error]="getConfigFieldError('name')"
+                      />
+                    </div>
+
+                    @if (hasFields()) {
+                      <div class="tool-config-dialog__form-section">
+                        <h3 class="tool-config-dialog__section-title">Configuration Values</h3>
+
+                        @for (field of toolFields(); track field.id) {
+                          <div class="tool-config-dialog__config-field">
+                            <div class="tool-config-dialog__field-header">
+                              <span class="tool-config-dialog__field-name">
+                                {{ field.name }}
+                                @if (field.required) { <span class="required-marker">*</span> }
+                              </span>
+                              <span class="tool-config-dialog__field-type" [attr.data-type]="field.data_type">
+                                {{ getFieldTypeLabel(field.data_type) }}
+                              </span>
+                            </div>
+
+                            @if (isSelectField(field.data_type)) {
+                              <tcf-select
+                                [formControlName]="field.name"
+                                [options]="getSelectOptions(field)"
+                                [error]="getConfigFieldError(field.name)"
+                              />
+                            } @else if (isBooleanField(field.data_type)) {
+                              <tcf-checkbox
+                                [formControlName]="field.name"
+                                label="Enable this option"
+                              />
+                            } @else if (isJsonField(field.data_type)) {
+                              <tcf-code-editor
+                                [formControlName]="field.name"
+                                language="json"
+                                [height]="150"
+                                [error]="getConfigFieldError(field.name)"
+                              />
+                            } @else if (isTextField(field)) {
+                              <tcf-textarea
+                                [formControlName]="field.name"
+                                [placeholder]="getPlaceholder(field)"
+                                [error]="getConfigFieldError(field.name)"
+                                [rows]="3"
+                              />
+                            } @else if (isNumberField(field.data_type)) {
+                              <tcf-input
+                                [formControlName]="field.name"
+                                type="number"
+                                [step]="field.data_type === 'integer' ? 1 : 'any'"
+                                [placeholder]="getPlaceholder(field)"
+                                [error]="getConfigFieldError(field.name)"
+                              />
+                            } @else {
+                              <tcf-input
+                                [formControlName]="field.name"
+                                type="password"
+                                [placeholder]="getPlaceholder(field)"
+                                [error]="getConfigFieldError(field.name)"
+                              />
+                            }
+
+                            @if (field.description) {
+                              <p class="tool-config-dialog__field-desc">{{ field.description }}</p>
+                            }
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <div class="tool-config-dialog__no-fields-hint">
+                        <mat-icon>info_outline</mat-icon>
+                        <div>
+                          <strong>No fields defined</strong>
+                          <p>Go to the <strong>Fields</strong> tab to define what configuration values this tool needs.</p>
+                        </div>
+                      </div>
+                    }
+                  </form>
+
+                  <div class="tool-config-dialog__form-actions">
+                    @if (selectedConfig()) {
+                      <button class="tool-config-dialog__btn tool-config-dialog__btn--danger" (click)="onDeleteConfig()" [disabled]="isSaving()">
+                        <mat-icon>delete_outline</mat-icon>
+                        <span>Delete</span>
+                      </button>
+                    }
+                    <span class="tool-config-dialog__spacer"></span>
+                    <button class="tool-config-dialog__btn tool-config-dialog__btn--secondary" (click)="cancelConfigEdit()" [disabled]="isSaving()">
+                      Cancel
+                    </button>
+                    <button
+                      class="tool-config-dialog__btn tool-config-dialog__btn--primary"
+                      (click)="onSaveConfig()"
+                      [disabled]="configForm.invalid || isSaving()"
+                    >
+                      @if (isSaving()) {
+                        <mat-icon class="tool-config-dialog__spinner">sync</mat-icon>
+                      }
+                      <span>{{ selectedConfig() ? 'Update' : 'Create' }}</span>
+                    </button>
+                  </div>
+                } @else {
+                  <div class="tool-config-dialog__placeholder">
+                    <mat-icon>tune</mat-icon>
+                    <p>Select a configuration to edit or create a new one</p>
+                    <button class="tool-config-dialog__btn tool-config-dialog__btn--primary" (click)="startNewConfig()">
+                      <mat-icon>add</mat-icon>
+                      <span>New Configuration</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- FIELDS TAB -->
+        @if (activeTabIndex() === 1) {
+          <div class="tool-config-dialog__tab-content">
+            <div class="tool-config-dialog__layout">
+              <div class="tool-config-dialog__sidebar">
+                <div class="tool-config-dialog__sidebar-header">
+                  <span>Config Fields</span>
+                  <button class="tool-config-dialog__add-btn" (click)="startNewField()" title="Add new field">
+                    <mat-icon>add</mat-icon>
+                  </button>
+                </div>
+                <div class="tool-config-dialog__divider"></div>
+                <div class="tool-config-dialog__list">
+                  @if (toolFields().length === 0) {
+                    <div class="tool-config-dialog__empty">
+                      <mat-icon>view_list</mat-icon>
+                      <span>No fields yet</span>
+                    </div>
+                  } @else {
+                    @for (field of toolFields(); track field.id) {
+                      <div
+                        class="tool-config-dialog__list-item"
+                        [class.tool-config-dialog__list-item--selected]="selectedField()?.id === field.id"
+                        (click)="selectField(field)"
+                      >
+                        <div class="tool-config-dialog__list-item-info">
+                          <span class="tool-config-dialog__list-item-name">{{ field.name }}</span>
+                          <span class="tool-config-dialog__list-item-type">{{ getFieldTypeLabel(field.data_type) }}</span>
+                        </div>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+
+              <div class="tool-config-dialog__main">
+                @if (showFieldForm()) {
+                  @if (backendErrorMessage) {
+                    <div class="tool-config-dialog__error-banner">
+                      <mat-icon>error_outline</mat-icon>
+                      <span>{{ backendErrorMessage }}</span>
+                    </div>
+                  }
+
+                  <form [formGroup]="fieldForm" class="tool-config-dialog__form">
+                    <div class="tool-config-dialog__form-section">
+                      <h3 class="tool-config-dialog__section-title">Field Details</h3>
+
+                      <div class="tool-config-dialog__field-row">
+                        <tcf-input
+                          label="Field Name"
+                          placeholder="e.g. api_key, max_tokens"
+                          hint="Unique identifier (snake_case recommended)"
+                          formControlName="name"
+                          [required]="true"
+                          [error]="getFieldFormError('name')"
+                        />
+                      </div>
+
+                      <div class="tool-config-dialog__field-row">
+                        <tcf-textarea
+                          label="Description"
+                          placeholder="What is this field for?"
+                          hint="Help text shown to users"
+                          formControlName="description"
+                          [rows]="3"
+                        />
+                      </div>
+
+                      <div class="tool-config-dialog__field-row">
+                        <tcf-select
+                          label="Field Type"
+                          hint="Determines input type and validation"
+                          formControlName="data_type"
+                          [options]="fieldTypeOptions()"
+                        />
+                      </div>
+
+                      <div class="tool-config-dialog__checkbox-row">
+                        <tcf-checkbox
+                          formControlName="required"
+                          label="Required field"
+                          icon="verified"
+                        />
+                        <tcf-checkbox
+                          formControlName="secret"
+                          label="Secret (password input)"
+                          icon="visibility_off"
+                        />
+                      </div>
+                    </div>
+                  </form>
+
+                  <div class="tool-config-dialog__form-actions">
+                    @if (selectedField()) {
+                      <button class="tool-config-dialog__btn tool-config-dialog__btn--danger" (click)="onDeleteField()" [disabled]="isSaving()">
+                        <mat-icon>delete_outline</mat-icon>
+                        <span>Delete</span>
+                      </button>
+                    }
+                    <span class="tool-config-dialog__spacer"></span>
+                    <button class="tool-config-dialog__btn tool-config-dialog__btn--secondary" (click)="cancelFieldEdit()" [disabled]="isSaving()">
+                      Cancel
+                    </button>
+                    <button
+                      class="tool-config-dialog__btn tool-config-dialog__btn--primary"
+                      (click)="onSaveField()"
+                      [disabled]="fieldForm.invalid || isSaving()"
+                    >
+                      @if (isSaving()) {
+                        <mat-icon class="tool-config-dialog__spinner">sync</mat-icon>
+                      }
+                      <span>{{ selectedField() ? 'Update' : 'Create' }}</span>
+                    </button>
+                  </div>
+                } @else {
+                  <div class="tool-config-dialog__placeholder">
+                    <mat-icon>view_list</mat-icon>
+                    <p>Define what configuration values this tool needs</p>
+                    <button class="tool-config-dialog__btn tool-config-dialog__btn--primary" (click)="startNewField()">
+                      <mat-icon>add</mat-icon>
+                      <span>Add Field</span>
+                    </button>
+                    <div class="tool-config-dialog__placeholder-hint">
+                      Fields define the schema for configurations.<br />
+                      Examples: <code>api_key</code> (text), <code>temperature</code> (decimal), <code>llm</code> (LLM Config)
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </tcf-tabs>
+    }
+  </div>
+</div>

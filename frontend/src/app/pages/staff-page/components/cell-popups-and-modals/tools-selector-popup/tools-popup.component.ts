@@ -22,22 +22,23 @@ import { FormsModule } from '@angular/forms';
 import { GetPythonCodeToolRequest } from '../../../../../features/tools/models/python-code-tool.model';
 import { GetMcpToolRequest } from '../../../../../features/tools/models/mcp-tool.model';
 import { BuiltinToolsService } from '../../../../../features/tools/services/builtin-tools/builtin-tools.service';
-import { ToolConfigService } from '../../../../../services/tool_config.service';
+import { ToolConfigService } from '../../../../../features/tools/services/builtin-tools/tool-config.service';
 import {
   FullToolConfig,
   FullToolConfigService,
 } from '../../../../../services/full-tool-config.service';
 import { PythonCodeToolService } from '../../../../../user-settings-page/tools/custom-tool-editor/services/pythonCodeToolService.service';
-import { GetToolConfigRequest } from '../../../../../features/tools/models/tool_config.model';
+import { PythonCodeToolConfigService } from '../../../../../features/tools/services/custom-tools/python-code-tool-config.service';
+import { GetToolConfigRequest, PythonCodeToolConfig } from '../../../../../features/tools/models/tool_config.model';
 import { ToastService } from '../../../../../services/notifications/toast.service';
 import { ToolItemComponent } from './tool-item/tool-item.component';
-import { PythonToolItemComponent } from './python-tool-item/python-tool-item.component';
+import { PythonToolItemComponent, FullPythonTool } from './python-tool-item/python-tool-item.component';
 import { McpToolItemComponent } from './mcp-tool-item/mcp-tool-item.component';
 import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
 import { CustomToolDialogComponent } from '../../../../../user-settings-page/tools/custom-tool-editor/custom-tool-dialog.component';
 import { McpToolDialogComponent } from '../../../../../features/tools/components/mcp-tool-dialog/mcp-tool-dialog.component';
 import { Dialog } from '@angular/cdk/dialog';
-import { CustomToolsService } from '../../../../../features/tools/services/custom-tools/custom-tools.service';
+import { CustomToolsService } from '../../../../../features/tools/services/custom-tools/custom-tools-api.service';
 import { McpToolsService } from '../../../../../features/tools/services/mcp-tools/mcp-tools.service';
 import { Router } from '@angular/router';
 
@@ -99,15 +100,17 @@ export class ToolsPopupComponent
   public loading = true;
 
   public tools: FullToolConfig[] = [];
-  public pythonTools: GetPythonCodeToolRequest[] = [];
+  public pythonTools: FullPythonTool[] = [];
   public mcpTools: GetMcpToolRequest[] = [];
 
   public selectedToolConfigs = new Set<number>();
   public selectedPythonTools = new Set<number>();
+  public selectedPythonToolConfigs = new Set<number>();
   public selectedMcpTools = new Set<number>();
 
   public showPythonTools = false;
   public expandedToolConfigs = new Set<number>();
+  public expandedPythonToolConfigs = new Set<number>();
 
   private readonly _destroyed$ = new Subject<void>();
 
@@ -115,6 +118,7 @@ export class ToolsPopupComponent
     private readonly _toolsService: BuiltinToolsService,
     private readonly _toolConfigService: ToolConfigService,
     private readonly _pythonCodeToolService: PythonCodeToolService,
+    private readonly _pythonCodeToolConfigService: PythonCodeToolConfigService,
     private readonly _fullToolConfigService: FullToolConfigService,
     private readonly _cdr: ChangeDetectorRef,
     private readonly toastService: ToastService,
@@ -123,8 +127,6 @@ export class ToolsPopupComponent
     private readonly mcpToolsService: McpToolsService,
     private readonly router: Router,
     private readonly cdr: ChangeDetectorRef,
-
-
   ) { }
 
   public ngOnInit(): void {
@@ -158,17 +160,25 @@ export class ToolsPopupComponent
     forkJoin({
       fullTools: this._fullToolConfigService.getFullToolConfigs(),
       pythonTools: this._pythonCodeToolService.getPythonCodeTools(),
+      pythonToolConfigs: this._pythonCodeToolConfigService.getConfigs(),
       mcpTools: this.mcpToolsService.getMcpTools(),
     })
       .pipe(takeUntil(this._destroyed$))
       .subscribe({
-        next: ({ fullTools, pythonTools, mcpTools }) => {
+        next: ({ fullTools, pythonTools, pythonToolConfigs, mcpTools }) => {
           console.log('Full tools data received:', fullTools);
           console.log('Python tools data received:', pythonTools);
+          console.log('Python tool configs received:', pythonToolConfigs);
           console.log('MCP tools data received:', mcpTools);
 
           this.tools = this._sortToolsBySelection(fullTools);
-          this.pythonTools = this._sortPythonToolsBySelection(pythonTools);
+
+          // Create FullPythonTool objects with configs
+          const fullPythonTools: FullPythonTool[] = pythonTools.map((tool) => ({
+            ...tool,
+            toolConfigs: pythonToolConfigs.filter((cfg) => cfg.tool === tool.id),
+          }));
+          this.pythonTools = this._sortPythonToolsBySelection(fullPythonTools);
           this.mcpTools = this._sortMcpToolsBySelection(mcpTools);
 
           this._preselectMergedTools();
@@ -201,13 +211,15 @@ export class ToolsPopupComponent
   }
 
   // Computed getter for filtering python/custom tools based on searchTerm
-  public get filteredPythonTools(): GetPythonCodeToolRequest[] {
+  public get filteredPythonTools(): FullPythonTool[] {
     let toolsToFilter = this.pythonTools;
 
     if (this.searchTerm) {
       const query = this.searchTerm.toLowerCase();
-      toolsToFilter = toolsToFilter.filter((pTool) =>
-        pTool.name.toLowerCase().includes(query)
+      toolsToFilter = toolsToFilter.filter(
+        (pTool) =>
+          pTool.name.toLowerCase().includes(query) ||
+          pTool.toolConfigs.some((cfg) => cfg.name.toLowerCase().includes(query))
       );
     }
 
@@ -242,12 +254,10 @@ export class ToolsPopupComponent
   }
 
   // Helper method to sort python tools with selected items at the top
-  private _sortPythonToolsBySelection(
-    tools: GetPythonCodeToolRequest[]
-  ): GetPythonCodeToolRequest[] {
+  private _sortPythonToolsBySelection(tools: FullPythonTool[]): FullPythonTool[] {
     return tools.sort((a, b) => {
-      const aSelected = this.selectedPythonTools.has(a.id);
-      const bSelected = this.selectedPythonTools.has(b.id);
+      const aSelected = this.isPythonToolSelected(a);
+      const bSelected = this.isPythonToolSelected(b);
 
       if (aSelected && !bSelected) return -1;
       if (!aSelected && bSelected) return 1;
@@ -275,10 +285,17 @@ export class ToolsPopupComponent
         .filter((item) => item.type === 'tool-config')
         .map((item) => item.id);
       this.selectedToolConfigs = new Set(preselectedToolConfigIds);
+
       const preselectedPythonToolIds = this.mergedTools
         .filter((item) => item.type === 'python-tool')
         .map((item) => item.id);
       this.selectedPythonTools = new Set(preselectedPythonToolIds);
+
+      const preselectedPythonToolConfigIds = this.mergedTools
+        .filter((item) => item.type === 'python-tool-config')
+        .map((item) => item.id);
+      this.selectedPythonToolConfigs = new Set(preselectedPythonToolConfigIds);
+
       const preselectedMcpToolIds = this.mergedTools
         .filter((item) => item.type === 'mcp-tool')
         .map((item) => item.id);
@@ -310,34 +327,56 @@ export class ToolsPopupComponent
       toolsMap.set(tool.id, tool.name);
     });
 
+    // Build python tools map for config names
+    const pythonToolsMap = new Map<number, string>();
+    this.pythonTools.forEach((tool) => {
+      pythonToolsMap.set(tool.id, tool.name);
+    });
+
     const mergedToolConfigs = this.tools
       .flatMap((tool) => tool.toolConfigs)
       .filter((config) => this.selectedToolConfigs.has(config.id))
       .map((config) => ({
         id: config.id,
-        configName: config.name, // This is the config name
-        toolName: toolsMap.get(config.tool) || 'Unknown Tool', // This is the actual tool name
+        configName: config.name,
+        toolName: toolsMap.get(config.tool) || 'Unknown Tool',
         type: 'tool-config',
       }));
+
     const mergedPythonTools = this.pythonTools
       .filter((pTool) => this.selectedPythonTools.has(pTool.id))
       .map((pTool) => ({
         id: pTool.id,
-        configName: pTool.name, // For python tools, the name is both config and tool name
-        toolName: pTool.name, // Python tools have the same name for both
+        configName: pTool.name,
+        toolName: pTool.name,
         type: 'python-tool',
+      }));
+
+    const mergedPythonToolConfigs = this.pythonTools
+      .flatMap((tool) => tool.toolConfigs)
+      .filter((config) => this.selectedPythonToolConfigs.has(config.id))
+      .map((config) => ({
+        id: config.id,
+        configName: config.name,
+        toolName: pythonToolsMap.get(config.tool) || 'Unknown Tool',
+        type: 'python-tool-config',
       }));
 
     const mergedMcpTools = this.mcpTools
       .filter((mcpTool) => this.selectedMcpTools.has(mcpTool.id))
       .map((mcpTool) => ({
         id: mcpTool.id,
-        configName: mcpTool.name, // MCP tool configuration name
-        toolName: mcpTool.tool_name, // MCP tool name
+        configName: mcpTool.name,
+        toolName: mcpTool.tool_name,
         type: 'mcp-tool',
       }));
 
-    const updatedMergedTools = [...mergedToolConfigs, ...mergedPythonTools, ...mergedMcpTools];
+    const updatedMergedTools = [
+      ...mergedToolConfigs,
+      ...mergedPythonTools,
+      ...mergedPythonToolConfigs,
+      ...mergedMcpTools,
+    ];
     this.mergedToolsUpdated.emit(updatedMergedTools);
   }
 
@@ -374,11 +413,41 @@ export class ToolsPopupComponent
     this._cdr.markForCheck();
   }
 
-  public onPythonToolToggle(pTool: GetPythonCodeToolRequest): void {
-    if (this.selectedPythonTools.has(pTool.id)) {
-      this.selectedPythonTools.delete(pTool.id);
+  public onPythonToolToggle(pTool: FullPythonTool): void {
+    // For tools without config fields, toggle the base tool
+    if (!pTool.tool_fields || pTool.tool_fields.length === 0) {
+      if (this.selectedPythonTools.has(pTool.id)) {
+        this.selectedPythonTools.delete(pTool.id);
+      } else {
+        this.selectedPythonTools.add(pTool.id);
+      }
+    }
+    this._cdr.markForCheck();
+  }
+
+  public isPythonToolSelected(tool: FullPythonTool): boolean {
+    if (!tool.tool_fields || tool.tool_fields.length === 0) {
+      return this.selectedPythonTools.has(tool.id);
+    }
+    return tool.toolConfigs.some((config) =>
+      this.selectedPythonToolConfigs.has(config.id)
+    );
+  }
+
+  public togglePythonToolConfigs(tool: FullPythonTool): void {
+    if (this.expandedPythonToolConfigs.has(tool.id)) {
+      this.expandedPythonToolConfigs.delete(tool.id);
     } else {
-      this.selectedPythonTools.add(pTool.id);
+      this.expandedPythonToolConfigs.add(tool.id);
+    }
+    this._cdr.markForCheck();
+  }
+
+  public onPythonToolConfigToggle(config: PythonCodeToolConfig): void {
+    if (this.selectedPythonToolConfigs.has(config.id)) {
+      this.selectedPythonToolConfigs.delete(config.id);
+    } else {
+      this.selectedPythonToolConfigs.add(config.id);
     }
     this._cdr.markForCheck();
   }

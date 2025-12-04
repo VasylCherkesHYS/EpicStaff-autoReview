@@ -12,11 +12,12 @@ import { GetPythonCodeToolRequest } from '../../../../models/python-code-tool.mo
 import { LoadingSpinnerComponent } from '../../../../../../shared/components/loading-spinner/loading-spinner.component';
 import { CustomToolCardComponent } from './components/custom-tool-card/custom-tool-card.component';
 import { HttpErrorResponse } from '@angular/common/http';
-import { CustomToolsService } from '../../../../services/custom-tools/custom-tools.service';
+import { CustomToolsService } from '../../../../services/custom-tools/custom-tools-api.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Dialog, DialogModule, DialogRef } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
 import { CustomToolDialogComponent } from '../../../../../../user-settings-page/tools/custom-tool-editor/custom-tool-dialog.component';
+import { ToolConfigDialogComponent } from '../../../../components/tool-config-dialog/tool-config-dialog.component';
 import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { ConfirmationDialogService } from '../../../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { ToolsEventsService } from '../../../../services/tools-events.service';
@@ -170,5 +171,12 @@ export class CustomToolsComponent implements OnInit {
     const currentTools = this.allTools();
     this.allTools.set([tool, ...currentTools]);
     console.log(`✅ New custom tool "${tool.name}" added to list`);
+  }
+
+  public onManageConfigs(tool: GetPythonCodeToolRequest): void {
+    this.dialog.open(ToolConfigDialogComponent, {
+      data: { tool },
+      panelClass: 'tool-config-dialog-panel',
+    });
   }
 }

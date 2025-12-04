@@ -18,7 +18,10 @@
   <div class="tool-description">{{ tool.description }}</div>
 
   <div class="tool-footer">
-    <app-button type="ghost" (click)="onConfigure()">Configure</app-button>
+    <div class="footer-buttons">
+      <app-button type="ghost" (click)="onConfigure()">Edit</app-button>
+      <app-button type="ghost" (click)="onManageConfigs()">Configs</app-button>
+    </div>
     <div class="footer-actions">
       <app-toggle-switch
         [checked]="enabled"
