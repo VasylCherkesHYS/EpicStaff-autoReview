@@ -1,10 +1,12 @@
 import {
     Component,
-    Input,
-    Output,
-    EventEmitter,
     ChangeDetectionStrategy,
+    ChangeDetectorRef,
     inject,
+    input,
+    output,
+    computed,
+    effect,
 } from '@angular/core';
 import { CommonModule, NgStyle } from '@angular/common';
 import { DecisionTableNodeModel } from '../../../core/models/node.model';
@@ -23,13 +25,22 @@ import { FlowService } from '../../../services/flow.service';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DecisionTableNodeComponent {
-    @Input({ required: true }) node!: DecisionTableNodeModel;
-    @Output() actualClick = new EventEmitter<MouseEvent>();
+    private readonly flowService = inject(FlowService);
+    private readonly cdr = inject(ChangeDetectorRef);
 
-    private flowService = inject(FlowService);
+    constructor() {
+        effect(() => {
+            this.flowService.nodes();
+            this.flowService.connections();
+            this.cdr.markForCheck();
+        });
+    }
 
-    get conditionGroups(): ConditionGroup[] {
-        const allGroups = this.node.data.table?.condition_groups ?? [];
+    readonly node = input.required<DecisionTableNodeModel>();
+    readonly actualClick = output<void>();
+
+    readonly conditionGroups = computed<ConditionGroup[]>(() => {
+        const allGroups = this.node().data.table?.condition_groups ?? [];
         return allGroups
             .filter((group) => group.valid !== false)
             .sort(
@@ -37,47 +48,65 @@ export class DecisionTableNodeComponent {
                     (a.order ?? Number.MAX_SAFE_INTEGER) -
                     (b.order ?? Number.MAX_SAFE_INTEGER)
             );
-    }
+    });
 
-    get defaultNextNode() {
-        return this.node.data.table?.default_next_node;
-    }
+    readonly defaultNextNode = computed(() => this.node().data.table?.default_next_node);
 
-    get defaultNextNodeName(): string | null {
-        const idOrName = this.defaultNextNode;
-        if (!idOrName) return null;
+    readonly defaultNextNodeName = computed<string | null>(() => {
+        const storedValue = this.defaultNextNode();
+        return this.resolveNodeName(storedValue, 'decision-default');
+    });
+
+    readonly nextErrorNode = computed(() => this.node().data.table?.next_error_node);
+
+    readonly nextErrorNodeName = computed<string | null>(() => {
+        const storedValue = this.nextErrorNode();
+        return this.resolveNodeName(storedValue, 'decision-error');
+    });
+
+    private resolveNodeName(storedValue: string | null | undefined, portRole: string): string | null {
         const nodes = this.flowService.nodes();
-        const node = nodes.find(
-            (n) => n.id === idOrName || n.node_name === idOrName
+        const connections = this.flowService.connections();
+        const currentNodeId = this.node().id;
+
+        // 1. Try direct lookup by ID or name
+        if (storedValue) {
+            const foundNode = nodes.find(
+                (n) => n.id === storedValue || n.node_name === storedValue
+            );
+            if (foundNode) {
+                return foundNode.node_name;
+            }
+        }
+
+        // 2. Fallback: find via visual connection
+        const portId = `${currentNodeId}_${portRole}`;
+        const connection = connections.find(
+            (c) => c.sourceNodeId === currentNodeId && String(c.sourcePortId) === portId
         );
-        return node ? node.node_name : idOrName;
+
+        if (connection) {
+            const targetNode = nodes.find((n) => n.id === connection.targetNodeId);
+            if (targetNode) {
+                return targetNode.node_name;
+            }
+        }
+
+        // 3. Return stored value as last resort (might be stale)
+        return storedValue ?? null;
     }
 
-    get nextErrorNode() {
-        return this.node.data.table?.next_error_node;
-    }
+    readonly inputPort = computed(() => 
+        this.node().ports?.find((p) => p.port_type === 'input')
+    );
 
-    get nextErrorNodeName(): string | null {
-        const idOrName = this.nextErrorNode;
-        if (!idOrName) return null;
-        const nodes = this.flowService.nodes();
-        const node = nodes.find(
-            (n) => n.id === idOrName || n.node_name === idOrName
-        );
-        return node ? node.node_name : idOrName;
-    }
+    readonly defaultPort = computed(() => 
+        this.node().ports?.find((p) => p.role === 'decision-default')
+    );
 
-    get inputPort() {
-        return this.node.ports?.find((p) => p.port_type === 'input');
-    }
-
-    get defaultPort() {
-        return this.node.ports?.find((p) => p.role === 'decision-default');
-    }
-
-    get errorPort() {
-        return this.node.ports?.find((p) => p.role === 'decision-error');
-    }
+    readonly errorPort = computed(() => 
+        this.node().ports?.find((p) => p.role === 'decision-error')
+    );
 
     trackConditionGroup(index: number, group: ConditionGroup): string {
         const port = this.getPortForGroup(group);
@@ -98,7 +127,7 @@ export class DecisionTableNodeComponent {
             return undefined;
         }
 
-        return this.node.ports?.find((p) => p.role === role);
+        return this.node().ports?.find((p) => p.role === role);
     }
 
     onEditClick() {
