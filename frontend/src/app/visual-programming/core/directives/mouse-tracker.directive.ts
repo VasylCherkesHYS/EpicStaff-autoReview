@@ -6,8 +6,9 @@ import {
   OnDestroy,
   OnInit,
   Output,
+  DOCUMENT
 } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
+
 
 
 @Directive({

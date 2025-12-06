@@ -1,16 +1,17 @@
 import {
-    Directive,
-    ElementRef,
-    EventEmitter,
-    Inject,
-    NgZone,
-    OnDestroy,
-    OnInit,
-    Output,
-    Renderer2,
+  Directive,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  DOCUMENT
 } from '@angular/core';
 
-import { DOCUMENT } from '@angular/common';
+
 
 @Directive({
     selector: '[appResizable]',
