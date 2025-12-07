@@ -19,7 +19,7 @@ import { ToastService } from '../../../../services/notifications/toast.service';
 import { ConfirmationDialogService } from '../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { McpToolDialogComponent } from '../../components/mcp-tool-dialog/mcp-tool-dialog.component';
 import { ToolsEventsService } from '../../services/tools-events.service';
-import { ToolsSearchService } from '../../services/tools-search.service';
+import { SearchService } from '../../../../shared/services/search.service';
 
 @Component({
   selector: 'app-mcp-tools',
@@ -36,9 +36,9 @@ export class McpToolsComponent implements OnInit {
   private readonly toastService = inject(ToastService);
   private readonly confirmationDialogService = inject(ConfirmationDialogService);
   private readonly toolsEventsService = inject(ToolsEventsService);
-  private readonly toolsSearchService = inject(ToolsSearchService);
+  private readonly searchService = inject(SearchService);
 
-  readonly searchTerm = signal<string>('');
+  readonly searchTerm = this.searchService.searchTerm;
   private readonly allTools = signal<GetMcpToolRequest[]>([]);
 
   readonly error = signal<string | null>(null);
@@ -67,12 +67,6 @@ export class McpToolsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((newTool) => {
         this.addNewTool(newTool);
-      });
-
-    this.toolsSearchService.searchTerm$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((term) => {
-        this.searchTerm.set(term);
       });
   }
 

@@ -1,8 +1,13 @@
 import { Routes } from '@angular/router';
+import { SearchService, SEARCH_CONFIG } from '../../shared/services/search.service';
 
 export const TOOLS_ROUTES: Routes = [
   {
     path: '',
+    providers: [
+      { provide: SEARCH_CONFIG, useValue: { debounceMs: 300, minLength: 0 } },
+      SearchService,
+    ],
     loadComponent: () =>
       import('./pages/tools-list-page/tools-list-page.component').then(
         (m) => m.ToolsListPageComponent

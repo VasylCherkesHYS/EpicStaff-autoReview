@@ -11,8 +11,7 @@ export class ProjectStore {
   private readonly _loaded = signal(false);
 
   readonly projects = this._projects.asReadonly();
-  readonly loaded = this._loaded.asReadonly();
-  readonly loadedSig = computed(() => this._loaded());
+  readonly loadedSig = this._loaded.asReadonly();
   readonly templatesSig = computed(() => this._projects().filter((p) => p.isTemplate));
   readonly myProjectsSig = computed(() => this._projects().filter((p) => !p.isTemplate));
 

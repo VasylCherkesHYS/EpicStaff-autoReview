@@ -13,7 +13,7 @@ import { BuiltinToolsService } from '../features/tools/services/builtin-tools/bu
 import { McpToolsService } from '../features/tools/services/mcp-tools/mcp-tools.service';
 
 import { GetAgentRequest, PartialUpdateAgentRequest } from '../shared/models/agent.model';
-import { GetToolConfigRequest } from '../features/tools/models/tool_config.model';
+import { GetToolConfigRequest } from '../features/tools/models/tool-config.model';
 import { GetPythonCodeToolRequest } from '../features/tools/models/python-code-tool.model';
 import { GetMcpToolRequest } from '../features/tools/models/mcp-tool.model';
 import { RealtimeModelConfigsService } from '../features/settings-dialog/services/realtime-llms/real-time-model-config.service';

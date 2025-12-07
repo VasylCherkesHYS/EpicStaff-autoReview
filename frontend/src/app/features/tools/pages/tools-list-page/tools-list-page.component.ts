@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ChangeDetectorRef, inject, signal, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ChangeDetectorRef, inject, OnDestroy } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { Dialog } from '@angular/cdk/dialog';
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
@@ -11,7 +11,7 @@ import { AppIconComponent } from '../../../../shared/components/app-icon/app-ico
 import { McpToolDialogComponent } from '../../components/mcp-tool-dialog/mcp-tool-dialog.component';
 import { GetMcpToolRequest } from '../../models/mcp-tool.model';
 import { ToolsEventsService } from '../../services/tools-events.service';
-import { ToolsSearchService } from '../../services/tools-search.service';
+import { SearchService } from '../../../../shared/services/search.service';
 
 @Component({
   selector: 'app-tools-list-page',
@@ -35,7 +35,7 @@ export class ToolsListPageComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly customToolsService = inject(CustomToolsService);
   private readonly toolsEventsService = inject(ToolsEventsService);
-  private readonly toolsSearchService = inject(ToolsSearchService);
+  private readonly searchService = inject(SearchService);
 
   readonly tabs = [
     { label: 'Built-in', link: 'built-in' },
@@ -43,7 +43,7 @@ export class ToolsListPageComponent implements OnDestroy {
     { label: 'MCP', link: 'mcp' },
   ];
 
-  readonly searchTerm = signal('');
+  readonly searchTerm = this.searchService.rawTerm;
 
   get isCustomTabActive(): boolean {
     return this.router.url.includes('/custom');
@@ -65,17 +65,15 @@ export class ToolsListPageComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.toolsSearchService.clearSearch();
+    this.searchService.clear();
   }
 
   onSearchTermChange(term: string): void {
-    this.searchTerm.set(term);
-    this.toolsSearchService.setSearchTerm(term);
+    this.searchService.search(term);
   }
 
   clearSearch(): void {
-    this.searchTerm.set('');
-    this.toolsSearchService.clearSearch();
+    this.searchService.clear();
   }
 
   onCreateToolClick(): void {
