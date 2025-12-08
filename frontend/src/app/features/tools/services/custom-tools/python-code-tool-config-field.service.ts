@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
-import { PythonCodeToolConfigField } from '../../models/python-code-tool.model';
+  import { PythonCodeToolConfigField } from '../../models/python-code-tool.model';
 import { ApiGetRequest } from '../../../../shared/models/api-request.model';
 import { ConfigService } from '../../../../services/config/config.service';
 
@@ -41,7 +41,7 @@ export class PythonCodeToolConfigFieldService {
   getFieldsByTool(toolId: number): Observable<PythonCodeToolConfigField[]> {
     return this.http
       .get<ApiGetRequest<PythonCodeToolConfigField>>(`${this.baseUrl}?tool=${toolId}`)
-      .pipe(map((response) => response.results));
+      .pipe(map((response) => response.results.filter((field) => field.tool === toolId)));
   }
 
   createField(field: CreateConfigFieldRequest): Observable<PythonCodeToolConfigField> {

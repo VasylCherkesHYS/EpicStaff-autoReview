@@ -154,6 +154,7 @@ export class ToolConfigDialogComponent implements OnInit {
     this.loadData();
     this.initializeConfigForm();
     this.initializeFieldForm();
+    this.setupFieldFormWatchers();
   }
 
   private loadData(): void {
@@ -241,6 +242,35 @@ export class ToolConfigDialogComponent implements OnInit {
       required: new FormControl(false),
       secret: new FormControl(false),
     });
+  }
+
+  private clearConfigsState(): void {
+    this.configs.set([]);
+    this.selectedConfig.set(null);
+    this.isCreatingNewConfig.set(false);
+    this.rebuildConfigForm();
+  }
+
+  private confirmConfigDeletionIfNeeded(): boolean {
+    if (this.configs().length === 0) return true;
+    const shouldDelete = confirm(
+      'Changing fields will delete all configurations for this tool. Continue?'
+    );
+    if (shouldDelete) {
+      this.clearConfigsState();
+    }
+    return shouldDelete;
+  }
+
+  private setupFieldFormWatchers(): void {
+    const dataTypeControl = this.fieldForm.get('data_type');
+    dataTypeControl?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((dataType: ToolConfigFieldType) => {
+        if (dataType !== 'string') {
+          this.fieldForm.get('secret')?.setValue(false, { emitEvent: false });
+        }
+      });
   }
 
   private getDefaultValue(dataType: ToolConfigFieldType): any {
@@ -414,6 +444,10 @@ export class ToolConfigDialogComponent implements OnInit {
       return;
     }
 
+    if (!this.confirmConfigDeletionIfNeeded()) {
+      return;
+    }
+
     this.isSaving.set(true);
     this.backendErrorMessage = null;
 
@@ -424,7 +458,7 @@ export class ToolConfigDialogComponent implements OnInit {
       description: formValue.description || '',
       data_type: formValue.data_type,
       required: formValue.required || false,
-      secret: formValue.secret || false,
+      secret: formValue.data_type === 'string' ? !!formValue.secret : false,
     };
 
     const selectedField = this.selectedField();
@@ -475,6 +509,7 @@ export class ToolConfigDialogComponent implements OnInit {
   public onDeleteField(): void {
     const field = this.selectedField();
     if (!field) return;
+    if (!this.confirmConfigDeletionIfNeeded()) return;
     if (!confirm(`Delete field "${field.name}"? This will affect existing configs.`)) return;
 
     this.fieldService
@@ -536,6 +571,10 @@ export class ToolConfigDialogComponent implements OnInit {
 
   public isBooleanField(dataType: ToolConfigFieldType): boolean {
     return dataType === 'boolean';
+  }
+
+  public isSecretToggleVisible(): boolean {
+    return this.fieldForm?.get('data_type')?.value === 'string';
   }
 
   public isTextField(field: PythonCodeToolConfigField): boolean {

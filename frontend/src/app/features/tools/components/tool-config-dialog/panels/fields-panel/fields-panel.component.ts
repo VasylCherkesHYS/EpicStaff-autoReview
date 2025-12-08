@@ -77,6 +77,7 @@ export class FieldsPanelComponent {
     effect(() => {
       this.fields.set(this.initialFields());
     }, { allowSignalWrites: true });
+    this.setupFieldFormWatchers();
   }
 
   selectField(field: PythonCodeToolConfigField): void {
@@ -129,7 +130,7 @@ export class FieldsPanelComponent {
       description: formValue.description || '',
       data_type: formValue.data_type || 'string',
       required: formValue.required || false,
-      secret: formValue.secret || false,
+      secret: formValue.data_type === 'string' ? !!formValue.secret : false,
     };
 
     const selected = this.selectedField();
@@ -218,6 +219,21 @@ export class FieldsPanelComponent {
       if (ctrl.errors?.['maxlength']) return `Max ${ctrl.errors['maxlength'].requiredLength} chars`;
     }
     return null;
+  }
+
+  isSecretToggleVisible(): boolean {
+    return this.fieldForm?.get('data_type')?.value === 'string';
+  }
+
+  private setupFieldFormWatchers(): void {
+    const dataTypeControl = this.fieldForm.get('data_type');
+    dataTypeControl?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((dataType: ToolConfigFieldType | null) => {
+        if (dataType !== 'string') {
+          this.fieldForm.get('secret')?.setValue(false, { emitEvent: false });
+        }
+      });
   }
 
   getFieldTypeLabel(dataType: string): string {

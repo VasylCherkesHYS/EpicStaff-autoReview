@@ -75,7 +75,9 @@
 
           <div class="fields-panel__checkbox-row">
             <tcf-checkbox formControlName="required" label="Required field" icon="verified" />
-            <tcf-checkbox formControlName="secret" label="Secret (password input)" icon="visibility_off" />
+            @if (isSecretToggleVisible()) {
+              <tcf-checkbox formControlName="secret" label="Secret (password input)" icon="visibility_off" />
+            }
           </div>
         </div>
       </form>

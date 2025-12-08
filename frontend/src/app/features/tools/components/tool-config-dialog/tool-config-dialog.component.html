@@ -263,11 +263,13 @@
                           label="Required field"
                           icon="verified"
                         />
-                        <tcf-checkbox
-                          formControlName="secret"
-                          label="Secret (password input)"
-                          icon="visibility_off"
-                        />
+                        @if (isSecretToggleVisible()) {
+                          <tcf-checkbox
+                            formControlName="secret"
+                            label="Secret (password input)"
+                            icon="visibility_off"
+                          />
+                        }
                       </div>
                     </div>
                   </form>
