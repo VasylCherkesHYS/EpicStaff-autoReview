@@ -103,7 +103,7 @@
 } @case (NodeType.TABLE) {
 <app-decision-table-node
     [node]="tableNode!"
-    (actualClick)="onEditClick($event)"
+    (actualClick)="onEditClick()"
 ></app-decision-table-node>
 } @default {
 <ng-container *ngTemplateOutlet="interactiveNode"></ng-container>
