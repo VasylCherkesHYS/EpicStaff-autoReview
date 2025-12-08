@@ -17,7 +17,7 @@ import { EmbeddingModelsService } from '../../../settings-dialog/services/embedd
 import { LLM_Config_Service } from '../../../settings-dialog/services/llms/LLM_config.service';
 import { LLM_Models_Service } from '../../../settings-dialog/services/llms/LLM_models.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
-import { TranscriptionConfigsService } from '../../../../services/transcription-config.service';
+import { TranscriptionConfigsService } from '../../../../pages/chats-page/services/transcription-config.service';
 import {
     EmbeddingConfig,
     CreateEmbeddingConfigRequest,
@@ -25,7 +25,7 @@ import {
 import { EmbeddingModel } from '../../../settings-dialog/models/embeddings/embedding.model';
 import { GetLlmModelRequest } from '../../../settings-dialog/models/llms/LLM.model';
 import { CreateLLMConfigRequest } from '../../../settings-dialog/models/llms/LLM_config.model';
-import { CreateTranscriptionConfigRequest, GetRealtimeTranscriptionModelRequest } from '../../../../shared/models/transcription-config.model';
+import { CreateTranscriptionConfigRequest, GetRealtimeTranscriptionModelRequest } from '../../../../pages/chats-page/models/transcription-config.model';
 import { RealtimeModelConfigsService } from '../../../settings-dialog/services/realtime-llms/real-time-model-config.service';
 import { RealtimeModelsService } from '../../../settings-dialog/services/realtime-llms/real-time-models.service';
 import { Router } from '@angular/router';

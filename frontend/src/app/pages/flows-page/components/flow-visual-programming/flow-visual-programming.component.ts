@@ -37,7 +37,7 @@ import { ConditionalEdgeService } from './services/conditional-edge.service';
 import { CrewNodeService } from './services/crew-node.service';
 import { EdgeService } from './services/edge.service';
 import { PythonNodeService } from './services/python-node.service';
-import { RunGraphService } from '../../../../services/run-graph-session.service';
+import { GraphSessionService } from '../../../../features/flows/services/flows-sessions.service';
 import { StartNodeService } from './services/start-node.service';
 import { StartNode, CreateStartNodeRequest } from './models/start-node.model';
 
@@ -111,7 +111,7 @@ export class FlowVisualProgrammingComponent
         private readonly cdr: ChangeDetectorRef,
         private readonly toastService: ToastService,
         private readonly graphUpdateService: GraphUpdateService,
-        private readonly runGraphService: RunGraphService,
+        private readonly runGraphService: GraphSessionService,
         private readonly startNodeService: StartNodeService,
         private readonly dialog: CdkDialog,
         private readonly unsavedChangesDialogService: UnsavedChangesDialogService,

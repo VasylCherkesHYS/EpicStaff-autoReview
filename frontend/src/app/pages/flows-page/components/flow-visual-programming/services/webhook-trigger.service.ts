@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CreatePythonNodeRequest } from '../models/python-node.model';
 import { ConfigService } from '../../../../../services/config/config.service';
-import { ApiGetRequest } from '../../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../../shared/models/paginated-response';
 import { CreateWebhookTriggerNodeRequest, GetWebhookTriggerNodeRequest } from '../models/webhook-trigger';
 export interface WebhookTrigger {
   id: number;
@@ -28,12 +28,12 @@ export class WebhookTriggerNodeService {
     return this.configService.apiUrl + 'webhook-trigger-nodes/';
   }
 
-  getWebhookTriggersRequest(): Observable<ApiGetRequest<WebhookTrigger>> {
-    return this.http.get<ApiGetRequest<WebhookTrigger>>(this.apiUrlTriggers)
+  getWebhookTriggersRequest(): Observable<PaginatedResponse<WebhookTrigger>> {
+    return this.http.get<PaginatedResponse<WebhookTrigger>>(this.apiUrlTriggers)
   }
 
-  getWebhookTriggerNodeRequest(): Observable<ApiGetRequest<GetWebhookTriggerNodeRequest>> {
-    return this.http.get<ApiGetRequest<GetWebhookTriggerNodeRequest>>(this.apiUrlTriggers)
+  getWebhookTriggerNodeRequest(): Observable<PaginatedResponse<GetWebhookTriggerNodeRequest>> {
+    return this.http.get<PaginatedResponse<GetWebhookTriggerNodeRequest>>(this.apiUrlTriggers)
   }
 
   createWebhookTriggerNode(request: CreateWebhookTriggerNodeRequest): Observable<any> {

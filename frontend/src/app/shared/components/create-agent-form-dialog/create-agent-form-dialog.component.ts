@@ -20,8 +20,8 @@ import { map, Subscription, switchMap, takeUntil, forkJoin } from 'rxjs';
 import { Subject } from 'rxjs';
 import { MATERIAL_FORMS } from '../../material-forms';
 
-import { RealtimeAgentService } from '../../../services/realtime-agent.service';
-import { AgentsService } from '../../../services/staff.service';
+import { RealtimeAgentService } from '../../../pages/chats-page/services/realtime-agent.service';
+import { AgentsService } from '../../../pages/staff-page/services/agents.service';
 import { ToastService } from '../../../services/notifications/toast.service';
 import { CollectionsService } from '../../../pages/knowledge-sources/services/source-collections.service';
 import { GetSourceCollectionRequest } from '../../../pages/knowledge-sources/models/source-collection.model';
@@ -34,7 +34,7 @@ import {
     CreateAgentRequest,
     GetAgentRequest,
     ToolUniqueName,
-} from '../../models/agent.model';
+} from '../../../pages/staff-page/models/agent.model';
 import { buildToolIdsArray } from '../../utils/tool-ids-builder.util';
 import { CustomErrorStateMatcher } from '../../error-state-matcher/custom-error-state-matcher';
 import { ErrorStateMatcher } from '@angular/material/core';

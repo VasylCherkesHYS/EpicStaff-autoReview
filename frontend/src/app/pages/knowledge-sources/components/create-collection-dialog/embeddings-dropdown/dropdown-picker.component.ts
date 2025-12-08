@@ -7,7 +7,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { ClickOutsideDirective } from '../../../../../shared/directives/click-outside.directive';
-import { FullEmbeddingConfig } from '../../../../../services/full-embedding.service';
+import { FullEmbeddingConfig } from '../../../../../features/settings-dialog/services/embeddings/full-embedding.service';
 
 @Component({
   selector: 'app-embedding-selector',

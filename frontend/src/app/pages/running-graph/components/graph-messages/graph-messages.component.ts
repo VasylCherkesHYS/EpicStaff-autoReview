@@ -13,12 +13,12 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MarkdownModule } from 'ngx-markdown';
-import { AgentsService } from '../../../../services/staff.service';
-import { TasksService } from '../../../../services/tasks.service';
+import { AgentsService } from '../../../staff-page/services/agents.service';
+import { TasksService } from '../../../../features/projects/services/tasks.service';
 import { LoadingDotsComponent } from './components/loading-animation/loading-animation.component';
 
-import { GetAgentRequest } from '../../../../shared/models/agent.model';
-import { GetTaskRequest } from '../../../../shared/models/task.model';
+import { GetAgentRequest } from '../../../staff-page/models/agent.model';
+import { GetTaskRequest } from '../../../../features/projects/models/task.model';
 import { Project } from '../../../../features/projects/models/project.model';
 import { forkJoin, Observable, of, Subject } from 'rxjs';
 import { takeUntil, map, exhaustMap } from 'rxjs/operators';
@@ -26,7 +26,7 @@ import { takeUntil, map, exhaustMap } from 'rxjs/operators';
 import {
   GraphSessionStatus,
   GraphSession,
-} from '../../../../features/flows/services/flows-sessions.service';
+} from '../../../../features/flows/models/session.model';
 import {
   GraphMessage,
   MessageType,
@@ -42,11 +42,11 @@ import { ErrorMessageComponent } from './components/error-message/error-message.
 import { ProjectTransitionComponent } from './components/transition/project-transition.component';
 import { WaitForUserInputComponent } from './components/user-input-component/user-input-component.component';
 import { SessionStatusMessageData } from '../../models/update-session-status.model';
-import { AnswerToLLMService } from '../../../../services/answerToLLMService.service';
+import { AnswerToLLMService } from '../../services/answer-to-llm.service';
 import { UserMessageComponent } from './components/user-message/user-message.component';
 import { isMessageType } from './helper_functions/message-helper';
-import { RunGraphPageService } from '../../run-graph-page.service';
-import { RunSessionSSEService } from '../../../run-graph-page/run-graph-page-body/graph-session-sse.service';
+import { MemoryService } from '../../services/memory.service';
+import { RunSessionSSEService } from '../../services/graph-session-sse.service';
 import { FlowsApiService } from '../../../../features/flows/services/flows-api.service';
 import { ExtractedChunksMessageComponent } from './components/extracted-chunks/extracted-chunks-message.component';
 
@@ -119,7 +119,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges {
     private tasksService: TasksService,
     private cdr: ChangeDetectorRef,
     private answerToLLMService: AnswerToLLMService,
-    private runGraphPageService: RunGraphPageService,
+    private runGraphMemoryService: MemoryService,
     private flowService: FlowsApiService
   ) {
     effect(() => {
@@ -141,7 +141,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges {
 
     effect(() => {
       const memories = this.sseService.memories();
-      this.runGraphPageService.setMemories(memories);
+      this.runGraphMemoryService.setMemories(memories);
     });
 
     effect(() => {

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { ApiGetRequest } from '../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../shared/models/paginated-response';
 import { LLM_Provider, ModelTypes } from '../models/LLM_provider.model';
 import { ConfigService } from '../../../services/config/config.service';
 
@@ -22,8 +22,8 @@ export class LLM_Providers_Service {
     const params = new HttpParams().set('limit', '1000');
 
     return this.http
-      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
-      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+      .get<PaginatedResponse<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: PaginatedResponse<LLM_Provider>) => response.results));
   }
 
   getProvidersByQuery(type: ModelTypes): Observable<LLM_Provider[]> {
@@ -49,7 +49,7 @@ export class LLM_Providers_Service {
     const params = new HttpParams().set('limit', '1000').set('model_type', `${typeParam}`);
 
     return this.http
-      .get<ApiGetRequest<LLM_Provider>>(this.apiUrl, { params })
-      .pipe(map((response: ApiGetRequest<LLM_Provider>) => response.results));
+      .get<PaginatedResponse<LLM_Provider>>(this.apiUrl, { params })
+      .pipe(map((response: PaginatedResponse<LLM_Provider>) => response.results));
   }
 }

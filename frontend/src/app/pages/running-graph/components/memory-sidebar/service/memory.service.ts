@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { ConfigService } from '../../../../../services/config/config.service';
-import { ApiGetRequest } from '../../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../../shared/models/paginated-response';
 import { Memory } from '../models/memory.model';
 
 @Injectable({
@@ -19,8 +19,8 @@ export class MemoryService {
 
   getMemories(): Observable<Memory[]> {
     return this.http
-      .get<ApiGetRequest<Memory>>(this.apiUrl)
-      .pipe(map((response: ApiGetRequest<Memory>) => response.results));
+      .get<PaginatedResponse<Memory>>(this.apiUrl)
+      .pipe(map((response: PaginatedResponse<Memory>) => response.results));
   }
 
   getMemoryById(id: string): Observable<Memory> {
@@ -30,7 +30,7 @@ export class MemoryService {
   getMemoriesForSession(sessionId: string): Observable<Memory[]> {
     const url = `${this.apiUrl}?run_id=${sessionId}`;
     return this.http
-      .get<ApiGetRequest<Memory>>(url)
+      .get<PaginatedResponse<Memory>>(url)
       .pipe(map((response) => response.results));
   }
 

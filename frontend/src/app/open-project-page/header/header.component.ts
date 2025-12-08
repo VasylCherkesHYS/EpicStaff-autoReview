@@ -10,7 +10,7 @@ import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { Dialog, DialogModule } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
-import { RunGraphService } from '../../services/run-graph-session.service';
+import { MemoryService } from '../../pages/running-graph/services/memory.service';
 import { map, takeUntil } from 'rxjs/operators';
 import { EditTitleDialogComponent } from './edit-name-dialog/edit-title-dialog.component';
 import { ProjectStateService } from '../services/project-state.service';
@@ -50,7 +50,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private destroy$ = new Subject<void>();
 
     constructor(
-        private runGraphService: RunGraphService,
+        private memoryService: MemoryService,
         private router: Router,
         private dialog: Dialog,
         private projectStateService: ProjectStateService,

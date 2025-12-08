@@ -1,42 +1,68 @@
-<div class="breadcrumbs" (click)="$event.stopPropagation()" (mousedown)="$event.preventDefault()">
-    @if (currentPath().length > 0) {
-        <span class="back-btn" (click)="onBackClick($event)" (mousedown)="$event.preventDefault()">
-            <i class="ti ti-arrow-left"></i>
-        </span>
-    }
-    <span class="crumb" (click)="onCrumbClick($event, -1)" (mousedown)="$event.preventDefault()">state</span>
-    @for (part of currentPath(); track $index) {
-        <span class="separator">/</span>
-        <span class="crumb" (click)="onCrumbClick($event, $index)" (mousedown)="$event.preventDefault()">{{ part }}</span>
-    }
-</div>
-<ul class="autocomplete-list" (mouseleave)="onMouseLeave()" (click)="$event.stopPropagation()" (mousedown)="$event.preventDefault()">
-    @for (item of filteredItems(); track $index) {
-        <li 
-            [class.active]="item === activeItem()"
-            (mousedown)="selectItem(item); $event.preventDefault(); $event.stopPropagation()"
+<div class="autocomplete-overlay">
+    <div class="header">
+        <button
+            type="button"
+            class="back"
+            (click)="onBackClick($event)"
+            [disabled]="currentPath().length === 0"
+        >
+            ←
+        </button>
+        <div class="crumbs">
+            <button
+                type="button"
+                class="crumb"
+                (click)="onCrumbClick($event, -1)"
+            >
+                root
+            </button>
+            <ng-container *ngFor="let segment of currentPath(); let i = index">
+                <span class="separator">/</span>
+                <button
+                    type="button"
+                    class="crumb"
+                    (click)="onCrumbClick($event, i)"
+                >
+                    {{ segment }}
+                </button>
+            </ng-container>
+        </div>
+    </div>
+
+    <div class="items" *ngIf="filteredItems().length > 0; else emptyState">
+        <div
+            class="item"
+            *ngFor="let item of filteredItems()"
+            [class.active]="activeItem() === item"
             (mouseenter)="onMouseEnter(item)"
+            (mouseleave)="onMouseLeave()"
+            (click)="selectItem(item)"
         >
             <div class="item-content">
-                <span class="item-key">{{ item.key }}</span>
+                <div class="item-key">{{ item.key }}</div>
+                <div class="item-meta">
+                    <span class="item-type">{{ item.type }}</span>
+                    <span class="item-path">{{ item.path }}</span>
+                </div>
             </div>
-            
-            <span class="item-type">{{ typeof(item.value) }}</span>
-
-            @if (item.type === 'group') {
-                <span class="drill-arrow" (mousedown)="onArrowClick($event, item); $event.preventDefault(); $event.stopPropagation()">
-                    <i class="ti ti-chevron-right"></i>
-                </span>
-            }
-        </li>
-    }
-    @if (filteredItems().length === 0) {
-        <li class="no-results">No matching variables</li>
-    }
-</ul>
-
-@if (hoveredItem(); as item) {
-    <div class="tooltip-wrapper" [class.position-left]="tooltipPosition() === 'left'" [class.position-right]="tooltipPosition() === 'right'">
-        <app-value-preview-tooltip [value]="item.value"></app-value-preview-tooltip>
+            <button
+                type="button"
+                class="item-arrow"
+                *ngIf="item.type === 'group'"
+                (click)="onArrowClick($event, item)"
+            >
+                ›
+            </button>
+            <app-value-preview-tooltip
+                *ngIf="hoveredItem() === item"
+                [value]="item.value"
+                [position]="tooltipPosition()"
+            ></app-value-preview-tooltip>
+        </div>
     </div>
-}
+
+    <ng-template #emptyState>
+        <div class="empty">No matches</div>
+    </ng-template>
+</div>
+

@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GraphSessionStatus } from '../../services/flows-sessions.service';
+import { GraphSessionStatus } from '../../models/session.model';
 import { ClickOutsideDirective } from '../../../../shared/directives/click-outside.directive';
 
 interface StatusOption {

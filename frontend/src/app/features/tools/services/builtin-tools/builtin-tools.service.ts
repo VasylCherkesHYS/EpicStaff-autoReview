@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, forkJoin } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import { Tool } from '../../models/tool.model';
 import { ConfigService } from '../../../../services/config/config.service';
 
@@ -25,7 +25,7 @@ export class BuiltinToolsService {
     const params = new HttpParams().set('limit', '1000');
     
     return this.http
-      .get<ApiGetRequest<Tool>>(this.apiUrl, { params })
+      .get<PaginatedResponse<Tool>>(this.apiUrl, { params })
       .pipe(map((response) => response.results));
   }
 

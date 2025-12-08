@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import { GetLlmModelRequest, LLM_Model } from '../../models/llms/LLM.model';
 import { ConfigService } from '../../../../services/config/config.service';
 
@@ -28,7 +28,7 @@ export class LLM_Models_Service {
     }
 
     return this.http
-      .get<ApiGetRequest<LLM_Model>>(this.apiUrl, {
+      .get<PaginatedResponse<LLM_Model>>(this.apiUrl, {
         headers: this.headers,
         params,
       })

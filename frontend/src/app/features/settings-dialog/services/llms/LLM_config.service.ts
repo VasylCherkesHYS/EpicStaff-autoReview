@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import {
   CreateLLMConfigRequest,
   UpdateLLMConfigRequest,
@@ -28,7 +28,7 @@ export class LLM_Config_Service {
     const params = new HttpParams().set('limit', '1000');
 
     return this.http
-      .get<ApiGetRequest<GetLlmConfigRequest>>(this.apiUrl, {
+      .get<PaginatedResponse<GetLlmConfigRequest>>(this.apiUrl, {
         headers: this.headers,
         params,
       })
@@ -43,7 +43,7 @@ export class LLM_Config_Service {
       .set('limit', '1000');
 
     return this.http
-      .get<ApiGetRequest<GetLlmConfigRequest>>(this.apiUrl, {
+      .get<PaginatedResponse<GetLlmConfigRequest>>(this.apiUrl, {
         headers: this.headers,
         params,
       })

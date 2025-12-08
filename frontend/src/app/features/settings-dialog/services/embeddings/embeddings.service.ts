@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import { EmbeddingModel } from '../../models/embeddings/embedding.model';
 import { ConfigService } from '../../../../services/config/config.service';
 
@@ -28,11 +28,11 @@ export class EmbeddingModelsService {
     }
 
     return this.http
-      .get<ApiGetRequest<EmbeddingModel>>(this.apiUrl, {
+      .get<PaginatedResponse<EmbeddingModel>>(this.apiUrl, {
         headers: this.headers,
         params,
       })
-      .pipe(map((response: ApiGetRequest<EmbeddingModel>) => response.results));
+      .pipe(map((response: PaginatedResponse<EmbeddingModel>) => response.results));
   }
 
   getEmbeddingModelById(id: number): Observable<EmbeddingModel> {

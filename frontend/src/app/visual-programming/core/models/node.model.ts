@@ -1,8 +1,8 @@
 import { CustomConditionalEdgeModelForNode } from '../../../pages/flows-page/components/flow-visual-programming/models/conditional-edge.model';
-import { GetAgentRequest } from '../../../shared/models/agent.model';
+import { GetAgentRequest } from '../../../pages/staff-page/models/agent.model';
 import { GetLlmConfigRequest } from '../../../features/settings-dialog/models/llms/LLM_config.model';
 import { Project } from '../../../features/projects/models/project.model';
-import { CreateTaskRequest } from '../../../shared/models/task.model';
+import { CreateTaskRequest } from '../../../features/projects/models/task.model';
 import { ToolConfig } from '../../../features/tools/models/tool-config.model';
 import { GetPythonCodeToolRequest } from '../../../features/tools/models/python-code-tool.model';
 import {

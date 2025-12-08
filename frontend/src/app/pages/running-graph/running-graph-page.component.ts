@@ -11,7 +11,7 @@ import { RouterModule } from '@angular/router';
 import { GraphMessagesComponent } from './components/graph-messages/graph-messages.component';
 import { RunningGraphHeaderComponent } from './components/header/run-graph-header.component';
 import { FlowRepresentationComponent } from './components/graph-reprsentation/graph-representation.component';
-import { GraphSessionStatus } from '../../features/flows/services/flows-sessions.service';
+import { GraphSessionStatus } from '../../features/flows/models/session.model';
 
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';

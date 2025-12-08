@@ -15,7 +15,7 @@ import {
   NG_VALUE_ACCESSOR,
 } from '@angular/forms';
 import { ClickOutsideDirective } from '../../../../../shared/directives/click-outside.directive';
-import { FullLLMConfig } from '../../../../../services/full-llm-config.service';
+import { FullLLMConfig } from '../../../../../features/settings-dialog/services/llms/full-llm-config.service';
 import { FullLlmConfig } from '../../../../../services/full-agent.service';
 
 @Component({

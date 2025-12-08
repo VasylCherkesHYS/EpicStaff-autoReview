@@ -6,7 +6,7 @@ import {
   GetPythonCodeToolRequest,
   UpdatePythonCodeToolRequest,
 } from '../models/python-code-tool.model';
-import { ApiGetRequest } from '../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../shared/models/paginated-response';
 import { ConfigService } from '../../../services/config/config.service';
 
 @Injectable({
@@ -25,7 +25,7 @@ export class PythonCodeToolService {
 
   getPythonCodeTools(): Observable<GetPythonCodeToolRequest[]> {
     return this.http
-      .get<ApiGetRequest<GetPythonCodeToolRequest>>(this.baseUrl)
+      .get<PaginatedResponse<GetPythonCodeToolRequest>>(this.baseUrl)
       .pipe(map((response) => response.results));
   }
 

@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GraphDto } from '../../../../features/flows/models/graph.model';
 import { ClickOutsideDirective } from '../../../../shared/directives/click-outside.directive';
-import { GraphSessionStatus } from '../../../../features/flows/services/flows-sessions.service';
+import { GraphSessionStatus } from '../../../../features/flows/models/session.model';
 import { EMOJI_CATEGORIES } from '../../../../shared/constants/emoji.constants';
 import { GraphWithSessionsInfo } from '../../flows-page.component';
 

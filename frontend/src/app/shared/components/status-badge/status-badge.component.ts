@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { GraphSessionStatus } from '../../../features/flows/services/flows-sessions.service';
+import { GraphSessionStatus } from '../../../features/flows/models/session.model';
 import { NgClass, NgIf } from '@angular/common';
 
 @Component({

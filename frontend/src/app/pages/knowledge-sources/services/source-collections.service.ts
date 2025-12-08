@@ -8,7 +8,7 @@ import {
 } from '../models/source-collection.model';
 import { ConfigService } from '../../../services/config/config.service';
 
-interface ApiGetRequest<T> {
+interface PaginatedResponse<T> {
   count: number;
   next: string | null;
   previous: string | null;
@@ -29,7 +29,7 @@ export class CollectionsService {
     limit = 1000
   ): Observable<GetSourceCollectionRequest[]> {
     return this.http
-      .get<ApiGetRequest<GetSourceCollectionRequest>>(
+      .get<PaginatedResponse<GetSourceCollectionRequest>>(
         `${this.apiUrl}?limit=${limit}`
       )
       .pipe(map((res) => res.results));

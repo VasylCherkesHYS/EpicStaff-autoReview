@@ -1,4 +1,4 @@
-import { ToolUniqueName } from '../models/agent.model';
+import { ToolUniqueName } from '../../pages/staff-page/models/agent.model';
 
 export function buildToolIdsArray(
   configuredToolIds: number[],

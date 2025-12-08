@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ConfigService } from '../../../services/config/config.service';
-import { ApiGetRequest } from '../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../shared/models/paginated-response';
 import {
   GraphDto,
   CreateGraphDtoRequest,
@@ -27,13 +27,13 @@ export class FlowsApiService {
 
   getGraphs(): Observable<GraphDto[]> {
     return this.http
-      .get<ApiGetRequest<GraphDto>>(this.apiUrl)
+      .get<PaginatedResponse<GraphDto>>(this.apiUrl)
       .pipe(map((response) => response.results.sort((a, b) => b.id - a.id)));
   }
 
   getGraphsLight(): Observable<GraphDto[]> {
     return this.http
-      .get<ApiGetRequest<GraphDto>>(`${this.configService.apiUrl}graph-light/`)
+      .get<PaginatedResponse<GraphDto>>(`${this.configService.apiUrl}graph-light/`)
       .pipe(map((response) => response.results.sort((a, b) => b.id - a.id)));
   }
 

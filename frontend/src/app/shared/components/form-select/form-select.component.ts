@@ -9,7 +9,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, NG_VALUE_ACCESSOR, ControlValueAccessor } from '@angular/forms';
 import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
 import { Subscription, Observable } from 'rxjs';
-import { ApiGetRequest } from '../../models/api-request.model';
+import { PaginatedResponse } from '../../models/paginated-response';
 
 @Component({
     selector: 'app-custom-select',
@@ -110,8 +110,8 @@ export class CustomSelectComponent implements ControlValueAccessor, OnInit, OnDe
     @Input() activeColor: string = '#685fff';
     @Input() errorMessage: string = '';
 
-    // If caller supplies an observable that returns an ApiGetRequest wrapper, component will subscribe
-    @Input() optionsRequest?: Observable<ApiGetRequest<any>>;
+    // If caller supplies an observable that returns an PaginatedResponse wrapper, component will subscribe
+    @Input() optionsRequest?: Observable<PaginatedResponse<any>>;
     // Or the caller can pass options array directly
     @Input() options: any[] = [];
 

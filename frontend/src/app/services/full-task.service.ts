@@ -1,18 +1,27 @@
 import { Injectable } from '@angular/core';
 import { forkJoin, map, Observable } from 'rxjs';
-import { TasksService } from './tasks.service';
-import { AgentsService } from './staff.service';
-import { ToolConfigService } from './tool_config.service';
+import { TasksService } from '../features/projects/services/tasks.service';
+import { AgentsService } from '../pages/staff-page/services/agents.service';
+import { ToolConfigService } from '../features/tools/services/builtin-tools/tool-config.service';
 import { PythonCodeToolService } from '../user-settings-page/tools/custom-tool-editor/services/pythonCodeToolService.service';
 import { BuiltinToolsService } from '../features/tools/services/builtin-tools/builtin-tools.service';
 import { McpToolsService } from '../features/tools/services/mcp-tools/mcp-tools.service';
-import { FullTask } from '../shared/models/full-task.model';
-import { GetTaskRequest } from '../shared/models/task.model';
-import { GetAgentRequest } from '../shared/models/agent.model';
+import { GetTaskRequest } from '../features/projects/models/task.model';
+import { GetAgentRequest } from '../pages/staff-page/models/agent.model';
 import { GetToolConfigRequest } from '../features/tools/models/tool-config.model';
 import { GetPythonCodeToolRequest } from '../features/tools/models/python-code-tool.model';
 import { GetMcpToolRequest } from '../features/tools/models/mcp-tool.model';
 import { Tool } from '../features/tools/models/tool.model';
+
+export interface FullTask extends GetTaskRequest {
+  agentData: GetAgentRequest | null;
+  mergedTools?: {
+    id: number;
+    configName: string;
+    toolName: string;
+    type: string;
+  }[];
+}
 
 export interface TableFullTask extends Omit<FullTask, 'id'> {
   id: number | string;
@@ -40,7 +49,22 @@ export class FullTaskService {
       mcpTools: this.mcpToolsService.getMcpTools(),
       tools: this.toolsService.getTools(),
     }).pipe(
-      map(({ tasks, agents, toolConfigs, pythonTools, mcpTools, tools }) => {
+      map(
+        ({
+          tasks,
+          agents,
+          toolConfigs,
+          pythonTools,
+          mcpTools,
+          tools,
+        }: {
+          tasks: GetTaskRequest[];
+          agents: GetAgentRequest[];
+          toolConfigs: GetToolConfigRequest[];
+          pythonTools: GetPythonCodeToolRequest[];
+          mcpTools: GetMcpToolRequest[];
+          tools: Tool[];
+        }) => {
         // Create agent lookup map
         const agentMap = new Map<number, GetAgentRequest>();
         agents.forEach((agent) => {
@@ -64,7 +88,7 @@ export class FullTaskService {
           const pythonToolIds: number[] = [];
           const mcpToolIds: number[] = [];
 
-          task.tools.forEach((tool) => {
+          task.tools.forEach((tool: GetTaskRequest['tools'][number]) => {
             if (tool.unique_name.startsWith('configured-tool:')) {
               configuredToolIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('python-code-tool:')) {
@@ -75,8 +99,8 @@ export class FullTaskService {
           });
 
           // Get full tool configs based on parsed IDs
-          const fullConfiguredTools = toolConfigs.filter((tool) =>
-            configuredToolIds.includes(tool.id)
+          const fullConfiguredTools = toolConfigs.filter(
+            (tool: GetToolConfigRequest) => configuredToolIds.includes(tool.id)
           );
           const fullPythonTools = pythonTools.filter((pt) =>
             pythonToolIds.includes(pt.id)
@@ -87,7 +111,7 @@ export class FullTaskService {
 
           // Create merged tools with configName and toolName
           const mergedTools = [
-            ...fullConfiguredTools.map((tc) => ({
+            ...fullConfiguredTools.map((tc: GetToolConfigRequest) => ({
               id: tc.id,
               configName: tc.name, // This is the config name
               toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name
@@ -126,7 +150,22 @@ export class FullTaskService {
       mcpTools: this.mcpToolsService.getMcpTools(),
       tools: this.toolsService.getTools(),
     }).pipe(
-      map(({ tasks, agents, toolConfigs, pythonTools, mcpTools, tools }) => {
+      map(
+        ({
+          tasks,
+          agents,
+          toolConfigs,
+          pythonTools,
+          mcpTools,
+          tools,
+        }: {
+          tasks: GetTaskRequest[];
+          agents: GetAgentRequest[];
+          toolConfigs: GetToolConfigRequest[];
+          pythonTools: GetPythonCodeToolRequest[];
+          mcpTools: GetMcpToolRequest[];
+          tools: Tool[];
+        }) => {
         // Create agent lookup map
         const agentMap = new Map<number, GetAgentRequest>();
         agents.forEach((agent) => {
@@ -150,7 +189,7 @@ export class FullTaskService {
           const pythonToolIds: number[] = [];
           const mcpToolIds: number[] = [];
 
-          task.tools.forEach((tool) => {
+          task.tools.forEach((tool: GetTaskRequest['tools'][number]) => {
             if (tool.unique_name.startsWith('configured-tool:')) {
               configuredToolIds.push(tool.data.id);
             } else if (tool.unique_name.startsWith('python-code-tool:')) {
@@ -161,8 +200,8 @@ export class FullTaskService {
           });
 
           // Get full tool configs based on parsed IDs
-          const fullConfiguredTools = toolConfigs.filter((tool) =>
-            configuredToolIds.includes(tool.id)
+          const fullConfiguredTools = toolConfigs.filter(
+            (tool: GetToolConfigRequest) => configuredToolIds.includes(tool.id)
           );
           const fullPythonTools = pythonTools.filter((pt) =>
             pythonToolIds.includes(pt.id)
@@ -173,7 +212,7 @@ export class FullTaskService {
 
           // Create merged tools with configName and toolName
           const mergedTools = [
-            ...fullConfiguredTools.map((tc) => ({
+            ...fullConfiguredTools.map((tc: GetToolConfigRequest) => ({
               id: tc.id,
               configName: tc.name, // This is the config name
               toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name
@@ -248,8 +287,8 @@ export class FullTaskService {
         });
 
         // Get full tool configs based on parsed IDs
-        const fullConfiguredTools = toolConfigs.filter((tool) =>
-          configuredToolIds.includes(tool.id)
+        const fullConfiguredTools = toolConfigs.filter(
+          (tool: GetToolConfigRequest) => configuredToolIds.includes(tool.id)
         );
         const fullPythonTools = pythonTools.filter((pt) =>
           pythonToolIds.includes(pt.id)
@@ -260,7 +299,7 @@ export class FullTaskService {
 
         // Create merged tools with configName and toolName
         const mergedTools = [
-          ...fullConfiguredTools.map((tc) => ({
+          ...fullConfiguredTools.map((tc: GetToolConfigRequest) => ({
             id: tc.id,
             configName: tc.name, // This is the config name
             toolName: toolsMap.get(tc.tool) || 'Unknown Tool', // This is the actual tool name

@@ -1,65 +1,19 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
+
 import { ConfigService } from '../../../services/config/config.service';
-import { ApiGetRequest } from '../../../shared/models/api-request.model';
-
-export interface GraphSessionGraph {
-  id: number;
-  name: string;
-  metadata: any;
-}
-
-export enum GraphSessionStatus {
-  RUNNING = 'run',
-  ERROR = 'error',
-  ENDED = 'end',
-  WAITING_FOR_USER = 'wait_for_user',
-  PENDING = 'pending',
-  EXPIRED = 'expired',
-  STOP = 'stop',
-}
-
-export interface GraphSession {
-  id: number;
-  graph: GraphSessionGraph;
-  status: GraphSessionStatus;
-  status_data: Record<string, any>;
-  initial_state: Record<string, any>;
-  created_at: string;
-  finished_at: string | null;
-}
-
-export interface GraphSessionLight {
-  id: number;
-  graph_id: number;
-  status: GraphSessionStatus;
-  status_updated_at: string;
-  created_at: string;
-  finished_at: string | null;
-}
-
-export type SessionStatusesCounts = {
-  run: number;
-  wait_for_user: number;
-  error: number;
-  pending: number;
-  stop: number;
-};
-
-export type GraphSessionStatusesCounts = {
-  [graph_id: string]: SessionStatusesCounts;
-};
-
-export type SessionStatusesCountsMap = Map<string, SessionStatusesCounts>;
-
-export const defaultSessionStatusesCounts = (): SessionStatusesCounts => ({
-  run: 0,
-  wait_for_user: 0,
-  error: 0,
-  pending: 0,
-  stop: 0,
-});
+import { PaginatedResponse } from '../../../shared/models/paginated-response';
+import {
+  GraphSession,
+  GraphSessionLight,
+  GraphSessionStatus,
+  GraphSessionStatusesCounts,
+  RunGraphResponse,
+  SessionStatusesCounts,
+  SessionStatusesCountsMap,
+  defaultSessionStatusesCounts,
+} from '../models/session.model';
 
 @Injectable({
   providedIn: 'root',
@@ -71,8 +25,20 @@ export class GraphSessionService {
     return this.configService.apiUrl + 'sessions/';
   }
 
+  private get runGraphUrl(): string {
+    return this.configService.apiUrl + 'run-session/';
+  }
+
+  runGraph(graphId: number, initialState?: any): Observable<RunGraphResponse> {
+    const formData = new FormData();
+    formData.append('graph_id', graphId.toString());
+    formData.append('initial_state', JSON.stringify(initialState || {}));
+
+    return this.http.post<RunGraphResponse>(this.runGraphUrl, formData);
+  }
+
   getAllSessions(): Observable<GraphSession[]> {
-    return this.http.get<ApiGetRequest<GraphSession>>(this.apiUrl).pipe(
+    return this.http.get<PaginatedResponse<GraphSession>>(this.apiUrl).pipe(
       map((response) => {
         return response.results.sort((a, b) => b.id - a.id);
       })
@@ -104,45 +70,37 @@ export class GraphSessionService {
 
   getSessionsByGraphId(
     graphId: number,
-    detailed: true,
-    limit?: number,
-    offset?: number,
-    status?: string[]
-  ): Observable<ApiGetRequest<GraphSession>>;
-
-  getSessionsByGraphId(
-    graphId: number,
-    detailed: false,
-    limit?: number,
-    offset?: number,
-    status?: string[]
-  ): Observable<ApiGetRequest<GraphSessionLight>>;
-
-  getSessionsByGraphId(
-    graphId: number,
-    detailed?: boolean,
-    limit?: number,
-    offset?: number,
-    status?: string[]
-  ): Observable<ApiGetRequest<GraphSession | GraphSessionLight>> {
+    options?: { limit?: number; offset?: number; status?: string[] }
+  ): Observable<PaginatedResponse<GraphSession>> {
+    const { limit, offset, status } = options || {};
     let params = new HttpParams().set('graph_id', graphId.toString());
 
-    if (detailed !== undefined)
-      params = params.set('detailed', detailed.toString());
     if (limit !== undefined) params = params.set('limit', limit.toString());
     if (offset !== undefined) params = params.set('offset', offset.toString());
     if (status !== undefined && !status.includes('all'))
       params = params.set('status', status.join(','));
 
-    if (detailed === false) {
-      return this.http.get<ApiGetRequest<GraphSessionLight>>(this.apiUrl, {
-        params,
-      });
-    } else {
-      return this.http.get<ApiGetRequest<GraphSession>>(this.apiUrl, {
-        params,
-      });
-    }
+    return this.http.get<PaginatedResponse<GraphSession>>(this.apiUrl, {
+      params,
+    });
+  }
+
+  getSessionsLightByGraphId(
+    graphId: number,
+    options?: { limit?: number; offset?: number; status?: string[] }
+  ): Observable<PaginatedResponse<GraphSessionLight>> {
+    const { limit, offset, status } = options || {};
+    let params = new HttpParams().set('graph_id', graphId.toString());
+
+    params = params.set('detailed', 'false');
+    if (limit !== undefined) params = params.set('limit', limit.toString());
+    if (offset !== undefined) params = params.set('offset', offset.toString());
+    if (status !== undefined && !status.includes('all'))
+      params = params.set('status', status.join(','));
+
+    return this.http.get<PaginatedResponse<GraphSessionLight>>(this.apiUrl, {
+      params,
+    });
   }
 
   deleteSessionById(sessionId: number): Observable<void> {

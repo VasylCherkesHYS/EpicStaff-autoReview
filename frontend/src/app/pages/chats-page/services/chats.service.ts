@@ -7,7 +7,6 @@ import { FullAgent } from '../../../services/full-agent.service';
 export class ChatsService {
   private selectedAgent = signal<FullAgent | null>(null);
 
-  // Computed signals
   readonly selectedAgentId$ = computed(() => this.selectedAgent()?.id || null);
   readonly selectedAgent$ = computed(() => this.selectedAgent());
 

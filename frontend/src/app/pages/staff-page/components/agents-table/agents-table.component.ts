@@ -53,12 +53,12 @@ import {
     DialogModule,
     DialogRef,
 } from '@angular/cdk/dialog';
-import { AgentsService } from '../../../../services/staff.service';
+import { AgentsService } from '../../services/agents.service';
 import {
     CreateAgentRequest,
     ToolUniqueName,
     UpdateAgentRequest,
-} from '../../../../shared/models/agent.model';
+} from '../../models/agent.model';
 import { NgClass, NgIf, NgStyle } from '@angular/common';
 import { PreventContextMenuDirective } from '../directives/prevent-context-menu.directive';
 import { AgGridContextMenuComponent } from '../context-menu/ag-grid-context-menu.component';
@@ -68,8 +68,8 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { buildToolIdsArray } from '../../../../shared/utils/tool-ids-builder.util';
 import { ConfigCellRendererComponent } from '../cell-renderers/llm-cell-renderer/realtime-config-cell-renderer.component';
 import { map, switchMap } from 'rxjs';
-import { CreateRealtimeAgentRequest } from '../../../../shared/models/realtime-agent.model';
-import { RealtimeAgentService } from '../../../../services/realtime-agent.service';
+import { CreateRealtimeAgentRequest } from '../../models/realtime-agent.model';
+import { RealtimeAgentService } from '../../../chats-page/services/realtime-agent.service';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

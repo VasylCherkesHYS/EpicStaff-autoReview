@@ -5,7 +5,7 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { ErrorStateMatcher } from '@angular/material/core';
 import { CustomErrorStateMatcher } from '../../../../shared/error-state-matcher/custom-error-state-matcher';
 import { Project, ProjectProcess } from '../../models/project.model';
-import { ProjectStore } from '../../services/project.store';
+import { ProjectStoreService } from '../../services/project-store.service';
 
 interface ProjectFormData {
     name: string;
@@ -28,7 +28,7 @@ interface ProjectFormData {
   providers: [{ provide: ErrorStateMatcher, useClass: CustomErrorStateMatcher }],
 })
 export class CreateProjectComponent implements OnInit {
-  private readonly store = inject(ProjectStore);
+  private readonly store = inject(ProjectStoreService);
   private readonly dialogRef = inject(DialogRef<Project | undefined>);
 
   isTemplate = true;

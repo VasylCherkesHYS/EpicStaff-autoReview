@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
-import { ProjectStore } from '../../services/project.store';
+import { ProjectStoreService } from '../../services/project-store.service';
 import { Project } from '../../models/project.model';
 import { SearchService } from '../../../../shared/services/search.service';
 import { LoadingSpinnerComponent } from '../../../../shared/components/loading-spinner/loading-spinner.component';
@@ -46,7 +46,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 })
 export class TemplatesComponent {
   private readonly searchService = inject(SearchService);
-  readonly store = inject(ProjectStore);
+  readonly store = inject(ProjectStoreService);
 
   readonly filteredTemplates = computed(() => {
     const templates = this.store.templatesSig();

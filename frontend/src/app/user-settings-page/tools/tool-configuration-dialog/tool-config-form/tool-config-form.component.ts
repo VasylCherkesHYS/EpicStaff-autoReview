@@ -32,7 +32,7 @@ import {
   NgSwitchCase,
   NgSwitchDefault,
 } from '@angular/common';
-import { ToolConfigService } from '../../../../services/tool_config.service';
+import { ToolConfigService } from '../../../../features/tools/services/builtin-tools/tool-config.service';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
 import { LlmModelSelectorComponent } from '../../../../shared/components/llm-model-selector/llm-model-selector.component';
 import { EmbeddingModelSelectorComponent } from '../../../../shared/components/embedding-model-selector/embedding-model-selector.component';
@@ -77,8 +77,6 @@ export class ToolConfigFormComponent implements OnInit, OnChanges {
   ) {}
 
   ngOnInit(): void {
-    console.log('selected config in form', this.selectedConfig);
-    console.log('selected tool in form', this.tool);
     this.buildForm();
     if (this.selectedConfig) {
       this.populateFormWithConfig(this.selectedConfig);
@@ -118,7 +116,6 @@ export class ToolConfigFormComponent implements OnInit, OnChanges {
       switch (field.data_type) {
         case 'llm_config':
           // Handle LLM config field - should be a dropdown with LLM configs
-          console.log('Creating LLM config field:', field.name);
           this.form.addControl(field.name, this.fb.control('', validators));
           break;
         case 'embedding_config':
@@ -288,37 +285,35 @@ export class ToolConfigFormComponent implements OnInit, OnChanges {
       };
 
       if (!this.selectedConfig) {
-        // Create new configuration
-        console.log(toolConfigRequest);
-
         this.toolConfigService.createToolConfig(toolConfigRequest).subscribe({
-          next: (createdConfig) => {
+          next: (createdConfig: ToolConfig) => {
             this.submitForm.emit(createdConfig);
             this.cdr.markForCheck();
           },
-          error: (err) => {
-            console.error('Error creating configuration:', err);
+          error: (err: unknown) => {
             this.toastService.error(
               `Failed to create configuration: ${
-                err.message || 'Unknown error'
+                typeof err === 'object' && err !== null && 'message' in err
+                  ? (err as { message?: string }).message || 'Unknown error'
+                  : 'Unknown error'
               }`
             );
           },
         });
       } else {
-        // Update existing configuration
         this.toolConfigService
           .updateToolConfig(this.selectedConfig.id, toolConfigRequest)
           .subscribe({
-            next: (updatedConfig) => {
-              this.submitForm.emit(updatedConfig); // Notify parent
+            next: (updatedConfig: ToolConfig) => {
+              this.submitForm.emit(updatedConfig);
               this.cdr.markForCheck();
             },
-            error: (err) => {
-              console.error('Error updating configuration:', err);
+            error: (err: unknown) => {
               this.toastService.error(
                 `Failed to update configuration: ${
-                  err.message || 'Unknown error'
+                  typeof err === 'object' && err !== null && 'message' in err
+                    ? (err as { message?: string }).message || 'Unknown error'
+                    : 'Unknown error'
                 }`
               );
             },

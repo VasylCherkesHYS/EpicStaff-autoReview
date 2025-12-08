@@ -7,8 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatBadgeModule } from '@angular/material/badge';
 import { AppIconComponent } from '../../../../shared/components/app-icon/app-icon.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
-import { GraphSessionStatus } from '../../../../features/flows/services/flows-sessions.service';
-import { RunGraphPageService } from '../../run-graph-page.service';
+import { GraphSessionStatus } from '../../../../features/flows/models/session.model';
+import { MemoryService as RunGraphMemoryService } from '../../services/memory.service';
 import { MemoriesSidebarComponent } from '../memory-sidebar/components/memory-sidebar/memory-sidebar.component';
 import { MemoryService } from '../memory-sidebar/service/memory.service';
 import { FlowSessionsListComponent } from '../../../../features/flows/components/flow-sessions-dialog/flow-sessions-list.component';
@@ -217,7 +217,7 @@ export class RunningGraphHeaderComponent {
     public showMemoriesSidebar = false;
 
     constructor(
-        private runGraphPageService: RunGraphPageService,
+        private runGraphMemoryService: RunGraphMemoryService,
         private memoryService: MemoryService,
         private dialog: Dialog,
         private router: Router
@@ -229,7 +229,7 @@ export class RunningGraphHeaderComponent {
     }
 
     get memories() {
-        return this.runGraphPageService.getMemories();
+        return this.runGraphMemoryService.getMemories();
     }
 
     get memoriesCount(): number {
@@ -262,7 +262,7 @@ export class RunningGraphHeaderComponent {
         this.memoryService.deleteMemory(memoryId).subscribe({
             next: () => {
                 // On successful deletion, update local state
-                this.runGraphPageService.deleteMemory(memoryId);
+                this.runGraphMemoryService.deleteMemory(memoryId);
             },
             error: (error) => {
                 console.error('Error deleting memory:', error);

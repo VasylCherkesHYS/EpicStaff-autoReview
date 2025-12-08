@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ConfigService } from '../../../services/config/config.service';
-import { ApiGetRequest } from '../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../shared/models/paginated-response';
 import { Agent, AgentResponse } from '../models/agent.model';
 
 @Injectable({ providedIn: 'root' })
@@ -16,7 +16,7 @@ export class AgentApi {
 
   getAgents(): Observable<Agent[]> {
     return this.http
-      .get<ApiGetRequest<AgentResponse>>(this.url)
+      .get<PaginatedResponse<AgentResponse>>(this.url)
       .pipe(map((res) => res.results.map(Agent.fromResponse)));
   }
 

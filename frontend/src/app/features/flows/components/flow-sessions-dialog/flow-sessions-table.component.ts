@@ -15,7 +15,7 @@ import {
   GraphSession,
   GraphSessionLight,
   GraphSessionStatus,
-} from '../../services/flows-sessions.service';
+} from '../../models/session.model';
 import { GraphDto } from '../../models/graph.model';
 @Component({
   selector: 'app-flow-sessions-table',

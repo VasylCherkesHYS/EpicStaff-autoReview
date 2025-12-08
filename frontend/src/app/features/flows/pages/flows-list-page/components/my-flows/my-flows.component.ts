@@ -25,7 +25,8 @@ import {
     ConfirmationResult,
 } from '../../../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { FlowRenameDialogComponent } from '../../../../components/flow-rename-dialog/flow-rename-dialog.component';
-import { RunGraphService } from '../../../../../../services/run-graph-session.service';
+import { GraphSessionService } from '../../../../services/flows-sessions.service';
+import { RunGraphResponse } from '../../../../models/session.model';
 import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { GraphUpdateService } from '../../../../../../visual-programming/services/graph/save-graph.service';
 import { ImportExportService } from '../../../../../../core/services/import-export.service';
@@ -47,7 +48,7 @@ export class MyFlowsComponent implements OnInit {
     private readonly flowsService = inject(FlowsStorageService);
     private readonly graphUpdateService = inject(GraphUpdateService);
     private readonly flowsApiService = inject(FlowsApiService);
-    private readonly runGraphService = inject(RunGraphService);
+    private readonly runGraphService = inject(GraphSessionService);
     private readonly router = inject(Router);
     private readonly dialog = inject(Dialog);
     private readonly toastService = inject(ToastService);
@@ -207,7 +208,7 @@ export class MyFlowsComponent implements OnInit {
         const inputs = {};
 
         this.runGraphService.runGraph(flow.id, inputs).subscribe({
-            next: (response) => {
+            next: (response: RunGraphResponse) => {
                 console.log('Flow execution started:', response);
 
                 if (response && response.session_id) {
@@ -224,17 +225,33 @@ export class MyFlowsComponent implements OnInit {
                     );
                 }
             },
-            error: (err) => {
+            error: (err: unknown) => {
                 console.error(`Error running flow ${flow.id}`, err);
 
-                // Extract error message from backend response
                 let errorMessage = 'Failed to run flow';
-                if (err.error && err.error.message) {
-                    errorMessage = err.error.message;
-                } else if (err.error && typeof err.error === 'string') {
-                    errorMessage = err.error;
-                } else if (err.message) {
-                    errorMessage = err.message;
+
+                if (err instanceof HttpErrorResponse) {
+                    if (typeof err.error === 'string') {
+                        errorMessage = err.error;
+                    } else if (
+                        err.error &&
+                        typeof err.error === 'object' &&
+                        'message' in err.error &&
+                        typeof err.error.message === 'string'
+                    ) {
+                        errorMessage = err.error.message;
+                    } else if (typeof err.message === 'string') {
+                        errorMessage = err.message;
+                    }
+                } else if (
+                    err &&
+                    typeof err === 'object' &&
+                    'message' in err &&
+                    typeof (err as { message?: unknown }).message === 'string'
+                ) {
+                    errorMessage = (err as { message: string }).message;
+                } else if (typeof err === 'string') {
+                    errorMessage = err;
                 }
 
                 this.toastService.error(

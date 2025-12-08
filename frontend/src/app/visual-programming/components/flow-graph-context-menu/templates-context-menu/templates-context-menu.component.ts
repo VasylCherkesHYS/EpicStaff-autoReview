@@ -8,7 +8,7 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule, NgFor } from '@angular/common';
-import { ProjectStore } from '../../../../features/projects/services/project.store';
+import { ProjectStoreService } from '../../../../features/projects/services/project-store.service';
 import { Project } from '../../../../features/projects/models/project.model';
 import { NodeType } from '../../../core/enums/node-type';
 
@@ -148,7 +148,7 @@ export class TemplatesContextMenuComponent implements OnInit {
   public creatingProjectFromTemplateId: number | null = null;
 
   constructor(
-    private projectStore: ProjectStore,
+    private projectStore: ProjectStoreService,
     private cdr: ChangeDetectorRef
   ) {}
 

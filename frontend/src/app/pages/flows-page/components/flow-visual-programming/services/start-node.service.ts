@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import { StartNode, CreateStartNodeRequest } from '../models/start-node.model';
 import { ConfigService } from '../../../../../services/config/config.service';
 
-export interface ApiGetRequest<T> {
+export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
   previous: string | null;
@@ -34,7 +34,7 @@ export class StartNodeService {
 
   getStartNodes(): Observable<StartNode[]> {
     return this.http
-      .get<ApiGetRequest<StartNode>>(this.apiUrl, {
+      .get<PaginatedResponse<StartNode>>(this.apiUrl, {
         headers: this.headers,
       })
       .pipe(map((response) => response.results));

@@ -2,9 +2,9 @@ import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { tap, map } from 'rxjs/operators';
 import { FullAgent, FullAgentService } from '../../services/full-agent.service';
-import { FullTask } from '../../shared/models/full-task.model';
+import { FullTask } from '../../services/full-task.service';
 import { Project, ProjectDto } from '../../features/projects/models/project.model';
-import { ProjectStore } from '../../features/projects/services/project.store';
+import { ProjectStoreService } from '../../features/projects/services/project-store.service';
 import { ToastService } from '../../services/notifications/toast.service';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class ProjectStateService {
     public project$ = this.projectSubject.asObservable();
 
     constructor(
-        private projectStore: ProjectStore,
+        private projectStore: ProjectStoreService,
         private toastService: ToastService,
         private fullAgentService: FullAgentService
     ) {

@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import {
   CreateEmbeddingConfigRequest,
   EmbeddingConfig,
@@ -30,7 +30,7 @@ export class EmbeddingConfigsService {
   getEmbeddingConfigs(): Observable<EmbeddingConfig[]> {
     const url = `${this.apiUrl}?limit=1000`;
     return this.http
-      .get<ApiGetRequest<EmbeddingConfig>>(url)
+      .get<PaginatedResponse<EmbeddingConfig>>(url)
       .pipe(map((response) => response.results));
   }
   getEmbeddingConfigsByProviderId(
@@ -38,7 +38,7 @@ export class EmbeddingConfigsService {
   ): Observable<EmbeddingConfig[]> {
     const url = `${this.apiUrl}?limit=1000&model_provider_id=${providerId}`;
     return this.http
-      .get<ApiGetRequest<EmbeddingConfig>>(url)
+      .get<PaginatedResponse<EmbeddingConfig>>(url)
       .pipe(map((response) => response.results));
   }
   // GET embedding config by ID

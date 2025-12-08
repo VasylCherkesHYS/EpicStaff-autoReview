@@ -9,7 +9,7 @@ import { TabButtonComponent } from '../../shared/components/tab-button/tab-butto
 import { FiltersListComponent } from '../../shared/components/filters-list/filters-list.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { NgIf } from '@angular/common';
-import { GetAgentRequest } from '../../shared/models/agent.model';
+import { GetAgentRequest } from './models/agent.model';
 
 @Component({
     selector: 'app-staff-page',

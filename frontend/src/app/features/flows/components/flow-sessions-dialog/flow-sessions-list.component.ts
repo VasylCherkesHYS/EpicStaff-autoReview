@@ -10,12 +10,12 @@ import {
   effect,
 } from '@angular/core';
 import { GraphDto } from '../../models/graph.model';
+import { GraphSessionService } from '../../services/flows-sessions.service';
 import {
   GraphSession,
   GraphSessionLight,
-  GraphSessionService,
   GraphSessionStatus,
-} from '../../services/flows-sessions.service';
+} from '../../models/session.model';
 import { CommonModule } from '@angular/common';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { Router } from '@angular/router';
@@ -77,7 +77,7 @@ export class FlowSessionsListComponent implements OnInit {
     this.isLoaded.set(false);
     if (this.flow && this.flow.id) {
       this.graphSessionService
-        .getSessionsByGraphId(this.flow.id, false, limit, offset, status)
+        .getSessionsLightByGraphId(this.flow.id, { limit, offset, status })
         .subscribe({
           next: (sessions) => {
             this.sessions.set(sessions.results);

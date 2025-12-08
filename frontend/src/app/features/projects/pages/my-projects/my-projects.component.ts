@@ -6,7 +6,7 @@ import { AddProjectCardComponent } from './add-project-card/add-project-card.com
 import { LoadingSpinnerComponent } from '../../../../shared/components/loading-spinner/loading-spinner.component';
 import { CreateProjectComponent } from '../../components/create-project-form-dialog/create-project.component';
 import { ConfirmationDialogService } from '../../../../shared/components/cofirm-dialog/confimation-dialog.service';
-import { ProjectStore } from '../../services/project.store';
+import { ProjectStoreService } from '../../services/project-store.service';
 import { Project } from '../../models/project.model';
 import { SearchService } from '../../../../shared/services/search.service';
 
@@ -66,7 +66,7 @@ export class MyProjectsComponent {
   private readonly confirmDialog = inject(ConfirmationDialogService);
   private readonly searchService = inject(SearchService);
 
-  readonly store = inject(ProjectStore);
+  readonly store = inject(ProjectStoreService);
 
   readonly filteredProjects = computed(() => {
     const templates = this.store.templatesSig();

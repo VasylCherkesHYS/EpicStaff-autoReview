@@ -5,7 +5,7 @@ import { map } from 'rxjs/operators';
 import { Source } from '../models/source.model'; // adjust path as needed
 import { ConfigService } from '../../../services/config/config.service';
 
-interface ApiGetRequest<T> {
+interface PaginatedResponse<T> {
   count: number;
   next: string | null;
   previous: string | null;
@@ -24,7 +24,7 @@ export class SourcesService {
 
   getSources(): Observable<Source[]> {
     return this.http
-      .get<ApiGetRequest<Source>>(this.apiUrl)
+      .get<PaginatedResponse<Source>>(this.apiUrl)
       .pipe(map((res) => res.results));
   }
 

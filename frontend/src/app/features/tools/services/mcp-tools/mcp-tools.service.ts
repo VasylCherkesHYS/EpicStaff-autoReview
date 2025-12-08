@@ -7,7 +7,7 @@ import {
   CreateMcpToolRequest,
   UpdateMcpToolRequest,
 } from '../../models/mcp-tool.model';
-import { ApiGetRequest } from '../../../../shared/models/api-request.model';
+import { PaginatedResponse } from '../../../../shared/models/paginated-response';
 import { ConfigService } from '../../../../services/config/config.service';
 
 @Injectable({
@@ -47,7 +47,7 @@ export class McpToolsService {
     }
 
     return this.http
-      .get<ApiGetRequest<GetMcpToolRequest>>(this.apiUrl, { params: httpParams })
+      .get<PaginatedResponse<GetMcpToolRequest>>(this.apiUrl, { params: httpParams })
       .pipe(map((response) => response.results));
   }
 

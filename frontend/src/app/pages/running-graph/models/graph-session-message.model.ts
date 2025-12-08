@@ -1,6 +1,6 @@
-import { GetAgentRequest } from '../../../shared/models/agent.model';
+import { GetAgentRequest } from '../../staff-page/models/agent.model';
 import { Project } from '../../../features/projects/models/project.model';
-import { GetTaskRequest } from '../../../shared/models/task.model';
+import { GetTaskRequest } from '../../../features/projects/models/task.model';
 
 // Base GraphMessage interface
 export interface GraphMessage {

@@ -17,7 +17,7 @@ import { ChatsHeaderComponent } from './components/chats-page-header/chats-page-
 import { ConsoleService } from './services/console.service';
 import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
 import { finalize, Subject, takeUntil, forkJoin } from 'rxjs';
-import { RealtimeAgentService } from '../../services/realtime-agent.service';
+import { RealtimeAgentService } from './services/realtime-agent.service';
 
 @Component({
   selector: 'app-chats-page',

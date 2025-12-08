@@ -12,7 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
-import { ProjectStore } from '../../features/projects/services/project.store';
+import { ProjectStoreService } from '../../features/projects/services/project-store.service';
 import { ProjectDto } from '../../features/projects/models/project.model';
 import { ToastService } from '../../services/notifications/toast.service';
 
@@ -41,7 +41,7 @@ export class DetailsContentComponent implements OnInit, OnChanges {
     private readonly tagsSubject: Subject<string[]> = new Subject();
 
     constructor(
-        private readonly projectStore: ProjectStore,
+        private readonly projectStore: ProjectStoreService,
         private readonly toastService: ToastService
     ) {}
 

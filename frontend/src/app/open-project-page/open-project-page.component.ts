@@ -17,12 +17,12 @@ import { AgentsSectionComponent } from './agents-section/agents-section.componen
 import { TasksSectionComponent } from './tasks-section/tasks-section.component';
 import { SettingsSectionComponent } from './settings-section/settings-section.component';
 import { FormsModule } from '@angular/forms';
-import { ProjectStore } from '../features/projects/services/project.store';
-import { TasksService } from '../services/tasks.service';
+import { ProjectStoreService } from '../features/projects/services/project-store.service';
+import { TasksService } from '../features/projects/services/tasks.service';
 import { finalize, forkJoin, Subscription } from 'rxjs';
 import { Project, ProjectDto } from '../features/projects/models/project.model';
 import { Dialog } from '@angular/cdk/dialog';
-import { FullTask } from '../shared/models/full-task.model';
+import { FullTask } from '../services/full-task.service';
 import { FullAgentService, FullAgent } from '../services/full-agent.service';
 import { FullTaskService } from '../services/full-task.service';
 import { ProjectStateService } from './services/project-state.service';
@@ -126,7 +126,7 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy {
     public sections: SectionConfig[] = [];
 
     constructor(
-        private projectStore: ProjectStore,
+        private projectStore: ProjectStoreService,
         private tasksService: TasksService,
         private cdr: ChangeDetectorRef,
         private fullAgentService: FullAgentService,

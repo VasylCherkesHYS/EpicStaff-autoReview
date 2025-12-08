@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GraphSessionStatus } from '../../services/flows-sessions.service';
+import { GraphSessionStatus } from '../../models/session.model';
 
 @Component({
   selector: 'app-flow-session-status-badge',

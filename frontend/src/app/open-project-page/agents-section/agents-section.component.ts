@@ -37,7 +37,7 @@ import {
 } from './grid-controls/dropdown-staff-agents/staff-agent-card/staff-agent-card.component';
 import { Dialog } from '@angular/cdk/dialog';
 import { CreateAgentFormComponent } from '../../shared/components/create-agent-form-dialog/create-agent-form-dialog.component';
-import { AgentsService } from '../../services/staff.service';
+import { AgentsService } from '../../pages/staff-page/services/agents.service';
 import { ToastService } from '../../services/notifications/toast.service';
 import { ClickOutsideDirective } from '../../shared/directives/click-outside.directive';
 
