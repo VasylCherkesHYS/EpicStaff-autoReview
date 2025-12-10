@@ -68,9 +68,16 @@ export class LeftSidebarComponent {
                 label: 'Flows',
                 showTooltip: false,
             },
+            // {
+            //     id: 'knowledge-sources',
+            //     routeLink: 'knowledge-sources',
+            //     svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.sources),
+            //     label: 'Knowledge Sources',
+            //     showTooltip: false,
+            // },
             {
-                id: 'knowledge-sources',
-                routeLink: 'knowledge-sources',
+                id: 'knowledge-sources-new',
+                routeLink: 'knowledge-sources-new',
                 svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.sources),
                 label: 'Knowledge Sources',
                 showTooltip: false,

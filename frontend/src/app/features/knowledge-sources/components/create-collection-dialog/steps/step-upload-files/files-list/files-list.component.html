@@ -1,0 +1,47 @@
+<div class="list__container">
+    <div class="list__title">
+        <span>Selected Files: <span class="list__title--count">({{documents().length}})</span></span>
+        @if (hasInvalidFiles()) {
+            <div class="list__title-error">File validation errors</div>
+        }
+        <app-button type="outline" (click)="onAddMore()">
+            + Add More Files
+        </app-button>
+
+        <input
+            #fileInput
+            id="file"
+            type="file"
+            multiple
+            style="display: none"
+            (change)="onFileSelect($event)"
+        />
+    </div>
+    <ol class="list__files">
+        @for (d of documents(); track d.document_id; let i = $index; let odd = $odd ) {
+            <li
+                class="list__file"
+                [class.list__file--dark]="odd">
+
+                <span class="list__file-index">{{ i + 1 }}</span>
+                <app-icon icon="ui/document" size="0.75rem" />
+                <span class="list__file-name">{{ d.file_name }}</span>
+                <span class="list__file-size">{{ d.file_size | fileSize }}</span>
+                <div [class.list__file-error]="!d.isValidSize || !d.isValidType">
+                    @if (!d.isValidType) {
+                        Invalid file type
+                    } @else if (!d.isValidSize) {
+                        File size is too big
+                    }
+                </div>
+                <div></div>
+                <app-icon
+                    icon="ui/close"
+                    class="list__file-action"
+                    size="1rem"
+                    (click)="onDelete(d)"
+                />
+            </li>
+        }
+    </ol>
+</div>

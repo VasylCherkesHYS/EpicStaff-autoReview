@@ -1,0 +1,34 @@
+<div class="collection-details">
+    @if (selectedCollection()) {
+        <div class="collection-details__header">
+            <div class="collection-details__name">
+                <label
+                    for="collection-name"
+                    class="collection-details__label"
+                >
+                    Collection Name
+                </label>
+                <input
+                    [formControl]="collectionName"
+                    type="text"
+                    id="collection-name"
+                    class="collection-details__input"
+                    placeholder="Enter collection name"
+                />
+            </div>
+            <app-icon
+                [icon]="'ui/trash'"
+                class="collection-details__action"
+                [size]="'1.5rem'"
+                (click)="onDelete()"
+            />
+        </div>
+    } @else {
+        <div class="collection-details__empty">
+            <app-icon [icon]="'ui/folder'" class="collection-details__empty-icon" size="3.125rem"/>
+            <p class="collection-details__empty-text">
+                Select a collection to view files
+            </p>
+        </div>
+    }
+</div>

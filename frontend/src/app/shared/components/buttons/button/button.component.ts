@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import {Component, input, Input} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppIconComponent } from '../../app-icon/app-icon.component';
 
@@ -10,9 +10,11 @@ import { AppIconComponent } from '../../app-icon/app-icon.component';
   styleUrls: ['./button.component.scss'],
 })
 export class ButtonComponent {
-  @Input() type: 'primary' | 'secondary' | 'ghost' | 'icon' = 'primary';
+  @Input() type: 'primary' | 'secondary' | 'ghost' | 'icon' | 'outline' = 'primary';
   @Input() leftIcon?: string; // e.g., 'ui/x'
+  @Input() leftIconColor?: string;
   @Input() rightIcon?: string; // e.g., 'ui/chevron-down'
-  @Input() disabled = false;
+  @Input() rightIconColor?: string;
   @Input() ariaLabel?: string; // For accessibility
+  disabled = input<boolean>(false);
 }

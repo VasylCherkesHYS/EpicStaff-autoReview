@@ -1,0 +1,38 @@
+export enum CreateCollectionStep {
+    UPLOAD_FILES = 0,
+    SELECT_RAG = 1,
+    CONFIGURE = 2,
+}
+
+export interface CreateCollectionDtoRequest {
+    collection_name: string;
+}
+
+export enum CollectionStatus {
+    EMPTY = "empty",
+    UPLOADING = "uploading",
+    COMPLETED = "completed",
+    WARNING = "warning",
+    FAILED = "failed",
+}
+
+export interface CreateCollectionDtoResponse {
+    collection_id: number;
+    collection_name: string;
+    user_id: string,
+    status: CollectionStatus,
+    document_count: number,
+    rag_configurations: [],
+    created_at: string,
+    updated_at: string
+}
+
+export interface GetCollectionRequest {
+    collection_id: number;
+    collection_name: string;
+    user_id: string;
+    status: CollectionStatus;
+    document_count: number;
+    created_at: string;
+    updated_at: string;
+}

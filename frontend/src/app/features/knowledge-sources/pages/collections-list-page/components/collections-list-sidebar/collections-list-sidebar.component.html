@@ -1,0 +1,72 @@
+<div class="collections-sidebar">
+    <div class="collections-sidebar__header">
+        <span class="collections-sidebar__header-label">Collections
+            <span class="collections-sidebar__header-count">
+                {{collections().length}}
+            </span>
+        </span>
+
+        <app-button [type]="collections().length ? 'primary' : 'outline'" (click)="onCreateCollection.emit()">
+            + Add
+        </app-button>
+    </div>
+
+    <div class="collections-sidebar__search">
+
+        <div class="collections-sidebar__search-input">
+            <app-icon
+                icon="ui/search"
+                class="collections-sidebar__search-icon"
+                size="1.1rem"
+            ></app-icon>
+
+            <input
+                type="text"
+                class="collections-sidebar__input"
+                placeholder="Search collections..."
+                [(ngModel)]="searchTerm"
+                (ngModelChange)="onSearchTermChange($event)"
+            />
+
+            @if (searchTerm()) {
+                <button
+                    type="button"
+                    class="collections-sidebar__clear-btn"
+                    aria-label="Clear"
+                    (click)="clearSearch()"
+                >
+                    <app-icon icon="ui/x" size="1.1rem"></app-icon>
+                </button>
+            }
+        </div>
+
+        <div class="collections-sidebar__search-select">
+            <mat-select placeholder="All Status">
+                <mat-option [value]="'option 1'">
+                    <div class="create-agent__llm-option">
+                        <span>Option 1</span>
+                    </div>
+                </mat-option>
+            </mat-select>
+        </div>
+    </div>
+
+    <div class="collections-sidebar__items">
+        @if (!collections().length) {
+            <p class="collections-sidebar__empty">No collections yet</p>
+
+            <app-button type="outline" (click)="onCreateCollection.emit()">
+                + Create Collection
+            </app-button>
+        } @else {
+            @for (collection of collections(); track collection.collection_id) {
+                <app-collection
+                    class="collections-sidebar__item"
+                    [collection]="collection"
+                    [selected]="selectedCollectionId() === collection.collection_id"
+                    (click)="selectedCollectionId.set(collection.collection_id)"
+                />
+            }
+        }
+    </div>
+</div>

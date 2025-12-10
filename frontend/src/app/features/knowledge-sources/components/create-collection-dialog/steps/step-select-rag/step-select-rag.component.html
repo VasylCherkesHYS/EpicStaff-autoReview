@@ -1,0 +1,16 @@
+<div class="select-rag">
+    <div class="select-rag__header">
+        <h2 class="select-rag__title">Select RAG Type</h2>
+        <p class="select-rag__description">Below are three main types of Retrieval-Augmented Generation (RAG).</p>
+        <p class="select-rag__description">Choose the one that best suits your task.</p>
+    </div>
+    <div class="select-rag__items">
+        @for (type of RAG_TYPES; track type.name) {
+            <app-rag-type
+                [ragType]="type"
+                [selected]="selectedRag() === type.name"
+                (click)="selectedRag.set(type.name)"
+            />
+        }
+    </div>
+</div>

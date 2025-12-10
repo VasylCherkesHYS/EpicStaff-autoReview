@@ -1,0 +1,82 @@
+.list {
+    &__container {
+        display: flex;
+        flex-direction: column;
+        padding: 2rem 1.875rem 2rem 2.5rem;
+    }
+
+    &__title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        width: 100%;
+        font-size: 0.875rem;
+        font-weight: 130;
+
+        &--count {
+            color: var(--accent-color);
+        }
+    }
+
+    &__files {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--color-divider-subtle);
+    }
+
+    &__file {
+        display: grid;
+        grid-template-columns:
+            0.75rem    /* index */
+            1rem       /* icon */
+            7rem       /* name */
+            2.5rem     /* size */
+            5.2rem     /* error */
+            auto       /* spacer */
+            1rem;      /* button */
+        align-items: center;
+        column-gap: 0.25rem;
+        cursor: pointer;
+        font-size: 0.625rem;
+        padding: 0.5rem 0.625rem;
+
+        &--dark {
+            background-color: var(--color-drag-drop-active);
+        }
+
+        &--selected {
+            background-color: var(--color-ks-line);
+        }
+
+        &:hover {
+            background-color: var(--color-ks-line);
+        }
+    }
+
+    &__file-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__file-size {
+
+    }
+
+    &__file-error {
+        border-radius: 5px;
+        background-color: var(--color-ks-transparent-red);
+        color: var(--color-ks-status-failed);
+        padding: 0.25rem 0.5rem;
+        font-size: 0.625rem;
+    }
+
+    &__file-action {
+        border-radius: 50%;
+        &:hover {
+            transition: .3s;
+            background-color: var(--color-ks-hover-row);
+        }
+    }
+}

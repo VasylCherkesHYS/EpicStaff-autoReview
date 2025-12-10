@@ -1,0 +1,57 @@
+<div class="dialog">
+    <div class="dialog__header">
+        <span class="dialog__header-title">
+            Create New Collection
+        </span>
+
+        <div class="dialog__stepper">
+            <app-stepper
+                [steps]="['Upload files', 'Select RAG', 'Configure']"
+                [currentStep]="currentStep()"
+            />
+        </div>
+
+        <div class="dialog__actions">
+            <app-button
+                type="outline"
+                [leftIcon]="'ui/arrow-left'"
+                [disabled]="this.currentStep() === CreateCollectionStep.UPLOAD_FILES"
+                (click)="prevStep()"
+            >
+                Back
+            </app-button>
+            <app-button
+                type="primary"
+                [rightIcon]="'ui/arrow-right'"
+                [disabled]="false"
+                (click)="nextStep()"
+            >
+                Next
+            </app-button>
+            <app-icon
+                [icon]="'ui/close'"
+                class="dialog__actions--close"
+                [size]="'1.5rem'"
+                (click)="onCancel()"
+            />
+        </div>
+    </div>
+
+    @switch (currentStep()) {
+        @case (CreateCollectionStep.UPLOAD_FILES) {
+            <app-step-upload-files
+                class="dialog__content"
+                [collection]="collection"
+                [(documents)]="selectedDocuments"
+            />
+        }
+        @case (CreateCollectionStep.SELECT_RAG) {
+            <app-step-select-rag
+                [(selectedRag)]="selectedRagType"
+            />
+        }
+        @case (CreateCollectionStep.CONFIGURE) {
+            <app-step-configure/>
+        }
+    }
+</div>

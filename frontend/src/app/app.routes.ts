@@ -21,6 +21,9 @@ import { FlowTemplatesComponent } from './features/flows/pages/flows-list-page/c
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { ToolsListPageComponent } from './features/tools/pages/tools-list-page/tools-list-page.component';
 import { FlowsListPageComponent } from './features/flows/pages/flows-list-page/flows-list-page.component';
+import {
+    CollectionsListPageComponent
+} from "./features/knowledge-sources/pages/collections-list-page/collections-list-page.component";
 
 export const routes: Routes = [
     {
@@ -80,6 +83,10 @@ export const routes: Routes = [
             {
                 path: 'knowledge-sources',
                 component: KnowledgeSourcesComponent,
+            },
+            {
+                path: 'knowledge-sources-new',
+                component: CollectionsListPageComponent,
             },
             {
                 path: 'chats',
