@@ -122,6 +122,7 @@ from tables.models import (
     PythonCodeTool,
     PythonNode,
     FileExtractorNode,
+    WebScraperKnowledgeNode,
     RealtimeModel,
     StartNode,
     ToolConfigField,
@@ -150,6 +151,7 @@ from tables.serializers.model_serializers import (
     PythonCodeToolSerializer,
     PythonNodeSerializer,
     FileExtractorNodeSerializer,
+    WebScraperKnowledgeNodeSerializer,
     TaskSessionMessageSerializer,
     TemplateAgentSerializer,
     LLMConfigSerializer,
@@ -614,6 +616,9 @@ class GraphViewSet(viewsets.ModelViewSet, ImportExportMixin, DeepCopyMixin):
                 Prefetch(
                     "file_extractor_node_list", queryset=FileExtractorNode.objects.all()
                 ),
+                Prefetch(
+                    "web_scraper_knowledge_node_list", queryset=WebScraperKnowledgeNode.objects.all()
+                ),
                 Prefetch("edge_list", queryset=Edge.objects.all()),
                 Prefetch(
                     "conditional_edge_list",
@@ -666,6 +671,11 @@ class PythonNodeViewSet(viewsets.ModelViewSet):
 class FileExtractorNodeViewSet(viewsets.ModelViewSet):
     queryset = FileExtractorNode.objects.all()
     serializer_class = FileExtractorNodeSerializer
+
+
+class WebScraperKnowledgeNodeViewSet(viewsets.ModelViewSet):
+    queryset = WebScraperKnowledgeNode.objects.all()
+    serializer_class = WebScraperKnowledgeNodeSerializer
 
 
 class LLMNodeViewSet(viewsets.ModelViewSet):
