@@ -1,4 +1,4 @@
-import {OnInit, Component, ChangeDetectionStrategy, signal, inject, DestroyRef, effect} from '@angular/core'
+import {OnInit, Component, ChangeDetectionStrategy, signal, inject, DestroyRef} from '@angular/core'
 import {
     CollectionsListContentComponent
 } from "./components/collections-list-content/collections-list-content.component";
@@ -11,7 +11,7 @@ import {
     CreateCollectionDialogComponent
 } from "../../components/create-collection-dialog/create-collection-dialog.component";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {CreateCollectionDtoResponse, GetCollectionRequest} from "../../models/collection.model";
+import {CreateCollectionDtoResponse} from "../../models/collection.model";
 import {CollectionsStorageService} from "../../services/collections-storage.service";
 import {finalize} from "rxjs/operators";
 
@@ -33,22 +33,7 @@ export class CollectionsListPageComponent implements OnInit {
 
     isLoading = signal<boolean>(true);
     collections = this.collectionsStorageService.collections;
-    // collections = signal<GetCollectionRequest[]>([])
     selectedCollectionId = signal<number | null>(null);
-    fullCollection = signal<CreateCollectionDtoResponse | null>(null);
-
-
-    constructor() {
-        effect(() => {
-            const id = this.selectedCollectionId();
-
-            if (id) {
-                this.collectionsStorageService.getFullCollection(id)
-                    .pipe(takeUntilDestroyed(this.destroyRef))
-                    .subscribe(c => this.fullCollection.set(c));
-            }
-        });
-    }
 
     ngOnInit() {
         this.getCollections();
@@ -69,6 +54,7 @@ export class CollectionsListPageComponent implements OnInit {
         this.collectionsStorageService.createCollection()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((collection) => {
+                if (!collection) return;
                 this.openCreateModal(collection)
             });
     }

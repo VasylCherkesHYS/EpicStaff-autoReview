@@ -2,7 +2,7 @@ import {inject, Injectable} from "@angular/core";
 import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ConfigService} from "../../../services/config/config.service";
 import {Observable} from "rxjs";
-import {UploadDocumentResponse} from "../models/document.model";
+import {DeleteDocumentResponse, UploadDocumentResponse} from "../models/document.model";
 
 @Injectable({
     providedIn: 'root'
@@ -16,7 +16,7 @@ export class DocumentsApiService {
     });
 
     private get apiUrl(): string {
-        return `${this.configService.apiUrl}documents/`;
+        return `${this.configService.apiUrl}documents`;
     }
 
     uploadDocuments(collectionId: number, files: File[]): Observable<UploadDocumentResponse> {
@@ -26,10 +26,10 @@ export class DocumentsApiService {
             formData.append('files', file);
         });
 
-        return this.http.post<UploadDocumentResponse>(`${this.apiUrl}source-collection/${collectionId}/upload/`, formData);
+        return this.http.post<UploadDocumentResponse>(`${this.apiUrl}/source-collection/${collectionId}/upload/`, formData);
     }
 
-    deleteDocumentById(id: number): Observable<void> {
-        return this.http.delete<void>(`${this.apiUrl}${id}/`);
+    deleteDocumentById(id: number): Observable<DeleteDocumentResponse> {
+        return this.http.delete<DeleteDocumentResponse>(`${this.apiUrl}/${id}/`);
     }
 }

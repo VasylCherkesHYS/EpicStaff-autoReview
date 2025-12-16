@@ -6,16 +6,16 @@
 
         <div class="dialog__stepper">
             <app-stepper
-                [steps]="['Upload files', 'Select RAG', 'Configure']"
-                [currentStep]="currentStep()"
+                [steps]="stepLabels()"
+                [currentStep]="currentStepIndex()"
             />
         </div>
 
         <div class="dialog__actions">
             <app-button
-                type="outline"
+                type="outline-primary"
                 [leftIcon]="'ui/arrow-left'"
-                [disabled]="this.currentStep() === CreateCollectionStep.UPLOAD_FILES"
+                [disabled]="!this.currentStepIndex()"
                 (click)="prevStep()"
             >
                 Back
@@ -23,10 +23,10 @@
             <app-button
                 type="primary"
                 [rightIcon]="'ui/arrow-right'"
-                [disabled]="false"
+                [disabled]="nextStepDisabled()"
                 (click)="nextStep()"
             >
-                Next
+                {{ nextButtonText() }}
             </app-button>
             <app-icon
                 [icon]="'ui/close'"
@@ -37,7 +37,7 @@
         </div>
     </div>
 
-    @switch (currentStep()) {
+    @switch (currentStep().id) {
         @case (CreateCollectionStep.UPLOAD_FILES) {
             <app-step-upload-files
                 class="dialog__content"
@@ -48,10 +48,15 @@
         @case (CreateCollectionStep.SELECT_RAG) {
             <app-step-select-rag
                 [(selectedRag)]="selectedRagType"
+                [(selectedEmbedder)]="selectedEmbedder"
             />
         }
         @case (CreateCollectionStep.CONFIGURE) {
-            <app-step-configure/>
+            <app-rag-configuration
+                class="dialog__content"
+                [naiveRagId]="naiveRagId()!"
+                [collection]="collection"
+            />
         }
     }
 </div>

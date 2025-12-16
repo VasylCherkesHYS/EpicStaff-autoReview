@@ -4,34 +4,34 @@
 >
     <div class="rag__header">
         <app-icon
-            [icon]="ragType().icon"
+            [icon]="rag().icon"
             [size]="'40px'"
         />
         <div class="rag__header-level">
-            <p class="rag__level">{{ ragType().level }}</p>
+            <p class="rag__level">{{ rag().level }}</p>
             <div class="rag__stars">
                 <app-icon
                     [icon]="'ui/star-filled'"
                     [size]="'20px'"
                 />
                 <app-icon
-                    [icon]="ragType().stars >= 2 ? 'ui/star-filled' : 'ui/star'"
+                    [icon]="rag().stars >= 2 ? 'ui/star-filled' : 'ui/star'"
                     [size]="'20px'"
                 />
                 <app-icon
-                    [icon]="ragType().stars >= 3 ? 'ui/star-filled' : 'ui/star'"
+                    [icon]="rag().stars >= 3 ? 'ui/star-filled' : 'ui/star'"
                     [size]="'20px'"
                 />
             </div>
         </div>
     </div>
     <h4 class="rag__name">
-        {{ragType().name}}
+        {{rag().name}}
     </h4>
     <span class="rag__description">
-        {{ragType().description}}
+        {{rag().description}}
     </span>
     <p class="rag__tip">
-        {{ragType().tip}}
+        {{rag().tip}}
     </p>
 </div>

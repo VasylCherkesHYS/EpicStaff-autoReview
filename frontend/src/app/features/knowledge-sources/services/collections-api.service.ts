@@ -4,7 +4,7 @@ import {ConfigService} from "../../../services/config/config.service";
 import {Observable} from "rxjs";
 import {
     CreateCollectionDtoRequest,
-    CreateCollectionDtoResponse,
+    CreateCollectionDtoResponse, DeleteCollectionResponse, GetCollectionDocumentsResponse,
     GetCollectionRequest
 } from "../models/collection.model";
 
@@ -39,11 +39,15 @@ export class CollectionsApiService {
         return this.http.get<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`);
     }
 
+    getDocumentsByCollectionId(id: number): Observable<GetCollectionDocumentsResponse> {
+        return this.http.get<GetCollectionDocumentsResponse>(`${this.apiUrl}${id}/documents/`);
+    }
+
     updateCollectionById(id: number, body: Partial<CreateCollectionDtoResponse>): Observable<CreateCollectionDtoResponse> {
         return this.http.patch<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`, body);
     }
 
-    deleteCollectionById(id: number): Observable<void> {
-        return this.http.delete<void>(`${this.apiUrl}${id}/`);
+    deleteCollectionById(id: number): Observable<DeleteCollectionResponse> {
+        return this.http.delete<DeleteCollectionResponse>(`${this.apiUrl}${id}/`);
     }
 }

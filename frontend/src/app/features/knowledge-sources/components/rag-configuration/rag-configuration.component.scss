@@ -1,0 +1,25 @@
+.configure {
+    display: flex;
+    height: 100%;
+
+    &__files {
+        display: flex;
+        flex-direction: column;
+        width: 715px;
+        border-right: 1px solid var(--color-divider-subtle);
+    }
+
+    &__files-searchbar {
+        display: flex;
+        justify-content: space-between;
+        padding: 1.25rem 2.5rem 1rem 2.5rem;
+    }
+
+    &__input {
+        width: 278px;
+    }
+
+    &__select {
+        width: 25%;
+    }
+}

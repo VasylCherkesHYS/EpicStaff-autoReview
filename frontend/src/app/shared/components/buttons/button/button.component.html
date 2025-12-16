@@ -2,8 +2,9 @@
   [ngClass]="[
     'btn',
     'btn-' + type,
-    leftIcon ? 'btn--icon-left' : '',
-    rightIcon ? 'btn--icon-right' : ''
+    leftIcon ? 'btn--icon-left-' + mod : '',
+    rightIcon ? 'btn--icon-right-' + mod: '',
+    'btn--mod-' + mod,
   ]"
   [disabled]="disabled()"
   [attr.aria-label]="ariaLabel"

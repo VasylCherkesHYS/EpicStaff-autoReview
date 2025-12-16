@@ -1,3 +1,5 @@
+import {CollectionDocument} from "./document.model";
+
 export enum CreateCollectionStep {
     UPLOAD_FILES = 0,
     SELECT_RAG = 1,
@@ -35,4 +37,19 @@ export interface GetCollectionRequest {
     document_count: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface DeleteCollectionResponse {
+    collection_id: number;
+    collection_name: string;
+    deleted_content: number;
+    deleted_documents: number;
+    message: string;
+}
+
+export interface GetCollectionDocumentsResponse {
+    collection_id: number;
+    collection_name: string;
+    document_count: number;
+    documents: Omit<CollectionDocument, 'source_collection'>[];
 }

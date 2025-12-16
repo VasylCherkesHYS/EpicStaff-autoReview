@@ -1,6 +1,6 @@
 import {ChangeDetectionStrategy, Component, input} from "@angular/core";
 import {AppIconComponent} from "../../../../../../../shared/components/app-icon/app-icon.component";
-import {RagType} from "../../../../../models/rag.model";
+import {Rag} from "../../../../../models/rag.model";
 
 
 @Component({
@@ -13,6 +13,6 @@ import {RagType} from "../../../../../models/rag.model";
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RagTypeComponent {
-    ragType = input.required<RagType>();
+    rag = input.required<Rag>();
     selected = input<boolean>(false);
 }

@@ -1,7 +1,10 @@
 import {inject, Injectable, signal} from "@angular/core";
-import {CollectionDocument, UploadDocumentResponse} from "../models/document.model";
+import {CollectionDocument, DeleteDocumentResponse, UploadDocumentResponse} from "../models/document.model";
 import {DocumentsApiService} from "./documents-api.service";
-import {tap} from "rxjs/operators";
+import {catchError, map, tap} from "rxjs/operators";
+import {Observable, of} from "rxjs";
+import {CollectionsApiService} from "./collections-api.service";
+import {ToastService} from "../../../services/notifications/toast.service";
 
 @Injectable({
     providedIn: 'root',
@@ -13,19 +16,50 @@ export class DocumentsStorageService {
     public readonly isDocumentsLoaded = this.documentsLoaded.asReadonly();
 
     private readonly documentsApiService = inject(DocumentsApiService);
+    private readonly collectionsApiService = inject(CollectionsApiService);
+    private readonly toastService = inject(ToastService);
 
-    uploadDocuments(collectionId: number, files: File[]) {
+    uploadDocuments(collectionId: number, files: File[]): Observable<UploadDocumentResponse | undefined> {
         return this.documentsApiService.uploadDocuments(collectionId, files).pipe(
             tap((resp: UploadDocumentResponse) => {
                 const { documents } = resp;
                 this.addDocumentsToCache(documents);
+                this.toastService.success('Documents uploaded successfully');
+            }),
+            catchError(() => {
+                this.toastService.error('Failed to upload documents');
+                return of()
             })
         );
     }
 
-    deleteDocumentById(id: number) {
+    getDocumentsByCollectionId(collectionId: number): Observable<CollectionDocument[]> {
+        const cached = this.documentsSignal().filter(d => d.source_collection === collectionId);
+        if (!cached.length) {
+            return this.collectionsApiService.getDocumentsByCollectionId(collectionId).pipe(
+                map(({documents}) => {
+                    return documents.map(doc => ({
+                        ...doc,
+                        source_collection: collectionId
+                    }))
+                }),
+                tap(docs => this.addDocumentsToCache(docs))
+            );
+        }
+
+        return of(cached);
+    }
+
+    deleteDocumentById(id: number): Observable<DeleteDocumentResponse | undefined> {
         return this.documentsApiService.deleteDocumentById(id).pipe(
-            tap(() => this.deleteDocumentFromCache(id)),
+            tap(() => {
+                this.toastService.success('Document deleted');
+                this.deleteDocumentFromCache(id);
+            }),
+            catchError(() => {
+                this.toastService.error('Failed to delete document')
+                return of()
+            })
         )
     }
 

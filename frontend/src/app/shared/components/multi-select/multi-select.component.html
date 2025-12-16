@@ -1,0 +1,47 @@
+<div class="multi-select">
+    <div #triggerBtn class="multi-select__btn" (click)="toggle()">
+        {{ label() }}
+        @if (icon()) {
+            <app-icon size="1rem" [icon]="icon()" />
+        }
+    </div>
+</div>
+
+<ng-template #dropdownTemplate>
+    <div id="multi-select-portal" class="multi-select__dropdown">
+        <input
+            class="multi-select__search"
+            type="text"
+            [value]="search()"
+            (input)="search.set($any($event.target).value)"
+            [placeholder]="searchPlaceholder()"
+        />
+
+        <div class="multi-select__list">
+            @for (item of filtered(); track item.name) {
+                <div
+                    class="multi-select__item"
+                    [class.multi-select__item--selected]="isChecked(item.value)"
+                    (click)="toggleValue(item.value)"
+                >
+                    <span>{{ item.name }}</span>
+                    <app-checkbox
+                        mod="multiselect"
+                        class="some"
+                        [checked]="isChecked(item.value)"
+                    />
+                </div>
+            }
+        </div>
+
+        <div class="multi-select__footer">
+            <app-button mod="default" type="outline-primary" (click)="cancel()">
+                Cancel
+            </app-button>
+
+            <app-button mod="default" type="primary" (click)="save()">
+                Save Selection
+            </app-button>
+        </div>
+    </div>
+</ng-template>

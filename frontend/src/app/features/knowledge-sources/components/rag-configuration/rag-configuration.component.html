@@ -1,0 +1,27 @@
+<div class="configure">
+    <div class="configure__files">
+        <div class="configure__files-searchbar">
+            <app-search
+                class="configure__input"
+                placeholder="Search files..."
+                [(searchTerm)]="searchTerm"
+            />
+            @if (false) {
+                <app-select
+                    class="configure__select"
+                    placeholder="Manage"
+                    [items]="selectItems"
+                />
+            }
+        </div>
+
+        <app-configuration-table
+            [bulkEditing]="false"
+            [ragId]="naiveRagId()"
+            [documents]="filteredDocuments()"
+        />
+    </div>
+
+
+    <div>chunk preview</div>
+</div>

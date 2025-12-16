@@ -10,7 +10,8 @@ import { AppIconComponent } from '../../app-icon/app-icon.component';
   styleUrls: ['./button.component.scss'],
 })
 export class ButtonComponent {
-  @Input() type: 'primary' | 'secondary' | 'ghost' | 'icon' | 'outline' = 'primary';
+  @Input() type: 'primary' | 'secondary' | 'ghost' | 'icon' | 'outline-primary' | 'outline-secondary' = 'primary';
+  @Input() mod: 'default' | 'small' = 'default';
   @Input() leftIcon?: string; // e.g., 'ui/x'
   @Input() leftIconColor?: string;
   @Input() rightIcon?: string; // e.g., 'ui/chevron-down'

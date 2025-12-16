@@ -4,17 +4,100 @@ export enum RagTypeLevel {
     EXPERT = 'Expert',
 }
 
-export enum RagTypeName {
+export enum RagName {
     NAIVE_RAG = 'Naive RAG',
     GRAPH_RAG = 'Graph RAG',
     MULTIPLE_RAG = 'Multiple RAG',
 }
 
-export interface RagType {
-    name: RagTypeName;
-    description: string;
-    tip: string;
-    icon: string;
-    level: RagTypeLevel;
-    stars: number;
+export type RagValueMap = {
+    [RagName.NAIVE_RAG]: 'naive';
+    [RagName.GRAPH_RAG]: 'graph';
+    [RagName.MULTIPLE_RAG]: 'multiple';
+}
+
+export type Rag = {
+    [K in RagName]: {
+        name: K;
+        value: RagValueMap[K];
+        description: string;
+        tip: string;
+        icon: string;
+        level: RagTypeLevel;
+        stars: number;
+    }
+}[RagName];
+
+export type RagType = RagValueMap[keyof RagValueMap];
+
+export interface BaseRagType {
+    rag_type_id: number;
+    rag_type: 'naive';
+    source_collection: number;
+}
+
+export interface NaiveRag {
+    naive_rag_id: number;
+    base_rag_type: BaseRagType;
+    embedder: number;
+    rag_status: 'new';
+    collection_id: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateRagForCollectionResponse {
+    message: string;
+    naive_rag: NaiveRag;
+}
+
+export interface NaiveRagDocumentConfig {
+    naive_rag_document_id: number;
+    document_id: number;
+    file_name: string;
+    chunk_strategy: string;
+    chunk_size: number;
+    chunk_overlap: number;
+    additional_params: {};
+    status: string;
+    total_chunks: number;
+    total_embeddings: number;
+    created_at: string;
+    processed_at: string | null;
+}
+
+export interface InitNaiveRagDocumentResponse {
+    message: string;
+    created_count: number;
+    configs: NaiveRagDocumentConfig[];
+}
+
+export interface GetNaiveRagDocumentConfigsResponse {
+    naive_rag_id: number;
+    total_configs: number;
+    configs: NaiveRagDocumentConfig[];
+}
+
+export interface UpdateNaiveRagDocumentDtoRequest {
+    chunk_size?: number;
+    chunk_overlap?: number;
+    chunk_strategy?: string;
+    additional_params?: {};
+}
+
+export interface UpdateNaiveRagDocumentResponse {
+    message: string;
+    config: NaiveRagDocumentConfig;
+}
+
+export interface StartIndexingDtoRequest {
+    rag_id: number;
+    rag_type: RagType;
+}
+
+export interface StartIndexingDtoResponse {
+    detail: string;
+    rag_id: number;
+    rag_type: string;
+    collection_id: number;
 }
