@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from django.http import Http404
+from rest_framework.exceptions import ValidationError
 
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -151,10 +152,20 @@ class NaiveRagViewSet(viewsets.GenericViewSet):
         """
         Get detailed NaiveRag info including all document configs.
 
+        Business Logic:
+        - Auto-initializes document configs for documents without configs
+        - Ensures all documents in the collection have default configs
+        - Idempotent: safe to call multiple times
+
         URL: GET /naive-rag/{id}/
         """
         try:
             naive_rag = NaiveRagService.get_naive_rag(int(pk))
+
+            # Auto-initialize configs for documents without configs
+            # This ensures all documents have configs before returning the response
+            NaiveRagService.init_document_configs(naive_rag_id=int(pk))
+
             serializer = NaiveRagDetailSerializer(naive_rag)
             return Response(serializer.data)
 
@@ -193,7 +204,7 @@ class NaiveRagDocumentConfigViewSet(
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
-    viewsets.GenericViewSet
+    viewsets.GenericViewSet,
 ):
     """
     ViewSet for NaiveRag document configuration operations.
@@ -202,7 +213,6 @@ class NaiveRagDocumentConfigViewSet(
     Configs are validated to belong to the specified naive_rag_id.
 
     Endpoints:
-    - POST /api/naive-rag/{naive_rag_id}/document-configs/init/ - Initialize default configs for new docs
     - GET /api/naive-rag/{naive_rag_id}/document-configs/ - List all configs
     - GET /api/naive-rag/{naive_rag_id}/document-configs/{pk}/ - Get single config
     - PUT /api/naive-rag/{naive_rag_id}/document-configs/{pk}/ - Update single config
@@ -222,43 +232,38 @@ class NaiveRagDocumentConfigViewSet(
             return DocumentConfigUpdateSerializer
         return DocumentConfigSerializer
 
-    @action(detail=False, methods=["post"], url_path="init")
-    def init_configs(self, request, naive_rag_id=None):
+    def get_queryset(self):
         """
-        Initialize document configs with defaults for documents without configs.
-
-        Business Logic:
-        - Creates configs with DEFAULT values only for NEW documents (without configs)
-        - Existing configs remain UNCHANGED
-        - Safe to call multiple times (idempotent for existing configs)
-
-        URL: POST /api/naive-rag/{naive_rag_id}/document-configs/init/
-
-        Body: (empty - no request body needed)
+        Filter queryset by naive_rag_id from URL.
+        This ensures all operations are scoped to the specific NaiveRag.
         """
-        try:
-            configs = NaiveRagService.init_document_configs(naive_rag_id=int(naive_rag_id))
+        queryset = super().get_queryset()
+        naive_rag_id = self.kwargs.get("naive_rag_id")
 
-            response_serializer = DocumentConfigSerializer(configs, many=True)
+        if naive_rag_id is not None:
+            # Filter configs that belong to this naive_rag
+            queryset = queryset.filter(naive_rag_id=naive_rag_id)
 
-            return Response(
-                {
-                    "message": f"Initialized {len(configs)} new document config(s)",
-                    "created_count": len(configs),
-                    "configs": response_serializer.data,
-                },
-                status=status.HTTP_201_CREATED if configs else status.HTTP_200_OK,
-            )
+        return queryset
 
-        except NaiveRagNotFoundException as e:
-            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except RagException as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response(
-                {"error": f"An unexpected error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+    def initial(self, request, *args, **kwargs):
+        """
+        Validate naive_rag_id before processing request.
+        """
+        super().initial(request, *args, **kwargs)
+
+        naive_rag_id = self.kwargs.get("naive_rag_id")
+
+        if naive_rag_id is not None:
+            try:
+                self.kwargs["naive_rag_id"] = int(naive_rag_id)
+            except (ValueError, TypeError):
+                raise ValidationError(
+                    {
+                        "naive_rag_id": f"Invalid value '{naive_rag_id}'. Must be an integer."
+                    }
+                )
+
 
     @action(detail=False, methods=["put"], url_path="bulk-update")
     def bulk_update(self, request, naive_rag_id=None):
@@ -331,8 +336,7 @@ class NaiveRagDocumentConfigViewSet(
 
         try:
             result = NaiveRagService.bulk_delete_document_configs(
-                naive_rag_id=int(naive_rag_id),
-                config_ids=config_ids
+                naive_rag_id=int(naive_rag_id), config_ids=config_ids
             )
 
             return Response(
@@ -399,7 +403,9 @@ class NaiveRagDocumentConfigViewSet(
 
         except Http404:
             return Response(
-                {"error": f"Document config with id {pk} not found"},
+                {
+                    "error": f"Document config [{pk}] for naive_rag_id [{naive_rag_id}] not found"
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
         except Exception as e:
@@ -427,7 +433,9 @@ class NaiveRagDocumentConfigViewSet(
 
         try:
             config = NaiveRagService.update_document_config(
-                config_id=int(pk), naive_rag_id=naive_rag_id,  **serializer.validated_data
+                config_id=int(pk),
+                naive_rag_id=naive_rag_id,
+                **serializer.validated_data,
             )
 
             response_serializer = DocumentConfigSerializer(config)
@@ -460,8 +468,7 @@ class NaiveRagDocumentConfigViewSet(
         """
         try:
             result = NaiveRagService.delete_document_config(
-                config_id=int(pk),
-                naive_rag_id=int(naive_rag_id)
+                config_id=int(pk), naive_rag_id=int(naive_rag_id)
             )
 
             return Response(

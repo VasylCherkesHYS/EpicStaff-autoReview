@@ -77,6 +77,7 @@ from tables.models import (
 from tables.models import (
     ToolConfig,
 )
+from tables.services.rag_assignment_service import RagAssignmentService
 
 from django.core.exceptions import ValidationError
 from tables.exceptions import InvalidTaskOrderError
@@ -237,16 +238,6 @@ class McpToolSerializer(serializers.ModelSerializer):
 
 class RealtimeAgentSerializer(serializers.ModelSerializer):
 
-    similarity_threshold = serializers.DecimalField(
-        max_digits=3,
-        decimal_places=2,
-        min_value=Decimal("0.00"),
-        max_value=Decimal("1.00"),
-        required=False,
-    )
-
-    search_limit = serializers.IntegerField(min_value=1, max_value=1000, required=False)
-
     class Meta:
         model = RealtimeAgent
         exclude = ["agent"]
@@ -255,13 +246,7 @@ class RealtimeAgentSerializer(serializers.ModelSerializer):
 class AgentReadSerializer(serializers.ModelSerializer):
     tools = serializers.SerializerMethodField()
     realtime_agent = RealtimeAgentSerializer(read_only=True)
-    similarity_threshold = serializers.DecimalField(
-        max_digits=3,
-        decimal_places=2,
-        min_value=Decimal("0.00"),
-        max_value=Decimal("1.00"),
-        required=False,
-    )
+    search_config = serializers.SerializerMethodField()
 
     class Meta:
         model = Agent
@@ -285,8 +270,7 @@ class AgentReadSerializer(serializers.ModelSerializer):
             "fcm_llm_config",
             "knowledge_collection",
             "realtime_agent",
-            "search_limit",
-            "similarity_threshold",
+            "search_config",
         ]
 
     def get_tools(self, agent: Agent) -> list[dict]:
@@ -318,6 +302,14 @@ class AgentReadSerializer(serializers.ModelSerializer):
 
         return tools
 
+    def get_search_config(self, agent: Agent) -> dict | None:
+        """
+        Get all RAG search configurations in nested format.
+        Returns: {"naive": {"search_limit": 3, "similarity_threshold": 0.2}, "graph": {...}}
+        Returns None if no configs exist.
+        """
+        return agent.get_search_configs()
+
 
 class AgentWriteSerializer(serializers.ModelSerializer):
     tool_ids = serializers.ListField(
@@ -329,14 +321,6 @@ class AgentWriteSerializer(serializers.ModelSerializer):
     llm_config = serializers.PrimaryKeyRelatedField(
         queryset=LLMConfig.objects.all(), required=False, allow_null=True
     )
-    similarity_threshold = serializers.DecimalField(
-        max_digits=3,
-        decimal_places=2,
-        min_value=Decimal("0.00"),
-        max_value=Decimal("1.00"),
-        required=False,
-    )
-    search_limit = serializers.IntegerField(min_value=1, max_value=1000, required=False)
 
     class Meta:
         model = Agent
@@ -359,8 +343,6 @@ class AgentWriteSerializer(serializers.ModelSerializer):
             "llm_config",
             "fcm_llm_config",
             "knowledge_collection",
-            "search_limit",
-            "similarity_threshold",
             "realtime_agent",
         ]
 
@@ -435,6 +417,15 @@ class AgentWriteSerializer(serializers.ModelSerializer):
         tools = self._resolve_tool_ids(tool_ids)
 
         realtime_agent_data: dict | None = validated_data.pop("realtime_agent", None)
+
+        # rags
+        if "knowledge_collection" in validated_data:
+            old_knowledge_collection = instance.knowledge_collection
+            new_knowledge_collection = validated_data.get("knowledge_collection")
+
+            if old_knowledge_collection != new_knowledge_collection:
+                RagAssignmentService.unassign_naive_rag_from_agent(instance)
+
         instance = super().update(instance, validated_data)
 
         # configured_tools
@@ -756,14 +747,6 @@ class CrewSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    similarity_threshold = serializers.DecimalField(
-        max_digits=3,
-        decimal_places=2,
-        min_value=Decimal("0.00"),
-        max_value=Decimal("1.00"),
-        required=False,
-    )
-    search_limit = serializers.IntegerField(min_value=1, max_value=1000, required=False)
 
     class Meta:
         model = Crew
@@ -1286,5 +1269,3 @@ class GraphOrganizationUserSerializer(serializers.ModelSerializer):
         model = GraphOrganizationUser
         fields = ["id", "graph", "user", "persistent_variables"]
         read_only_fields = ["id", "persistent_variables"]
-
-
