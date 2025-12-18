@@ -132,12 +132,7 @@ export class ConfigurationTableComponent implements OnInit {
                                     }))
                                 }),
                                 catchError((e: HttpErrorResponse) => {
-                                    if (e.status === 400) {
-                                        this.toastService.error(`Update failed: ${e.error.error}`);
-                                    } else {
-                                        this.toastService.error(`Failed to update field ${field} in document: ${documentName}`);
-                                    }
-
+                                    this.hangleUpdateError(e, field, documentName);
                                     return EMPTY;
                                 })
                             );
@@ -208,5 +203,13 @@ export class ConfigurationTableComponent implements OnInit {
 
     tuneChunk(row: any) {
         console.log('open modal', row);
+    }
+
+    hangleUpdateError(e: HttpErrorResponse, field: string, documentName: string) {
+        if (e.status === 400) {
+            this.toastService.error(`Update failed: ${e.error.error}`);
+        } else {
+            this.toastService.error(`Failed to update field ${field} in document: ${documentName}`);
+        }
     }
 }

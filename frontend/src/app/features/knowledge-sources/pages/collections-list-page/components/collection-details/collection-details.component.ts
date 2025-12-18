@@ -15,24 +15,34 @@ import {CollectionsStorageService} from "../../../../services/collections-storag
 import {debounceTime, distinctUntilChanged, skip, switchMap} from "rxjs/operators";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {filter} from "rxjs";
+import {DragDropAreaComponent} from "../../../../../../shared/components/drag-drop-area/drag-drop-area.component";
+import {FILE_TYPES} from "../../../../constants/constants";
+import {DisplayedListDocument} from "../../../../models/document.model";
+import {CollectionFilesComponent} from "./collection-files/collection-files.component";
+import {SelectComponent} from "../../../../../../shared/components/select/select.component";
+import {CollectionRagsComponent} from "./collection-rags/collection-rags.component";
+import {CollectionInfoComponent} from "./collection-info/collection-info.component";
 
 @Component({
-    selector: "app-collections-list-content",
-    styleUrls: ["./collections-list-content.component.scss"],
-    templateUrl: "./collections-list-content.component.html",
+    selector: "app-collection-details",
+    styleUrls: ["./collection-details.component.scss"],
+    templateUrl: "./collection-details.component.html",
     imports: [
         AppIconComponent,
         FormsModule,
-        ReactiveFormsModule
+        ReactiveFormsModule,
+        DragDropAreaComponent,
+        CollectionFilesComponent,
+        SelectComponent,
+        CollectionRagsComponent,
+        CollectionInfoComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CollectionsListContentComponent implements OnInit {
+export class CollectionDetailsComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     selectedCollectionId = model<number | null>(null);
-
     fullCollection = signal<CreateCollectionDtoResponse | null>(null);
-
     collectionName: FormControl = new FormControl("", Validators.required);
 
     private collectionsStorageService = inject(CollectionsStorageService);
@@ -65,7 +75,7 @@ export class CollectionsListContentComponent implements OnInit {
         ).subscribe();
     }
 
-    onDelete(): void {
+    onCollectionDelete(): void {
         const id = this.fullCollection()?.collection_id;
         if (id) {
             this.collectionsStorageService.deleteCollectionById(id)
@@ -77,4 +87,10 @@ export class CollectionsListContentComponent implements OnInit {
                 });
         }
     }
+
+    onFilesDropped(files: FileList) {
+        console.log('files droppedsd')
+    }
+
+    protected readonly FILE_TYPES = FILE_TYPES;
 }

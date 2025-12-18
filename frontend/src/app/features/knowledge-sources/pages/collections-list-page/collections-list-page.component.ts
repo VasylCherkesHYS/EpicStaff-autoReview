@@ -1,7 +1,7 @@
 import {OnInit, Component, ChangeDetectionStrategy, signal, inject, DestroyRef} from '@angular/core'
 import {
-    CollectionsListContentComponent
-} from "./components/collections-list-content/collections-list-content.component";
+    CollectionDetailsComponent
+} from "./components/collection-details/collection-details.component";
 import {
     CollectionsListItemSidebarComponent
 } from "./components/collections-list-sidebar/collections-list-sidebar.component";
@@ -21,7 +21,7 @@ import {finalize} from "rxjs/operators";
     styleUrls: ['./collections-list-page.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        CollectionsListContentComponent,
+        CollectionDetailsComponent,
         CollectionsListItemSidebarComponent,
         SpinnerComponent
     ]
@@ -63,7 +63,8 @@ export class CollectionsListPageComponent implements OnInit {
         const modalRef = this.dialog.open(CreateCollectionDialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
-            data: collection
+            data: collection,
+            disableClose: true
         });
 
     }

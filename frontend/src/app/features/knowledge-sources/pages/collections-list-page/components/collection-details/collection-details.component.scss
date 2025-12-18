@@ -2,17 +2,20 @@
     height: 100%;
 }
 
-.collection-details {
+.details {
     height: 100%;
+    display: flex;
+    flex-direction: column;
 
     &__header {
         padding: 1.5rem 3.75rem 1.5rem 1.875rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        border-bottom: 1px solid var(--color-divider-subtle);
     }
 
-    &__name {
+    &__header-name {
         width: 503px;
         height: 71px;
         display: flex;
@@ -20,7 +23,7 @@
         justify-content: space-between;
     }
 
-    &__label {
+    &__header-label {
         font-size: 14px;
         color: var(--color-ks-text)
     }
@@ -46,12 +49,6 @@
     }
 
     &__action {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-        padding: 0.75rem;
         border-radius: 50%;
         border: 1px solid var(--accent-color);
         background: transparent;
@@ -61,8 +58,76 @@
             border-color: var(--accent-color-hover);
             color: var(--accent-color-hover);
         }
+
+        &--medium {
+            width: 1.75rem;
+            height: 1.75rem;
+        }
+
+        &--large {
+            width: 2.5rem;
+            height: 2.5rem;
+            padding: 0.75rem;
+        }
     }
 
+    &__layout {
+        display: flex;
+        overflow: hidden;
+        flex-grow: 1;
+    }
+
+    &__main-wrapper {
+        min-width: 60%;
+    }
+
+    &__main-content {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        margin: 1.5rem 1.175rem 1.5rem 1.875rem;
+        row-gap: 1.875rem;
+    }
+
+    // main info
+    &__section {
+        display: flex;
+        flex-direction: column;
+        row-gap: 0.875rem;
+    }
+
+    &__section-files {
+        overflow: hidden;
+    }
+
+    &__section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-right: 1rem;
+    }
+
+    &__section-title {
+        font-size: 0.75rem;
+        color: var(--color-ks-text);
+    }
+
+    &__section-actions {
+        display: flex;
+        align-items: center;
+        column-gap: 0.5rem;
+    }
+
+    &__files-wrap {
+        overflow: auto;
+        margin-bottom: 2rem;
+    }
+
+    &__files {
+        width: 503px;
+    }
+
+    // empty page
     &__empty {
         display: flex;
         flex-direction: column;

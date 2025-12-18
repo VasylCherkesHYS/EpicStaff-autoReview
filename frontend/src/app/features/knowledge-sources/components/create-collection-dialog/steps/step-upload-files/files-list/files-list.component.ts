@@ -6,7 +6,7 @@ import {
     ElementRef,
     inject,
     model,
-    output, signal, ViewChild
+    output, ViewChild
 } from "@angular/core";
 import {ButtonComponent} from "../../../../../../../shared/components/buttons/button/button.component";
 import {AppIconComponent} from "../../../../../../../shared/components/app-icon/app-icon.component";
@@ -14,6 +14,12 @@ import {FileSizePipe} from "../../../../../../../shared/pipes/file-size.pipe";
 import { DisplayedListDocument} from "../../../../../models/document.model";
 import {DocumentsStorageService} from "../../../../../services/documents-storage.service";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
+import {DragDropAreaComponent} from "../../../../../../../shared/components/drag-drop-area/drag-drop-area.component";
+import {
+    ListActionsComponent
+} from "../../../../../../../shared/components/list/list-actions/list-actions.component";
+import {ListComponent} from "../../../../../../../shared/components/list/list.component";
+import {ListRowComponent} from "../../../../../../../shared/components/list/list-row/list-row.component";
 
 @Component({
     selector: "app-files-list",
@@ -24,6 +30,10 @@ import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
         ButtonComponent,
         AppIconComponent,
         FileSizePipe,
+        DragDropAreaComponent,
+        ListActionsComponent,
+        ListComponent,
+        ListRowComponent,
     ]
 })
 export class FilesListComponent {
@@ -33,7 +43,6 @@ export class FilesListComponent {
     @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
     documents = model<DisplayedListDocument[]>([]);
     filesUploaded = output<FileList>();
-    isDragging = signal<boolean>(false);
 
     hasInvalidFiles = computed(() =>
         this.documents().some(d => !d.isValidType || !d.isValidSize)
@@ -67,39 +76,5 @@ export class FilesListComponent {
                 return document.filter((d) => d.document_id !== document_id);
             });
         })
-    }
-
-    onDragOver(event: DragEvent): void {
-        event.preventDefault();
-        event.stopPropagation();
-        this.isDragging.set(true);
-    }
-
-    onDragLeave(event: DragEvent): void {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const target = event.currentTarget as HTMLElement;
-        const rect = target.getBoundingClientRect();
-        const { clientX, clientY } = event;
-
-        if (
-            clientX <= rect.left ||
-            clientX >= rect.right ||
-            clientY <= rect.top ||
-            clientY >= rect.bottom
-        ) {
-            this.isDragging.set(false);
-        }
-    }
-
-    onDrop(event: DragEvent): void {
-        event.preventDefault();
-        event.stopPropagation();
-        this.isDragging.set(false);
-
-        if (event.dataTransfer?.files.length) {
-            this.filesUploaded.emit(event.dataTransfer.files);
-        }
     }
 }
