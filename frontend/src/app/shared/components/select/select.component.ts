@@ -30,6 +30,7 @@ export class SelectComponent {
     mod = input<'default' | 'small'>('default');
     items = input<SelectItem[]>([]);
     placeholder = input<string>('Select option');
+    invalid = input<boolean>(false);
 
     selectedValue = model<unknown | null>(null);
     selectedItem = computed(() => {

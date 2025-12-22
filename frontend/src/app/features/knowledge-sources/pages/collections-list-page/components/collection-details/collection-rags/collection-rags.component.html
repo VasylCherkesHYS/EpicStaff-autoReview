@@ -7,18 +7,23 @@
         <span class="rags__name">Naive RAG</span>
         <span class="rags__model">gpt-4o-mini</span>
         <app-icon
+            [isAction]="true"
             icon="ui/arrow-right"
             size="1rem"
             class="rags__nav"
+            (click)="onConfigureNaiveRag()"
         />
     </li>
 
-    <li class="rags__item">
+    <li
+        class="rags__item"
+        style="cursor: not-allowed"
+    >
         <app-icon
             icon="ui/web"
             size="0.75rem"
         />
-        <span class="rags__name">Naive RAG</span>
+        <span class="rags__name">Graph RAG</span>
         <span class="rags__model">gpt-4o-mini</span>
         <app-icon
             icon="ui/arrow-right"
@@ -26,11 +31,15 @@
             class="rags__nav"
         />
     </li>
-    <li class="rags__item">
+    <li
+        class="rags__item"
+        style="cursor: not-allowed"
+    >
         <app-icon
             icon="ui/tab-group"
             size="0.75rem"
         />
+        <span class="rags__name">Hybrid RAG</span>
         <span class="rags__model">gpt-4o-mini</span>
         <app-icon
             icon="ui/arrow-right"

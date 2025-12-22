@@ -3,6 +3,7 @@
         #triggerBtn
         class="selector__btn"
         [ngClass]="'selector__btn--mod-' + mod()"
+        [class.selector__btn--invalid]="invalid()"
         (click)="toggle()"
     >
         {{ selectedItem() ? selectedItem()!.name : placeholder() }}

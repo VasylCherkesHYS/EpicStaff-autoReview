@@ -7,13 +7,13 @@ export enum RagTypeLevel {
 export enum RagName {
     NAIVE_RAG = 'Naive RAG',
     GRAPH_RAG = 'Graph RAG',
-    MULTIPLE_RAG = 'Multiple RAG',
+    HYBRID_RAG = 'Hybrid RAG',
 }
 
 export type RagValueMap = {
     [RagName.NAIVE_RAG]: 'naive';
     [RagName.GRAPH_RAG]: 'graph';
-    [RagName.MULTIPLE_RAG]: 'multiple';
+    [RagName.HYBRID_RAG]: 'hybrid';
 }
 
 export type Rag = {
@@ -36,7 +36,22 @@ export interface BaseRagType {
     source_collection: number;
 }
 
-export interface NaiveRag {
+export interface CollectionNaiveRag {
+    chunks_count: number;
+    document_configs_count: number;
+    embedder_id: number;
+    embedder_name: string;
+    embeddings_count: number;
+    is_ready_for_indexing: boolean;
+    message: string | null;
+    rag_id: number;
+    rag_type: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateNaiveRag {
     naive_rag_id: number;
     base_rag_type: BaseRagType;
     embedder: number;
@@ -48,7 +63,7 @@ export interface NaiveRag {
 
 export interface CreateRagForCollectionResponse {
     message: string;
-    naive_rag: NaiveRag;
+    naive_rag: CreateNaiveRag;
 }
 
 export interface NaiveRagDocumentConfig {

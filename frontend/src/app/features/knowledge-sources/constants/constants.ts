@@ -35,8 +35,8 @@ export const RAG_TYPES: Rag[] = [
         stars: 2
     },
     {
-        name: RagName.MULTIPLE_RAG,
-        value: "multiple",
+        name: RagName.HYBRID_RAG,
+        value: "hybrid",
         description: "Combines multiple data sources with different search strategies. Allows you to configure different approaches for different types of documents.",
         tip: "Recommended for multi-source projects.",
         icon: "ui/tab-group",

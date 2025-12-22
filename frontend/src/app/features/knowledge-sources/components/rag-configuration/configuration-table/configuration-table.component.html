@@ -103,7 +103,7 @@
     <!-- DATA ROWS -->
     <div class="table__files-wrapper">
         <ol class="table__rows">
-            @for (document of filteredAndSorted(); track document.naive_rag_document_id; let odd = $odd; let i = $index) {
+            @for (d of filteredAndSorted(); track d.naive_rag_document_id; let odd = $odd; let i = $index) {
                 <li
                     class="table__row"
                     [class.table__row--dark]="odd"
@@ -111,8 +111,8 @@
                     <!-- checkbox -->
                     <div class="table__col">
                         <app-checkbox
-                            [checked]="document.selected"
-                            (changed)="toggleDocument(document)"
+                            [checked]="d.selected"
+                            (changed)="toggleDocument(d)"
                         />
                     </div>
 
@@ -125,7 +125,7 @@
                             size="0.75rem"
                         />
                         <span class="table__file-name">
-                        {{ document.file_name }}
+                        {{ d.file_name }}
                     </span>
                     </div>
 
@@ -134,8 +134,9 @@
                         <app-select
                             mod="small"
                             [items]="chunkStrategySelectItems"
-                            [selectedValue]="document.chunk_strategy"
-                            (changed)="docChunkStrategyChange(document, $event)"
+                            [(selectedValue)]="d.chunk_strategy"
+                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_strategy === 'error'"
+                            (changed)="docFieldChange(d, 'chunk_strategy', $event)"
                         />
                     </div>
 
@@ -144,8 +145,9 @@
                         <app-input
                             type="number"
                             mod="small"
-                            [value]="document.chunk_size"
-                            (changed)="docChunkSizeChange(document, $event)"
+                            [(value)]="d.chunk_size"
+                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_size === 'error'"
+                            (changed)="docFieldChange(d, 'chunk_size', $event)"
                         />
                     </div>
 
@@ -154,8 +156,9 @@
                         <app-input
                             type="number"
                             mod="small"
-                            [value]="document.chunk_overlap"
-                            (changed)="docOverlapChange(document, $event)"
+                            [(value)]="d.chunk_overlap"
+                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_overlap === 'error'"
+                            (changed)="docFieldChange(d, 'chunk_overlap', $event)"
                         />
                     </div>
 
@@ -165,7 +168,7 @@
                             class="table__col-btn"
                             type="outline-secondary"
                             mod="small"
-                            (click)="tuneChunk(document.naive_rag_document_id)"
+                            (click)="tuneChunk(d.naive_rag_document_id)"
                         >
                             Tune Chunks
                         </app-button>
@@ -173,6 +176,5 @@
                 </li>
             }
         </ol>
-
     </div>
 </div>

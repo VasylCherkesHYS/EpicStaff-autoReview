@@ -9,11 +9,14 @@
         <h3 class="file-uploader__label">
             Drag and drop files here or click to upload
         </h3>
-        <label for="file" class="file-uploader__button">
+        <label
+            (click)="fileInput.click()"
+            class="file-uploader__button"
+        >
             <app-icon icon="ui/upload" size="2rem" />
         </label>
         <input
-            id="file"
+            #fileInput
             type="file"
             multiple
             style="display: none"

@@ -1,27 +1,28 @@
 import {
     ChangeDetectionStrategy,
-    Component,
+    Component, computed,
     DestroyRef,
-    effect,
     inject,
-    model,
+    model, OnChanges,
     OnInit,
-    signal
+    signal, SimpleChanges
 } from "@angular/core";
 import {AppIconComponent} from "../../../../../../shared/components/app-icon/app-icon.component";
 import {FormControl, FormsModule, ReactiveFormsModule, Validators} from "@angular/forms";
 import {CreateCollectionDtoResponse} from "../../../../models/collection.model";
 import {CollectionsStorageService} from "../../../../services/collections-storage.service";
-import {debounceTime, distinctUntilChanged, skip, switchMap} from "rxjs/operators";
+import {debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {filter} from "rxjs";
 import {DragDropAreaComponent} from "../../../../../../shared/components/drag-drop-area/drag-drop-area.component";
 import {FILE_TYPES} from "../../../../constants/constants";
-import {DisplayedListDocument} from "../../../../models/document.model";
 import {CollectionFilesComponent} from "./collection-files/collection-files.component";
 import {SelectComponent} from "../../../../../../shared/components/select/select.component";
 import {CollectionRagsComponent} from "./collection-rags/collection-rags.component";
 import {CollectionInfoComponent} from "./collection-info/collection-info.component";
+import {DocumentsStorageService} from "../../../../services/documents-storage.service";
+import {CollectionDocument, DisplayedListDocument} from "../../../../models/document.model";
+import {FileListService} from "../../../../services/files-list.service";
 
 @Component({
     selector: "app-collection-details",
@@ -39,27 +40,31 @@ import {CollectionInfoComponent} from "./collection-info/collection-info.compone
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CollectionDetailsComponent implements OnInit {
+export class CollectionDetailsComponent implements OnInit, OnChanges {
     private destroyRef = inject(DestroyRef);
     selectedCollectionId = model<number | null>(null);
     fullCollection = signal<CreateCollectionDtoResponse | null>(null);
+    documents = signal<DisplayedListDocument[]>([]);
+    documentTypes = computed(() => {
+        const types = new Set<string>();
+
+        this.documents().forEach(doc => {
+            doc.file_type && types.add(doc.file_type);
+        })
+        return Array.from(types);
+    });
     collectionName: FormControl = new FormControl("", Validators.required);
 
     private collectionsStorageService = inject(CollectionsStorageService);
+    private documentsStorageService = inject(DocumentsStorageService);
+    private fileListService = inject(FileListService)
 
-    constructor() {
-        effect(() => {
-            const id = this.selectedCollectionId();
+    ngOnChanges(changes: SimpleChanges) {
+        const id = changes['selectedCollectionId'].currentValue;
+        if (!id) return;
 
-            if (id) {
-                this.collectionsStorageService.getFullCollection(id)
-                    .pipe(takeUntilDestroyed(this.destroyRef))
-                    .subscribe(c => {
-                        this.fullCollection.set(c);
-                        this.collectionName.setValue(this.fullCollection()?.collection_name, {emitEvent: false});
-                    });
-            }
-        });
+        this.getCollectionData(id);
+        this.getCollectionDocuments(id);
     }
 
     ngOnInit() {
@@ -73,6 +78,32 @@ export class CollectionDetailsComponent implements OnInit {
             }),
             takeUntilDestroyed(this.destroyRef)
         ).subscribe();
+    }
+
+    private getCollectionData(id: number): void {
+        this.collectionsStorageService.getFullCollection(id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(c => {
+                this.fullCollection.set(c);
+                this.collectionName.setValue(this.fullCollection()?.collection_name, {emitEvent: false});
+            });
+    }
+
+    private getCollectionDocuments(id: number): void {
+        this.documentsStorageService.getDocumentsByCollectionId(id)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                map((items: CollectionDocument[]): DisplayedListDocument[] => {
+                    return items.map((d) => ({
+                        ...d,
+                        isValidType: true,
+                        isValidSize: true
+                    }))
+                })
+            )
+            .subscribe(docs => {
+                this.documents.set(docs);
+            });
     }
 
     onCollectionDelete(): void {
@@ -89,7 +120,32 @@ export class CollectionDetailsComponent implements OnInit {
     }
 
     onFilesDropped(files: FileList) {
-        console.log('files droppedsd')
+        const collectionId = this.fullCollection()?.collection_id;
+        if (!collectionId) return;
+        // 1: filter duplicates by file name
+        const filteredByName = this.fileListService.filterDuplicatesByName(files);
+        // 2: transform File[] to DisplayedListDocument[]
+        const transformed = this.fileListService.transformFilesToDisplayedDocuments(filteredByName, collectionId);
+        // 3: display both valid and invalid files
+        this.documents.update((d) => [...d, ...transformed]);
+        // 4: filter valid files for upload to backend
+        const toUpload = this.fileListService.filterValidFiles(filteredByName);
+        if (!toUpload.length) {return;}
+        // 5: upload filtered and valid files to backend
+        this.documentsStorageService.uploadDocuments(collectionId, toUpload)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((res) => {
+                if (!res) return;
+                // 6: update displayed documents
+                this.fileListService.updateDocumentsAfterUpload(this.documents, res.documents);
+            });
+    }
+
+    onFileSelect(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        if (input.files) {
+            this.onFilesDropped(input.files);
+        }
     }
 
     protected readonly FILE_TYPES = FILE_TYPES;

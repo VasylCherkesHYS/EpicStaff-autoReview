@@ -1,8 +1,36 @@
-<input
-    [type]="type"
-    class="input"
-    [ngClass]="'input--mod-' + mod()"
-    [placeholder]="placeholder()"
-    [ngModel]="value()"
-    (ngModelChange)="onInputChange($event)"
-/>
+<div
+    class="input__wrapper"
+    [class.input__wrapper--invalid]="invalid()"
+    (mouseenter)="hovered.set(true)"
+    (mouseleave)="hovered.set(false)"
+>
+    @if (type() === 'number' && hovered()) {
+        <button
+            type="button"
+            class="input__step input__step--minus"
+            (mousedown)="step(-1); $event.preventDefault()"
+        >
+            −
+        </button>
+    }
+
+    <input
+        [type]="type()"
+        class="input"
+        [class.input--number]="type() === 'number'"
+        [ngClass]="'input--mod-' + mod()"
+        [placeholder]="placeholder()"
+        [ngModel]="value()"
+        (ngModelChange)="onInputChange($event)"
+    />
+
+    @if (type() === 'number' && hovered()) {
+        <button
+            type="button"
+            class="input__step input__step--plus"
+            (mousedown)="step(1); $event.preventDefault()"
+        >
+            +
+        </button>
+    }
+</div>

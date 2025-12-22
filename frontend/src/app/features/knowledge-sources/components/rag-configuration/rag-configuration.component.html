@@ -16,9 +16,9 @@
         </div>
 
         <app-configuration-table
-            [bulkEditing]="false"
+            [bulkEditing]="allowBulkEdit()"
             [ragId]="naiveRagId()"
-            [documents]="filteredDocuments()"
+            [documents]="filteredByName()"
         />
     </div>
 

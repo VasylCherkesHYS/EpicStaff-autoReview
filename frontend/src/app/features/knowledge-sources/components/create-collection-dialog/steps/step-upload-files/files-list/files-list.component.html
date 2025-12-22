@@ -5,13 +5,12 @@
             @if (hasInvalidFiles()) {
                 <div class="list__file-error list__file-error--medium">File validation errors</div>
             }
-            <app-button type="outline-primary" (click)="onAddMore()">
+            <app-button type="outline-primary" (click)="fileInput.click()">
                 + Add More Files
             </app-button>
 
             <input
                 #fileInput
-                id="file"
                 type="file"
                 multiple
                 style="display: none"

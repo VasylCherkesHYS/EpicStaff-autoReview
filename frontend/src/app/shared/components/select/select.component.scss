@@ -36,6 +36,10 @@
             font-size: 0.625rem;
             padding: 0.625rem 1.5rem 0.625rem 0.5rem;
         }
+
+        &--invalid {
+            border-color: var(--color-ks-status-failed);
+        }
     }
 
     &__chevron {

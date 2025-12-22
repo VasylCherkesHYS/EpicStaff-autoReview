@@ -10,8 +10,9 @@ import {FilesListComponent} from "./files-list/files-list.component";
 import {FilePreviewComponent} from "./file-preview/file-preview.component";
 import {CollectionsStorageService} from "../../../../services/collections-storage.service";
 import {DocumentsStorageService} from "../../../../services/documents-storage.service";
-import {CollectionDocument, DisplayedListDocument} from "../../../../models/document.model";
-import {FILE_TYPES, MAX_DOCUMENT_SIZE, MIME_TYPES} from "../../../../constants/constants";
+import {DisplayedListDocument} from "../../../../models/document.model";
+import {FILE_TYPES} from "../../../../constants/constants";
+import {FileListService} from "../../../../services/files-list.service";
 
 @Component({
     selector: "app-step-upload-files",
@@ -31,7 +32,7 @@ export class StepUploadFilesComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private collectionsStorageService = inject(CollectionsStorageService);
     private documentsStorageService = inject(DocumentsStorageService);
-    protected readonly allowedMimeTypes = MIME_TYPES;
+    private fileListService = inject(FileListService);
 
     collectionName: FormControl = new FormControl("", Validators.required);
     collection = input.required<CreateCollectionDtoResponse>();
@@ -53,16 +54,16 @@ export class StepUploadFilesComponent implements OnInit {
         ).subscribe();
     }
 
-    onFilesUpload(files: FileList) {
+    onFilesUpload(files: FileList): void {
         const collectionId = this.collection().collection_id;
         // 1: filter duplicates by file name
-        const filteredByName = this.filterDuplicatesByName(files);
+        const filteredByName = this.fileListService.filterDuplicatesByName(files);
         // 2: transform File[] to DisplayedListDocument[]
-        const transformed = this.transformFilesToDocuments(filteredByName);
+        const transformed = this.fileListService.transformFilesToDisplayedDocuments(filteredByName, collectionId);
         // 3: display both valid and invalid files
         this.documents.update((d) => [...d, ...transformed]);
         // 4: filter valid files for upload to backend
-        const toUpload = this.filterValidFiles(filteredByName);
+        const toUpload = this.fileListService.filterValidFiles(filteredByName);
         if (!toUpload.length) {return;}
         // 5: upload filtered and valid files to backend
         this.documentsStorageService.uploadDocuments(collectionId, toUpload)
@@ -70,68 +71,8 @@ export class StepUploadFilesComponent implements OnInit {
             .subscribe((res) => {
                 if (!res) return;
                 // 6: update displayed documents
-                this.updateDisplayedDocuments(res.documents);
+                this.fileListService.updateDocumentsAfterUpload(this.documents, res.documents);
             });
-    }
-
-    private updateDisplayedDocuments(uploadedDocs: CollectionDocument[]) {
-        this.documents.update((displayedDocs) => {
-            return displayedDocs.map(doc => {
-                const updated = uploadedDocs.find(
-                    d => d.file_name === doc.file_name &&
-                        d.source_collection === doc.source_collection
-                );
-
-                if (!updated) return doc;
-
-                return {
-                    ...doc,
-                    document_id: updated.document_id,
-                    file_type: updated.file_type,
-                    isValidType: true,
-                    isValidSize: true
-                };
-            });
-        });
-    }
-
-    private filterValidFiles(files: File[]): File[] {
-        return files.filter((file) => {
-            return this.allowedMimeTypes.hasOwnProperty(file.type) && file.size < MAX_DOCUMENT_SIZE;
-        })
-    }
-
-    private transformFilesToDocuments(files: File[]): DisplayedListDocument[] {
-        const source_collection = this.collection().collection_id;
-
-        return files.map((file: File) => {
-            const isValidType = this.allowedMimeTypes.hasOwnProperty(file.type);
-            const isValidSize = file.size < MAX_DOCUMENT_SIZE;
-
-            return {
-                file_name: file.name,
-                file_size: file.size,
-                source_collection,
-                isValidType,
-                isValidSize
-            }
-        });
-    }
-
-    private filterDuplicatesByName(files: FileList) {
-        const arr: File[] = [];
-        for (const file of Array.from(files)) {
-            // Skip duplicates by name
-            const hasDuplicates = arr.some(f => f.name === file.name);
-            // Check if file was uploaded before
-            const isAlreadyUploaded = this.documents().some(d => d.file_name === file.name);
-            if (hasDuplicates || isAlreadyUploaded) {
-                continue;
-            }
-
-            arr.push(file);
-        }
-        return arr;
     }
 
     protected readonly FILE_TYPES = FILE_TYPES;

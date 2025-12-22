@@ -23,7 +23,7 @@ import {finalize} from "rxjs/operators";
     imports: [
         CollectionDetailsComponent,
         CollectionsListItemSidebarComponent,
-        SpinnerComponent
+        SpinnerComponent,
     ]
 })
 export class CollectionsListPageComponent implements OnInit {
@@ -35,11 +35,11 @@ export class CollectionsListPageComponent implements OnInit {
     collections = this.collectionsStorageService.collections;
     selectedCollectionId = signal<number | null>(null);
 
-    ngOnInit() {
+    ngOnInit(): void {
         this.getCollections();
     }
 
-    getCollections() {
+    getCollections(): void {
         this.isLoading.set(true);
 
         this.collectionsStorageService.getCollections()
@@ -50,7 +50,7 @@ export class CollectionsListPageComponent implements OnInit {
             .subscribe();
     }
 
-    createCollection() {
+    createCollection(): void {
         this.collectionsStorageService.createCollection()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((collection) => {
@@ -59,8 +59,8 @@ export class CollectionsListPageComponent implements OnInit {
             });
     }
 
-    private openCreateModal(collection: CreateCollectionDtoResponse) {
-        const modalRef = this.dialog.open(CreateCollectionDialogComponent, {
+    private openCreateModal(collection: CreateCollectionDtoResponse): void {
+        this.dialog.open(CreateCollectionDialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
             data: collection,

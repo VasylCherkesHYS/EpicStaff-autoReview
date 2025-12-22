@@ -48,10 +48,6 @@ export class FilesListComponent {
         this.documents().some(d => !d.isValidType || !d.isValidSize)
     );
 
-    onAddMore(): void {
-        this.fileInput.nativeElement.click();
-    }
-
     onFileSelect(event: Event): void {
         const input = event.target as HTMLInputElement;
         if (input.files) {

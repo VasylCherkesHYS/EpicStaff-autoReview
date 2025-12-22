@@ -29,12 +29,6 @@ export class NaiveRagService {
         return this.http.post<CreateRagForCollectionResponse>(`${this.apiUrl}collections/${collectionId}/naive-rag/`, body)
     }
 
-    initDocumentConfigs(naiveRagId: number): Observable<InitNaiveRagDocumentResponse> {
-        const body = {};
-
-        return this.http.post<InitNaiveRagDocumentResponse>(`${this.apiUrl}${naiveRagId}/document-configs/init/`, body);
-    }
-
     getDocumentConfigs(naiveRagId: number): Observable<GetNaiveRagDocumentConfigsResponse> {
         return this.http.get<GetNaiveRagDocumentConfigsResponse>(`${this.apiUrl}${naiveRagId}/document-configs/`);
     }

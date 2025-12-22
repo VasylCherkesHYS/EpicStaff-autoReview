@@ -7,7 +7,6 @@ import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {CreateCollectionDtoResponse} from "../../models/collection.model";
 import {NaiveRagService} from "../../services/naive-rag.service";
 import {NaiveRagDocumentConfig} from "../../models/rag.model";
-import {switchMap} from "rxjs/operators";
 import {ToastService} from "../../../../services/notifications/toast.service";
 
 @Component({
@@ -27,8 +26,9 @@ export class RagConfigurationComponent implements OnInit {
     collection = input.required<CreateCollectionDtoResponse>();
     naiveRagId = input.required<number>();
 
+    allowBulkEdit = input<boolean>(false);
     documents = signal<NaiveRagDocumentConfig[]>([]);
-    filteredDocuments = computed(() => {
+    filteredByName = computed(() => {
         const term = this.searchTerm();
 
         return this.documents().filter(d => {
@@ -54,8 +54,7 @@ export class RagConfigurationComponent implements OnInit {
     ngOnInit() {
         const id = this.naiveRagId();
 
-        this.naiveRagService.initDocumentConfigs(id).pipe(
-            switchMap(() => this.naiveRagService.getDocumentConfigs(id)),
+        this.naiveRagService.getDocumentConfigs(id).pipe(
             takeUntilDestroyed(this.destroyRef)
         ).subscribe({
             next: ({configs}) => {

@@ -1,4 +1,5 @@
 import {CollectionDocument} from "./document.model";
+import {CollectionNaiveRag} from "./rag.model";
 
 export enum CreateCollectionStep {
     UPLOAD_FILES = 0,
@@ -24,7 +25,7 @@ export interface CreateCollectionDtoResponse {
     user_id: string,
     status: CollectionStatus,
     document_count: number,
-    rag_configurations: [],
+    rag_configurations: CollectionNaiveRag[],
     created_at: string,
     updated_at: string
 }

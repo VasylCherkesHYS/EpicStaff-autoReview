@@ -45,7 +45,11 @@
                             </div>
                         </div>
 
-                        <app-collection-details-rags/>
+                        @if (fullCollection()) {
+                            <app-collection-details-rags
+                                [collection]="fullCollection()!"
+                            />
+                        }
                     </div>
 
                     <!-- files -->
@@ -64,19 +68,33 @@
                                     size="0.75rem"
                                 />
 
-                                <app-icon
-                                    icon="ui/plus"
-                                    class="details__action details__action--medium"
-                                    size="1rem"
-                                />
+                                <label (click)="fileInput.click()">
+                                    <app-icon
+                                        icon="ui/plus"
+                                        class="details__action details__action--medium"
+                                        size="1rem"
+                                    />
+                                </label>
+                                <input
+                                    #fileInput
+                                    type="file"
+                                    multiple
+                                    style="display: none"
+                                    (change)="onFileSelect($event)"
+                                >
                             </div>
                         </div>
-                        <app-collection-details-files/>
+                        <app-collection-details-files
+                            [(documents)]="documents"
+                        />
                     </div>
                 </div>
             </app-drag-drop-area>
 
-            <app-collection-details-info/>
+            <app-collection-details-info
+                [collection]="fullCollection()!"
+                [documentTypes]="documentTypes()"
+            />
         </section>
 
     } @else {
