@@ -1,5 +1,8 @@
 from rest_framework.exceptions import APIException
-
+from tables.constants.knowledge_constants import (
+    MAX_FILE_SIZE,
+    ALLOWED_FILE_TYPES,
+)
 
 class CustomAPIExeption(APIException):
     """
@@ -95,13 +98,12 @@ class FileSizeExceededException(DocumentUploadException):
 class InvalidFileTypeException(DocumentUploadException):
     """Raised when file type is not allowed."""
     
-    def __init__(self, file_name, file_extension, allowed_types):
+    def __init__(self, file_name, file_extension):
         self.file_name = file_name
         self.file_extension = file_extension
-        self.allowed_types = allowed_types
         super().__init__(
             f"File '{file_name}' has invalid type '.{file_extension}'. "
-            f"Allowed types: {', '.join(allowed_types)}"
+            f"Allowed types: {', '.join(ALLOWED_FILE_TYPES)}"
         )
 
 
@@ -131,7 +133,9 @@ class DocumentNotFoundException(DocumentUploadException):
 
 class RagException(CustomAPIExeption):
     """Base exception for RAG operations."""
-    pass
+    status_code = 400
+    default_detail = "RAG operation error"
+    default_code = "rag_error"
 
 
 class RagTypeNotFoundException(RagException):
@@ -203,3 +207,31 @@ class GraphRagNotImplementedException(RagException):
 
     def __init__(self):
         super().__init__("GraphRag is not yet implemented")
+
+
+class AgentMissingCollectionException(RagException):
+    """Raised when attempting to assign RAG to agent without knowledge_collection."""
+
+    def __init__(self):
+        super().__init__("Agent must have a knowledge_collection to assign RAG")
+
+
+class RagCollectionMismatchException(RagException):
+    """Raised when RAG doesn't belong to agent's knowledge_collection."""
+
+    def __init__(self, rag_type, rag_id, collection_id):
+        self.rag_type = rag_type
+        self.rag_id = rag_id
+        self.collection_id = collection_id
+        super().__init__(
+            f"{rag_type.capitalize()}Rag {rag_id} does not belong to agent's "
+            f"knowledge_collection (collection_id={collection_id})"
+        )
+
+
+class UnknownRagTypeException(RagException):
+    """Raised when unknown RAG type is provided."""
+
+    def __init__(self, rag_type):
+        self.rag_type = rag_type
+        super().__init__(f"Unknown RAG type: '{rag_type}'")
