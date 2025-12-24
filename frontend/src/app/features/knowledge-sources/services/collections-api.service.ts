@@ -4,7 +4,7 @@ import {ConfigService} from "../../../services/config/config.service";
 import {Observable} from "rxjs";
 import {
     CreateCollectionDtoRequest,
-    CreateCollectionDtoResponse, DeleteCollectionResponse, GetCollectionDocumentsResponse,
+    CreateCollectionDtoResponse, DeleteCollectionResponse, GetCollectionDocumentsResponse, GetCollectionRagsResponse,
     GetCollectionRequest
 } from "../models/collection.model";
 
@@ -37,6 +37,10 @@ export class CollectionsApiService {
 
     getCollectionById(id: number): Observable<CreateCollectionDtoResponse> {
         return this.http.get<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`);
+    }
+
+    getRagsByCollectionId(id: number): Observable<GetCollectionRagsResponse[]> {
+        return this.http.get<GetCollectionRagsResponse[]>(`${this.apiUrl}${id}/available-rags/`);
     }
 
     getDocumentsByCollectionId(id: number): Observable<GetCollectionDocumentsResponse> {

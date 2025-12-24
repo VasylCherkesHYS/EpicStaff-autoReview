@@ -21,8 +21,8 @@ export class InputComponent {
     mod = input<'default' | 'small'>('default');
     placeholder = input<string>('Type here');
     invalid = input<boolean>(false);
-    value = model<string | number>('');
-    changed = output<string | number>();
+    value = model<string | number | null>(null);
+    changed = output<string | number | null>();
 
     hovered = signal<boolean>(false);
 
@@ -33,17 +33,25 @@ export class InputComponent {
         }
 
         if (this.type() === 'number') {
+            // Return null if input is empty
+            if (value === '' || value === null || value === undefined) {
+                this.value.set(null);
+                this.changed.emit(null);
+                return;
+            }
+
             const num = Number(value);
 
             if (Number.isNaN(num)) return;
 
-            this.value.set(value);
+            this.value.set(num);
             this.changed.emit(num);
         }
     }
 
-    step(delta: number) {
+    onStep(delta: number) {
         const current = Number(this.value()) || 0;
-        this.onInputChange(current + delta);
+        this.value.set(current + delta);
+        this.changed.emit(current + delta);
     }
 }

@@ -79,6 +79,7 @@ export class SelectComponent {
         const dd = document.getElementById('selector-portal');
         if (!dd) return;
 
+        dd.style.minWidth = trigger.width + 'px';
         dd.style.top = `${trigger.bottom + 4}px`;
         dd.style.left = `${trigger.left}px`;
     }

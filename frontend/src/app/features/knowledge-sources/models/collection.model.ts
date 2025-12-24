@@ -48,6 +48,15 @@ export interface DeleteCollectionResponse {
     message: string;
 }
 
+export interface GetCollectionRagsResponse {
+    rag_id: number;
+    rag_type: string;
+    rag_status: string;
+    collection_id: number;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface GetCollectionDocumentsResponse {
     collection_id: number;
     collection_name: string;

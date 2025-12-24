@@ -82,10 +82,6 @@ export const routes: Routes = [
             },
             {
                 path: 'knowledge-sources',
-                component: KnowledgeSourcesComponent,
-            },
-            {
-                path: 'knowledge-sources-new',
                 component: CollectionsListPageComponent,
             },
             {
