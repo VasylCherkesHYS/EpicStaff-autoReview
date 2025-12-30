@@ -1,5 +1,6 @@
 import { Component, ChangeDetectionStrategy, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { EdgeNodeModel } from '../../../core/models/node.model';
 
 @Component({
   selector: 'app-conditional-edge-node',
@@ -60,6 +61,7 @@ import { CommonModule } from '@angular/common';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConditionalEdgeNodeComponent {
+  @Input() node?: EdgeNodeModel;
   @Input() width: number = 300;
   @Input() height: number = 180;
 

@@ -95,6 +95,7 @@
 @switch (node.type) {
 @case (NodeType.EDGE) {
 <app-conditional-edge-node
+    [node]="edgeNode!"
     clickOrDrag
     (actualClick)="onEditClick()"
 ></app-conditional-edge-node>

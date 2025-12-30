@@ -134,12 +134,14 @@ const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
                 &.collapsed {
                     display: flex;
                     flex-direction: column;
+                    gap: 1rem;
                 }
             }
 
             .form-fields {
                 display: flex;
                 flex-direction: column;
+                gap: 1rem;
                 
                 .expanded & {
                     flex: 0 0 400px;
@@ -182,8 +184,6 @@ const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
                 display: flex;
                 align-items: center;
                 gap: 12px;
-                margin-top: 6px;
-                margin-bottom: 16px;
             }
 
             .webhook-url-text {
