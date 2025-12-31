@@ -11,7 +11,7 @@ import {AppIconComponent} from "../../../../../../shared/components/app-icon/app
 import {FormControl, FormsModule, ReactiveFormsModule, Validators} from "@angular/forms";
 import {CreateCollectionDtoResponse} from "../../../../models/collection.model";
 import {CollectionsStorageService} from "../../../../services/collections-storage.service";
-import {debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
+import {debounceTime, distinctUntilChanged, finalize, map, switchMap} from "rxjs/operators";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {filter} from "rxjs";
 import {DragDropAreaComponent} from "../../../../../../shared/components/drag-drop-area/drag-drop-area.component";
@@ -23,6 +23,7 @@ import {CollectionInfoComponent} from "./collection-info/collection-info.compone
 import {DocumentsStorageService} from "../../../../services/documents-storage.service";
 import {CollectionDocument, DisplayedListDocument} from "../../../../models/document.model";
 import {FileListService} from "../../../../services/files-list.service";
+import {SpinnerComponent} from "../../../../../../shared/components/spinner/spinner.component";
 
 @Component({
     selector: "app-collection-details",
@@ -37,12 +38,15 @@ import {FileListService} from "../../../../services/files-list.service";
         SelectComponent,
         CollectionRagsComponent,
         CollectionInfoComponent,
+        SpinnerComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CollectionDetailsComponent implements OnInit, OnChanges {
     private destroyRef = inject(DestroyRef);
     selectedCollectionId = model<number | null>(null);
+    loadingCollection = signal<boolean>(false);
+    loadingDocuments = signal<boolean>(false);
     fullCollection = signal<CreateCollectionDtoResponse | null>(null);
     documents = signal<DisplayedListDocument[]>([]);
     documentTypes = computed(() => {
@@ -81,8 +85,12 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
     }
 
     private getCollectionData(id: number): void {
+        this.loadingCollection.set(true);
         this.collectionsStorageService.getFullCollection(id)
-            .pipe(takeUntilDestroyed(this.destroyRef))
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.loadingCollection.set(false))
+            )
             .subscribe(c => {
                 this.fullCollection.set(c);
                 this.collectionName.setValue(this.fullCollection()?.collection_name, {emitEvent: false});
@@ -90,9 +98,11 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
     }
 
     private getCollectionDocuments(id: number): void {
+        this.loadingDocuments.set(true);
         this.documentsStorageService.getDocumentsByCollectionId(id)
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.loadingDocuments.set(false)),
                 map((items: CollectionDocument[]): DisplayedListDocument[] => {
                     return items.map((d) => ({
                         ...d,

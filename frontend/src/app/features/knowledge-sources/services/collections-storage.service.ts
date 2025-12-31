@@ -18,7 +18,7 @@ export class CollectionsStorageService {
     // List of collection details
     private fullCollectionsSignal = signal<CreateCollectionDtoResponse[]>([]);
     private fullCollectionsLoaded = signal<boolean>(false);
-    // public readonly fullCollections = this.fullCollectionsSignal.asReadonly();
+    public readonly fullCollections = this.fullCollectionsSignal.asReadonly();
     // public readonly isFullCollectionsLoaded = this.fullCollectionsLoaded.asReadonly();
 
     private readonly collectionsApiService = inject(CollectionsApiService);
@@ -67,17 +67,17 @@ export class CollectionsStorageService {
         this.collectionsLoaded.set(true);
     }
 
-    getFullCollection(id: number): Observable<CreateCollectionDtoResponse | null> {
+    getFullCollection(id: number, forceRefresh = false): Observable<CreateCollectionDtoResponse | null> {
         const cachedCollection = this.fullCollectionsSignal().find(
             (c) => c.collection_id === id
         );
-        if (cachedCollection) {
+        if (cachedCollection && !forceRefresh) {
             return of(cachedCollection);
         }
 
         return this.collectionsApiService.getCollectionById(id).pipe(
-            tap((newCollection: CreateCollectionDtoResponse) => {
-                this.fullCollectionsSignal.update(collections => [...collections, newCollection]);
+            tap((collection: CreateCollectionDtoResponse) => {
+                this.updateOrCreateCollectionInCache(collection);
             }),
             delay(this.fullCollectionsLoaded() ? 0 : 300),
             shareReplay(1),
@@ -89,7 +89,7 @@ export class CollectionsStorageService {
         return this.collectionsApiService.updateCollectionById(id, body).pipe(
             tap(updated => {
                 this.toastService.success('Collection updated');
-                this.updateCollectionInCache(updated);
+                this.updateOrCreateCollectionInCache(updated);
             }),
             catchError(() => {
                 this.toastService.error('Failed to update collection');
@@ -111,19 +111,28 @@ export class CollectionsStorageService {
         );
     }
 
-    private updateCollectionInCache(updated: CreateCollectionDtoResponse): void {
+    private updateOrCreateCollectionInCache(updated: CreateCollectionDtoResponse): void {
         const { rag_configurations, ...rest } = updated;
-        this.collectionsSignal.update(collections =>
-            collections.map(c =>
-                c.collection_id === rest.collection_id ? rest : c
-            )
-        );
 
-        this.fullCollectionsSignal.update(collections =>
-            collections.map(c =>
-                c.collection_id === updated.collection_id ? updated : c
-            )
-        );
+        this.collectionsSignal.update(collections => {
+            const index = collections.findIndex(c => c.collection_id === rest.collection_id);
+            if (index >= 0) {
+                collections[index] = rest;
+            } else {
+                collections.push(rest);
+            }
+            return [...collections];
+        });
+
+        this.fullCollectionsSignal.update(collections => {
+            const index = collections.findIndex(c => c.collection_id === updated.collection_id);
+            if (index >= 0) {
+                collections[index] = updated;
+            } else {
+                collections.push(updated);
+            }
+            return [...collections];
+        });
     }
 
     private deleteCollectionFromCache(id: number) {

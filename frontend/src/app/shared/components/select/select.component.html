@@ -13,15 +13,15 @@
             [class.selector__chevron--open]="open()"
             [ngClass]="'selector__chevron--mod-' + mod()"
             width="16" height="16"
-            viewBox="0 0 24 24">
+            viewBox="0 0 24 24"
+        >
             <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
         </svg>
     </button>
 </div>
 
 <ng-template #dropdownTemplate>
-    <div id="selector-portal" class="selector__dropdown">
-
+    <div class="selector__dropdown">
         @for (item of items(); track item.name) {
             <div
                 class="selector__option selector__option--exists"

@@ -28,8 +28,8 @@
             1rem    // checkbox
             1fr     // file name
             140px   // chunk strategy
-            100px   // chunk size
-            100px   // overlap
+            110px   // chunk size
+            110px   // overlap
             80px;   // tune chunks
         gap: 0.5rem;
         padding: 0.5rem 0.625rem;
@@ -38,6 +38,10 @@
 
         &--dark {
             background-color: var(--color-drag-drop-active);
+        }
+
+        &--selected {
+            background-color: var(--color-ks-line);
         }
     }
 
@@ -53,7 +57,7 @@
 
     &__bulk-row {
         font-size: 0.75rem;
-        padding: 0 3.125rem 0.5rem 3.125rem;
+        padding: 0 2.5rem 0.5rem 3.125rem;
         color: var(--color-ks-transparent-text-80);
     }
 
@@ -73,6 +77,7 @@
         column-gap: 0.5rem;
         font-size: 0.625rem;
         color: var(--color-ks-transparent-text-80);
+        cursor: pointer;
     }
 
     &__sort-icon {

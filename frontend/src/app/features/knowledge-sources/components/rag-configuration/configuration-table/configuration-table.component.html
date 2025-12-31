@@ -7,7 +7,7 @@
         <!-- 1. Checkbox -->
         <div class="table__col" (click)="toggleAll()">
             <app-checkbox
-                [checked]="allSelected()"
+                [checked]="allChecked()"
                 [indeterminate]="indeterminate()"
             />
         </div>
@@ -60,39 +60,46 @@
         <div class="table__col"></div>
     </div>
 
-    <!-- BULK EDIT ROW (visible when >1 selected) -->
-    @if (bulkEditing()) {
+    <!-- BULK EDIT ROW  -->
+    @if (bulkEditing() && checkedCount() > 1) {
         <div class="table__row table__bulk-row">
             <div class="table__col"></div>
             <div class="table__col">For selected:</div>
 
+            <!-- strategy select -->
             <div class="table__col">
                 <app-select
                     mod="small"
-                    [items]="[]"
+                    [items]="chunkStrategySelectItems"
+                    [(selectedValue)]="bulkChunkStrategy"
                 />
             </div>
 
+            <!-- chunk size -->
             <div class="table__col">
                 <app-input
                     type="number"
                     mod="small"
+                    [(value)]="bulkChunkSize"
                 />
             </div>
 
+            <!-- overlap -->
             <div class="table__col">
                 <app-input
                     type="number"
                     mod="small"
+                    [(value)]="bulkChunkOverlap"
                 />
             </div>
 
+            <!-- apply -->
             <div class="table__col">
                 <app-button
                     class="table__col-btn"
                     type="outline-primary"
                     mod="small"
-                    (click)="bulkEditApply()"
+                    (click)="bulkApply()"
                 >
                     Apply
                 </app-button>
@@ -107,17 +114,21 @@
                 <li
                     class="table__row"
                     [class.table__row--dark]="odd"
+                    [class.table__row--selected]="d.document_id === selectedDocumentId()"
                 >
                     <!-- checkbox -->
                     <div class="table__col">
                         <app-checkbox
-                            [checked]="d.selected"
+                            [checked]="d.checked"
                             (changed)="toggleDocument(d)"
                         />
                     </div>
 
                     <!-- filename -->
-                    <div class="table__col table__col-file">
+                    <div
+                        class="table__col table__col-file"
+                        (click)="selectedDocumentId.set(d.document_id)"
+                    >
                         <span>{{ i + 1 }}</span>
                         <app-icon
                             class="table__file-icon"
@@ -125,8 +136,11 @@
                             size="0.75rem"
                         />
                         <span class="table__file-name">
-                        {{ d.file_name }}
-                    </span>
+                            {{ parseFullFileName(d.file_name).name }}
+                        </span>
+                        <span>
+                            {{ parseFullFileName(d.file_name).type }}
+                        </span>
                     </div>
 
                     <!-- strategy select -->

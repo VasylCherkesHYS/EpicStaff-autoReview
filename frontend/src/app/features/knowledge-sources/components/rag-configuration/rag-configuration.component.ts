@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal} from "@angular/core";
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    OnInit,
+    signal,
+} from "@angular/core";
 import {FormsModule} from "@angular/forms";
 import {SearchComponent} from "../../../../shared/components/search/search.component";
 import {SelectComponent, SelectItem} from "../../../../shared/components/select/select.component";
@@ -8,6 +17,7 @@ import {CreateCollectionDtoResponse} from "../../models/collection.model";
 import {NaiveRagService} from "../../services/naive-rag.service";
 import {NaiveRagDocumentConfig} from "../../models/rag.model";
 import {ToastService} from "../../../../services/notifications/toast.service";
+import {AppIconComponent} from "../../../../shared/components/app-icon/app-icon.component";
 
 @Component({
     selector: 'app-rag-configuration',
@@ -18,6 +28,7 @@ import {ToastService} from "../../../../services/notifications/toast.service";
         SearchComponent,
         SelectComponent,
         ConfigurationTableComponent,
+        AppIconComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -25,7 +36,9 @@ export class RagConfigurationComponent implements OnInit {
     searchTerm = signal<string>('');
     collection = input.required<CreateCollectionDtoResponse>();
     naiveRagId = input.required<number>();
+    selectedDocumentId = signal<number | null>(null);
 
+    checkedCount = signal<number>(0);
     allowBulkEdit = input<boolean>(false);
     documents = signal<NaiveRagDocumentConfig[]>([]);
     filteredByName = computed(() => {
@@ -40,16 +53,18 @@ export class RagConfigurationComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private toastService = inject(ToastService);
 
-    selectItems: SelectItem[] = [
+    bulkActionItems: SelectItem[] = [
         {
             name: 'Bulk configuration',
-            value: 'bulk'
+            value: 'edit'
         },
         {
             name: 'Remove file from RAG',
-            value: 'remove'
+            value: 'delete'
         },
     ];
+
+    bulkAction = signal<'edit' | 'delete' | null>(null);
 
     ngOnInit() {
         const id = this.naiveRagId();

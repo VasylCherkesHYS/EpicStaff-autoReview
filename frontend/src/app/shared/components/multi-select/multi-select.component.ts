@@ -3,19 +3,18 @@ import {
     Component,
     ElementRef,
     HostListener,
-    OnInit,
     ViewChild,
     ViewContainerRef,
     signal,
     input,
-    output
+    output, inject
 } from '@angular/core';
-import {PortalModule, TemplatePortal} from '@angular/cdk/portal';
-import {DomPortalOutlet} from '@angular/cdk/portal';
+import {TemplatePortal} from '@angular/cdk/portal';
 
 import {AppIconComponent} from "../app-icon/app-icon.component";
 import {CheckboxComponent} from "../checkbox/checkbox.component";
 import {ButtonComponent} from "../buttons/button/button.component";
+import {Overlay, OverlayPositionBuilder, OverlayRef} from "@angular/cdk/overlay";
 
 export interface MultiSelectItem {
     name: string;
@@ -26,7 +25,6 @@ export interface MultiSelectItem {
     selector: 'app-multi-select',
     standalone: true,
     imports: [
-        PortalModule,
         AppIconComponent,
         CheckboxComponent,
         ButtonComponent
@@ -35,7 +33,7 @@ export interface MultiSelectItem {
     styleUrls: ['./multi-select.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class MultiSelectComponent implements OnInit {
+export class MultiSelectComponent {
     icon = input<string>('');
     label = input<string>('Select items...');
     searchPlaceholder = input<string>('Search...');
@@ -47,21 +45,21 @@ export class MultiSelectComponent implements OnInit {
     search = signal('');
     tempSelected = signal<any[]>([]);
 
+    @ViewChild('triggerBtn') triggerBtn!: ElementRef<HTMLElement>;
     @ViewChild('dropdownTemplate') dropdownTemplate!: any;
-    @ViewChild('triggerBtn') triggerBtn!: ElementRef<HTMLButtonElement>;
 
-    private portalOutlet!: DomPortalOutlet;
-    private portal!: TemplatePortal;
+    private overlayRef!: OverlayRef;
 
-    constructor(private viewContainerRef: ViewContainerRef) {}
+    private overlay = inject(Overlay);
+    private overlayPositionBuilder = inject(OverlayPositionBuilder);
+    private vcr = inject(ViewContainerRef);
 
     ngOnInit() {
         this.tempSelected.set([...this.selectedValues()]);
     }
 
     toggle() {
-        if (this.isOpen()) this.close();
-        else this.open();
+        this.isOpen() ? this.close() : this.openDropdown();
     }
 
     @HostListener('document:click', ['$event'])
@@ -70,21 +68,45 @@ export class MultiSelectComponent implements OnInit {
 
         const target = event.target as HTMLElement;
         if (!this.triggerBtn.nativeElement.contains(target) &&
-            !document.getElementById('multi-select-portal')?.contains(target)) {
+            !this.overlayRef?.overlayElement.contains(target)) {
             this.tempSelected.set([...this.selectedValues()]);
             this.close();
         }
     }
 
-    positionDropdown() {
-        const btn = this.triggerBtn.nativeElement.getBoundingClientRect();
+    openDropdown() {
+        if (!this.overlayRef) {
+            const positionStrategy = this.overlayPositionBuilder
+                .flexibleConnectedTo(this.triggerBtn)
+                .withPositions([{
+                    originX: 'start',
+                    originY: 'bottom',
+                    overlayX: 'start',
+                    overlayY: 'top',
+                    offsetY: 4
+                }])
+                .withPush(true);
 
-        const dropdownEl = document.getElementById('multi-select-portal');
-        if (!dropdownEl) return;
+            this.overlayRef = this.overlay.create({
+                positionStrategy,
+                scrollStrategy: this.overlay.scrollStrategies.reposition(),
+                hasBackdrop: true,
+                backdropClass: 'transparent-backdrop'
+            });
 
-        dropdownEl.style.position = 'absolute';
-        dropdownEl.style.top = `${btn.bottom + 4}px`;
-        dropdownEl.style.left = `${btn.left}px`;
+            this.overlayRef.backdropClick().subscribe(() => this.close());
+        }
+
+        const portal = new TemplatePortal(this.dropdownTemplate, this.vcr);
+        this.overlayRef.attach(portal);
+        this.isOpen.set(true);
+    }
+
+    close() {
+        if (this.overlayRef) {
+            this.overlayRef.detach();
+        }
+        this.isOpen.set(false);
     }
 
     isChecked(value: any) {
@@ -113,30 +135,5 @@ export class MultiSelectComponent implements OnInit {
     save() {
         this.selectionChange.emit(this.tempSelected());
         this.close();
-    }
-
-    open() {
-        this.isOpen.set(true);
-
-        if (!this.portalOutlet) {
-            this.portalOutlet = new DomPortalOutlet(document.body);
-        }
-
-        this.portal = new TemplatePortal(
-            this.dropdownTemplate,
-            this.viewContainerRef
-        );
-
-        this.portalOutlet.attach(this.portal);
-
-        this.positionDropdown();
-    }
-
-    close() {
-        this.isOpen.set(false);
-
-        if (this.portalOutlet) {
-            this.portalOutlet.detach();
-        }
     }
 }

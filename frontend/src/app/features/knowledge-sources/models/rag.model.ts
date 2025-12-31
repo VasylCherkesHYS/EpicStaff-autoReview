@@ -100,6 +100,14 @@ export interface UpdateNaiveRagDocumentDtoRequest {
     additional_params?: {};
 }
 
+export interface BulkUpdateNaiveRagDocumentDtoRequest extends UpdateNaiveRagDocumentDtoRequest {
+    config_ids: number[];
+}
+
+export interface BulkDeleteNaiveRagDocumentDtoRequest {
+    config_ids: number[];
+}
+
 export interface UpdateNaiveRagDocumentResponse {
     message: string;
     config: NaiveRagDocumentConfig;

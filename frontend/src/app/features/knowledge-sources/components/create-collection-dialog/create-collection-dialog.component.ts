@@ -42,7 +42,7 @@ export class CreateCollectionDialogComponent {
     collection: CreateCollectionDtoResponse = inject(DIALOG_DATA);
     private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
-    private naiveRagService = inject(NaiveRagService)
+    private naiveRagService = inject(NaiveRagService);
     private toastService = inject(ToastService);
 
     private steps = signal<StepConfig[]>([
@@ -107,7 +107,7 @@ export class CreateCollectionDialogComponent {
                     const lastIndex = this.steps().length - 1;
 
                     if (i >= lastIndex) {
-                        this.dialogRef.close();
+                        this.onClose();
                         return i;
                     }
 
@@ -154,7 +154,7 @@ export class CreateCollectionDialogComponent {
         )
     }
 
-    onCancel(): void {
+    onClose(): void {
         this.dialogRef.close();
     }
 

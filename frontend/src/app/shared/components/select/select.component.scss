@@ -64,7 +64,7 @@
     }
 
     &__dropdown {
-        position: absolute;
+        width: 100%;
         border-radius: 10px;
         border: 1px solid var(--color-input-border);
         background-color: var(--color-input-background);
@@ -77,7 +77,6 @@
     }
 
     &__option {
-        max-width: 300px;
         overflow: hidden;
         text-overflow: ellipsis;
 

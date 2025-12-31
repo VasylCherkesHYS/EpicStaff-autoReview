@@ -1,11 +1,11 @@
 import {
     ChangeDetectionStrategy,
     Component,
-    computed, DestroyRef,
+    computed, DestroyRef, effect,
     inject,
     input,
-    linkedSignal,
-    OnInit,
+    linkedSignal, model,
+    OnInit, output,
     signal
 } from "@angular/core";
 import {SelectComponent} from "../../../../../shared/components/select/select.component";
@@ -18,7 +18,11 @@ import {
     MultiSelectItem
 } from "../../../../../shared/components/multi-select/multi-select.component";
 import {CHUNK_STRATEGIES, FILE_TYPES} from "../../../constants/constants";
-import {NaiveRagDocumentConfig, UpdateNaiveRagDocumentResponse} from "../../../models/rag.model";
+import {
+    BulkUpdateNaiveRagDocumentDtoRequest,
+    NaiveRagDocumentConfig,
+    UpdateNaiveRagDocumentResponse
+} from "../../../models/rag.model";
 import {NaiveRagService} from "../../../services/naive-rag.service";
 import {EMPTY, groupBy, mergeMap, Subject} from "rxjs";
 import {catchError, debounceTime, switchMap, tap} from "rxjs/operators";
@@ -27,7 +31,7 @@ import {ToastService} from "../../../../../services/notifications/toast.service"
 import {HttpErrorResponse} from "@angular/common/http";
 
 interface TableDocument extends NaiveRagDocumentConfig {
-    selected: boolean;
+    checked: boolean;
 }
 
 type DocFieldChange = {
@@ -75,14 +79,20 @@ export class ConfigurationTableComponent implements OnInit {
     bulkEditing = input<boolean>(false);
     documents = input<NaiveRagDocumentConfig[]>([]);
     tableDocuments = computed<TableDocument[]>(() => {
-        return this.documents().map(d => ({...d, selected: false}))
+        return this.documents().map(d => ({...d, checked: false}))
     });
 
-    allSelected = computed(() => this.filteredAndSorted().every(r => r.selected));
-    indeterminate = computed(() => {
-        const someSelected = this.filteredAndSorted().some(r => r.selected);
-        return someSelected && !this.allSelected();
-    });
+    allChecked = computed(() => this.filteredAndSorted().every(r => r.checked));
+    checkedCount = computed(() => this.filteredAndSorted().filter(r => r.checked).length);
+    indeterminate = computed(() => !!this.checkedCount() && !this.allChecked());
+    checkedCountChange = output<number>();
+
+    selectedDocumentId = model<number | null>(null);
+
+    bulkChunkStrategy = signal<string | null>(null);
+    bulkChunkSize = signal<number | null>(null);
+    bulkChunkOverlap = signal<number | null>(null);
+    bulkAction = input<'edit' | 'delete' | null>(null);
 
     filesFilter = signal<any[]>([]);
     chunkStrategyFilter = signal<any[]>([]);
@@ -99,9 +109,15 @@ export class ConfigurationTableComponent implements OnInit {
         return data;
     });
 
+    constructor() {
+        effect(() => {
+            this.checkedCountChange.emit(this.checkedCount());
+        });
+    }
+
     ngOnInit() {
         this.docFieldChange$.pipe(
-            groupBy(change => change.documentId), // групуємо по документу
+            groupBy(change => change.documentId),
             mergeMap(group$ => group$.pipe(
                 debounceTime(300),
                 switchMap(change => this.updateDocumentField(change))
@@ -110,7 +126,7 @@ export class ConfigurationTableComponent implements OnInit {
         ).subscribe();
     }
 
-    docFieldChange(document: TableDocument, field: keyof TableDocument, value: string | number) {
+    docFieldChange(document: TableDocument, field: keyof TableDocument, value: string | number | null) {
         this.docFieldChange$.next({
             documentId: document.naive_rag_document_id,
             documentName: document.file_name,
@@ -125,7 +141,7 @@ export class ConfigurationTableComponent implements OnInit {
 
         this.setFieldStatus(documentId, field, 'pending');
 
-        return this.naiveRagService.updateDocumentConfig(
+        return this.naiveRagService.updateDocumentConfigById(
             this.ragId(),
             documentId,
             { [field]: value }
@@ -149,6 +165,18 @@ export class ConfigurationTableComponent implements OnInit {
         }));
     }
 
+    handleBulkUpdate() {
+        // response.configs.forEach((config) => {
+        //     this.filteredAndSorted.update(items =>
+        //         items.map(i =>
+        //             i.document_id === config.document_id ? { ...i, [err.field]: err.value } : i
+        //         )
+        //     );
+        //
+        //     this.setFieldStatus(err.naive_rag_document_id, err.field, 'error')
+        // })
+    }
+
     private handleUpdateSuccess(
         response: UpdateNaiveRagDocumentResponse,
         documentId: number
@@ -163,7 +191,7 @@ export class ConfigurationTableComponent implements OnInit {
 
         this.filteredAndSorted.update(items =>
             items.map(i =>
-                i.document_id === config.document_id ? { ...config, selected: i.selected } : i
+                i.document_id === config.document_id ? { ...config, checked: i.checked } : i
             )
         );
     }
@@ -186,13 +214,13 @@ export class ConfigurationTableComponent implements OnInit {
     }
 
     toggleAll() {
-        const all = this.allSelected();
+        const all = this.allChecked();
         this.filteredAndSorted.update(items => items.map(i => ({ ...i, selected: !all })));
     }
 
     toggleDocument(item: TableDocument) {
         this.filteredAndSorted.update(items => items.map(i => {
-            return i === item ? { ...i, selected: !i.selected } : i
+            return i === item ? { ...i, selected: !i.checked } : i
         }));
     }
 
@@ -234,8 +262,67 @@ export class ConfigurationTableComponent implements OnInit {
         return [...data].sort((a, b) => (a[col] - b[col]) * dir);
     }
 
-    bulkEditApply() {
+    bulkApply() {
+        const config_ids = this.getSelectedDocIds();
+        if (!config_ids.length) return;
 
+        switch (this.bulkAction()) {
+            case 'edit':
+                this.applyBulkEdit(config_ids);
+                break;
+
+            case 'delete':
+                this.applyBulkDelete(config_ids);
+                break;
+        }
+    }
+
+    private getSelectedDocIds(): number[] {
+        return this.filteredAndSorted()
+            .filter(d => d.checked)
+            .map(d => d.naive_rag_document_id);
+    }
+
+    private applyBulkEdit(config_ids: number[]) {
+
+        const dto = {
+            config_ids,
+            ...(this.bulkChunkStrategy() && {
+                chunk_strategy: this.bulkChunkStrategy()
+            }),
+
+            ...(this.bulkChunkSize() !== null && {
+                chunk_size: this.bulkChunkSize()
+            }),
+
+            ...(this.bulkChunkOverlap() !== null && {
+                chunk_overlap: this.bulkChunkOverlap()
+            }),
+        } as BulkUpdateNaiveRagDocumentDtoRequest;
+
+        console.log(dto, 'dto')
+
+        this.naiveRagService
+            .bulkUpdateDocumentConfigs(this.ragId(), dto)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe();
+    }
+
+    private applyBulkDelete(config_ids: number[]) {
+        this.naiveRagService
+            .bulkDeleteDocumentConfigs(this.ragId(), { config_ids })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe();
+    }
+
+    parseFullFileName(fullName: string): {name: string, type: string} {
+        const parts = fullName.split('.');
+        const type = parts.pop()!;
+
+        return {
+            name: parts.join('.'),
+            type: '.' + type
+        };
     }
 
     tuneChunk(row: any) {

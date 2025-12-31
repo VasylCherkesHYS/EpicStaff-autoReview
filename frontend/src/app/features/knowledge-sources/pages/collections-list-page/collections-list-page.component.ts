@@ -13,7 +13,7 @@ import {
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {CreateCollectionDtoResponse} from "../../models/collection.model";
 import {CollectionsStorageService} from "../../services/collections-storage.service";
-import {finalize} from "rxjs/operators";
+import {finalize, switchMap} from "rxjs/operators";
 
 @Component({
     selector: 'app-collections-list-page',
@@ -60,12 +60,25 @@ export class CollectionsListPageComponent implements OnInit {
     }
 
     private openCreateModal(collection: CreateCollectionDtoResponse): void {
-        this.dialog.open(CreateCollectionDialogComponent, {
+        const dialog = this.dialog.open(CreateCollectionDialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
             data: collection,
             disableClose: true
         });
 
+        // Update collection info after modal closed
+        dialog.closed
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                switchMap(() => {
+                    return this.collectionsStorageService.getFullCollection(collection.collection_id, true)
+                })
+            )
+            .subscribe({
+                next: () => {
+                    this.selectedCollectionId.set(collection.collection_id);
+                }
+            });
     }
 }
