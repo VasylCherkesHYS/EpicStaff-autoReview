@@ -10,7 +10,8 @@
     }
 
     &__files-wrapper {
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         margin-right: 0.7rem;
         margin-bottom: 2rem;
     }
