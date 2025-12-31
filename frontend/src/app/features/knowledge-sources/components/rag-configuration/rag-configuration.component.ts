@@ -18,6 +18,7 @@ import {NaiveRagService} from "../../services/naive-rag.service";
 import {NaiveRagDocumentConfig} from "../../models/rag.model";
 import {ToastService} from "../../../../services/notifications/toast.service";
 import {AppIconComponent} from "../../../../shared/components/app-icon/app-icon.component";
+import {ChunkPreviewComponent} from "../chunk-preview/chunk-preview.component";
 
 @Component({
     selector: 'app-rag-configuration',
@@ -29,6 +30,7 @@ import {AppIconComponent} from "../../../../shared/components/app-icon/app-icon.
         SelectComponent,
         ConfigurationTableComponent,
         AppIconComponent,
+        ChunkPreviewComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
