@@ -104,7 +104,7 @@ export class NodePanelShellComponent {
         if (!n) return '';
         if (n.node_name === '__start__') return 'Start';
         if (n.type === 'end' || n.node_name === '__end_node__') return 'End';
-        return n.node_name;
+        return (n as any).displayName || n.node_name;
     });
 
     public readonly shouldShowExpandButton = computed(() => {

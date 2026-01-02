@@ -106,7 +106,8 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
         const errorNext = findNodeId(decisionTableData.next_error_node, 'error');
 
         const form = this.fb.group({
-            node_name: [node.node_name, this.createNodeNameValidators()],
+            node_name: [node.node_name],
+            displayName: [node.displayName, this.createDisplayValidators()],
             default_next_node: [defaultNext],
             next_error_node: [errorNext],
         });
@@ -158,6 +159,7 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
         return {
             ...currentNode,
             node_name: this.form.value.node_name,
+            displayName: this.form.value.displayName,
             size: updatedSize,
             ports: updatedPorts,
             data: {

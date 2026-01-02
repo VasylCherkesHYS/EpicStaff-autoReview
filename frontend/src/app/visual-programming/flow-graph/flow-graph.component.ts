@@ -209,6 +209,8 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 input_map: {},
                 output_variable_path: null,
                 size: { width: 125, height: 60 },
+                badge: '',
+                displayName: 'Start',
             };
 
             // Add Start node to the flow
@@ -721,6 +723,9 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 };
             }
 
+            const badge = this.flowService.generateBadge();
+            const displayName = NODE_TYPE_PREFIXES[event.type] || 'Node';
+
             const newNode: NodeModel = {
                 id: newNodeId,
                 category: 'web',
@@ -735,6 +740,8 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 input_map: {},
                 output_variable_path: null,
                 size: nodeSize,
+                badge,
+                displayName,
             };
             this.flowService.addNode(newNode);
         }

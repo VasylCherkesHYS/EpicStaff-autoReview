@@ -29,12 +29,12 @@ const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
                     <div class="form-layout" [class.expanded]="isExpanded()" [class.collapsed]="!isExpanded()">
                         <div class="form-fields">
                             <app-custom-input
-                                label="Node Name"
-                                tooltipText="The unique identifier used to reference this Python node. This name must be unique within the flow."
-                                formControlName="node_name"
-                                placeholder="Enter node name"
+                                label="Display Name"
+                                tooltipText="The display name shown on the node in the flow."
+                                formControlName="displayName"
+                                placeholder="Enter display name"
                                 [activeColor]="activeColor"
-                                [errorMessage]="getNodeNameErrorMessage()"
+                                [errorMessage]="getDisplayErrorMessage()"
                             ></app-custom-input>
 
                             <app-custom-input
@@ -310,7 +310,8 @@ export class WebhookTriggerNodePanelComponent extends BaseSidePanel<WebhookTrigg
 
     initializeForm(): FormGroup {
         const form = this.fb.group({
-            node_name: [this.node().node_name, this.createNodeNameValidators()],
+            node_name: [this.node().node_name],
+            displayName: [this.node().displayName, this.createDisplayValidators()],
             libraries: [this.node().data.python_code.libraries?.join(', ') || ''],
             webhookName: [
                 this.extractWebhookName(this.node().data.webhook_trigger_path || ''),
@@ -343,6 +344,7 @@ export class WebhookTriggerNodePanelComponent extends BaseSidePanel<WebhookTrigg
         return {
             ...this.node(),
             node_name: this.form.value.node_name,
+            displayName: this.form.value.displayName,
             input_map: {},
             output_variable_path: null,
             data: {

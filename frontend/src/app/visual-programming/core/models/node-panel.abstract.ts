@@ -71,12 +71,24 @@ export abstract class BaseSidePanel<T extends NodeModel> {
         ];
     }
 
+    protected createDisplayValidators(): any[] {
+        return [Validators.required];
+    }
+
     protected getNodeNameErrorMessage(): string {
         const nodeNameControl = this.form.get('node_name');
         if (nodeNameControl && nodeNameControl.errors) {
             return this.uniqueNameValidator.getValidationErrorMessage(
                 nodeNameControl.errors
             );
+        }
+        return '';
+    }
+
+    protected getDisplayErrorMessage(): string {
+        const displayControl = this.form.get('displayName');
+        if (displayControl && displayControl.errors?.['required']) {
+            return 'Display name is required';
         }
         return '';
     }

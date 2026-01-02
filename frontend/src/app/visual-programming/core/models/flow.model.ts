@@ -7,4 +7,5 @@ export interface FlowModel {
   nodes: NodeModel[];
   connections: ConnectionModel[];
   groups: GroupNodeModel[];
+  nodeCounter?: number; // monotonic badge counter, persisted with flow
 }

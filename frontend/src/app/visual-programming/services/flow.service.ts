@@ -20,6 +20,7 @@ import { generatePortsForDecisionTableNode } from '../core/helpers/helpers';
 import { NodeType } from '../core/enums/node-type';
 import { FDropToGroupEvent } from '@foblex/flow';
 import { GroupNodeModel } from '../core/models/group.model';
+import { NODE_TYPE_PREFIXES } from '../core/enums/node-type-prefixes';
 
 export interface FlattenedPort {
     nodeId: string;
@@ -36,9 +37,13 @@ export class FlowService {
         groups: [],
     });
 
+    // Monotonic counter for badge generation (recalculated on flow load)
+    private nodeCounterSignal = signal<number>(1);
+
     public readonly nodes = computed(() => this.flowSignal().nodes);
     public readonly connections = computed(() => this.flowSignal().connections);
     public readonly groups = computed(() => this.flowSignal().groups);
+    public readonly nodeCounter = computed(() => this.nodeCounterSignal());
 
     public readonly noteNodes = computed(() =>
         this.nodes().filter((node) => node.type === NodeType.NOTE)
@@ -241,12 +246,53 @@ export class FlowService {
 
     constructor() {}
 
-    public getFlowState(): FlowModel {
-        return this.flowSignal();
+    public setFlow(flow: FlowModel) {
+        // Case 1: Got counter from backend - just use it
+        if (flow.nodeCounter !== undefined) {
+            this.flowSignal.set(flow);
+            this.nodeCounterSignal.set(flow.nodeCounter);
+            return;
+        }
+
+        // Case 2: Old flow without badges - migrate
+        const needsMigration = flow.nodes.some(
+            (n) => !(n as any).badge && n.type !== NodeType.GROUP
+        );
+
+        if (needsMigration) {
+            let counter = 1;
+            const migratedNodes = flow.nodes.map((node) => {
+                if (node.type === NodeType.GROUP) return node;
+                const badge = `${counter}`;
+                const displayName = (node as any).displayName || NODE_TYPE_PREFIXES[node.type] || 'Node';
+                counter++;
+                return { ...node, badge, displayName };
+            });
+            this.flowSignal.set({ ...flow, nodes: migratedNodes, nodeCounter: counter });
+            this.nodeCounterSignal.set(counter);
+            return;
+        }
+
+        // Case 3: New empty flow
+        this.flowSignal.set({ ...flow, nodeCounter: 1 });
+        this.nodeCounterSignal.set(1);
     }
 
-    public setFlow(flow: FlowModel) {
-        this.flowSignal.set(flow);
+    public getFlowState(): FlowModel {
+        return {
+            ...this.flowSignal(),
+            nodeCounter: this.nodeCounterSignal(),
+        };
+    }
+
+    public generateBadge(): string {
+        const currentCounter = this.nodeCounterSignal();
+        this.nodeCounterSignal.update((c) => c + 1);
+        return `${currentCounter}`;
+    }
+
+    public generateBadges(count: number): string[] {
+        return Array.from({ length: count }, () => this.generateBadge());
     }
 
     public addGroup(group: GroupNodeModel) {

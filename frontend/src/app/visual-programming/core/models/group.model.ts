@@ -29,4 +29,6 @@ export interface GroupNodeModel {
   icon?: string;
   childPositions?: Map<string, { x: number; y: number }>;
   node_name: string;
+  badge?: string;
+  displayName?: string;
 }

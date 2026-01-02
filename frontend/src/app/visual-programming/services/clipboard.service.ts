@@ -14,6 +14,7 @@ import {
     generatePortsForNode,
 } from '../core/helpers/helpers';
 import { NodeType } from '../core/enums/node-type';
+import { NODE_TYPE_PREFIXES } from '../core/enums/node-type-prefixes';
 import {
     generateNodeDisplayName,
     generateMultipleNodeDisplayNames,
@@ -247,8 +248,10 @@ export class ClipboardService {
             currentNodes
         );
 
-        // DEBUG: Log what we get back
+        const badges = this.flowService.generateBadges(clipboardNodes.length);
+
         console.log('Generated display names:', displayNames);
+        console.log('Generated badges:', badges);
         console.log('=== END CLIPBOARD PASTE DEBUG ===');
 
         // Create new nodes
@@ -274,6 +277,8 @@ export class ClipboardService {
                     (oldNode.parentId && oldToNewIdMap.get(oldNode.parentId)) ||
                     null,
                 node_name: displayNames[index],
+                badge: badges[index],
+                displayName: NODE_TYPE_PREFIXES[oldNode.type] || 'Node',
             };
         });
 

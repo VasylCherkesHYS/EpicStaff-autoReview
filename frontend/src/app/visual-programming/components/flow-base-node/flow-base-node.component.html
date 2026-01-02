@@ -1,10 +1,10 @@
-<!-- Node name wrapper -->
+<!-- Node badge (hover only) -->
 <div
     class="node-name-wrapper"
-    *ngIf="!startNode && !noteNode && !endNode && node.type !== NodeType.TABLE"
+    *ngIf="!startNode && !noteNode && !endNode && node.type !== NodeType.TABLE && node.badge"
 >
     <div class="node-name-label">
-        {{ node.node_name || "Unnamed Node" }}
+        {{ node.badge | nodeBadge:node.type }}
     </div>
 </div>
 
@@ -86,8 +86,8 @@
         <div class="icon-wrapper">
             <i [class]="node.icon" [style.color]="node.color"></i>
         </div>
-        <div class="title" [title]="getNodeTitle()">
-            {{ getNodeTitle() }}
+        <div class="title" [title]="node.displayName || getNodeTitle()">
+            {{ node.displayName || getNodeTitle() }}
         </div>
     </div>
 </div>

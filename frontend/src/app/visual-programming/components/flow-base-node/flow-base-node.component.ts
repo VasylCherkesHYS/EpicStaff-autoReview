@@ -40,6 +40,7 @@ import { NoteNodeComponent } from '../nodes-components/note-node/note-node.compo
 import { getNodeTitle } from '../../core/enums/node-title.util';
 import { ResizeHandleComponent } from '../resize-handle/resize-handle.component';
 import { FlowNodeVariablesOverlayComponent } from './flow-node-variables-overlay.component';
+import { NodeBadgePipe } from '../../core/pipes/node-badge.pipe';
 
 @Component({
     selector: 'app-flow-base-node',
@@ -56,6 +57,7 @@ import { FlowNodeVariablesOverlayComponent } from './flow-node-variables-overlay
         DecisionTableNodeComponent,
         NoteNodeComponent,
         FlowNodeVariablesOverlayComponent,
+        NodeBadgePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {

@@ -28,9 +28,10 @@ export interface BaseNodeModel {
         width: number;
         height: number;
     };
-    // New fields
     input_map: Record<string, any>;
     output_variable_path: string | null;
+    badge: string; // e.g. "1"
+    displayName: string; // user-editable, defaults to node type prefix
 }
 export interface StartNodeData {
     initialState: Record<string, unknown>;

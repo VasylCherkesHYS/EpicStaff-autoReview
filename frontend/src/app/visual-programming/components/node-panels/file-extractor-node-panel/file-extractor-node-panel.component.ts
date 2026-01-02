@@ -28,14 +28,14 @@ interface InputMapPair {
         <div class="panel-container">
             <div class="panel-content">
                 <form [formGroup]="form" class="form-container">
-                    <!-- Node Name Field -->
+                    <!-- Display Name Field -->
                     <app-custom-input
-                        label="Node Name"
-                        tooltipText="The unique identifier used to reference this File Extractor node. This name must be unique within the flow."
-                        formControlName="node_name"
-                        placeholder="Enter node name"
+                        label="Display Name"
+                        tooltipText="The display name shown on the node in the flow."
+                        formControlName="displayName"
+                        placeholder="Enter display name"
                         [activeColor]="activeColor"
-                        [errorMessage]="getNodeNameErrorMessage()"
+                        [errorMessage]="getDisplayErrorMessage()"
                     ></app-custom-input>
 
                     <!-- Input Map Key-Value Pairs -->
@@ -106,7 +106,8 @@ export class FileExtractorNodePanelComponent extends BaseSidePanel<FileExtractor
 
     protected initializeForm(): FormGroup {
         const form = this.fb.group({
-            node_name: [this.node().node_name, this.createNodeNameValidators()],
+            node_name: [this.node().node_name],
+            displayName: [this.node().displayName, this.createDisplayValidators()],
             input_map: this.fb.array([]),
             output_variable_path: [this.node().output_variable_path || ''],
         });
@@ -123,6 +124,7 @@ export class FileExtractorNodePanelComponent extends BaseSidePanel<FileExtractor
         return {
             ...this.node(),
             node_name: this.form.value.node_name,
+            displayName: this.form.value.displayName,
             input_map: inputMapValue,
             output_variable_path: this.form.value.output_variable_path || null,
         };
