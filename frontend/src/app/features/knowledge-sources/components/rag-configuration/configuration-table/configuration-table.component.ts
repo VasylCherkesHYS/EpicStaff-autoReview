@@ -33,28 +33,7 @@ import {Dialog} from "@angular/cdk/dialog";
 import {
     EditFileParametersDialogComponent
 } from "../../edit-file-parameters-dialog/edit-file-parameters-dialog.component";
-
-interface TableDocument extends NaiveRagDocumentConfig {
-    checked: boolean;
-}
-
-type DocFieldChange = {
-    documentId: number;
-    documentName: string;
-    field: keyof TableDocument;
-    value: any;
-};
-
-type SortState = {
-    column: 'chunk_size' | 'chunk_overlap';
-    dir: 'asc' | 'desc';
-} | null;
-
-type FieldUpdateStatus = 'idle' | 'pending' | 'success' | 'error';
-
-type DocumentUpdateStatus = {
-    [K in keyof TableDocument]: FieldUpdateStatus;
-};
+import {DocFieldChange, DocumentUpdateStatus, FieldUpdateStatus, SortState, TableDocument} from "./interfaces";
 
 @Component({
     selector: 'app-configuration-table',
