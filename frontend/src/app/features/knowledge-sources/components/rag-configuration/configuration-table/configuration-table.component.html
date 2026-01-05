@@ -19,7 +19,7 @@
                 label="FILES"
                 searchPlaceholder="Search headers..."
                 [items]="fileTypeSelectItems"
-                (selectionChange)="filesFilter.set($event)"
+                (selectionChange)="fileTypesFilter.set($event)"
             />
         </div>
 
@@ -182,7 +182,7 @@
                             class="table__col-btn"
                             type="outline-secondary"
                             mod="small"
-                            (click)="tuneChunk(d.naive_rag_document_id)"
+                            (click)="tuneChunk(d.naive_rag_document_id, i)"
                         >
                             Tune Chunks
                         </app-button>

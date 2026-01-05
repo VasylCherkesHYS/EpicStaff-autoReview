@@ -1,7 +1,7 @@
 import {
     Component,
     ChangeDetectionStrategy,
-    input, output, model, signal,
+    input, output, model, signal, computed,
 } from '@angular/core';
 import {FormsModule} from "@angular/forms";
 import {NgClass} from "@angular/common";
@@ -23,6 +23,11 @@ export class InputComponent {
     invalid = input<boolean>(false);
     value = model<string | number | null>(null);
     changed = output<string | number | null>();
+    showStepsOn = input<'hover' | 'always'>('hover');
+    showSteps = computed(() =>
+        this.type() === 'number' &&
+        (this.showStepsOn() === 'always' || this.hovered())
+    );
 
     hovered = signal<boolean>(false);
 

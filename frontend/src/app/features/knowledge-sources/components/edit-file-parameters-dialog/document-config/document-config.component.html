@@ -1,0 +1,178 @@
+<div class="config">
+
+    <div class="config__grid">
+        <!--Chunk Strategy-->
+        <div class="config__grid-item">
+            <label>Chunk Strategy</label>
+            <mat-icon
+                class="config__tooltip"
+                matTooltip="Choose how to split your document into chunks. Different strategies work better for different document types."
+                matTooltipPosition="above"
+                matTooltipClass="dialog__label-tooltip"
+            >
+                help_outline
+            </mat-icon>
+        </div>
+        <div class="config__grid-item config__grid-item--short">
+            <app-select
+                [selectedValue]="selectedStrategy()"
+                [items]="chunkStrategySelectItems"
+                (changed)="selectedStrategy.set($event)"
+            />
+        </div>
+
+        <!--Chunk Size-->
+        <div class="config__grid-item">
+            <label>Chunk Size</label>
+            <mat-icon
+                class="config__tooltip"
+                matTooltip="The maximum size of each document chunk. Smaller chunks are more precise but may lose context. Larger chunks preserve more context but may be less precise."
+                matTooltipPosition="above"
+                matTooltipClass="dialog__label-tooltip"
+            >
+                help_outline
+            </mat-icon>
+        </div>
+        <div class="config__grid-item config__grid-item--short">
+            <app-input
+                showStepsOn="always"
+                type="number"
+            />
+        </div>
+
+        <!--Chunk Overlap-->
+        <div class="config__grid-item">
+            <label>Chunk Overlap</label>
+            <mat-icon
+                class="config__tooltip"
+                matTooltip="The number of characters or tokens that overlap between chunks. Helps maintain context between chunks. Must be smaller than chunk size. "
+                matTooltipPosition="above"
+                matTooltipClass="dialog__label-tooltip"
+            >
+                help_outline
+            </mat-icon>
+        </div>
+        <div class="config__grid-item config__grid-item--short">
+            <app-input
+                showStepsOn="always"
+                type="number"
+            />
+        </div>
+    </div>
+
+    <div class="config__additional">
+        <h4 class="config__additional-title">
+            Additional parameters
+        </h4>
+
+        <div class="config__grid">
+            @switch (selectedStrategy()) {
+                @case ('markdown') {
+                    <div class="config__grid-item">
+                        <label>Headers to Split On</label>
+                        <mat-icon
+                            class="config__tooltip"
+                            matTooltip="Tooltip"
+                            matTooltipPosition="above"
+                            matTooltipClass="dialog__label-tooltip"
+                        >
+                            help_outline
+                        </mat-icon>
+                    </div>
+                    <div class="config__grid-item">
+                        <app-chips-input
+                            [chips]="headerItems"
+                            (selectionChange)="selectedHeaders.set($event)"
+                        />
+                    </div>
+                    <div class="config__grid-item">
+                        <label>Return Each Line</label>
+                        <mat-icon
+                            class="config__tooltip"
+                            matTooltip="Tooltip"
+                            matTooltipPosition="above"
+                            matTooltipClass="dialog__label-tooltip"
+                        >
+                            help_outline
+                        </mat-icon>
+                    </div>
+                    <div class="config__grid-item">
+                        <app-toggle-switch
+                            [checked]="true"
+                            [rounded]="false"
+                            (checkedChange)="onToggle($event)"
+                        ></app-toggle-switch>
+                    </div>
+                    <div class="config__grid-item">
+                        <label>Strip Headers</label>
+                        <mat-icon
+                            class="config__tooltip"
+                            matTooltip="Tooltip"
+                            matTooltipPosition="above"
+                            matTooltipClass="dialog__label-tooltip"
+                        >
+                            help_outline
+                        </mat-icon>
+                    </div>
+                    <div class="config__grid-item">
+                        <app-toggle-switch
+                            [checked]="false"
+                            [rounded]="false"
+                            (checkedChange)="onToggle($event)"
+                        ></app-toggle-switch>
+                    </div>
+                }
+
+                @case('character') {
+                    <div class="config__grid-item">
+                        <label>Regex</label>
+                        <mat-icon
+                            class="config__tooltip"
+                            matTooltip="Tooltip"
+                            matTooltipPosition="above"
+                            matTooltipClass="dialog__label-tooltip"
+                        >
+                            help_outline
+                        </mat-icon>
+                    </div>
+                    <div class="config__grid-item">
+                        <app-input
+                            type="text"
+                            placeholder="Enter tag (e.g. ( ? : \r \n | \n ) { 2, } )"
+                        />
+                    </div>
+                }
+
+                @case('csv') {
+
+                }
+
+                @case('html') {
+
+                }
+
+                @case('token') {
+
+                }
+
+                @case('json') {
+
+                }
+            }
+        </div>
+    </div>
+
+    <div class="config__json-preview-container">
+        <app-json-editor
+            class="config__json-preview"
+            [jsonData]="jsonConfig()"
+            [title]="'JSON'"
+            [allowCopy]="true"
+            [collapsible]="true"
+            (jsonChange)="jsonConfig.set($event)"
+            (validationChange)="onJsonValidChange($event)"
+            [fullHeight]="true"
+        ></app-json-editor>
+    </div>
+
+</div>

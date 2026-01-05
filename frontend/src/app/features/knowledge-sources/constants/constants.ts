@@ -1,4 +1,5 @@
 import {RagName, RagTypeLevel, Rag} from "../models/rag.model";
+import {SelectItem} from "../../../shared/components/select/select.component";
 
 export const FILE_TYPES = ['pdf', 'csv', 'docx', 'txt', 'json', 'html'] as const;
 
@@ -12,6 +13,7 @@ export const MIME_TYPES: Record<string, (typeof FILE_TYPES)[number]> = {
 };
 
 export const CHUNK_STRATEGIES = ['character', 'csv', 'markdown', 'HTML', 'token', 'JSON'];
+export const CHUNK_STRATEGIES_SELECT_ITEMS: SelectItem[] = CHUNK_STRATEGIES.map(t => ({name: t, value: t.toLowerCase()}));
 
 export const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10 MB
 

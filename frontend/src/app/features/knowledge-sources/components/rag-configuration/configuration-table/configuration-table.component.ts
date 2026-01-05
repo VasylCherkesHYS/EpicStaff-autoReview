@@ -17,7 +17,7 @@ import {
     MultiSelectComponent,
     MultiSelectItem
 } from "../../../../../shared/components/multi-select/multi-select.component";
-import {CHUNK_STRATEGIES, FILE_TYPES} from "../../../constants/constants";
+import { CHUNK_STRATEGIES_SELECT_ITEMS, FILE_TYPES} from "../../../constants/constants";
 import {
     BulkUpdateNaiveRagDocumentDtoRequest,
     NaiveRagDocumentConfig,
@@ -29,6 +29,10 @@ import {catchError, debounceTime, switchMap, tap} from "rxjs/operators";
 import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
 import {ToastService} from "../../../../../services/notifications/toast.service";
 import {HttpErrorResponse} from "@angular/common/http";
+import {Dialog} from "@angular/cdk/dialog";
+import {
+    EditFileParametersDialogComponent
+} from "../../edit-file-parameters-dialog/edit-file-parameters-dialog.component";
 
 interface TableDocument extends NaiveRagDocumentConfig {
     checked: boolean;
@@ -68,22 +72,23 @@ type DocumentUpdateStatus = {
 })
 export class ConfigurationTableComponent implements OnInit {
     fileTypeSelectItems: MultiSelectItem[] = FILE_TYPES.map(t => ({name: t, value: t}));
-    chunkStrategySelectItems: MultiSelectItem[] = CHUNK_STRATEGIES.map(t => ({name: t, value: t.toLowerCase()}));
 
     private naiveRagService = inject(NaiveRagService);
     private destroyRef = inject(DestroyRef);
+    private dialog = inject(Dialog);
     private toastService = inject(ToastService);
     private docFieldChange$ = new Subject<DocFieldChange>();
 
     ragId = input.required<number>();
     bulkEditing = input<boolean>(false);
     documents = input<NaiveRagDocumentConfig[]>([]);
-    tableDocuments = computed<TableDocument[]>(() => {
-        return this.documents().map(d => ({...d, checked: false}))
-    });
 
-    allChecked = computed(() => this.filteredAndSorted().every(r => r.checked));
-    checkedCount = computed(() => this.filteredAndSorted().filter(r => r.checked).length);
+    allChecked = computed(() => this.filteredAndSorted()
+        .every(r => r.checked)
+    );
+    checkedCount = computed(() => this.filteredAndSorted()
+        .filter(r => r.checked).length
+    );
     indeterminate = computed(() => !!this.checkedCount() && !this.allChecked());
     checkedCountChange = output<number>();
 
@@ -94,15 +99,15 @@ export class ConfigurationTableComponent implements OnInit {
     bulkChunkOverlap = signal<number | null>(null);
     bulkAction = input<'edit' | 'delete' | null>(null);
 
-    filesFilter = signal<any[]>([]);
+    fileTypesFilter = signal<any[]>([]);
     chunkStrategyFilter = signal<any[]>([]);
     sort = signal<SortState>(null);
     fieldUpdateStatus = signal<Record<number, DocumentUpdateStatus>>({});
 
     filteredAndSorted = linkedSignal<TableDocument[]>(() => {
-        let data = this.tableDocuments();
+        let data = this.documents().map(d => ({...d, checked: false}));
 
-        data = this.applyFileNameFilter(data);
+        data = this.applyFileTypeFilter(data);
         data = this.applyChunkStrategyFilter(data);
         data = this.sortDocuments(data);
 
@@ -238,8 +243,8 @@ export class ConfigurationTableComponent implements OnInit {
         });
     }
 
-    private applyFileNameFilter(data: TableDocument[]): TableDocument[] {
-        const filesFilter = this.filesFilter();
+    private applyFileTypeFilter(data: TableDocument[]): TableDocument[] {
+        const filesFilter = this.fileTypesFilter();
         if (!filesFilter.length) return data;
 
         return data.filter(d => filesFilter.includes(d.file_name));
@@ -325,7 +330,20 @@ export class ConfigurationTableComponent implements OnInit {
         };
     }
 
-    tuneChunk(row: any) {
-        console.log('open modal', row);
+    tuneChunk(id: number, index: number) {
+        const documentIds = this.filteredAndSorted().map(d => d.document_id);
+
+        this.dialog.open(EditFileParametersDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            data: {
+                currentId: id,
+                currentIndex: index,
+                allDocuments: documentIds
+            },
+            disableClose: true
+        });
     }
+
+    protected readonly chunkStrategySelectItems = CHUNK_STRATEGIES_SELECT_ITEMS;
 }

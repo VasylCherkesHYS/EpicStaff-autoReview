@@ -24,6 +24,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 })
 export class ToggleSwitchComponent implements ControlValueAccessor {
   @Input() checked = false;
+  @Input() rounded: boolean = false;
   @Output() checkedChange = new EventEmitter<boolean>();
 
   private onChange = (_: any) => {};

@@ -4,7 +4,7 @@
     (mouseenter)="hovered.set(true)"
     (mouseleave)="hovered.set(false)"
 >
-    @if (type() === 'number' && hovered()) {
+    @if (showSteps()) {
         <button
             type="button"
             class="input__step input__step--minus"
@@ -24,7 +24,7 @@
         (ngModelChange)="onInputChange($event)"
     />
 
-    @if (type() === 'number' && hovered()) {
+    @if (showSteps()) {
         <button
             type="button"
             class="input__step input__step--plus"
