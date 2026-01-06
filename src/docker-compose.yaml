@@ -355,5 +355,3 @@ networks:
   mcp-network:
     driver: bridge
     external: true
-  
-    driver: bridge
