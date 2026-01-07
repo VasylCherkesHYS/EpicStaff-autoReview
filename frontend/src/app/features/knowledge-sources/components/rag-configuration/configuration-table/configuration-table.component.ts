@@ -8,14 +8,13 @@ import {
     OnInit, output,
     signal
 } from "@angular/core";
-import {SelectComponent} from "../../../../../shared/components/select/select.component";
+import {SelectComponent, SelectItem} from "../../../../../shared/components/select/select.component";
 import {AppIconComponent} from "../../../../../shared/components/app-icon/app-icon.component";
 import {ButtonComponent} from "../../../../../shared/components/buttons/button/button.component";
 import {InputComponent} from "../../../../../shared/components/app-input/input.component";
 import {CheckboxComponent} from "../../../../../shared/components/checkbox/checkbox.component";
 import {
     MultiSelectComponent,
-    MultiSelectItem
 } from "../../../../../shared/components/multi-select/multi-select.component";
 import {CHUNK_STRATEGIES, FILE_TYPES} from "../../../constants/constants";
 import {
@@ -67,8 +66,8 @@ type DocumentUpdateStatus = {
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ConfigurationTableComponent implements OnInit {
-    fileTypeSelectItems: MultiSelectItem[] = FILE_TYPES.map(t => ({name: t, value: t}));
-    chunkStrategySelectItems: MultiSelectItem[] = CHUNK_STRATEGIES.map(t => ({name: t, value: t.toLowerCase()}));
+    fileTypeSelectItems: SelectItem[] = FILE_TYPES.map(t => ({name: t, value: t}));
+    chunkStrategySelectItems: SelectItem[] = CHUNK_STRATEGIES.map(t => ({name: t, value: t.toLowerCase()}));
 
     private naiveRagService = inject(NaiveRagService);
     private destroyRef = inject(DestroyRef);

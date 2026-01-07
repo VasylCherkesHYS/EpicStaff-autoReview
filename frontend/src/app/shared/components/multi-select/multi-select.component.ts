@@ -7,7 +7,7 @@ import {
     ViewContainerRef,
     signal,
     input,
-    output, inject
+    output, inject, computed, OnInit
 } from '@angular/core';
 import {TemplatePortal} from '@angular/cdk/portal';
 
@@ -15,10 +15,11 @@ import {AppIconComponent} from "../app-icon/app-icon.component";
 import {CheckboxComponent} from "../checkbox/checkbox.component";
 import {ButtonComponent} from "../buttons/button/button.component";
 import {Overlay, OverlayPositionBuilder, OverlayRef} from "@angular/cdk/overlay";
+import {SelectItem} from "../select/select.component";
 
-export interface MultiSelectItem {
-    name: string;
-    value: unknown;
+interface GroupedItems {
+    group: string | null;
+    items: SelectItem[];
 }
 
 @Component({
@@ -33,17 +34,55 @@ export interface MultiSelectItem {
     styleUrls: ['./multi-select.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class MultiSelectComponent {
+export class MultiSelectComponent implements OnInit {
     icon = input<string>('');
     label = input<string>('Select items...');
     searchPlaceholder = input<string>('Search...');
-    items = input<MultiSelectItem[]>([]);
+    items = input<SelectItem[]>([]);
     selectedValues = input<unknown[]>([]);
     selectionChange = output<unknown[]>();
+
+    grouped = input<boolean>(false);
 
     isOpen = signal(false);
     search = signal('');
     tempSelected = signal<any[]>([]);
+
+    groupedFiltered = computed<GroupedItems[]>(() => {
+        const search = this.search().toLowerCase();
+
+        const filteredItems = this.items().filter(i =>
+            i.name.toLowerCase().includes(search)
+        );
+
+        // Grouping disabled
+        if (!this.grouped()) {
+            return [
+                {
+                    group: null,
+                    items: filteredItems
+                }
+            ];
+        }
+
+        // Grouping enabled
+        const map = new Map<string, SelectItem[]>();
+
+        for (const item of filteredItems) {
+            const group = item.group ?? 'Other';
+
+            if (!map.has(group)) {
+                map.set(group, []);
+            }
+
+            map.get(group)!.push(item);
+        }
+
+        return Array.from(map.entries()).map(([group, items]) => ({
+            group,
+            items
+        }));
+    });
 
     @ViewChild('triggerBtn') triggerBtn!: ElementRef<HTMLElement>;
     @ViewChild('dropdownTemplate') dropdownTemplate!: any;
@@ -119,12 +158,6 @@ export class MultiSelectComponent {
         if (i >= 0) arr.splice(i, 1);
         else arr.push(value);
         this.tempSelected.set(arr);
-    }
-
-    filtered() {
-        return this.items().filter(i =>
-            i.name.toLowerCase().includes(this.search().toLowerCase())
-        );
     }
 
     cancel() {

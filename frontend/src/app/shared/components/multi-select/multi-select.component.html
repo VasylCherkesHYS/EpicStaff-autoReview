@@ -18,19 +18,34 @@
         />
 
         <div class="multi-select__list">
-            @for (item of filtered(); track item.name) {
-                <div
-                    class="multi-select__item"
-                    [class.multi-select__item--selected]="isChecked(item.value)"
-                    (click)="toggleValue(item.value)"
-                >
-                    <span>{{ item.name }}</span>
-                    <app-checkbox
-                        mod="multiselect"
-                        class="some"
-                        [checked]="isChecked(item.value)"
-                    />
-                </div>
+            @for (group of groupedFiltered(); track group.group ?? 'default') {
+
+                @if (group.group) {
+                    <label class="multi-select__group-label">
+                        {{ group.group }}
+                    </label>
+                }
+
+                @for (item of group.items; track item.name) {
+                    <div
+                        class="multi-select__item"
+                        [class.multi-select__item--selected]="isChecked(item.value)"
+                        (click)="toggleValue(item.value)"
+                    >
+                        <span>
+                            {{ item.name }}
+                            @if (item.tip) {
+                                <span class="multi-select__item-tip">
+                                    {{item.tip}}
+                                </span>
+                            }
+                        </span>
+                        <app-checkbox
+                            mod="multiselect"
+                            [checked]="isChecked(item.value)"
+                        />
+                    </div>
+                }
             }
         </div>
 

@@ -15,7 +15,9 @@ import {Overlay, OverlayPositionBuilder, OverlayRef} from "@angular/cdk/overlay"
 
 export interface SelectItem {
     name: string;
+    tip?: string;
     value: unknown;
+    group?: string;
 }
 
 @Component({
