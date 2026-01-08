@@ -4,15 +4,19 @@ import time
 from uuid import uuid4
 from typing import Dict, Any, Optional
 from loguru import logger
+from typing import Optional
+from langgraph.types import StreamWriter
+from models.graph_models import GraphMessage
 
 from services.graph.events import StopEvent
 from utils.singleton_meta import SingletonMeta
 from services.redis_service import RedisService, SyncPubsubSubscriber
 from models.request_models import (
-    BaseKnowledgeSearchMessage,
     RagSearchConfig,
     NaiveRagSearchConfig,
     GraphRagSearchConfig,
+    BaseKnowledgeSearchMessage,
+    BaseKnowledgeSearchMessageResponse,
 )
 
 
@@ -57,13 +61,28 @@ class RagSearchConfigFactory:
         return builder(config_dict)
 
 
-class KnowledgeSearchService(metaclass=SingletonMeta):
+class KnowledgeSearchService:
     """
     Service for searching knowledge using different RAG implementations.
     """
 
-    def __init__(self, redis_service: RedisService):
+    def __init__(
+        self,
+        redis_service: RedisService,
+        session_id: int | None = None,
+        node_name: str | None = None,
+        execution_order: int | None = None,
+        crew_id: int | None = None,
+        agent_id: int | None = None,
+        stream_writer: Optional["StreamWriter"] = None,
+    ):
         self.redis_service = redis_service
+        self.session_id = session_id
+        self.node_name = node_name
+        self.crew_id = crew_id
+        self.agent_id = agent_id
+        self.execution_order = execution_order
+        self.writer = stream_writer
 
     def search_knowledges(
         self,
@@ -134,7 +153,12 @@ class KnowledgeSearchService(metaclass=SingletonMeta):
                     channel=knowledge_search_response_channel,
                     subscriber=subscriber,
                 )
-                return knowledge_callback_receiver.results["results"]
+
+                if self.writer is not None:
+                    self._add_knowledges_to_graph_message(
+                        knowledge_results=knowledge_callback_receiver.results,
+                    )
+                return knowledge_callback_receiver.results.results
 
             if stop_event is not None:
                 stop_event.check_stop()
@@ -172,6 +196,29 @@ class KnowledgeSearchService(metaclass=SingletonMeta):
                 f"Expected format: 'rag_type:id' (e.g., 'naive:6')"
             ) from e
 
+    def _add_knowledges_to_graph_message(
+        self,
+        knowledge_results: BaseKnowledgeSearchMessageResponse,
+    ):
+        chunks_data_list = [chunk.model_dump() for chunk in knowledge_results.chunks]
+        knowledge_results_data = {
+            "message_type": "extracted_chunks",
+            "crew_id": self.crew_id,
+            "agent_id": self.agent_id,
+            "collection_id": knowledge_results.collection_id,
+            "retrieved_chunks": knowledge_results.retrieved_chunks,
+            "knowledge_query": knowledge_results.query,
+            "rag_search_config": knowledge_results.rag_search_config.model_dump(),
+            "chunks": chunks_data_list,
+        }
+        graph_message = GraphMessage(
+            session_id=self.session_id,
+            name=self.node_name,
+            execution_order=self.execution_order,
+            message_data=knowledge_results_data,
+        )
+        self.writer(graph_message)
+
 
 class KnowledgeSearchReceiver:
     """
@@ -195,9 +242,10 @@ class KnowledgeSearchReceiver:
         """
         try:
             data: dict = json.loads(message["data"])
-            if data.get("uuid") == self.execution_uuid:
+            validated_results = BaseKnowledgeSearchMessageResponse.model_validate(data)
+            if validated_results.uuid == self.execution_uuid:
                 logger.info(f"Search results received for UUID: {self.execution_uuid}")
-                self._results = data
-                logger.debug(f"Results: {self._results.get('results', [])}")
+                self._results = validated_results
+                logger.debug(f"Results: {self._results.results}")
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"Error parsing search results: {e}")

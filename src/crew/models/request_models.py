@@ -3,7 +3,6 @@ from typing import Annotated, Any, List, Literal, Optional, Union
 from pydantic import AnyUrl, BaseModel, Field, HttpUrl, model_validator
 
 
-
 class LLMConfigData(BaseModel):
     model: str
     timeout: float | int | None = None
@@ -128,7 +127,6 @@ class RunToolParamsModel(BaseModel):
     run_kwargs: dict[str, Any]
 
 
-
 # RAG Search Configuration Models
 class BaseRagSearchConfig(BaseModel):
     """Base class for RAG-specific search parameters."""
@@ -158,18 +156,41 @@ RagSearchConfig = Annotated[
 
 
 class BaseKnowledgeSearchMessage(BaseModel):
-      """
-      Base message for searching in a RAG implementation.
+    """
+    Base message for searching in a RAG implementation.
 
-      Uses discriminated union for rag_search_config to automatically
-      handle different RAG types (naive, graph, etc.) during serialization.
-      """
-      collection_id: int
-      rag_id: int  # ID of specific RAG implementation (naive_rag_id, graph_rag_id, etc.)
-      rag_type: str  # Type of RAG ("naive", "graph", etc.)
-      uuid: str
-      query: str
-      rag_search_config: RagSearchConfig  # Discriminated union automatically handles subtypes
+    Uses discriminated union for rag_search_config to automatically
+    handle different RAG types (naive, graph, etc.) during serialization.
+    """
+
+    collection_id: int
+    rag_id: int  # ID of specific RAG implementation (naive_rag_id, graph_rag_id, etc.)
+    rag_type: str  # Type of RAG ("naive", "graph", etc.)
+    uuid: str
+    query: str
+    rag_search_config: (
+        RagSearchConfig  # Discriminated union automatically handles subtypes
+    )
+
+
+class KnowledgeChunkResponse(BaseModel):
+    chunk_order: int
+    chunk_similarity: float
+    chunk_text: str
+    chunk_source: str = ""
+
+
+class BaseKnowledgeSearchMessageResponse(BaseModel):
+    rag_id: int  # ID of specific RAG implementation (naive_rag_id, graph_rag_id, etc.)
+    rag_type: str
+    collection_id: int
+    uuid: str
+    retrieved_chunks: int
+    query: str
+    chunks: List[KnowledgeChunkResponse]
+    rag_search_config: RagSearchConfig
+    # Support backwards compatibility
+    results: List[str] = []  # deprecated, use chunks instead
 
 
 class AgentData(BaseModel):
@@ -192,6 +213,7 @@ class AgentData(BaseModel):
     knowledge_collection_id: int | None
     rag_type_id: str | None = None
     rag_search_config: RagSearchConfig | None = None
+
 
 class RealtimeAgentData(BaseModel):
     role: str
@@ -346,6 +368,11 @@ class ConditionalEdgeData(BaseModel):
     input_map: dict[str, Any]
 
 
+class WebhookTriggerNodeData(BaseModel):
+    node_name: str
+    python_code: PythonCodeData
+
+
 class GraphData(BaseModel):
     name: str
     crew_node_list: list[CrewNodeData] = []
@@ -365,7 +392,6 @@ class GraphSessionMessageData(BaseModel):
     execution_order: int
     timestamp: str
     message_data: dict
-
 
 
 class StopSessionMessage(BaseModel):

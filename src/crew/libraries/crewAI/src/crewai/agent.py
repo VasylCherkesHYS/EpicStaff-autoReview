@@ -10,6 +10,7 @@ from crewai.agents.crew_agent_executor import (
     CrewAgentExecutor,
     KNOWLEDGE_KEYWORD,
     END_OF_KNOWLEDGE_KEYWORD,
+    EMPTY_KNOWLEDGE_KEYWORD,
 )
 from crewai.llm import LLM
 from crewai.memory.contextual.contextual_memory import ContextualMemory
@@ -249,7 +250,7 @@ class Agent(BaseAgent):
 
         agent_knowledge_snippet = ""
 
-        if self.knowledge_collection_id and self.rag_type_id:
+        if self.rag_type_id:
             source = f"Agent {self.role}'s"
             knowledge_query = self._get_knowledge_query(task, context, source=source)
             agent_knowledges = self.search_knowledges(
@@ -266,9 +267,11 @@ class Agent(BaseAgent):
                 else ""
             )
 
-
         if agent_knowledge_snippet:
             task_prompt += f"\n{END_OF_KNOWLEDGE_KEYWORD}"
+
+        if not agent_knowledge_snippet:
+            task_prompt += f"\n{EMPTY_KNOWLEDGE_KEYWORD}\n"
 
         tools = tools or self.tools or []
         self.create_agent_executor(tools=tools, task=task)

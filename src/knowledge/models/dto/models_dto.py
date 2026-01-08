@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
+
 class ProviderDTO(BaseModel):
     id: int
     name: str
