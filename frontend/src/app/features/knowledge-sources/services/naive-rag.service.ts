@@ -3,10 +3,10 @@ import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ConfigService} from "../../../services/config/config.service";
 import {Observable} from "rxjs";
 import {
-    BulkDeleteNaiveRagDocumentDtoRequest,
-    BulkUpdateNaiveRagDocumentDtoRequest,
+    BulkDeleteNaiveRagDocumentDtoRequest, BulkDeleteNaiveRagDocumentDtoResponse,
+    BulkUpdateNaiveRagDocumentDtoRequest, BulkUpdateNaiveRagDocumentDtoResponse,
     CreateRagForCollectionResponse, GetNaiveRagDocumentConfigsResponse,
-    InitNaiveRagDocumentResponse, StartIndexingDtoRequest, StartIndexingDtoResponse,
+    StartIndexingDtoRequest, StartIndexingDtoResponse,
     UpdateNaiveRagDocumentDtoRequest, UpdateNaiveRagDocumentResponse,
 } from "../models/rag.model";
 
@@ -31,7 +31,10 @@ export class NaiveRagService {
     ): Observable<CreateRagForCollectionResponse> {
         const body = {embedder_id: embedderId};
 
-        return this.http.post<CreateRagForCollectionResponse>(`${this.apiUrl}collections/${collectionId}/naive-rag/`, body)
+        return this.http.post<CreateRagForCollectionResponse>(
+            `${this.apiUrl}collections/${collectionId}/naive-rag/`,
+            body
+        )
     }
 
     getDocumentConfigs(naiveRagId: number): Observable<GetNaiveRagDocumentConfigsResponse> {
@@ -43,21 +46,30 @@ export class NaiveRagService {
         documentId: number,
         dto: UpdateNaiveRagDocumentDtoRequest
     ): Observable<UpdateNaiveRagDocumentResponse> {
-        return this.http.put<UpdateNaiveRagDocumentResponse>(`${this.apiUrl}${ragId}/document-configs/${documentId}/`, dto);
+        return this.http.put<UpdateNaiveRagDocumentResponse>(
+            `${this.apiUrl}${ragId}/document-configs/${documentId}/`,
+            dto
+        );
     }
 
     bulkUpdateDocumentConfigs(
         ragId: number,
         dto: BulkUpdateNaiveRagDocumentDtoRequest
-    ): Observable<BulkUpdateNaiveRagDocumentDtoRequest> {
-        return this.http.put<BulkUpdateNaiveRagDocumentDtoRequest>(`${this.apiUrl}${ragId}/document-configs/bulk-update/`, dto);
+    ): Observable<BulkUpdateNaiveRagDocumentDtoResponse> {
+        return this.http.put<BulkUpdateNaiveRagDocumentDtoResponse>(
+            `${this.apiUrl}${ragId}/document-configs/bulk-update/`,
+            dto
+        );
     }
 
     bulkDeleteDocumentConfigs(
         ragId: number,
         dto: BulkDeleteNaiveRagDocumentDtoRequest
-    ): Observable<BulkUpdateNaiveRagDocumentDtoRequest> {
-        return this.http.post<BulkDeleteNaiveRagDocumentDtoRequest>(`${this.apiUrl}${ragId}/document-configs/bulk-delete/`, dto);
+    ): Observable<BulkDeleteNaiveRagDocumentDtoResponse> {
+        return this.http.post<BulkDeleteNaiveRagDocumentDtoResponse>(
+            `${this.apiUrl}${ragId}/document-configs/bulk-delete/`,
+            dto
+        );
     }
 
     startIndexing(dto: StartIndexingDtoRequest): Observable<StartIndexingDtoResponse> {

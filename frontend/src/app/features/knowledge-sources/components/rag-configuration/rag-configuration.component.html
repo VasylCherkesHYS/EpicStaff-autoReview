@@ -8,7 +8,7 @@
             />
 
             <div class="configure__bulk-select">
-                @if (allowBulkEdit() && checkedCount() > 1) {
+                @if (allowBulkEdit() && checkedCount()) {
                     <app-select
                         placeholder="Manage"
                         [items]="bulkActionItems"

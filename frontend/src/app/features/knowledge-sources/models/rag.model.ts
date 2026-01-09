@@ -25,6 +25,7 @@ export type Rag = {
         icon: string;
         level: RagTypeLevel;
         stars: number;
+        disabled?: boolean;
     }
 }[RagName];
 
@@ -104,8 +105,31 @@ export interface BulkUpdateNaiveRagDocumentDtoRequest extends UpdateNaiveRagDocu
     config_ids: number[];
 }
 
+export interface UpdateNaiveRagDocumentConfigError {
+    field: keyof NaiveRagDocumentConfig;
+    value: string | number;
+    reason: string;
+}
+
+interface UpdatedNaiveRagDocumentConfig extends NaiveRagDocumentConfig {
+    errors: UpdateNaiveRagDocumentConfigError[];
+}
+
+export interface BulkUpdateNaiveRagDocumentDtoResponse {
+    configs: UpdatedNaiveRagDocumentConfig[];
+    failed_count: number;
+    message: string;
+    updated_count: number;
+}
+
 export interface BulkDeleteNaiveRagDocumentDtoRequest {
     config_ids: number[];
+}
+
+export interface BulkDeleteNaiveRagDocumentDtoResponse {
+    deleted_config_ids: number[];
+    deleted_count: number;
+    message: string;
 }
 
 export interface UpdateNaiveRagDocumentResponse {

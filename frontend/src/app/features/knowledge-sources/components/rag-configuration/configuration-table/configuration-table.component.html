@@ -61,7 +61,7 @@
     </div>
 
     <!-- BULK EDIT ROW  -->
-    @if (bulkEditing() && checkedCount() > 1) {
+    @if (bulkEditing() && checkedDocumentIds().length) {
         <div class="table__row table__bulk-row">
             <div class="table__col"></div>
             <div class="table__col">For selected:</div>
@@ -99,6 +99,7 @@
                     class="table__col-btn"
                     type="outline-primary"
                     mod="small"
+                    [disabled]="!bulkAction()"
                     (click)="bulkApply()"
                 >
                     Apply
@@ -111,83 +112,92 @@
     <div class="table__files-wrapper">
         <ol class="table__rows">
             @for (d of filteredAndSorted(); track d.naive_rag_document_id; let odd = $odd; let i = $index) {
-                <li
-                    class="table__row"
-                    [class.table__row--dark]="odd"
-                    [class.table__row--selected]="d.document_id === selectedDocumentId()"
+                <div
+                    class="table__row-wrapper"
+                    [class.table__row-wrapper--dark]="odd"
+                    [class.table__row-wrapper--selected]="d.document_id === selectedDocumentId()"
                 >
-                    <!-- checkbox -->
-                    <div class="table__col">
-                        <app-checkbox
-                            [checked]="d.checked"
-                            (changed)="toggleDocument(d)"
-                        />
-                    </div>
-
-                    <!-- filename -->
-                    <div
-                        class="table__col table__col-file"
-                        (click)="selectedDocumentId.set(d.document_id)"
+                    <li
+                        class="table__row"
                     >
-                        <span>{{ i + 1 }}</span>
-                        <app-icon
-                            class="table__file-icon"
-                            icon="ui/document"
-                            size="0.75rem"
-                        />
-                        <span class="table__file-name">
+                        <!-- checkbox -->
+                        <div class="table__col">
+                            <app-checkbox
+                                [checked]="d.checked"
+                                (changed)="toggleDocument(d)"
+                            />
+                        </div>
+
+                        <!-- filename -->
+                        <div
+                            class="table__col table__col-file"
+                            (click)="selectedDocumentId.set(d.document_id)"
+                        >
+                            <span>{{ i + 1 }}</span>
+                            <app-icon
+                                class="table__file-icon"
+                                icon="ui/document"
+                                size="0.75rem"
+                            />
+                            <span class="table__file-name">
                             {{ parseFullFileName(d.file_name).name }}
                         </span>
-                        <span>
+                            <span>
                             {{ parseFullFileName(d.file_name).type }}
                         </span>
-                    </div>
+                        </div>
 
-                    <!-- strategy select -->
-                    <div class="table__col">
-                        <app-select
-                            mod="small"
-                            [items]="chunkStrategySelectItems"
-                            [(selectedValue)]="d.chunk_strategy"
-                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_strategy === 'error'"
-                            (changed)="docFieldChange(d, 'chunk_strategy', $event)"
-                        />
-                    </div>
+                        <!-- strategy select -->
+                        <div class="table__col">
+                            <app-select
+                                mod="small"
+                                [items]="chunkStrategySelectItems"
+                                [(selectedValue)]="d.chunk_strategy"
+                                [invalid]="!!d.errors?.chunk_strategy"
+                                (changed)="docFieldChange(d, 'chunk_strategy', $event)"
+                            />
+                        </div>
 
-                    <!-- chunk size -->
-                    <div class="table__col">
-                        <app-input
-                            type="number"
-                            mod="small"
-                            [(value)]="d.chunk_size"
-                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_size === 'error'"
-                            (changed)="docFieldChange(d, 'chunk_size', $event)"
-                        />
-                    </div>
+                        <!-- chunk size -->
+                        <div class="table__col">
+                            <app-input
+                                type="number"
+                                mod="small"
+                                [(value)]="d.chunk_size"
+                                [invalid]="!!d.errors?.chunk_size"
+                                (changed)="docFieldChange(d, 'chunk_size', $event)"
+                            />
+                        </div>
 
-                    <!-- overlap -->
-                    <div class="table__col">
-                        <app-input
-                            type="number"
-                            mod="small"
-                            [(value)]="d.chunk_overlap"
-                            [invalid]="fieldUpdateStatus()[d.naive_rag_document_id]?.chunk_overlap === 'error'"
-                            (changed)="docFieldChange(d, 'chunk_overlap', $event)"
-                        />
-                    </div>
+                        <!-- overlap -->
+                        <div class="table__col">
+                            <app-input
+                                type="number"
+                                mod="small"
+                                [(value)]="d.chunk_overlap"
+                                [invalid]="!!d.errors?.chunk_overlap"
+                                (changed)="docFieldChange(d, 'chunk_overlap', $event)"
+                            />
+                        </div>
 
-                    <!-- action button -->
-                    <div class="table__col">
-                        <app-button
-                            class="table__col-btn"
-                            type="outline-secondary"
-                            mod="small"
-                            (click)="tuneChunk(d.naive_rag_document_id)"
-                        >
-                            Tune Chunks
-                        </app-button>
-                    </div>
-                </li>
+                        <!-- action button -->
+                        <div class="table__col">
+                            <app-button
+                                class="table__col-btn"
+                                type="outline-secondary"
+                                mod="small"
+                                (click)="tuneChunk(d.naive_rag_document_id)"
+                            >
+                                Tune Chunks
+                            </app-button>
+                        </div>
+                    </li>
+                    @for (error of d.errors | keyvalue; track error.key) {
+                        <label class="table__row-error">
+                            Update failed: {{ error.value?.reason }}
+                        </label>
+                    }
+                </div>
             }
         </ol>
     </div>

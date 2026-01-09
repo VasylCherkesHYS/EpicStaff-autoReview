@@ -9,7 +9,7 @@
             <app-rag-type
                 [rag]="type"
                 [selected]="selectedRag() === type.value"
-                (click)="selectedRag.set(type.value)"
+                (click)="!type.disabled && selectedRag.set(type.value)"
             />
         }
     </section>

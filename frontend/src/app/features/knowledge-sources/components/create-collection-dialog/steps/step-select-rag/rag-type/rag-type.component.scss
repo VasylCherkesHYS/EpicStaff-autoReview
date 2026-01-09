@@ -15,6 +15,10 @@
         border: 1px solid var(--color-ks-button-activated)
     }
 
+    &--disabled {
+        cursor: not-allowed;
+    }
+
     &__header {
         display: flex;
         justify-content: space-between;

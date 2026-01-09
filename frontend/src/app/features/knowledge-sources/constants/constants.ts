@@ -32,7 +32,8 @@ export const RAG_TYPES: Rag[] = [
         tip: "For more complex queries and a broader context.",
         icon: "ui/tab-group",
         level: RagTypeLevel.ADVANCED,
-        stars: 2
+        stars: 2,
+        disabled: true,
     },
     {
         name: RagName.HYBRID_RAG,
@@ -41,6 +42,7 @@ export const RAG_TYPES: Rag[] = [
         tip: "Recommended for multi-source projects.",
         icon: "ui/tab-group",
         level: RagTypeLevel.EXPERT,
-        stars: 3
+        stars: 3,
+        disabled: true,
     },
 ];
