@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from django.shortcuts import get_object_or_404
 
 from tables.models import DocumentMetadata, SourceCollection
@@ -23,6 +24,7 @@ from tables.exceptions import (
     CollectionNotFoundException,
     NoFilesProvidedException,
     DocumentNotFoundException,
+    InvalidFieldType,
 )
 
 
@@ -61,6 +63,12 @@ class DocumentManagementViewSet(viewsets.GenericViewSet):
         - 400: Validation errors
         - 404: Collection not found
         """
+
+        try:
+            collection_id = int(collection_id)
+        except (ValueError, TypeError):
+            raise InvalidFieldType("collection_id", collection_id)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -69,7 +77,7 @@ class DocumentManagementViewSet(viewsets.GenericViewSet):
         try:
             # Use service to handle all business logic
             created_documents = DocumentManagementService.upload_files_batch(
-                collection_id=int(collection_id), uploaded_files=files
+                collection_id=collection_id, uploaded_files=files
             )
 
             # Serialize response
@@ -173,6 +181,23 @@ class DocumentViewSet(
             return DocumentDetailSerializer
         return DocumentMetadataSerializer
 
+    @swagger_auto_schema(
+        operation_description="List all documents or filter by collection ID",
+        manual_parameters=[
+            openapi.Parameter(
+                "collection_id",
+                openapi.IN_QUERY,
+                description="Filter documents by collection ID",
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            )
+        ],
+        responses={
+            200: DocumentListSerializer(many=True),
+            400: "Invalid collection_id parameter",
+            404: "Collection not found",
+        },
+    )
     def list(self, request, *args, **kwargs):
         """
         List all documents or filter by collection.
@@ -180,12 +205,10 @@ class DocumentViewSet(
         Query parameters:
         - collection_id: Filter by collection ID
         """
-        queryset = self.get_queryset()
-
-        # Filter by collection if provided
         collection_id = request.query_params.get("collection_id")
-        if collection_id:
-            queryset = queryset.filter(source_collection_id=collection_id)
+        queryset = DocumentManagementService.get_documents_list(
+            collection_id=collection_id
+        )
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -250,9 +273,14 @@ class CollectionDocumentsViewSet(viewsets.GenericViewSet):
 
         URL: GET /source-collections/{collection_id}/documents/
         """
+        try:
+            collection_id = int(collection_id)
+        except (ValueError, TypeError):
+            raise InvalidFieldType("collection_id", collection_id)
+
         # Verify collection exists
         try:
-            collection = DocumentManagementService.get_collection(int(collection_id))
+            collection = DocumentManagementService.get_collection(collection_id)
         except CollectionNotFoundException as e:
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
