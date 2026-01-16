@@ -5,7 +5,8 @@ from tables.models.crew_models import (
     AgentPythonCodeTools,
     TaskMcpTools,
 )
-from tables.models import TaskPythonCodeTools, TaskConfiguredTools, TaskContext
+from tables.models import TaskPythonCodeTools, TaskConfiguredTools, TaskContext, Graph
+from tables.utils.helpers import generate_new_unique_name
 
 
 class ToolsImportService:
@@ -356,3 +357,136 @@ class CrewsImportService:
                 crew.save()
 
             self.mapped_crews[current_id] = crew
+
+
+class SubgraphsImportService:
+    def __init__(self, subgraphs_data):
+        self.subgraphs_data = subgraphs_data
+        self.mapped_subgraphs = {}
+
+    def create_subgraphs(self):
+        existing_names = set(Graph.objects.values_list("name", flat=True))
+
+        for graph_data in self.subgraphs_data:
+            original_id = graph_data.get("id")
+            name = graph_data.get("name")
+
+            unique_name = generate_new_unique_name(name, list(existing_names))
+            existing_names.add(unique_name)
+
+            graph = Graph.objects.create(
+                name=unique_name,
+                description=graph_data.get("description", ""),
+            )
+
+            self.mapped_subgraphs[original_id] = graph
+
+    def fill_subgraphs(self, crews_service, mapped_node_names_global=None):
+        # Imported here because of the cycle dependency with serializer
+        from tables.serializers.import_serializers import (
+            CrewNodeImportSerializer,
+            PythonNodeImportSerializer,
+            SubgraphImportSerializer,
+            StartNodeImportSerializer,
+            EndNodeImportSerializer,
+            EdgeImportSerializer,
+            GraphMetadataSerializer,
+        )
+
+        for graph_data in self.subgraphs_data:
+            original_id = graph_data.get("id")
+            graph = self.mapped_subgraphs[original_id]
+
+            context = {"graph": graph}
+
+            crew_node_list = graph_data.get("crew_node_list", [])
+            python_node_list = graph_data.get("python_node_list", [])
+            subgraph_node_list = graph_data.get("subgraph_node_list", [])
+            edge_list = graph_data.get("edge_list", [])
+            start_node_list = graph_data.get("start_node_list", [])
+            end_node_list = graph_data.get("end_node_list", [])
+            metadata = graph_data.get("metadata", {})
+
+            local_mapped_node_names = {}
+
+            for node_data in crew_node_list:
+                crew_id = node_data.pop("crew_id", None)
+                crew = (
+                    crews_service.mapped_crews.get(crew_id) if crews_service else None
+                )
+
+                previous_name = node_data.pop("node_name")
+                local_mapped_node_names[previous_name] = previous_name
+
+                data = {
+                    "crew_id": crew.id if crew else None,
+                    "node_name": local_mapped_node_names[previous_name],
+                    **node_data,
+                }
+                serializer = CrewNodeImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            for node_data in python_node_list:
+                data = self._prepare_node_data(node_data, local_mapped_node_names)
+                serializer = PythonNodeImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            for node_data in subgraph_node_list:
+                node_data.pop("graph", None)
+                old_ref_id = node_data.pop("subgraph", None)
+
+                new_ref_graph = self.mapped_subgraphs.get(old_ref_id)
+
+                data = self._prepare_node_data(node_data, local_mapped_node_names)
+
+                data["subgraph"] = new_ref_graph.id if new_ref_graph else None
+
+                data["graph"] = graph.id
+
+                serializer = SubgraphImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            for node_data in start_node_list:
+                data = self._prepare_node_data(node_data, local_mapped_node_names)
+                serializer = StartNodeImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            for node_data in end_node_list:
+                data = self._prepare_node_data(node_data, local_mapped_node_names)
+                serializer = EndNodeImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            for edge_data in edge_list:
+                start_key = edge_data.pop("start_key", None)
+                end_key = edge_data.pop("end_key", None)
+
+                mapped_start = local_mapped_node_names.get(start_key, start_key)
+                mapped_end = local_mapped_node_names.get(end_key, end_key)
+
+                data = {"start_key": mapped_start, "end_key": mapped_end, **edge_data}
+                serializer = EdgeImportSerializer(data=data, context=context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            meta_context = {"mapped_node_names": local_mapped_node_names}
+            if crews_service:
+                meta_context["mapped_crews"] = crews_service.mapped_crews
+
+            metadata_serializer = GraphMetadataSerializer(
+                data=metadata, context=meta_context
+            )
+            metadata_serializer.is_valid(raise_exception=True)
+            graph.metadata = metadata_serializer.save()
+            graph.save()
+
+    def _prepare_node_data(self, node_data, mapped_node_names):
+        previous_name = node_data.pop("node_name", None)
+        if previous_name:
+            mapped_node_names[previous_name] = previous_name
+            return {"node_name": mapped_node_names[previous_name], **node_data}
+        return node_data
