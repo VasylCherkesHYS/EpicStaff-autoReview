@@ -9,7 +9,9 @@ from sqlalchemy import (
     UniqueConstraint,
     LargeBinary,
     JSON,
+    Float,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -191,7 +193,7 @@ class DocumentEmbedding(Base):
     chunk_id = Column(
         Integer, ForeignKey("tables_chunk.id", ondelete="SET NULL"), nullable=True
     )
-    vector = Column(Vector(1536), nullable=True)
+    vector = Column(ARRAY(Float), nullable=True)
 
     # Relationships
     collection = relationship("SourceCollection", back_populates="embeddings_coll")

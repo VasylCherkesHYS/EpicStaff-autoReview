@@ -28,6 +28,7 @@ from embedder.gemini import GoogleGenAIEmbedder
 from embedder.cohere import CohereEmbedder
 from embedder.mistral import MistralEmbedder
 from embedder.together_ai import TogetherAIEmbedder
+from embedder.custom_embedder import CustomEmbedder
 from models.enums import *
 from utils.singleton_meta import SingletonMeta
 
@@ -219,16 +220,22 @@ class CollectionProcessorService(metaclass=SingletonMeta):
                 "together_ai": TogetherAIEmbedder,
             }
             embedder_class = provider_to_class.get(provider)
-            if embedder_class is None:
-                raise ValueError(f"Embedder provider '{provider}' is not supported.")
-            logger.info(f"Embedder class: {embedder_class.__name__}")
 
+            if embedder_class is None:
+                logger.info(f"Using CustomEmbedder for provider '{provider}'")
+                return CustomEmbedder(
+                    api_key=embedder_config["api_key"],
+                    model_name=embedder_config["model_name"],
+                    base_url=embedder_config.get("base_url"),
+                )
+            
+            logger.info(f"Embedder class: {embedder_class.__name__}")
             return embedder_class(
                 api_key=embedder_config["api_key"],
                 model_name=embedder_config["model_name"],
             )
         except Exception as e:
-            logger.info(
+            logger.error(
                 f"Failed to set custom embedder. Default embedder setted. Error: {e}"
             )
             return self._create_default_embedding_function()

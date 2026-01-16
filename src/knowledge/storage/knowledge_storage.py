@@ -90,6 +90,7 @@ class ORMKnowledgeStorage(BaseORMStorage):
                 "api_key": getattr(embedder, "api_key", None),
                 "model_name": model.name,
                 "provider": embedding_provider.name,
+                "base_url": model.base_url,
             }
         except Exception as e:
             logger.error(
