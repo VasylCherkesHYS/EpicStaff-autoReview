@@ -193,7 +193,7 @@ class DocumentEmbedding(Base):
     chunk_id = Column(
         Integer, ForeignKey("tables_chunk.id", ondelete="SET NULL"), nullable=True
     )
-    vector = Column(ARRAY(Float), nullable=True)
+    vector = Column(Vector, nullable=True)
 
     # Relationships
     collection = relationship("SourceCollection", back_populates="embeddings_coll")
