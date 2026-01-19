@@ -16,6 +16,7 @@ from tables.models import (
     RealtimeAgent,
     RealtimeConfig,
     RealtimeTranscriptionConfig,
+    CrewNode,
 )
 from tables.serializers.model_serializers import (
     GraphSerializer,
@@ -424,6 +425,21 @@ class ConditionalEdgeExportSerializer(ConditionalEdgeSerializer):
     python_code = PythonCodeExportSerializer()
 
 
+class SubgraphLightSerializer(GraphSerializer):
+    crew_node_list = CrewNodeExportSerializer(many=True)
+    python_node_list = PythonNodeExportSerializer(many=True)
+    conditional_edge_list = ConditionalEdgeExportSerializer(many=True)
+    file_extractor_node_list = FileExtractorNodeSerializer(many=True)
+    end_node_list = EndNodeSerializer(many=True, source="end_node")
+    entity_type = serializers.SerializerMethodField()
+
+    class Meta(GraphSerializer.Meta):
+        fields = GraphSerializer.Meta.fields + ["entity_type"]
+
+    def get_entity_type(self, obj):
+        return EntityType.GRAPH.value
+
+
 class GraphExportSerializer(GraphSerializer):
 
     crew_node_list = CrewNodeExportSerializer(many=True)
@@ -434,6 +450,7 @@ class GraphExportSerializer(GraphSerializer):
     crews = serializers.SerializerMethodField()
     agents = serializers.SerializerMethodField()
     tools = serializers.SerializerMethodField()
+    subgraphs = serializers.SerializerMethodField()
     llm_configs = serializers.SerializerMethodField()
     realtime_agents = serializers.SerializerMethodField()
     entity_type = serializers.SerializerMethodField()
@@ -445,39 +462,52 @@ class GraphExportSerializer(GraphSerializer):
         fields = "__all__"
 
     def get_crews(self, graph):
-        unique_crews = (
-            graph.crew_node_list.order_by("crew")
-            .distinct("crew")
-            .values_list("crew", flat=True)
+        subgraphs = self._collect_subgraphs(graph)
+        all_graphs = [graph.id] + list(subgraphs.keys())
+
+        crew_ids = (
+            CrewNode.objects.filter(graph_id__in=all_graphs)
+            .values_list("crew_id", flat=True)
+            .distinct()
         )
-        crews = Crew.objects.filter(id__in=unique_crews)
+
+        crews = Crew.objects.filter(id__in=crew_ids)
         serializer = self.crew_serializer_class(instance=crews, many=True)
         return serializer.data
 
     def get_agents(self, graph):
-        agents = Agent.objects.filter(crew__crewnode__graph=graph).distinct()
+        subgraphs = self._collect_subgraphs(graph)
+        all_graphs = [graph.id] + list(subgraphs.keys())
+
+        agents = Agent.objects.filter(
+            crew__crewnode__graph_id__in=all_graphs
+        ).distinct()
+
         serializer = self.agent_serializer_class(instance=agents, many=True)
         return serializer.data
 
     def get_tools(self, graph):
+        subgraphs = self._collect_subgraphs(graph)
+        all_graphs = [graph.id] + list(subgraphs.keys())
+
         agent_configured_tools = ToolConfig.objects.filter(
-            agentconfiguredtools__agent__crew__crewnode__graph=graph
+            agentconfiguredtools__agent__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
         agent_python_tools = PythonCodeTool.objects.filter(
-            agentpythoncodetools__agent__crew__crewnode__graph=graph
+            agentpythoncodetools__agent__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
         agent_mcp_tools = McpTool.objects.filter(
-            agentmcptools__agent__crew__crewnode__graph=graph
+            agentmcptools__agent__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
 
         task_configured_tools = ToolConfig.objects.filter(
-            taskconfiguredtools__task__crew__crewnode__graph=graph
+            taskconfiguredtools__task__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
         task_python_tools = PythonCodeTool.objects.filter(
-            taskpythoncodetools__task__crew__crewnode__graph=graph
+            taskpythoncodetools__task__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
         task_mcp_tools = McpTool.objects.filter(
-            taskmcptools__task__crew__crewnode__graph=graph
+            taskmcptools__task__crew__crewnode__graph_id__in=all_graphs
         ).distinct()
 
         all_configured_tools = agent_configured_tools.union(task_configured_tools)
@@ -496,12 +526,37 @@ class GraphExportSerializer(GraphSerializer):
             ),
         }
 
+    def _collect_subgraphs(self, graph, collected=None):
+        if collected is None:
+            collected = {}
+
+        nodes = graph.subgraph_node_list.all()
+
+        for node in nodes:
+            subgraph = node.subgraph
+            if subgraph and subgraph.id not in collected:
+                collected[subgraph.id] = subgraph
+                self._collect_subgraphs(subgraph, collected)
+
+        return collected
+
+    def get_subgraphs(self, graph):
+        subgraphs = self._collect_subgraphs(graph)
+        subgraphs = list(subgraphs.values())
+
+        serializer = SubgraphLightSerializer(instance=subgraphs, many=True)
+        return serializer.data
+
     def get_llm_configs(self, graph):
+        subgraphs = self._collect_subgraphs(graph)
+        all_graphs = [graph.id] + list(subgraphs.keys())
+
         unique_ids = set()
 
-        crew_ids = Crew.objects.filter(crewnode__graph=graph).values_list(
+        crew_ids = Crew.objects.filter(crewnode__graph_id__in=all_graphs).values_list(
             "memory_llm_config", "manager_llm_config", "planning_llm_config"
         )
+
         for memory_id, manager_id, planning_id in crew_ids:
             if memory_id:
                 unique_ids.add(memory_id)
@@ -511,7 +566,7 @@ class GraphExportSerializer(GraphSerializer):
                 unique_ids.add(planning_id)
 
         agent_config_ids = (
-            Agent.objects.filter(crew__crewnode__graph=graph)
+            Agent.objects.filter(crew__crewnode__graph_id__in=all_graphs)
             .exclude(llm_config__isnull=True, fcm_llm_config__isnull=True)
             .values_list("llm_config", "fcm_llm_config")
             .distinct()
@@ -526,9 +581,12 @@ class GraphExportSerializer(GraphSerializer):
         serializer = LLMConfigExportSerializer(instance=llm_configs, many=True)
         return serializer.data
 
-    def get_realtime_agents(self, graph: Crew):
+    def get_realtime_agents(self, graph):  # graph was an instance of Crew class???
+        subgraphs = self._collect_subgraphs(graph)
+        all_graphs = [graph.id] + list(subgraphs.keys())
+
         agent_ids = (
-            Agent.objects.filter(crew__crewnode__graph=graph)
+            Agent.objects.filter(crew__crewnode__graph_id__in=all_graphs)
             .distinct()
             .values_list("id", flat=True)
         )

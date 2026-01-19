@@ -43,7 +43,9 @@ from tables.services.import_services import (
     RealtimeTranscriptionConfigsImportService,
     RealtimeAgentImportService,
     TasksImportService,
+    SubgraphsImportService,
 )
+from tables.models.graph_models import SubGraphNode
 
 
 class FileImportSerializer(serializers.Serializer):
@@ -939,6 +941,17 @@ class GraphMetadataSerializer(serializers.Serializer):
         return {"nodes": nodes, "groups": groups, "connections": connections}
 
 
+class SubgraphImportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubGraphNode
+        fields = "__all__"
+
+    def create(self, validated_data):
+        if "graph" not in validated_data and "graph" in self.context:
+            validated_data["graph"] = self.context["graph"]
+        return super().create(validated_data)
+
+
 class GraphImportSerializer(serializers.ModelSerializer):
 
     crews = NestedCrewImportSerializer(
@@ -967,6 +980,11 @@ class GraphImportSerializer(serializers.ModelSerializer):
     # llm_node_list = LLMNodeSerializer(many=True)
     # decision_table_node_list = DecisionTableNodeSerializer(many=True)
 
+    subgraphs = serializers.ListField(required=False, allow_empty=True)
+    subgraph_node_list = serializers.ListField(
+        child=serializers.DictField(), required=False
+    )
+
     metadata = GraphMetadataSerializer()
 
     agent_serializer_class = NestedAgentImportSerializer
@@ -992,17 +1010,20 @@ class GraphImportSerializer(serializers.ModelSerializer):
         file_extractor_node_list_data = validated_data.pop(
             "file_extractor_node_list", []
         )
+        subgraph_node_list_data = validated_data.pop("subgraph_node_list", [])
         # llm_node_list_data = validated_data.pop("llm_node_list", [])
         # decision_table_node_list_data = validated_data.pop(
         #     "decision_table_node_list", []
         # )
 
+        subgraphs_data = validated_data.pop("subgraphs", [])
         metadata = validated_data.pop("metadata", {})
 
         tools_service = None
         agents_service = None
         crews_service = None
         llm_configs_service = None
+        subgraphs_service = None
 
         previous_name = validated_data.pop("name")
         unique_name = generate_new_unique_name(
@@ -1038,6 +1059,11 @@ class GraphImportSerializer(serializers.ModelSerializer):
             crews_service.create_crews(
                 agents_service, tools_service, llm_configs_service
             )
+
+        if subgraphs_data:
+            subgraphs_service = SubgraphsImportService(subgraphs_data)
+            subgraphs_service.create_subgraphs()
+            subgraphs_service.fill_subgraphs(crews_service=crews_service)
 
         for node_data in crew_node_list_data:
             crew_id = node_data.pop("crew_id", None)
@@ -1110,9 +1136,32 @@ class GraphImportSerializer(serializers.ModelSerializer):
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
+        for node_data in subgraph_node_list_data:
+            node_data.pop("graph", None)
+
+            old_ref_id = node_data.pop("subgraph", None)
+            new_ref_graph = None
+
+            if subgraphs_service and old_ref_id:
+                new_ref_graph = subgraphs_service.mapped_subgraphs.get(old_ref_id)
+
+            data = self._prepare_node_data(node_data, mapped_node_names)
+
+            if new_ref_graph:
+                data["subgraph"] = new_ref_graph.id
+
+            data["graph"] = graph.id
+
+            serializer = SubgraphImportSerializer(data=data, context={"graph": graph})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
         context = {"mapped_node_names": mapped_node_names}
         if crews_service:
             context["mapped_crews"] = crews_service.mapped_crews
+
+        if subgraphs_service:
+            context["mapped_subgraphs"] = subgraphs_service.mapped_subgraphs
 
         metadata_serializer = GraphMetadataSerializer(data=metadata, context=context)
         metadata_serializer.is_valid(raise_exception=True)
