@@ -40,12 +40,27 @@ class ToolsImportService:
         for tool_type, tool_data in self.tools.items():
             serializer_class = self.TOOL_SERIALIZERS.get(tool_type)
 
+            ModelClass = serializer_class.Meta.model
+
             for single_tool_data in tool_data:
                 current_id = single_tool_data.pop("id")
 
                 serializer = serializer_class(data=single_tool_data)
                 serializer.is_valid(raise_exception=True)
-                self.mapped_tools[tool_type][current_id] = serializer.save()
+                validated_data = serializer.validated_data
+
+                checks = {
+                    key: value
+                    for key, value in validated_data.items()
+                    if key not in ["id", "name", "created_at", "updated_at"]
+                }
+
+                existing_tool = ModelClass.objects.filter(**checks).first()
+
+                if existing_tool:
+                    self.mapped_tools[tool_type][current_id] = existing_tool
+                else:
+                    self.mapped_tools[tool_type][current_id] = serializer.save()
 
     def assign_tools_to_agent(self, agent, tool_ids: dict[str, list[int]] = None):
         """
@@ -126,14 +141,29 @@ class BaseConfigsImportService:
         if not self.configs:
             return
 
+        ModelClass = self.serializer_class.Meta.model
+
         for config_data in self.configs:
             current_id = config_data.get("id")
             if current_id in self.mapped_configs:
                 continue
 
-            self.mapped_configs[current_id] = self.serializer_class().create(
-                config_data
-            )
+            serializer = self.serializer_class(data=config_data)
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+
+            checks = {
+                key: value
+                for key, value in validated_data.items()
+                if key not in ["id", "name", "created_at", "updated_at"]
+            }
+
+            existing_object = ModelClass.objects.filter(**checks).first()
+
+            if existing_object:
+                self.mapped_configs[current_id] = existing_object
+            else:
+                self.mapped_configs[current_id] = serializer.save()
 
     def get_config(self, config_id):
         return self.mapped_configs.get(config_id)
