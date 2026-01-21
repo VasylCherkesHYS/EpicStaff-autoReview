@@ -61,7 +61,7 @@ class PythonCodeImportSerializer(serializers.ModelSerializer):
 
 
 class PythonCodeToolImportSerializer(serializers.ModelSerializer):
-
+    id = serializers.IntegerField(required=False)
     python_code = PythonCodeImportSerializer()
 
     class Meta:
@@ -74,14 +74,20 @@ class PythonCodeToolImportSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("id", None)
+        python_code_data = validated_data.pop("python_code", None)
+        python_code, _ = PythonCode.objects.get_or_create(**python_code_data)
         name = validated_data.pop("name")
 
+        existing_tool = PythonCodeTool.objects.filter(
+            name=name, python_code=python_code, **validated_data
+        ).first()
+
+        if existing_tool:
+            return existing_tool
         if PythonCodeTool.objects.filter(name=name).exists():
             existing_names = PythonCodeTool.objects.values_list("name", flat=True)
             name = generate_new_unique_name(name, existing_names)
 
-        python_code_data = validated_data.pop("python_code", None)
-        python_code = PythonCode.objects.create(**python_code_data)
         python_code_tool = PythonCodeTool.objects.create(
             name=name, python_code=python_code, **validated_data
         )
@@ -251,9 +257,11 @@ class BaseConfigImportSerializer(serializers.ModelSerializer):
 
 
 class LLMConfigImportSerializer(BaseConfigImportSerializer):
+    id = serializers.IntegerField(required=False)
 
     class Meta(BaseConfigImportSerializer.Meta):
         model = LLMConfig
+        fields = "__all__"
 
     def create(self, validated_data):
         model_name = validated_data.pop("model")
@@ -543,7 +551,7 @@ class RealtimeDataImportSerializer(serializers.Serializer):
 
 
 class AgentImportSerializer(serializers.ModelSerializer):
-
+    id = serializers.IntegerField(required=False)
     llm_config = LLMConfigImportSerializer(required=False, allow_null=True)
     fcm_llm_config = LLMConfigImportSerializer(required=False, allow_null=True)
     realtime_agent = RealtimeAgentImportSerializer(required=False, allow_null=True)
@@ -562,32 +570,98 @@ class AgentImportSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("id", None)
-        tools_data = validated_data.pop("tools", [])
+
+        tools_data = validated_data.pop("tools", {})
         realtime_agent_data = validated_data.pop("realtime_agent", None)
+        llm_config_data = validated_data.pop("llm_config", None)
+        fcm_llm_config_data = validated_data.pop("fcm_llm_config", None)
 
-        configs = []
-        config_service = None
+        def resolve_config(data_item):
+            if not data_item:
+                return None
 
-        llm_config = validated_data.pop("llm_config", {})
-        fcm_llm_config = validated_data.pop("fcm_llm_config", {})
-        llm_config_id = llm_config.get("id") if llm_config else None
-        fcm_config_id = fcm_llm_config.get("id") if fcm_llm_config else None
+            if isinstance(data_item, int):
+                parent_service = self.context.get("llm_configs_service")
+                if parent_service:
+                    return parent_service.get_config(data_item)
+                return None
 
-        if llm_config:
-            configs.append(llm_config)
-        if fcm_llm_config:
-            configs.append(fcm_llm_config)
+            local_service = LLMConfigsImportService([data_item])
+            local_service.create_configs()
+            return local_service.get_config(data_item.get("id"))
 
-        if configs:
-            config_service = LLMConfigsImportService(configs)
-            config_service.create_configs()
+        resolved_llm_config = resolve_config(llm_config_data)
+        resolved_fcm_config = resolve_config(fcm_llm_config_data)
 
-        agent = Agent.objects.create(**validated_data)
+        resolved_tool_ids = {
+            "python_tools": [],
+            "configured_tools": [],
+            "mcp_tools": [],
+        }
+        tools_service = None
 
-        if config_service:
-            agent.llm_config = config_service.get_config(llm_config_id)
-            agent.fcm_llm_config = config_service.get_config(fcm_config_id)
-            agent.save()
+        if tools_data:
+            tools_service = ToolsImportService(tools=tools_data)
+            tools_service.create_tools()
+
+            raw_ids = self._get_tools_ids(tools_data)
+
+            resolved_tool_ids["python_tools"] = [
+                tools_service.mapped_tools["python_tools"][i].id
+                for i in raw_ids["python_tools"]
+                if i in tools_service.mapped_tools["python_tools"]
+            ]
+            resolved_tool_ids["configured_tools"] = [
+                tools_service.mapped_tools["configured_tools"][i].id
+                for i in raw_ids["configured_tools"]
+                if i in tools_service.mapped_tools["configured_tools"]
+            ]
+            resolved_tool_ids["mcp_tools"] = [
+                tools_service.mapped_tools["mcp_tools"][i].id
+                for i in raw_ids["mcp_tools"]
+                if i in tools_service.mapped_tools["mcp_tools"]
+            ]
+
+        candidates = Agent.objects.filter(
+            role=validated_data.get("role"),
+            goal=validated_data.get("goal"),
+            backstory=validated_data.get("backstory", ""),
+            llm_config=resolved_llm_config,
+            fcm_llm_config=resolved_fcm_config,
+        )
+
+        existing_agent = None
+        for candidate in candidates:
+            candidate_python = set(
+                candidate.python_code_tools.values_list("pythoncodetool_id", flat=True)
+            )
+            candidate_config = set(
+                candidate.configured_tools.values_list("toolconfig_id", flat=True)
+            )
+            candidate_mcp = set(
+                candidate.mcp_tools.values_list("mcptool_id", flat=True)
+            )
+
+            if (
+                candidate_python == set(resolved_tool_ids["python_tools"])
+                and candidate_config == set(resolved_tool_ids["configured_tools"])
+                and candidate_mcp == set(resolved_tool_ids["mcp_tools"])
+            ):
+                existing_agent = candidate
+                break
+
+        if existing_agent:
+            return existing_agent
+
+        agent = Agent.objects.create(
+            llm_config=resolved_llm_config,
+            fcm_llm_config=resolved_fcm_config,
+            **validated_data,
+        )
+
+        if tools_service:
+            raw_ids = self._get_tools_ids(tools_data)
+            tools_service.assign_tools_to_agent(agent, raw_ids)
 
         if realtime_agent_data and not isinstance(realtime_agent_data, int):
             realtime_agent_serializer = RealtimeAgentImportSerializer(
@@ -596,21 +670,20 @@ class AgentImportSerializer(serializers.ModelSerializer):
             realtime_agent_serializer.is_valid(raise_exception=True)
             realtime_agent_serializer.save()
 
-        if tools_data:
-            tools_ids = self._get_tools_ids(tools_data)
-            tools_service = ToolsImportService(tools=tools_data)
-            tools_service.create_tools()
-            tools_service.assign_tools_to_agent(agent, tools_ids)
-
         return agent
 
     def _get_tools_ids(self, tools_data):
+        def get_id(item):
+            if isinstance(item, int):
+                return item
+            return item.get("id")
+
         return {
-            "python_tools": [t_data["id"] for t_data in tools_data["python_tools"]],
+            "python_tools": [get_id(t) for t in tools_data.get("python_tools", [])],
             "configured_tools": [
-                t_data["id"] for t_data in tools_data["configured_tools"]
+                get_id(t) for t in tools_data.get("configured_tools", [])
             ],
-            "mcp_tools": [t_data["id"] for t_data in tools_data["mcp_tools"]],
+            "mcp_tools": [get_id(t) for t in tools_data.get("mcp_tools", [])],
         }
 
 

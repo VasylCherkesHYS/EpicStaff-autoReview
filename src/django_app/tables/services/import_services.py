@@ -37,30 +37,31 @@ class ToolsImportService:
         """
         Creates tools that do not exist and map those that do exist
         """
-        for tool_type, tool_data in self.tools.items():
+        for tool_type, tool_data_list in self.tools.items():
             serializer_class = self.TOOL_SERIALIZERS.get(tool_type)
+            if not serializer_class:
+                continue
 
             ModelClass = serializer_class.Meta.model
 
-            for single_tool_data in tool_data:
-                current_id = single_tool_data.pop("id")
+            for single_tool_data in tool_data_list:
+
+                if isinstance(single_tool_data, int):
+                    current_id = single_tool_data
+                    if current_id not in self.mapped_tools[tool_type]:
+                        existing_obj = ModelClass.objects.filter(id=current_id).first()
+                        if existing_obj:
+                            self.mapped_tools[tool_type][current_id] = existing_obj
+                    continue
+
+                current_id = single_tool_data.get("id")
 
                 serializer = serializer_class(data=single_tool_data)
                 serializer.is_valid(raise_exception=True)
-                validated_data = serializer.validated_data
+                tool_obj = serializer.save()
 
-                checks = {
-                    key: value
-                    for key, value in validated_data.items()
-                    if key not in ["id", "name", "created_at", "updated_at"]
-                }
-
-                existing_tool = ModelClass.objects.filter(**checks).first()
-
-                if existing_tool:
-                    self.mapped_tools[tool_type][current_id] = existing_tool
-                else:
-                    self.mapped_tools[tool_type][current_id] = serializer.save()
+                if current_id is not None:
+                    self.mapped_tools[tool_type][current_id] = tool_obj
 
     def assign_tools_to_agent(self, agent, tool_ids: dict[str, list[int]] = None):
         """
@@ -141,29 +142,19 @@ class BaseConfigsImportService:
         if not self.configs:
             return
 
-        ModelClass = self.serializer_class.Meta.model
+        serializer = self.serializer_class()
 
         for config_data in self.configs:
             current_id = config_data.get("id")
+
             if current_id in self.mapped_configs:
                 continue
 
-            serializer = self.serializer_class(data=config_data)
-            serializer.is_valid(raise_exception=True)
-            validated_data = serializer.validated_data
+            data = config_data.copy()
+            config_object = serializer.create(data)
 
-            checks = {
-                key: value
-                for key, value in validated_data.items()
-                if key not in ["id", "name", "created_at", "updated_at"]
-            }
-
-            existing_object = ModelClass.objects.filter(**checks).first()
-
-            if existing_object:
-                self.mapped_configs[current_id] = existing_object
-            else:
-                self.mapped_configs[current_id] = serializer.save()
+            if current_id is not None:
+                self.mapped_configs[current_id] = config_object
 
     def get_config(self, config_id):
         return self.mapped_configs.get(config_id)
@@ -252,24 +243,20 @@ class AgentsImportService:
         to not duplicate already existing configs and tools
         """
         for agent_data in self.agents:
-            current_id = agent_data.pop("id")
-            tools = agent_data.pop("tools")
-            llm_config_id = agent_data.pop("llm_config", None)
-            fcm_llm_config_id = agent_data.pop("fcm_llm_config", None)
+            current_id = agent_data.get("id")
 
-            serializer = self.serializer_class(data=agent_data)
+            context = {
+                "tools_service": tools_service,
+                "llm_configs_service": llm_configs_service,
+            }
+
+            serializer = self.serializer_class(data=agent_data, context=context)
             serializer.is_valid(raise_exception=True)
-            agent = serializer.save()
 
-            if tools_service:
-                tools_service.assign_tools_to_agent(agent, tools)
+            agent_object = serializer.save()
 
-            if llm_configs_service:
-                agent.llm_config = llm_configs_service.get_config(llm_config_id)
-                agent.fcm_llm_config = llm_configs_service.get_config(fcm_llm_config_id)
-                agent.save()
-
-            self.mapped_agents[current_id] = agent
+            if current_id is not None:
+                self.mapped_agents[current_id] = agent_object
 
     def assign_agents_to_crew(self, agent_ids: list[int], crew):
         """
