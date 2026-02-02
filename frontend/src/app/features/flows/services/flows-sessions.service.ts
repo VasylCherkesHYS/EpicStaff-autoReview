@@ -12,6 +12,7 @@ import {
   RunGraphResponse,
   SessionStatusesCounts,
   SessionStatusesCountsMap,
+  SessionUpdates,
   defaultSessionStatusesCounts,
 } from '../models/session.model';
 
@@ -66,6 +67,10 @@ export class GraphSessionService {
 
   getSessionById(sessionId: number): Observable<GraphSession> {
     return this.http.get<GraphSession>(`${this.apiUrl}${sessionId}/`);
+  }
+
+  getSessionUpdates(sessionId: string): Observable<SessionUpdates> {
+    return this.http.get<SessionUpdates>(`${this.apiUrl}${sessionId}/get-updates/`);
   }
 
   getSessionsByGraphId(
