@@ -33,7 +33,7 @@
         <div class="stats">
             <div class="stat">
                 <span class="label">Search limit</span>
-                <span class="value">{{ data.rag_search_config.search_limit }}</span>
+                <span class="value">{{ data.rag_search_config?.search_limit ?? '—' }}</span>
             </div>
             <div class="stat">
                 <span class="label">Retrieved</span>
@@ -42,8 +42,12 @@
             <div class="stat">
                 <span class="label">Similarity threshold</span>
                 <span class="value">
-              {{ data.rag_search_config.similarity_threshold | percent: '1.0-1' }}
-            </span>
+                    @if (data.rag_search_config?.similarity_threshold) {
+                        {{ data.rag_search_config!.similarity_threshold | percent: '1.0-1' }}
+                    } @else {
+                        —
+                    }
+                </span>
             </div>
         </div>
 

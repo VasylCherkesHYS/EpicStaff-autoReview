@@ -24,6 +24,10 @@ export interface GraphSession {
     finished_at: string | null;
 }
 
+export interface SessionUpdates {
+    status: GraphSessionStatus;
+}
+
 export interface GraphSessionLight {
     id: number;
     graph_id: number;

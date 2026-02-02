@@ -1,12 +1,12 @@
-import {HttpClient, HttpHeaders} from "@angular/common/http";
-import {ConfigService} from "../../../../../services/config/config.service";
-import {ApiGetRequest} from "../../../../../shared/models/api-request.model";
-import {map, Observable} from "rxjs";
+import { HttpClient, HttpHeaders } from "@angular/common/http";
+import { Injectable } from "@angular/core";
+import { map, Observable } from "rxjs";
+import { ConfigService } from "../../../../../services/config/config.service";
+import { PaginatedResponse } from "@shared/models";
 import {
     CreateTelegramTriggerNodeRequest,
     GetTelegramTriggerNodeRequest
 } from "../models/telegram-trigger.model";
-import {Injectable} from "@angular/core";
 
 @Injectable({
     providedIn: 'root',
@@ -31,10 +31,10 @@ export class TelegramTriggerNodeService {
     }
 
     getTelegramTriggerNodes(): Observable<GetTelegramTriggerNodeRequest[]> {
-        return this.http.get<ApiGetRequest<GetTelegramTriggerNodeRequest>>(this.apiUrlNode)
+        return this.http.get<PaginatedResponse<GetTelegramTriggerNodeRequest>>(this.apiUrlNode)
             .pipe(
                 map((response) => {
-                    return response.results.sort((a, b) => b.id - a.id);
+                    return response.results.sort((a: GetTelegramTriggerNodeRequest, b: GetTelegramTriggerNodeRequest) => b.id - a.id);
                 })
             );
     }

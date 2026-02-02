@@ -25,7 +25,6 @@ import { LlmModelSelectorComponent } from '../../shared/components/llm-model-sel
 import { EmbeddingModelSelectorComponent } from '../../shared/components/embedding-model-selector/embedding-model-selector.component';
 import { FullLLMConfigService } from '../../features/settings-dialog/services/llms/full-llm-config.service';
 import { FullEmbeddingConfigService } from '../../features/settings-dialog/services/embeddings/full-embedding.service';
-import { RangeSliderComponent } from '../../shared/components/range-slider/range-slider.component';
 
 @Component({
     selector: 'app-settings-section',
@@ -38,7 +37,6 @@ import { RangeSliderComponent } from '../../shared/components/range-slider/range
         HelpTooltipComponent,
         LlmModelSelectorComponent,
         EmbeddingModelSelectorComponent,
-        RangeSliderComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

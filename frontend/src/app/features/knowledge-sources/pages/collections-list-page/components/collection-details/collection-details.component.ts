@@ -7,7 +7,7 @@ import {
     OnInit,
     signal, SimpleChanges
 } from "@angular/core";
-import {AppIconComponent, SpinnerComponent, ValidationErrorsComponent, SelectComponent, DragDropAreaComponent} from "@shared/components";
+import {AppIconComponent, SpinnerComponent, ValidationErrorsComponent, DragDropAreaComponent} from "@shared/components";
 import {FormControl, FormsModule, ReactiveFormsModule, Validators} from "@angular/forms";
 import {CreateCollectionDtoResponse} from "../../../../models/collection.model";
 import {CollectionsStorageService} from "../../../../services/collections-storage.service";
@@ -33,7 +33,6 @@ import {ToastService} from "../../../../../../services/notifications";
         ReactiveFormsModule,
         DragDropAreaComponent,
         CollectionFilesComponent,
-        SelectComponent,
         CollectionRagsComponent,
         CollectionInfoComponent,
         SpinnerComponent,

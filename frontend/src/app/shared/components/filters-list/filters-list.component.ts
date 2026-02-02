@@ -6,7 +6,6 @@ import {
   ChangeDetectionStrategy,
   OnInit,
 } from '@angular/core';
-import { SearchComponent } from '../search/search.component';
 import { ButtonComponent } from '../buttons/button/button.component';
 
 export interface SearchFilterChange {
@@ -19,7 +18,7 @@ export interface SearchFilterChange {
   standalone: true,
   templateUrl: './filters-list.component.html',
   styleUrls: ['./filters-list.component.scss'],
-  imports: [ButtonComponent, SearchComponent],
+  imports: [ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FiltersListComponent implements OnInit {

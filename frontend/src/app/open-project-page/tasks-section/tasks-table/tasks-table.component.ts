@@ -78,7 +78,6 @@ import {
     AdvancedTaskSettingsData,
     AdvancedTaskSettingsDialogComponent,
 } from './advanced-task-settings-dialog/advanced-task-settings-dialog.component';
-import { AsyncHeaderComponent } from './header-renderers/async-exec-header/async-header.component';
 import { HumanInputHeaderComponent } from './header-renderers/human-input-header/human-input.component';
 import { KnowledgeQueryHeaderComponent } from './header-renderers/knowledge-query-header/knowledge-query-header.component';
 import { forkJoin, Observable } from 'rxjs';
@@ -101,8 +100,6 @@ type PopupEvent = CellClickedEvent<any, any> | CellKeyDownEvent<any, any>;
         ClickOutsideDirective,
         PreventContextMenuDirective,
         AgGridContextMenuComponent,
-        // Knowledge Query header component (tooltip icon)
-        KnowledgeQueryHeaderComponent,
     ],
     templateUrl: './tasks-table.component.html',
     styleUrls: ['./tasks-table.component.scss'],

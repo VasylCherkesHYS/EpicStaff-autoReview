@@ -19,7 +19,6 @@ import {
   animate,
 } from '@angular/animations';
 import { FullAgent } from '../../../../../services/full-agent.service';
-import { AgentMenuComponent } from './header-sub-menu/header-sub-menu.component';
 import { AppIconComponent } from '../../../../../shared/components/app-icon/app-icon.component';
 import { getProviderIconPath } from '../../../../../features/settings-dialog/utils/get-provider-icon';
 
@@ -34,7 +33,7 @@ interface SectionStates {
 @Component({
   selector: 'app-staff-agent-card',
   standalone: true,
-  imports: [CommonModule, AgentMenuComponent, AppIconComponent],
+  imports: [CommonModule, AppIconComponent],
   templateUrl: './staff-agent-card.component.html',
   styleUrls: ['./staff-agent-card.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

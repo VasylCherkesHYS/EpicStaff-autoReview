@@ -11,7 +11,6 @@ import { IconButtonComponent } from '../../../../../shared/components/buttons/ic
 import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
 import { FullEmbeddingConfig } from '../../../services/embeddings/full-embedding.service';
 import { getProviderIconPath } from '../../../utils/get-provider-icon';
-import { ToggleSwitchComponent } from '../../../../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 
 @Component({
   selector: 'app-embedding-config-item',
@@ -21,7 +20,6 @@ import { ToggleSwitchComponent } from '../../../../../shared/components/form-con
     AppIconComponent,
     IconButtonComponent,
     ButtonComponent,
-    ToggleSwitchComponent,
   ],
   templateUrl: './embedding-config-item.component.html',
   styleUrls: ['./embedding-config-item.component.scss'],
