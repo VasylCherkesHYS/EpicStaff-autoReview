@@ -185,10 +185,8 @@ from tables.serializers.model_serializers import (
 )
 
 from tables.services.redis_service import RedisService
-from tables.services.copy_services import CrewCopyService, AgentCopyService
 from tables.utils.mixins import ImportExportMixin, DeepCopyMixin
 from tables.exceptions import BuiltInToolModificationError
-
 
 redis_service = RedisService()
 
@@ -293,7 +291,7 @@ class EmbeddingConfigReadWriteViewSet(ModelViewSet):
     filterset_class = EmbeddingConfigFilter
 
 
-class AgentViewSet(ModelViewSet, ImportExportMixin):
+class AgentViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
     queryset = Agent.objects.select_related("realtime_agent").prefetch_related(
         Prefetch(
             "python_code_tools",
@@ -333,7 +331,10 @@ class AgentViewSet(ModelViewSet, ImportExportMixin):
     export_prefix = "agent"
     filename_attr = "role"
     serializer_response_class = AgentReadSerializer
-    anget_copy_service = AgentCopyService()
+
+    copy_serializer_class = AgentCopySerializer
+    copy_deserializer_class = AgentCopyDeserializer
+    copy_serializer_response_class = AgentReadSerializer
 
     def get_serializer_class(self):
         if self.action in ["list", "retrieve"]:
@@ -401,24 +402,8 @@ class AgentViewSet(ModelViewSet, ImportExportMixin):
         )
         return Response(read_serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], url_path="copy")
-    def copy(self, request, pk: int):
-        """Create a copy of an agent."""
-        agent = self.get_object()
 
-        try:
-            with transaction.atomic():
-                created_agent = self.agent_copy_service.copy(agent)
-                serializer = self.get_serializer(created_agent)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response(
-                {"error": "Failed to copy agent", "detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
+class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin, DeepCopyMixin):
     queryset = Crew.objects.prefetch_related("task_set", "agents", "tags")
     serializer_class = CrewSerializer
     filter_backends = [DjangoFilterBackend]
@@ -433,7 +418,6 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
         "full_output",
         "planning",
         "planning_llm_config",
-        "is_template",
     ]
 
     entity_type = EntityType.CREW.value
@@ -441,7 +425,9 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
     filename_attr = "name"
     serializer_response_class = CrewSerializer
 
-    crew_copy_service = CrewCopyService()
+    copy_serializer_class = CrewCopySerializer
+    copy_deserializer_class = CrewCopyDeserializer
+    copy_serializer_response_class = CrewSerializer
 
     def get_serializer_class(self):
         if self.action == "export":
@@ -449,40 +435,6 @@ class CrewReadWriteViewSet(ModelViewSet, ImportExportMixin):
         if self.action == "import_entity":
             return CrewImportSerializer
         return super().get_serializer_class()
-
-    @action(detail=True, methods=["post"], url_path="copy")
-    def copy(self, request, pk=None):
-        """Create a copy of a crew along with its tasks and contexts."""
-        crew = self.get_object()
-
-        try:
-            with transaction.atomic():
-                created_crew = self.crew_copy_service.copy(crew)
-                serializer = self.get_serializer(created_crew)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response(
-                {"error": "Failed to copy crew", "detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=True, methods=["post"], url_path="save_as_project")
-    def save_as_project(self, request, pk=None):
-        """
-        Custom action to save a template as a project.
-        """
-        crew = self.get_object()
-        if not crew.is_template:
-            return Response(
-                "Project is not a template", status=status.HTTP_400_BAD_REQUEST
-            )
-
-        created_project = self.crew_copy_service.copy(crew)
-        created_project.is_template = False
-        created_project.save()
-
-        serializer = self.get_serializer(created_project)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TaskReadWriteViewSet(ModelViewSet):
