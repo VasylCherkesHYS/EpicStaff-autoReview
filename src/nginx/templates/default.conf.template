@@ -21,6 +21,8 @@ server {
     
     server_name ${DOMAIN_NAME};
 
+    client_max_body_size 50m;
+
     ${SSL_ENABLE} ssl_certificate /etc/nginx/certs/fullchain.pem; 
     ${SSL_ENABLE} ssl_certificate_key /etc/nginx/certs/privkey.pem;
 

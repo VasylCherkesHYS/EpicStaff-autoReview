@@ -90,7 +90,7 @@ class KnowledgeSearchService:
         query: str,
         rag_search_config: Dict[str, Any],
         stop_event: Optional[StopEvent] = None,
-        timeout: int = 15,
+        timeout: int = 0,
     ) -> list[str]:
         """
         Search knowledge using specified RAG implementation.
@@ -101,13 +101,18 @@ class KnowledgeSearchService:
             query: Search query text
             rag_search_config: RAG-specific search parameters dict
             stop_event: Optional event to stop execution
-            timeout: Timeout in seconds for waiting response
+            timeout: Timeout in seconds for waiting response.
+                     If 0 (default), auto-selects based on RAG type:
+                     60s for naive RAG, 120s for graph RAG (local/global/drift all require LLM calls).
 
         Returns:
             List of knowledge results (strings)
         """
 
         rag_type, rag_id = self._parse_rag_type_id(rag_type_id)
+
+        if timeout == 0:
+            timeout = 120 if rag_type == "graph" else 60
 
         search_config = RagSearchConfigFactory.build(rag_type, rag_search_config)
 
