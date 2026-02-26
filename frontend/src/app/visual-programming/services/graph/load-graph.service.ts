@@ -70,6 +70,10 @@ function readUIMetadata(
     };
 }
 
+function readNodeNumber(metadata: Record<string, any> | undefined | null): number | undefined {
+    return (metadata ?? {})['nodeNumber'] ?? undefined;
+}
+
 function getDefaultSize(nodeType: NodeType): { width: number; height: number } {
     switch (nodeType) {
         case NodeType.START:
@@ -117,6 +121,7 @@ function buildStartNode(sn: StartNode, idx: number): StartNodeModel {
         category: 'web',
         type: NodeType.START,
         node_name: '__start__',
+        nodeNumber: readNodeNumber(sn.metadata),
         data: { initialState: sn.variables ?? {} },
         position: ui.position,
         ports: null,
@@ -137,6 +142,7 @@ function buildCrewNode(cn: CrewNode, idx: number): ProjectNodeModel {
         category: 'web',
         type: NodeType.PROJECT,
         node_name: cn.node_name,
+        nodeNumber: readNodeNumber(cn.metadata),
         data: cn.crew,
         position: ui.position,
         ports: null,
@@ -157,6 +163,7 @@ function buildPythonNode(pn: PythonNode, idx: number): PythonNodeModel {
         category: 'web',
         type: NodeType.PYTHON,
         node_name: pn.node_name,
+        nodeNumber: readNodeNumber(pn.metadata),
         data: {
             name: pn.node_name,
             libraries: pn.python_code.libraries,
@@ -199,6 +206,7 @@ function buildLLMNode(ln: GetLLMNodeRequest, idx: number): LLMNodeModel {
         category: 'web',
         type: NodeType.LLM,
         node_name: ln.node_name,
+        nodeNumber: readNodeNumber(ln.metadata),
         data: configDetail,
         position: ui.position,
         ports: null,
@@ -219,6 +227,7 @@ function buildFileExtractorNode(n: GetFileExtractorNodeRequest, idx: number): Fi
         category: 'web',
         type: NodeType.FILE_EXTRACTOR,
         node_name: n.node_name,
+        nodeNumber: readNodeNumber(n.metadata),
         data: undefined,
         position: ui.position,
         ports: null,
@@ -239,6 +248,7 @@ function buildAudioToTextNode(n: GetAudioToTextNodeRequest, idx: number): AudioT
         category: 'web',
         type: NodeType.AUDIO_TO_TEXT,
         node_name: n.node_name,
+        nodeNumber: readNodeNumber(n.metadata),
         data: undefined,
         position: ui.position,
         ports: null,
@@ -265,6 +275,7 @@ function buildSubGraphNode(sn: SubGraphNode, idx: number): SubGraphNodeModel {
         category: 'web',
         type: NodeType.SUBGRAPH,
         node_name: sn.node_name,
+        nodeNumber: readNodeNumber(sn.metadata),
         data: subgraphDetail,
         position: ui.position,
         ports: null,
@@ -286,6 +297,7 @@ function buildWebhookTriggerNode(wn: GetWebhookTriggerNodeRequest, idx: number):
         category: 'web',
         type: NodeType.WEBHOOK_TRIGGER,
         node_name: wn.node_name,
+        nodeNumber: readNodeNumber(wn.metadata),
         data: {
             webhook_trigger_path: wn.webhook_trigger_path,
             python_code: {
@@ -314,6 +326,7 @@ function buildTelegramTriggerNode(tn: GetTelegramTriggerNodeRequest, idx: number
         category: 'web',
         type: NodeType.TELEGRAM_TRIGGER,
         node_name: tn.node_name,
+        nodeNumber: readNodeNumber(tn.metadata),
         data: {
             telegram_bot_api_key: tn.telegram_bot_api_key,
             fields: tn.fields,
@@ -337,6 +350,7 @@ function buildEndNode(en: EndNode, idx: number): EndNodeModel {
         category: 'web',
         type: NodeType.END,
         node_name: en.node_name ?? '__end_node__',
+        nodeNumber: readNodeNumber(en.metadata),
         data: { output_map: en.output_map ?? {} },
         position: ui.position,
         ports: null,
@@ -357,6 +371,7 @@ function buildNoteNode(nn: NoteNode, idx: number): NoteNodeModel {
         category: 'web',
         type: NodeType.NOTE,
         node_name: nn.node_name,
+        nodeNumber: readNodeNumber(nn.metadata),
         data: {
             content: nn.content,
             backgroundColor: nn.metadata?.['backgroundColor'] ?? undefined,
@@ -380,6 +395,7 @@ function buildDecisionTableNode(dn: GetDecisionTableNodeRequest, idx: number): D
         category: 'web',
         type: NodeType.TABLE,
         node_name: dn.node_name,
+        nodeNumber: readNodeNumber(dn.metadata),
         data: {
             name: dn.node_name,
             table: {
@@ -421,6 +437,7 @@ function buildConditionalEdgeNode(ce: ConditionalEdge, idx: number): EdgeNodeMod
         category: 'web',
         type: NodeType.EDGE,
         node_name: nodeName,
+        nodeNumber: readNodeNumber(ce.metadata),
         data: {
             source: null,
             then: null,
@@ -735,7 +752,20 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         ...conditionalEdgeNodes,
     ];
 
-    // ── 3. Build backendId → UUID and backendId → node maps ──────────────
+    // ── 3. Auto-assign nodeNumber to nodes that don't have one ─────────
+    let maxNumber = 0;
+    for (const n of allNodes) {
+        if (n.nodeNumber != null && n.nodeNumber > maxNumber) {
+            maxNumber = n.nodeNumber;
+        }
+    }
+    for (const n of allNodes) {
+        if (n.nodeNumber == null && n.type !== NodeType.NOTE) {
+            n.nodeNumber = ++maxNumber;
+        }
+    }
+
+    // ── 4. Build backendId → UUID and backendId → node maps ──────────────
     const backendIdToUuid = new Map<number, string>();
     const nodeByBackendId = new Map<number, NodeModel>();
     for (const n of allNodes) {
@@ -745,14 +775,14 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         }
     }
 
-    // ── 4. Post-process: resolve backend ID refs → UUIDs in decision tables
+    // ── 5. Post-process: resolve backend ID refs → UUIDs in decision tables
     resolveDecisionTableNodeRefs(
         decisionTableNodes,
         graph.decision_table_node_list ?? [],
         backendIdToUuid
     );
 
-    // ── 5. Post-process: resolve conditional edge source/then names ──────
+    // ── 6. Post-process: resolve conditional edge source/then names ──────
     resolveConditionalEdgeNodeRefs(
         graph.conditional_edge_list ?? [],
         conditionalEdgeNodes,
@@ -760,7 +790,7 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         nodeByBackendId
     );
 
-    // ── 6. Build connections from backend edge data ──────────────────────
+    // ── 7. Build connections from backend edge data ──────────────────────
     const edgeConnections = buildEdgeConnections(
         graph.edge_list ?? [],
         backendIdToUuid,
@@ -781,7 +811,7 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         graph.decision_table_node_list ?? []
     );
 
-    // ── 7. Combine all connections ───────────────────────────────────────
+    // ── 8. Combine all connections ───────────────────────────────────────
     const allConnections: ConnectionModel[] = [
         ...edgeConnections,
         ...conditionalEdgeConnections,

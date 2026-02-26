@@ -101,6 +101,11 @@ export class DecisionTableNodeComponent {
         return this.node.ports?.find((p) => p.role === role);
     }
 
+    getDisplayName(): string {
+        const base = (this.node.node_name || 'Decision Table').replace(/\s*\(#\d+\)\s*$/, '').trim();
+        return this.node.nodeNumber != null ? `${base} #${this.node.nodeNumber}` : base;
+    }
+
     onEditClick() {
         this.actualClick.emit();
     }

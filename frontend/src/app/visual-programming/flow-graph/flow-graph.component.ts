@@ -162,7 +162,17 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
         this.initializeFlowStateIfEmpty();
         this.addStartNodeIfNeeded();
         this.generatePortsForNodesIfNeeded();
+        this.assignMissingNodeNumbers();
         this.flowService.setFlow(this.flowState);
+    }
+
+    /** Assigns nodeNumber to any node that still doesn't have one (safety net for old data). */
+    private assignMissingNodeNumbers(): void {
+        for (const n of this.flowState.nodes) {
+            if (n.nodeNumber == null && n.type !== NodeType.NOTE) {
+                n.nodeNumber = this.flowService.getNextNodeNumber();
+            }
+        }
     }
 
     private initializeFlowStateIfEmpty(): void {
@@ -191,6 +201,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
                 category: 'web',
                 type: NodeType.START,
                 node_name: '__start__',
+                nodeNumber: this.flowService.getNextNodeNumber(),
                 data: {
                     initialState: {},
                 },
@@ -515,20 +526,18 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
     public onCreateNode(event: FCreateNodeEvent) {
         if (event.data && typeof event.data === 'object') {
             const nodeData = event.data as NodeModel;
-            // Create a copy of the node with updated position and category
+            const nodeNumber = nodeData.nodeNumber ?? this.flowService.getNextNodeNumber();
             const updatedNode: NodeModel = {
                 ...nodeData,
                 position: {
                     x: event.rect.x,
                     y: event.rect.y,
                 },
-                category: 'web', // Change category from 'vscode' to 'web'
+                category: 'web',
+                nodeNumber,
             };
 
-            // Call the flow service to update the node
             this.flowService.updateNode(updatedNode);
-
-            console.log('Node added to canvas:', updatedNode);
         }
     }
 
@@ -635,6 +644,8 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             };
         }
 
+        const nodeNumber = this.flowService.getNextNodeNumber();
+
         const newNode: NodeModel = {
             id: newNodeId,
             backendId: null,
@@ -644,6 +655,7 @@ export class FlowGraphComponent implements OnInit, OnDestroy {
             parentId: null,
             type: event.type as NodeModel['type'],
             node_name: newNodeName,
+            nodeNumber,
             data: nodeData,
             color: nodeColor,
             icon: nodeIcon,

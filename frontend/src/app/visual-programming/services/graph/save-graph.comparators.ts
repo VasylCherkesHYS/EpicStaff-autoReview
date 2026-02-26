@@ -65,6 +65,7 @@ function getBackendMetadataForComparison(node: { metadata?: any }): NodeUIMetada
         icon: m['icon'] ?? '',
         size: m['size'] ?? { width: 0, height: 0 },
         parentId: m['parentId'] ?? null,
+        nodeNumber: m['nodeNumber'] ?? undefined,
     };
 }
 

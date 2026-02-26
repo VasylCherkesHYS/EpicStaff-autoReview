@@ -33,9 +33,10 @@ export interface BaseNodeModel {
         width: number;
         height: number;
     };
+    /** Unique incrementing number per graph, Jira-style (never reused). */
+    nodeNumber?: number;
     // UI-only flag for invalid references (e.g. deleted subgraph)
     isBlocked?: boolean;
-    // New fields
     input_map: Record<string, any>;
     output_variable_path: string | null;
 }

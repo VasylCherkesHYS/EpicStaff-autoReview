@@ -7,38 +7,51 @@ import {
     SubGraphNodeModel,
 } from '../models/node.model';
 
+/** Strips the legacy auto-generated instance counter suffix, e.g. "Python-Node (#2)" → "Python-Node" */
+function stripCounter(name: string | null | undefined): string {
+    if (!name) return '';
+    return name.replace(/\s*\(#\d+\)\s*$/, '').trim();
+}
+
+/** Returns "Base Name #N" where N is the nodeNumber, or just "Base Name" if no number. */
+function withNumber(baseName: string, node: NodeModel): string {
+    if (node.nodeNumber != null) {
+        return `${baseName} #${node.nodeNumber}`;
+    }
+    return baseName;
+}
+
 export function getNodeTitle(node: NodeModel): string {
     if (!node) return 'Unknown Node';
     switch (node.type) {
         case NodeType.PROJECT:
-            return (node as any).node_name || '';
+            return withNumber(stripCounter((node as any).node_name), node);
         case NodeType.PYTHON:
-            return (node as PythonNodeModel).node_name || '';
-
+            return withNumber(stripCounter((node as PythonNodeModel).node_name), node);
         case NodeType.TABLE:
-            return (node as any).data.name || '';
+            return withNumber(stripCounter((node as any).data.name), node);
         case NodeType.LLM:
-            return (node as any).data.custom_name || '';
+            return withNumber(stripCounter((node as any).data.custom_name), node);
         case NodeType.START:
-            return 'Start';
+            return withNumber('Start', node);
         case NodeType.NOTE:
             return 'Note';
         case NodeType.FILE_EXTRACTOR:
-            return node.node_name;
+            return withNumber(stripCounter(node.node_name), node);
         case NodeType.AUDIO_TO_TEXT:
-            return (node as any).node_name || '';
+            return withNumber(stripCounter((node as any).node_name), node);
         case NodeType.WEBHOOK_TRIGGER:
-            return (node as any).node_name || '';
+            return withNumber(stripCounter((node as any).node_name), node);
         case NodeType.TELEGRAM_TRIGGER:
-            return (node as any).node_name || '';
+            return withNumber(stripCounter((node as any).node_name), node);
         case NodeType.END:
-            return 'End';
+            return withNumber('End', node);
         case NodeType.SUBGRAPH:
             const subgraphNode = node as SubGraphNodeModel;
             if (subgraphNode.isBlocked || !subgraphNode.data?.name) {
                 return 'Deleted Flow';
             }
-            return subgraphNode.data.name;
+            return withNumber(subgraphNode.data.name, node);
         default:
             return '';
     }

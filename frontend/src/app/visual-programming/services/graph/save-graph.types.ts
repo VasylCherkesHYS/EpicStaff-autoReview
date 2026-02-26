@@ -36,6 +36,7 @@ export interface NodeUIMetadata {
     icon: string;
     size: { width: number; height: number };
     parentId: string | null;
+    nodeNumber?: number;
 }
 
 /**
@@ -50,6 +51,7 @@ export function getUIMetadataForComparison(node: BaseNodeModel): NodeUIMetadata 
         icon: node.icon,
         size: node.size,
         parentId: node.parentId,
+        nodeNumber: node.nodeNumber,
     };
 }
 

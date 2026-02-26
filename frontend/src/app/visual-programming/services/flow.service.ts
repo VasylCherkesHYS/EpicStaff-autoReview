@@ -33,6 +33,9 @@ export class FlowService {
         connections: [],
     });
 
+    /** Jira-style auto-incrementing counter — never decreases, even on deletion. */
+    private _nextNodeNumber = 1;
+
     public readonly nodes = computed(() => this.flowSignal().nodes);
     public readonly connections = computed(() => this.flowSignal().connections);
 
@@ -80,6 +83,25 @@ export class FlowService {
 
     public setFlow(flow: FlowModel) {
         this.flowSignal.set(flow);
+    }
+
+    /**
+     * Initializes the node number counter based on existing nodes.
+     * Should be called after loading a graph so new nodes continue from the max.
+     */
+    public initNodeNumberCounter(nodes: NodeModel[]): void {
+        let max = 0;
+        for (const n of nodes) {
+            if (n.nodeNumber != null && n.nodeNumber > max) {
+                max = n.nodeNumber;
+            }
+        }
+        this._nextNodeNumber = max + 1;
+    }
+
+    /** Returns the next node number and increments the counter. */
+    public getNextNodeNumber(): number {
+        return this._nextNodeNumber++;
     }
 
     public addNode(node: NodeModel) {
