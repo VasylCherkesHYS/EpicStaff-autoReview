@@ -1,0 +1,192 @@
+<div class="dialog-container">
+    <div class="dialog-header">
+        <h2 class="dialog-title">{{ dialogTitle }}</h2>
+        <button
+            class="close-button"
+            (click)="onCancel()"
+            [disabled]="isSubmitting"
+        >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <line
+                    x1="18"
+                    y1="6"
+                    x2="6"
+                    y2="18"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                />
+                <line
+                    x1="6"
+                    y1="6"
+                    x2="18"
+                    y2="18"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                />
+            </svg>
+        </button>
+    </div>
+    <div class="dialog-description">Just tell us what you want to build and we’ll handle the rest.</div>
+
+    <div class="dialog-content">
+        <form [formGroup]="flowForm">
+            <!-- Name field with icon selector -->
+            <div class="form-group name-with-icon">
+                <label for="name"
+                    >Flow Name <span class="required">*</span></label
+                >
+                <div class="input-with-icon">
+                    <!-- Icon Picker Component -->
+                    <!-- <app-icon-picker
+              [selectedIcon]="selectedIcon"
+              (iconSelected)="onIconSelected($event)"
+            ></app-icon-picker> -->
+                    <input
+                        type="text"
+                        id="name"
+                        formControlName="name"
+                        placeholder="Enter flow name"
+                        class="form-control"
+                    />
+                </div>
+                @if (
+                    flowForm.get("name")?.invalid &&
+                    flowForm.get("name")?.touched
+                ) {
+                    <div class="error-message">Flow name is required.</div>
+                }
+            </div>
+
+            <!-- Work Folder and Max Iterations in same row -->
+            <div class="form-row">
+                <!-- Work Folder field -->
+                <div class="form-group flex-1">
+                    <label for="workFolder"
+                        >Work Folder <span class="required">*</span></label
+                    >
+                    <input
+                        type="text"
+                        id="workFolder"
+                        formControlName="workFolder"
+                        placeholder="Enter work folder name"
+                        class="form-control"
+                    />
+                    @if (
+                        flowForm.get("workFolder")?.invalid &&
+                        flowForm.get("workFolder")?.touched
+                    ) {
+                        <div class="error-message">
+                            Work folder is required.
+                        </div>
+                    }
+                </div>
+
+                <!-- Max Iterations field -->
+                <div class="form-group flex-1">
+                    <label for="maxIterations"
+                        >Max Iterations <span class="required">*</span></label
+                    >
+                    <app-input-number
+                        id="maxIterations"
+                        formControlName="maxIterations"
+                        placeholder="Enter maximum iterations"
+                        [min]="1"
+                        [required]="true"
+                    />
+                    @if (
+                        flowForm.get("maxIterations")?.invalid &&
+                        flowForm.get("maxIterations")?.touched
+                    ) {
+                        <div class="error-message">
+                            @if (
+                                flowForm.get("maxIterations")?.errors?.[
+                                    "required"
+                                ]
+                            ) {
+                                Max iterations is required.
+                            }
+                            @if (
+                                flowForm.get("maxIterations")?.errors?.["min"]
+                            ) {
+                                Max iterations must be at least 1.
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- LLM Config field -->
+            <div class="form-group">
+                <app-select
+                    label="LLM Configuration"
+                    [required]="false"
+                    [items]="llmConfigItems"
+                    placeholder="Select LLM Configuration"
+                    formControlName="llmConfig"
+                ></app-select>
+                @if (
+                    flowForm.get("llmConfig")?.invalid &&
+                    flowForm.get("llmConfig")?.touched
+                ) {
+                    <div class="error-message">
+                        LLM configuration is required.
+                    </div>
+                }
+            </div>
+
+            <!-- Description field -->
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea
+                    id="description"
+                    formControlName="description"
+                    placeholder="Enter flow description"
+                    class="form-control"
+                    rows="3"
+                ></textarea>
+            </div>
+
+            <!-- Acceptance Criteria field -->
+            <div class="form-group">
+                <label for="acceptanceCriteria">Acceptance Criteria </label>
+                <textarea
+                    id="acceptanceCriteria"
+                    formControlName="acceptanceCriteria"
+                    placeholder="Enter acceptance criteria for the AI-generated flow"
+                    class="form-control"
+                    rows="4"
+                ></textarea>
+                @if (
+                    flowForm.get("acceptanceCriteria")?.invalid &&
+                    flowForm.get("acceptanceCriteria")?.touched
+                ) {
+                    <div class="error-message">
+                        Acceptance criteria is required.
+                    </div>
+                }
+            </div>
+        </form>
+        @if (errorMessage) {
+            <div class="dialog-error-message">{{ errorMessage }}</div>
+        }
+    </div>
+
+    <div class="dialog-footer">
+        <app-button type="ghost" (click)="onCancel()" [disabled]="isSubmitting">
+            Cancel
+        </app-button>
+        <app-button
+            type="primary"
+            [disabled]="!flowForm.valid || isSubmitting"
+            (click)="onSubmit()"
+        >
+            @if (isSubmitting) {
+                <span class="spinner"></span> Save
+            } @else {
+                {{ submitButtonText }}
+            }
+        </app-button>
+    </div>
+</div>

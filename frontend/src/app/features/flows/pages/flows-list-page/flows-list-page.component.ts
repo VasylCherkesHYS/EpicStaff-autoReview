@@ -21,6 +21,7 @@ import {
 } from '@angular/router';
 
 import { CreateFlowDialogComponent } from '../../components/create-flow-dialog/create-flow-dialog.component';
+import { CreateRalphFlowDialogComponent } from '../../components/create-ralph-flow-dialog/create-ralph-flow-dialog.component';
 
 import { Dialog } from '@angular/cdk/dialog';
 
@@ -110,7 +111,22 @@ export class FlowsListPageComponent implements OnDestroy {
             CreateFlowDialogComponent,
             {
                 width: '500px',
+            },
+        );
+
+        dialogRef.closed.subscribe((result: GraphDto | undefined) => {
+            if (result) {
+                this.router.navigate(['/flows', result.id]);
             }
+        });
+    }
+
+    public openCreateRalphFlowDialog(): void {
+        const dialogRef = this.dialog.open<GraphDto | undefined>(
+            CreateRalphFlowDialogComponent,
+            {
+                width: '500px',
+            },
         );
 
         dialogRef.closed.subscribe((result: GraphDto | undefined) => {
