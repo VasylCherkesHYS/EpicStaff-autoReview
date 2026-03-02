@@ -1596,6 +1596,9 @@ class GraphSerializer(serializers.ModelSerializer):
     telegram_trigger_node_list = TelegramTriggerNodeSerializer(
         many=True, read_only=True
     )
+    
+    # Handle camelCase from frontend
+    isRalph = serializers.BooleanField(source='is_ralph', required=False, allow_null=True)
 
     class Meta:
         model = Graph
@@ -1620,6 +1623,8 @@ class GraphSerializer(serializers.ModelSerializer):
             "time_to_live",
             "persistent_variables",
             "telegram_trigger_node_list",
+            "is_ralph",
+            "isRalph",
         ]
 
 

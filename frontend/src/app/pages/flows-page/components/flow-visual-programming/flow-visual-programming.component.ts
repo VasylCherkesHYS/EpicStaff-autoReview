@@ -80,11 +80,18 @@ import { ConfigService } from '../../../../services/config/config.service';
 import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
 import { ShortcutsModalComponent } from './components/shortcuts-modal/shortcuts-modal.component';
 import { FLOW_SHORTCUT_SECTIONS } from './flow-shortcuts.config';
+import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
 
 @Component({
     selector: 'app-flow-visual-programming',
     standalone: true,
-    imports: [FlowHeaderComponent, FlowGraphComponent, SpinnerComponent, ShortcutsModalComponent],
+    imports: [
+        FlowHeaderComponent,
+        FlowGraphComponent,
+        SpinnerComponent,
+        ShortcutsModalComponent,
+        ButtonComponent,
+    ],
     templateUrl: './flow-visual-programming.component.html',
     styleUrl: './flow-visual-programming.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -97,10 +104,13 @@ export class FlowVisualProgrammingComponent
 
     public isSaving = false;
     public isRunning = false;
+    public isRalphEditMode = signal(false);
+    public ralphActiveStage = signal(0);
 
     private initialState: FlowModel | undefined;
     private readonly destroy$ = new Subject<void>();
     private isNavigatingToRun = false;
+    private ralphStageInterval?: ReturnType<typeof setInterval>;
 
     @ViewChild(FlowGraphComponent)
     private flowGraphComponent?: FlowGraphComponent;
@@ -119,7 +129,7 @@ export class FlowVisualProgrammingComponent
         private readonly dialog: CdkDialog,
         private readonly unsavedChangesDialogService: UnsavedChangesDialogService,
         private readonly configService: ConfigService,
-        private readonly sidePanelService: SidePanelService
+        private readonly sidePanelService: SidePanelService,
     ) {}
 
     public ngOnInit(): void {
@@ -139,19 +149,19 @@ export class FlowVisualProgrammingComponent
                 switchMap((graph: GraphDto) =>
                     this.flowApiService.getGraphsLight().pipe(
                         map((flows) =>
-                            this.applySubgraphNodeValidation(graph, flows)
+                            this.applySubgraphNodeValidation(graph, flows),
                         ),
                         catchError((err) => {
                             console.error(
                                 'Error fetching flows for subgraph validation:',
-                                err
+                                err,
                             );
                             return of(graph);
-                        })
-                    )
+                        }),
+                    ),
                 ),
                 takeUntil(this.destroy$),
-                finalize(() => this.cdr.markForCheck())
+                finalize(() => this.cdr.markForCheck()),
             )
             .subscribe({
                 next: (graph: GraphDto) => {
@@ -166,15 +176,20 @@ export class FlowVisualProgrammingComponent
                         graph.metadata?.nodes?.filter(
                             (node) =>
                                 node.type === NodeType.SUBGRAPH &&
-                                node.isBlocked
+                                node.isBlocked,
                         ).length || 0;
 
                     if (blockedCount > 0) {
                         this.toastService.warning(
                             `${blockedCount} subgraph node(s) reference missing flows and were blocked.`,
                             6000,
-                            'bottom-right'
+                            'bottom-right',
                         );
+                    }
+
+                    // Start Ralph stage animation if this is a Ralph flow
+                    if (graph.is_ralph) {
+                        this.startRalphStageAnimation();
                     }
                 },
                 error: (err) => {
@@ -186,7 +201,7 @@ export class FlowVisualProgrammingComponent
 
     private applySubgraphNodeValidation(
         graph: GraphDto,
-        availableFlows: GraphDto[]
+        availableFlows: GraphDto[],
     ): GraphDto {
         if (!graph.metadata || !Array.isArray(graph.metadata.nodes)) {
             return graph;
@@ -232,11 +247,11 @@ export class FlowVisualProgrammingComponent
                 const flowState: FlowModel = this.flowService.getFlowState();
                 console.log(
                     'flow state that i got from service on saveflow',
-                    flowState
+                    flowState,
                 );
 
                 const startNodeInFlow = flowState.nodes.find(
-                    (node) => node.type === NodeType.START
+                    (node) => node.type === NodeType.START,
                 ) as StartNodeModel | undefined;
 
                 if (!startNodeInFlow) {
@@ -247,16 +262,16 @@ export class FlowVisualProgrammingComponent
                 return this.saveGraphWithStartNode(
                     flowState,
                     startNodeInFlow,
-                    showNotif
+                    showNotif,
                 );
-            })
+            }),
         );
     }
 
     private saveGraphWithStartNode(
         flowState: FlowModel,
         startNode: StartNodeModel,
-        showNotif: boolean
+        showNotif: boolean,
     ): Observable<boolean> {
         const initialStateData = startNode.data.initialState;
 
@@ -264,7 +279,7 @@ export class FlowVisualProgrammingComponent
             takeUntil(this.destroy$),
             switchMap((startNodes) => {
                 const matchingStartNode = startNodes.find(
-                    (sn) => sn.graph === this.graph.id
+                    (sn) => sn.graph === this.graph.id,
                 );
 
                 if (matchingStartNode) {
@@ -273,7 +288,7 @@ export class FlowVisualProgrammingComponent
                         {
                             graph: this.graph.id,
                             variables: initialStateData,
-                        }
+                        },
                     );
                 }
 
@@ -283,7 +298,7 @@ export class FlowVisualProgrammingComponent
                 });
             }),
             switchMap(() =>
-                this.graphUpdateService.saveGraph(flowState, this.graph)
+                this.graphUpdateService.saveGraph(flowState, this.graph),
             ),
             map((result) => {
                 this.graph = result.graph;
@@ -297,7 +312,7 @@ export class FlowVisualProgrammingComponent
                 this.toastService.error(
                     `Failed to save graph: ${
                         err?.error?.error || 'Unknown error'
-                    }`
+                    }`,
                 );
                 console.error('Error saving graph:', err);
                 return of(false);
@@ -305,13 +320,13 @@ export class FlowVisualProgrammingComponent
             finalize(() => {
                 this.isSaving = false;
                 this.cdr.markForCheck();
-            })
+            }),
         );
     }
 
     private saveGraphDirectly(
         flowState: FlowModel,
-        showNotif: boolean
+        showNotif: boolean,
     ): Observable<boolean> {
         return this.graphUpdateService.saveGraph(flowState, this.graph).pipe(
             takeUntil(this.destroy$),
@@ -327,7 +342,7 @@ export class FlowVisualProgrammingComponent
                 this.toastService.error(
                     `Failed to save graph: ${
                         err?.error?.error || 'Unknown error'
-                    }`
+                    }`,
                 );
                 console.error('Error saving graph:', err);
                 return of(false);
@@ -335,7 +350,7 @@ export class FlowVisualProgrammingComponent
             finalize(() => {
                 this.isSaving = false;
                 this.cdr.markForCheck();
-            })
+            }),
         );
     }
 
@@ -351,7 +366,7 @@ export class FlowVisualProgrammingComponent
                 const flowState: FlowModel = this.flowService.getFlowState();
 
                 const startNodeInFlow = flowState.nodes.find(
-                    (node) => node.type === NodeType.START
+                    (node) => node.type === NodeType.START,
                 ) as StartNodeModel | undefined;
 
                 if (!startNodeInFlow) {
@@ -361,7 +376,7 @@ export class FlowVisualProgrammingComponent
                             tap((result) => {
                                 this.graph = result.graph;
                                 this.initialState = flowState;
-                            })
+                            }),
                         );
                 }
 
@@ -370,7 +385,7 @@ export class FlowVisualProgrammingComponent
                 return this.startNodeService.getStartNodes().pipe(
                     switchMap((startNodes) => {
                         const matchingStartNode = startNodes.find(
-                            (sn) => sn.graph === this.graph.id
+                            (sn) => sn.graph === this.graph.id,
                         );
 
                         if (matchingStartNode) {
@@ -379,7 +394,7 @@ export class FlowVisualProgrammingComponent
                                 {
                                     graph: this.graph.id,
                                     variables: initialStateData,
-                                }
+                                },
                             );
                         }
 
@@ -389,14 +404,17 @@ export class FlowVisualProgrammingComponent
                         });
                     }),
                     switchMap(() =>
-                        this.graphUpdateService.saveGraph(flowState, this.graph)
+                        this.graphUpdateService.saveGraph(
+                            flowState,
+                            this.graph,
+                        ),
                     ),
                     tap((result) => {
                         this.graph = result.graph;
                         this.initialState = flowState;
-                    })
+                    }),
                 );
-            })
+            }),
         );
     }
 
@@ -415,14 +433,14 @@ export class FlowVisualProgrammingComponent
                 switchMap(() =>
                     this.runGraphService.runGraph(
                         this.graph.id,
-                        this.graph.start_node_list[0].variables
-                    )
+                        this.graph.start_node_list[0].variables,
+                    ),
                 ),
                 takeUntil(this.destroy$),
                 finalize(() => {
                     this.isRunning = false;
                     this.cdr.markForCheck();
-                })
+                }),
             )
             .subscribe({
                 next: (response: any) => {
@@ -438,7 +456,7 @@ export class FlowVisualProgrammingComponent
                     this.toastService.error(
                         `Failed to run graph: ${
                             error?.error?.error || 'Unknown error'
-                        }`
+                        }`,
                     );
                     console.error('Failed to run graph:', error);
                 },
@@ -462,13 +480,13 @@ export class FlowVisualProgrammingComponent
             const curlCommand = this.generateCurlCommand(
                 flowId,
                 startNodeInitialState,
-                apiUrl
+                apiUrl,
             );
             this.copyToClipboard(curlCommand);
             this.toastService.success('CURL command copied to clipboard!');
         } else {
             this.toastService.error(
-                'Unable to generate CURL: Missing flow ID or start node data'
+                'Unable to generate CURL: Missing flow ID or start node data',
             );
         }
     }
@@ -476,7 +494,7 @@ export class FlowVisualProgrammingComponent
     private generateCurlCommand(
         flowId: number,
         variables: Record<string, unknown>,
-        apiUrl: string
+        apiUrl: string,
     ): string {
         const variablesJson = JSON.stringify(variables, null, 2);
         const payload = JSON.stringify(
@@ -485,7 +503,7 @@ export class FlowVisualProgrammingComponent
                 variables: variables,
             },
             null,
-            2
+            2,
         );
 
         return `curl \\
@@ -547,13 +565,14 @@ export class FlowVisualProgrammingComponent
                             return of(true);
                         }
                         return of(false);
-                    })
+                    }),
                 );
         }
         return true;
     }
 
     public ngOnDestroy(): void {
+        this.stopRalphStageAnimation();
         // this.destroy$.next();
         // this.destroy$.complete();
     }
@@ -565,6 +584,25 @@ export class FlowVisualProgrammingComponent
     public isShortcutsOpen = signal(false);
     public shortcutsPos = signal<{ top: number; left: number } | null>(null);
     public readonly shortcutSections = FLOW_SHORTCUT_SECTIONS;
+
+    public enableRalphEditMode(): void {
+        this.isRalphEditMode.set(true);
+        this.stopRalphStageAnimation();
+    }
+
+    private startRalphStageAnimation(): void {
+        this.ralphActiveStage.set(0);
+        this.ralphStageInterval = setInterval(() => {
+            this.ralphActiveStage.update((current) => (current + 1) % 3);
+        }, 3000);
+    }
+
+    private stopRalphStageAnimation(): void {
+        if (this.ralphStageInterval) {
+            clearInterval(this.ralphStageInterval);
+            this.ralphStageInterval = undefined;
+        }
+    }
 
     public openShortcutsModal(rect: DOMRect): void {
         if (this.isShortcutsOpen()) {
@@ -582,5 +620,15 @@ export class FlowVisualProgrammingComponent
     public closeShortcutsModal(): void {
         this.isShortcutsOpen.set(false);
         this.shortcutsPos.set(null);
+    }
+
+    public getRalphInitialState(): any {
+        if (!this.graph?.metadata?.nodes) {
+            return null;
+        }
+        const startNode = this.graph.metadata.nodes.find(
+            (node: any) => node.type === 'start',
+        ) as any;
+        return startNode?.data?.initialState || null;
     }
 }

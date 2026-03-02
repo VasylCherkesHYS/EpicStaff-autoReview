@@ -24,12 +24,8 @@ import { SubGraphNode } from '../../../pages/flows-page/components/flow-visual-p
 import { GetAudioToTextNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/audio-to-text.model';
 import { GetDecisionTableNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/decision-table-node.model';
 import { GetWebhookTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/webhook-trigger';
-import {
-    GetTelegramTriggerNodeRequest
-} from "../../../pages/flows-page/components/flow-visual-programming/models/telegram-trigger.model";
-import {
-    GetCodeAgentNodeRequest
-} from "../../../pages/flows-page/components/flow-visual-programming/models/code-agent-node.model";
+import { GetTelegramTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/telegram-trigger.model';
+import { GetCodeAgentNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/code-agent-node.model';
 
 export interface GraphDto {
     id: number;
@@ -51,6 +47,7 @@ export interface GraphDto {
     tags?: [];
     audio_transcription_node_list: GetAudioToTextNodeRequest[];
     code_agent_node_list: GetCodeAgentNodeRequest[];
+    is_ralph?: boolean;
 }
 
 export interface GetGraphLightRequest {
@@ -79,6 +76,7 @@ export interface CreateGraphDtoRequest {
     subgraph_node_list?: SubGraphNode[];
     decision_table_node_list?: GetDecisionTableNodeRequest[];
     code_agent_node_list?: GetCodeAgentNodeRequest[];
+    isRalph?: boolean;
 }
 
 export interface UpdateGraphDtoRequest {

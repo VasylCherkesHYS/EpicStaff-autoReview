@@ -147,6 +147,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             name: formValue.name,
             description: formValue.description || undefined,
             metadata: newFlowMetadata,
+            isRalph: true,
         };
 
         this.flowsStorageService

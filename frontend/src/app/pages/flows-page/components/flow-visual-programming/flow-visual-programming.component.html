@@ -1,39 +1,148 @@
-@if (isLoaded ) {
-<app-flow-header
-    [graphName]="graph.name"
-    [graphId]="graph.id"
-    [isSaving]="isSaving"
-    [isRunning]="isRunning"
-    [hasUnsavedChanges]="hasUnsavedChanges()"
-    (save)="handleSaveFlow(true).subscribe()"
-    (viewSessions)="handleViewSessions()"
-    (run)="handleRunFlow()"
-    (getCurl)="handleGetCurl()"
-></app-flow-header>
-
-<div class="body">
-    <app-flow-graph
-        [flowState]="graph.metadata"
-        [nodesMode]="'flow-graph'"
-        [currentFlowId]="graph.id"
+@if (isLoaded) {
+    <app-flow-header
+        [graphName]="graph.name"
+        [graphId]="graph.id"
+        [isSaving]="isSaving"
+        [isRunning]="isRunning"
+        [hasUnsavedChanges]="hasUnsavedChanges()"
         (save)="handleSaveFlow(true).subscribe()"
-        (openShortcuts)="openShortcutsModal($event)"
-    ></app-flow-graph>
-    <app-shortcuts-modal
-        [open]="isShortcutsOpen()"
-        [pos]="shortcutsPos()"
-        title="Command & Shortcuts"
-        iconSrc="assets/icons/ui/shortcut.svg"
-        [sections]="shortcutSections"
-        (closed)="closeShortcutsModal()"
-    ></app-shortcuts-modal>
-</div>
+        (viewSessions)="handleViewSessions()"
+        (run)="handleRunFlow()"
+        (getCurl)="handleGetCurl()"
+    ></app-flow-header>
+
+    <div class="body">
+        @if (graph.is_ralph && !isRalphEditMode()) {
+            <div class="ralph-container">
+                <div class="ralph-info">
+                    <div class="info-header">
+                        <h3>Flow Configuration</h3>
+                        <app-button
+                            type="secondary"
+                            (click)="enableRalphEditMode()"
+                            ariaLabel="Edit Flow"
+                        >
+                            Edit
+                        </app-button>
+                    </div>
+                    @if (getRalphInitialState(); as initialState) {
+                        <div class="info-content">
+                            @if (initialState.work_folder) {
+                                <div class="info-item">
+                                    <span class="label">Work Folder</span>
+                                    <span class="value">{{
+                                        initialState.work_folder
+                                    }}</span>
+                                </div>
+                            }
+                            @if (initialState.assignment) {
+                                <div class="info-item">
+                                    <span class="label">Description</span>
+                                    <span class="value">{{
+                                        initialState.assignment
+                                    }}</span>
+                                </div>
+                            }  
+                             @if (initialState.criteria) {
+                                <div class="info-item">
+                                    <span class="label">Acceptance criteria</span>
+                                    <span class="value">{{
+                                        initialState.criteria
+                                    }}</span>
+                                </div>
+                            }                            
+                            @if (initialState.max_iterations) {
+                                <div class="info-item">
+                                    <span class="label">Max Iterations</span>
+                                    <span class="value">{{
+                                        initialState.max_iterations
+                                    }}</span>
+                                </div>
+                            }
+                            @if (initialState.status) {
+                                <div class="info-item">
+                                    <span class="label">Status</span>
+                                    <span class="value">{{
+                                        initialState.status
+                                    }}</span>
+                                </div>
+                            }
+                            @if (
+                                initialState.iteration !== null &&
+                                initialState.iteration !== undefined
+                            ) {
+                                <div class="info-item">
+                                    <span class="label">Current Iteration</span>
+                                    <span class="value">{{
+                                        initialState.iteration
+                                    }}</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="ralph-view">
+                    <img
+                        src="assets/gifs/big-logo.gif"
+                        alt="AI"
+                        class="logo-gif"
+                    />
+                    <div class="progress-stages">
+                        <div
+                            class="stage"
+                            [class.active]="ralphActiveStage() === 0"
+                        >
+                            <span>Analyze your request</span>
+                        </div>
+                        <img
+                            src="assets/icons/ui/arrow-right.svg"
+                            alt="→"
+                            class="arrow-icon"
+                            [class.active]="ralphActiveStage() === 0"
+                        />
+                        <div
+                            class="stage"
+                            [class.active]="ralphActiveStage() === 1"
+                        >
+                            <span>Creating implementation plan</span>
+                        </div>
+                        <img
+                            src="assets/icons/ui/arrow-right.svg"
+                            alt="→"
+                            class="arrow-icon"
+                            [class.active]="ralphActiveStage() === 1"
+                        />
+                        <div
+                            class="stage"
+                            [class.active]="ralphActiveStage() === 2"
+                        >
+                            <span>Building your task</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        } @else {
+            <app-flow-graph
+                [flowState]="graph.metadata"
+                [nodesMode]="'flow-graph'"
+                [currentFlowId]="graph.id"
+                (save)="handleSaveFlow(true).subscribe()"
+                (openShortcuts)="openShortcutsModal($event)"
+            ></app-flow-graph>
+            <app-shortcuts-modal
+                [open]="isShortcutsOpen()"
+                [pos]="shortcutsPos()"
+                title="Command & Shortcuts"
+                iconSrc="assets/icons/ui/shortcut.svg"
+                [sections]="shortcutSections"
+                (closed)="closeShortcutsModal()"
+            ></app-shortcuts-modal>
+        }
+    </div>
 } @else {
-
-<app-spinner
-    [text]="'Loading flow...'"
-    [accentColor]="'#6562f5'"
-    [isOverlay]="false"
-></app-spinner>
-
+    <app-spinner
+        [text]="'Loading flow...'"
+        [accentColor]="'#6562f5'"
+        [isOverlay]="false"
+    ></app-spinner>
 }

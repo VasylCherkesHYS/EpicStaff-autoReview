@@ -20,6 +20,9 @@ class Graph(models.Model):
     persistent_variables = models.BooleanField(
         default=False, help_text="If 'True' -> use variables from last session."
     )
+    is_ralph = models.BooleanField(
+        default=False, help_text="If 'True' -> this is a Ralph flow created from the Ralph template."
+    )
 
 
 class BaseNode(BaseGraphEntity, BaseGlobalNode):
