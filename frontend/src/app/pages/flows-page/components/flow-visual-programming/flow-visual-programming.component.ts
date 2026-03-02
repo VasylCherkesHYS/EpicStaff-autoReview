@@ -236,6 +236,14 @@ export class FlowVisualProgrammingComponent
             return of(false);
         }
 
+        // Prevent saving when in Ralph view mode (FlowGraphComponent is not rendered)
+        if (this.graph?.is_ralph && !this.isRalphEditMode()) {
+            if (showNotif) {
+                this.toastService.info('Switch to edit mode to save changes');
+            }
+            return of(false);
+        }
+
         this.isSaving = true;
         this.flushActiveSidePanelState();
 
@@ -538,6 +546,11 @@ export class FlowVisualProgrammingComponent
     }
 
     public hasUnsavedChanges(): boolean {
+        // Skip unsaved changes check when in Ralph view mode
+        if (this.graph?.is_ralph && !this.isRalphEditMode()) {
+            return false;
+        }
+
         const currentState = this.flowService.getFlowState();
 
         return !isEqual(currentState, this.initialState);
