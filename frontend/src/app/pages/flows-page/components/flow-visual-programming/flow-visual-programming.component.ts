@@ -528,29 +528,7 @@ export class FlowVisualProgrammingComponent
                 'Unable to generate CURL: Missing flow ID or start node data',
             );
         }
-    }
-
-    public handleConnectChat(): void {
-        if (!this.graph?.id) {
-            this.toastService.error('Unable to connect chat: Missing flow ID');
-            return;
-        }
-
-        const flowUrl = this.normalizeApiUrl(this.configService.apiUrl);
-        if (!flowUrl) {
-            this.toastService.error('Unable to connect chat: Missing API URL');
-            return;
-        }
-
-        this.epicChatService.requestCreateAgent({
-            name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
-            description: this.graph.description?.trim(),
-            flowId: this.graph.id,
-            flowUrl,
-            selectAfterCreate: true,
-        });
-        this.toastService.success('Flow connected to Epic Chat');
-    }
+    }   
 
     public handleConnectChat(): void {
         if (!this.graph?.id) {
