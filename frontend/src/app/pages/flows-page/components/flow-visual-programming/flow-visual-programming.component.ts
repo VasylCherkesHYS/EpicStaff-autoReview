@@ -81,6 +81,8 @@ import { SidePanelService } from '../../../../visual-programming/services/side-p
 import { ShortcutsModalComponent } from './components/shortcuts-modal/shortcuts-modal.component';
 import { FLOW_SHORTCUT_SECTIONS } from './flow-shortcuts.config';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
+import { EpicChatService } from '../../../../features/epic-chat/epic-chat.service';
+import { FlowUnsavedStateService } from 'src/app/pages/flows-page/services/flow-unsaved-state.service';
 
 @Component({
     selector: 'app-flow-visual-programming',
@@ -99,8 +101,10 @@ import { ButtonComponent } from '../../../../shared/components/buttons/button/bu
 export class FlowVisualProgrammingComponent
     implements OnInit, OnDestroy, CanComponentDeactivate
 {
+    public readonly isEpicChatEnabled: boolean;
     public isLoaded = false;
     public graph!: GraphDto;
+    public initialNodeId: string | null = null;
 
     public isSaving = false;
     public isRunning = false;
@@ -130,21 +134,45 @@ export class FlowVisualProgrammingComponent
         private readonly unsavedChangesDialogService: UnsavedChangesDialogService,
         private readonly configService: ConfigService,
         private readonly sidePanelService: SidePanelService,
-    ) {}
-
-    public ngOnInit(): void {
-        const id = Number(this.route.snapshot.paramMap.get('id'));
-        if (!id) {
-            console.warn('Invalid graph ID.');
-            return;
-        }
-
-        this.fetchGraph(id);
+        private readonly flowUnsavedStateService: FlowUnsavedStateService,
+        private readonly epicChatService: EpicChatService
+    ) {
+        this.isEpicChatEnabled = this.configService.isEpicChatEnabled;
     }
 
-    private fetchGraph(graphId: number): void {
+    public ngOnInit(): void {
+        this.flowUnsavedStateService.register(this);
+        this.route.queryParamMap
+            .pipe(takeUntil(this.destroy$))
+            .subscribe((queryParams) => {
+                this.initialNodeId = queryParams.get('nodeId');
+            });
+        this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+            const id = Number(params.get('id'));
+            if (!id) {
+                console.warn('Invalid graph ID.');
+                return;
+            }
+            this.fetchGraph(id);
+        });
+    }
+
+    public refreshCurrentFlow(): void {
+        const graphId = Number(this.route.snapshot.paramMap.get('id'));
+        if (!graphId) {
+            console.warn('Invalid graph ID for refresh.');
+            return;
+        }
+        this.fetchGraph(graphId, true, true);
+    }
+
+    private fetchGraph(
+        graphId: number,
+        forceRefresh = false,
+        showRefreshToast = false
+    ): void {
         this.flowApiService
-            .getGraphById(graphId)
+            .getGraphById(graphId, forceRefresh)
             .pipe(
                 switchMap((graph: GraphDto) =>
                     this.flowApiService.getGraphsLight().pipe(
@@ -190,6 +218,9 @@ export class FlowVisualProgrammingComponent
                     // Start Ralph stage animation if this is a Ralph flow
                     if (graph.is_ralph) {
                         this.startRalphStageAnimation();
+                    }
+                    if (showRefreshToast) {
+                        this.toastService.success('Flow refreshed');
                     }
                 },
                 error: (err) => {
@@ -499,6 +530,50 @@ export class FlowVisualProgrammingComponent
         }
     }
 
+    public handleConnectChat(): void {
+        if (!this.graph?.id) {
+            this.toastService.error('Unable to connect chat: Missing flow ID');
+            return;
+        }
+
+        const flowUrl = this.normalizeApiUrl(this.configService.apiUrl);
+        if (!flowUrl) {
+            this.toastService.error('Unable to connect chat: Missing API URL');
+            return;
+        }
+
+        this.epicChatService.requestCreateAgent({
+            name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
+            description: this.graph.description?.trim(),
+            flowId: this.graph.id,
+            flowUrl,
+            selectAfterCreate: true,
+        });
+        this.toastService.success('Flow connected to Epic Chat');
+    }
+
+    public handleConnectChat(): void {
+        if (!this.graph?.id) {
+            this.toastService.error('Unable to connect chat: Missing flow ID');
+            return;
+        }
+
+        const flowUrl = this.normalizeApiUrl(this.configService.apiUrl);
+        if (!flowUrl) {
+            this.toastService.error('Unable to connect chat: Missing API URL');
+            return;
+        }
+
+        this.epicChatService.requestCreateAgent({
+            name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
+            description: this.graph.description?.trim(),
+            flowId: this.graph.id,
+            flowUrl,
+            selectAfterCreate: true,
+        });
+        this.toastService.success('Flow connected to Epic Chat');
+    }
+
     private generateCurlCommand(
         flowId: number,
         variables: Record<string, unknown>,
@@ -535,6 +610,10 @@ export class FlowVisualProgrammingComponent
             document.execCommand('copy');
             document.body.removeChild(textArea);
         }
+    }
+
+    private normalizeApiUrl(apiUrl: string): string {
+        return (apiUrl || '').trim().replace(/\/+$/, '');
     }
 
     @HostListener('window:beforeunload', ['$event'])
@@ -586,6 +665,7 @@ export class FlowVisualProgrammingComponent
 
     public ngOnDestroy(): void {
         this.stopRalphStageAnimation();
+        this.flowUnsavedStateService.unregister();
         // this.destroy$.next();
         // this.destroy$.complete();
     }

@@ -1,15 +1,17 @@
-@if (isLoaded) {
-    <app-flow-header
-        [graphName]="graph.name"
-        [graphId]="graph.id"
-        [isSaving]="isSaving"
-        [isRunning]="isRunning"
-        [hasUnsavedChanges]="hasUnsavedChanges()"
-        (save)="handleSaveFlow(true).subscribe()"
-        (viewSessions)="handleViewSessions()"
-        (run)="handleRunFlow()"
-        (getCurl)="handleGetCurl()"
-    ></app-flow-header>
+@if (isLoaded ) {
+<app-flow-header
+    [graphName]="graph.name"
+    [graphId]="graph.id"
+    [isEpicChatEnabled]="isEpicChatEnabled"
+    [isSaving]="isSaving"
+    [isRunning]="isRunning"
+    [hasUnsavedChanges]="hasUnsavedChanges()"
+    (save)="handleSaveFlow(true).subscribe()"
+    (viewSessions)="handleViewSessions()"
+    (run)="handleRunFlow()"
+    (getCurl)="handleGetCurl()"
+    (connectChat)="handleConnectChat()"
+></app-flow-header>
 
     <div class="body">
         @if (graph.is_ralph && !isRalphEditMode()) {
@@ -126,7 +128,8 @@
                 [flowState]="graph.metadata"
                 [nodesMode]="'flow-graph'"
                 [currentFlowId]="graph.id"
-                (save)="handleSaveFlow(true).subscribe()"
+                [initialNodeId]="initialNodeId"
+        (save)="handleSaveFlow(true).subscribe()"
                 (openShortcuts)="openShortcutsModal($event)"
             ></app-flow-graph>
             <app-shortcuts-modal

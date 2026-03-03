@@ -50,6 +50,8 @@ class CodeAgentNode(BaseNode):
         chunk_timeout_s: int = 30,
         inactivity_timeout_s: int = 120,
         max_wait_s: int = 300,
+        stream_config: dict | None = None,
+        output_schema: dict | None = None,
     ):
         super().__init__(
             session_id=session_id,
@@ -74,6 +76,41 @@ class CodeAgentNode(BaseNode):
         self.chunk_timeout_s = chunk_timeout_s
         self.inactivity_timeout_s = inactivity_timeout_s
         self.max_wait_s = max_wait_s
+        self.stream_config = stream_config or {}
+        self.output_schema = output_schema or {}
+
+    # ------------------------------------------------------------------
+    # Input normalisation
+    # ------------------------------------------------------------------
+
+    BUILD_TRIGGER = "allow build mode"
+
+    @staticmethod
+    def _parse_build_turns(action_text: str) -> int:
+        """Parse turn count from action like 'Allow build mode' (1) or
+        'Allow build mode (3 turns)' (3)."""
+        import re
+        m = re.search(r'\((\d+)\s*turns?\)', action_text, re.IGNORECASE)
+        return int(m.group(1)) if m else 1
+
+    @staticmethod
+    def _parse_build_option(action_text: str) -> str:
+        """Extract option suffix from action like 'Allow build mode (3 turns) - Fix code'.
+        Returns the option text (e.g. 'Fix code') or empty string."""
+        import re
+        m = re.search(
+            r'allow\s+build\s+mode(?:\s*\(\d+\s*turns?\))?\s*-\s*(.+)',
+            action_text, re.IGNORECASE,
+        )
+        return m.group(1).strip() if m else ""
+
+    def get_input(self, state):
+        if self.input_map == "__all__":
+            return state["variables"]
+        from src.crew.utils import map_variables_to_input
+        return map_variables_to_input(
+            state["variables"], self.input_map, set_missing_variables=True
+        )
 
     # ------------------------------------------------------------------
     # OpenCode HTTP helpers
@@ -116,14 +153,23 @@ class CodeAgentNode(BaseNode):
 
     def _resolve_code_session_id(self, state: State) -> str | None:
         """Resolve the configured code_session_id from state variables.
-        Supports dot-notated paths like 'variables.chat_id'.
+        Supports dot-notated paths like 'variables.context.chat_session_id'.
+        State is a TypedDict (dict) at the top level, with DotDict for variables.
         If the path doesn't resolve, the raw string is used as a literal session ID."""
         if not self.code_session_id:
             return None
+        parts = self.code_session_id.split(".")
         obj = state
-        for part in self.code_session_id.split("."):
-            obj = getattr(obj, part, None)
+        for i, part in enumerate(parts):
+            if isinstance(obj, dict):
+                obj = obj.get(part)
+            else:
+                obj = getattr(obj, part, None)
             if obj is None:
+                logger.warning(
+                    f"[CodeAgentNode] code_session_id path '{self.code_session_id}' "
+                    f"failed at segment '{part}' (index {i}), using literal"
+                )
                 return self.code_session_id
         return str(obj) if obj is not None else self.code_session_id
 
@@ -131,10 +177,10 @@ class CodeAgentNode(BaseNode):
     # Session management
     # ------------------------------------------------------------------
 
-    def _get_or_create_session(self, port: int, chat_id: str) -> tuple[str, bool]:
-        """Find or create an OpenCode session keyed by chat_id.
+    def _get_or_create_session(self, port: int, code_session_id: str) -> tuple[str, bool]:
+        """Find or create an OpenCode session keyed by code_session_id.
         Returns (session_id, is_new)."""
-        title = f"epicstaff_ca_{chat_id}"
+        title = f"epicstaff_ca_{code_session_id}"
         sessions = self._oc_get(port, "/session") or []
         for s in sessions:
             if s.get("title") == title:
@@ -223,6 +269,11 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
         tool_calls = []
         for msg in messages:
             role = msg.get("role") or msg.get("info", {}).get("role")
+            # Check for structured output (from OpenCode's StructuredOutput tool)
+            structured = msg.get("structured") or (msg.get("info", {}) or {}).get("structured")
+            if structured is not None and role == "assistant":
+                final_answer = json.dumps(structured)
+                continue
             if role == "user":
                 continue
             if role != "assistant":
@@ -247,24 +298,79 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
                     })
         return reasoning, final_answer, tool_calls
 
+    # Tool name → human-readable label for the thinking expander
+    _TOOL_LABELS = {
+        "skill": "Loading skill",
+        "bash": "Running command",
+        "read": "Reading file", "readFile": "Reading file",
+        "write": "Writing file", "writeFile": "Writing file",
+        "apply_patch": "Applying patch", "patch": "Applying patch",
+        "glob": "Searching files", "list": "Listing files",
+        "grep": "Searching code", "search": "Searching code",
+        "StructuredOutput": "Formatting response",
+    }
+
+    def _humanize_tool_calls(self, tool_calls: list) -> list:
+        """Return a copy of tool_calls with human-readable names.
+        The EpicChat widget renders each tool call as a [name] badge,
+        so these labels must be clean and descriptive."""
+        out = []
+        for tc in tool_calls:
+            raw = tc.get("name", "tool")
+            label = self._TOOL_LABELS.get(raw, raw)
+            out.append({**tc, "name": label})
+        return out
+
     def _format_thinking_text(self, reasoning: str, tool_calls: list) -> str:
-        """Combine reasoning and tool call summaries into a single text
-        suitable for the thinking bubble."""
+        """Build the text field for the thinking bubble.
+        NOTE: The EpicChat widget prepends [toolName] badges from the
+        tool_calls array, so this text must NOT repeat tool labels.
+        It should contain only reasoning and/or detail snippets."""
         parts = []
         if reasoning:
-            parts.append(reasoning)
+            first_line = reasoning.split("\n")[0].strip()
+            if first_line:
+                parts.append(first_line)
+
+        # Add meaningful detail snippets from tool inputs
         for tc in tool_calls:
-            name = tc.get("name", "tool")
+            raw_name = tc.get("name", "tool")
             inp = tc.get("input", "")
-            state = tc.get("state", "")
-            label = f"[{name}]" if not state or state == "completed" else f"[{name} ({state})]"
-            if inp:
-                # Truncate long inputs for the thinking bubble
-                inp_preview = inp if len(inp) <= 200 else inp[:200] + "..."
-                parts.append(f"{label} {inp_preview}")
-            else:
-                parts.append(label)
+            detail = self._extract_tool_detail(raw_name, inp)
+            if detail:
+                parts.append(detail)
+
         return "\n".join(parts)
+
+    @staticmethod
+    def _extract_tool_detail(tool_name: str, raw_input: str) -> str:
+        """Extract a short, meaningful snippet from tool input."""
+        if not raw_input:
+            return ""
+        try:
+            parsed = json.loads(raw_input)
+            if isinstance(parsed, dict):
+                # Skill → skill name
+                if tool_name == "skill" and parsed.get("name"):
+                    return parsed["name"]
+                # File ops → filename
+                for key in ("filePath", "path", "file"):
+                    if parsed.get(key):
+                        parts = str(parsed[key]).split("/")
+                        return "/".join(parts[-2:]) if len(parts) > 1 else parts[0]
+                # Bash → command
+                if parsed.get("command"):
+                    cmd = str(parsed["command"])
+                    return cmd if len(cmd) <= 60 else cmd[:57] + "..."
+                # Search → pattern
+                if parsed.get("pattern"):
+                    return str(parsed["pattern"])[:60]
+            elif isinstance(parsed, str) and len(parsed) <= 60:
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            if len(raw_input) <= 60:
+                return raw_input
+        return ""
 
     # ------------------------------------------------------------------
     # Main execute
@@ -278,15 +384,52 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
         if not self.llm_config_id:
             raise ValueError("CodeAgentNode requires an LLM config")
 
-        prompt = input_.get("prompt") or input_.get("message") or ""
-        if not prompt:
-            raise ValueError("CodeAgentNode requires a 'prompt' in input_map")
+        _nf = "not found"
+        prompt = input_.get("prompt") or ""
+        if prompt == _nf:
+            prompt = ""
+        action = input_.get("action") or ""
+        if action == _nf:
+            action = ""
 
-        chat_id = self._resolve_code_session_id(state) or input_.get("chat_id") or input_.get("session_id") or f"session_{self.session_id}"
+        # Resolve effective mode — build triggers override the configured mode
+        effective_mode = self.agent_mode
+        build_turns_remaining = 0
+
+        # Read carry-over build turns from previous turn's output
+        raw_bt = input_.get("build_turns") or 0
+        if raw_bt == "not found":
+            raw_bt = 0
+        carry_over_turns = int(raw_bt) if str(raw_bt).isdigit() else 0
+
+        if action and self.BUILD_TRIGGER in action.strip().lower():
+            granted = self._parse_build_turns(action)
+            effective_mode = "build"
+            build_turns_remaining = granted - 1  # this turn uses one
+            if not prompt:
+                option = self._parse_build_option(action)
+                if option:
+                    prompt = f"I have given you build permissions for {granted} turn(s). The user selected: {option}. Proceed."
+                else:
+                    prompt = f"I have given you build permissions for {granted} turn(s). Proceed with the plan."
+            logger.info(f"[CodeAgentNode] Build mode granted for {granted} turn(s) by action: {action!r}")
+        elif carry_over_turns > 0:
+            effective_mode = "build"
+            build_turns_remaining = carry_over_turns - 1
+            if not prompt and not action:
+                prompt = f"Build mode continues ({carry_over_turns} turn(s) remaining including this one). Continue with the plan."
+            logger.info(f"[CodeAgentNode] Build mode continued, {carry_over_turns} turns remaining")
+        elif action and not prompt:
+            prompt = action
+
+        if not prompt:
+            raise ValueError("CodeAgentNode requires a 'prompt' or 'action' in input_map")
+
+        code_sid = self._resolve_code_session_id(state) or f"session_{self.session_id}"
 
         # Get OpenCode instance
         port = self._get_instance_port()
-        oc_session_id, is_new_session = self._get_or_create_session(port, chat_id)
+        oc_session_id, is_new_session = self._get_or_create_session(port, code_sid)
 
         # Extract model info from instance manager response
         instance_info = self._oc_get(int(CODE_CONTAINER_URL.split(":")[-1]), f"/instance/{self.llm_config_id}")
@@ -302,6 +445,7 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
             return await self._run_agent_loop(
                 state, writer, execution_order, input_, input_context,
                 port, oc_session_id, is_new_session, provider, model, prompt,
+                effective_mode, build_turns_remaining,
             )
         except StopSession:
             logger.info("[CodeAgentNode] Session stopped — running cleanup")
@@ -309,7 +453,7 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
             raise
 
     async def _cleanup_on_stop(self, input_context: dict, port: int, oc_session_id: str):
-        """Abort OpenCode task, cancel handler tasks, update GChat bubble, stop instance if last user."""
+        """Abort OpenCode task, cancel handler tasks, notify via stream handler (e.g. update a GChat bubble), stop instance if last user."""
         # Abort the OpenCode agent task so it stops generating
         try:
             self._oc_post(port, f"/session/{oc_session_id}/abort", {}, timeout=5)
@@ -325,7 +469,7 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
             except (asyncio.CancelledError, Exception):
                 pass
 
-        # Update the GChat bubble (or create one) with a stopped message
+        # Notify via stream handler (e.g. update a chat bubble) with a stopped message
         try:
             self._pending_handler_task = None
             await self._call_handler(
@@ -344,8 +488,11 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
     async def _run_agent_loop(
         self, state, writer, execution_order, input_, input_context,
         port, oc_session_id, is_new_session, provider, model, prompt,
+        effective_mode=None, build_turns_remaining=0,
     ):
         """Core agent loop — extracted so execute() can wrap it with stop cleanup."""
+        agent_mode = effective_mode or self.agent_mode
+
         # Call on_stream_start
         await self._call_handler("start", input_context)
 
@@ -371,11 +518,18 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
         post_error = [None]
         def _bg_post():
             try:
-                self._oc_post(port, f"/session/{oc_session_id}/message", {
-                    "agent": self.agent_mode,
+                msg_payload = {
+                    "agent": agent_mode,
                     "model": {"providerID": provider, "modelID": model},
                     "parts": [{"type": "text", "text": full_prompt}],
-                })
+                }
+                if self.output_schema:
+                    msg_payload["format"] = {
+                        "type": "json_schema",
+                        "schema": self.output_schema,
+                        "retryCount": 2,
+                    }
+                self._oc_post(port, f"/session/{oc_session_id}/message", msg_payload)
             except Exception as e:
                 post_error[0] = e
                 logger.error(f"[CodeAgentNode] Failed to send message: {e}")
@@ -391,6 +545,7 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
         silence_indicator_sent = 0
         logged_first = False
         prev_msg_count = 0
+        prev_tool_count = 0
 
         fast_poll_s = poll_s / 10
         while True:
@@ -439,17 +594,23 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
             reasoning, answer, tool_calls = self._parse_response(new_msgs)
 
             # Tool activity resets the content timer
-            if tool_calls:
+            if len(tool_calls) > prev_tool_count:
                 last_content_time = time.time()
 
-            # Build thinking text: reasoning + tool call summaries
-            thinking_text = self._format_thinking_text(reasoning, tool_calls)
+            # Only send NEW tool calls (delta since last stream update)
+            # The widget renders each tool call as a [name] badge,
+            # so sending the full history would repeat all badges.
+            delta_tools = tool_calls[prev_tool_count:]
+
+            # Build thinking text from reasoning + only new tool details
+            thinking_text = self._format_thinking_text(reasoning, delta_tools)
 
             # Stream progress when content changes
             if thinking_text and thinking_text != last_reasoning:
                 last_reasoning = thinking_text
                 last_content_time = time.time()
                 silence_indicator_sent = 0
+                prev_tool_count = len(tool_calls)
 
                 self.custom_session_message_writer.add_custom_message(
                     session_id=self.session_id,
@@ -459,8 +620,11 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
                     message_data={
                         "message_type": "code_agent_stream",
                         "text": thinking_text,
-                        "tool_calls": tool_calls,
+                        "tool_calls": self._humanize_tool_calls(delta_tools),
                         "is_final": False,
+                        "sse_visible": not self.stream_config
+                            or self.stream_config.get("reasoning", True)
+                            or self.stream_config.get("tool_calls", True),
                     },
                 )
 
@@ -500,6 +664,18 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
         # Use final_answer if available, else fall back to last reasoning
         reply_text = final_answer or last_reasoning or ""
 
+        # Try to parse structured JSON output
+        structured_output = None
+        if reply_text:
+            try:
+                parsed = json.loads(reply_text)
+                if isinstance(parsed, dict):
+                    structured_output = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        display_text = structured_output.get("message", reply_text) if structured_output else reply_text
+
         # Stream final message
         self.custom_session_message_writer.add_custom_message(
             session_id=self.session_id,
@@ -508,15 +684,23 @@ def main(event_type=None, text=None, full_reply=None, context=None, **kwargs):
             execution_order=execution_order,
             message_data={
                 "message_type": "code_agent_stream",
-                "text": reply_text,
+                "text": display_text,
                 "is_final": True,
             },
         )
 
         # Call on_complete
-        await self._call_handler("complete", input_context, full_reply=reply_text)
+        await self._call_handler("complete", input_context, full_reply=display_text)
+
+        if structured_output:
+            structured_output.setdefault("message", display_text)
+            structured_output["session_id"] = oc_session_id
+            structured_output["build_turns_remaining"] = build_turns_remaining
+            return structured_output
 
         return {
+            "message": reply_text,
             "reply": reply_text,
             "session_id": oc_session_id,
+            "build_turns_remaining": build_turns_remaining,
         }
