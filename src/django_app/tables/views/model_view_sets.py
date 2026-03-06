@@ -184,10 +184,9 @@ class BasePredefinedRestrictedViewSet(ModelViewSet):
     """
 
     def get_queryset(self):
-
         if self.action == "destroy":
             return self.queryset.filter(predefined=False)
-        
+
         return self.queryset
 
     def perform_create(self, serializer):
@@ -202,15 +201,14 @@ class BasePredefinedRestrictedViewSet(ModelViewSet):
         validated_data = serializer.validated_data
 
         if instance.predefined:
-            
             # Should not be able to change name
-            if 'name' in validated_data and validated_data['name'] != instance.name:
+            if "name" in validated_data and validated_data["name"] != instance.name:
                 e = f"Cannot change the name of a predefined {self.queryset.model.__name__.lower()}"
                 logger.warning(e)
                 raise ValidationError({"name": e})
 
             # Should not be able to remove predefined
-            if 'predefined' in validated_data and validated_data['predefined'] is False:
+            if "predefined" in validated_data and validated_data["predefined"] is False:
                 e = "Cannot unset predefined status for this object"
                 logger.warning(e)
                 raise ValidationError({"predefined": e})
@@ -229,6 +227,7 @@ class BasePredefinedRestrictedViewSet(ModelViewSet):
             logger.error(e)
             raise PermissionDenied(e)
         instance.delete()
+
 
 class TemplateAgentReadWriteViewSet(ModelViewSet):
     queryset = TemplateAgent.objects.all()
@@ -276,6 +275,7 @@ class EmbeddingModelReadWriteViewSet(BasePredefinedRestrictedViewSet):
     serializer_class = EmbeddingModelSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = EmbeddingModelFilter
+
 
 class EmbeddingConfigReadWriteViewSet(ModelViewSet):
     class EmbeddingConfigFilter(filters.FilterSet):
@@ -758,6 +758,12 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Graph.objects.prefetch_related("tags")
+
+    @action(detail=False, methods=["get"], url_path="recent")
+    def get_ten_recent(self, request):
+        queryset = self.get_queryset().order_by("-updated_at")[:10]
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class CrewNodeViewSet(viewsets.ModelViewSet):
