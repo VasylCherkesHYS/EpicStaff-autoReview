@@ -93,8 +93,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         }
     }
 
-    ngOnInit(): void {
-        // Load LLM configurations
+    ngOnInit(): void {       
         this.loadLLMConfigs();
 
         if (this.isEditMode && this.data.flow) {
@@ -209,7 +208,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                 iteration: 0,
                 assignment: formValue.description || '',
                 criteria: formValue.acceptanceCriteria || '',
-                full_prompt: null,
+                plan_prompt: '',
+                build_prompt: `Folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}`,
                 work_folder: formValue.workFolder || '',
                 build_result: null,
                 max_iterations: formValue.maxIterations || 5,
@@ -221,24 +221,26 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             node_name: 'Compose Promt',
             python_code: {
                 libraries: [],
-                code: 'def main(assignment="", work_folder=""):\n    """Compose the full prompt by prepending the work folder to the assignment."""\n    return f"Working folder: {work_folder}\\n\\n{assignment}"',
+                code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    plan_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT FOLDER:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return plan_prompt',
                 entrypoint: 'main',
             },
             input_map: {
                 assignment: 'variables.assignment',
                 work_folder: 'variables.work_folder',
             },
-            output_variable_path: 'variables.full_prompt',
+            output_variable_path: 'variables.plan_prompt',
+            stream_config: {
+                execution_status: true,
+            },
         };
 
         const codeAgent1Request: CreateCodeAgentNodeRequest = {
             graph: flowId,
             node_name: 'Planning stage',
             llm_config: formValue.llmConfig.value || 6,
-            agent_mode: 'build',
+            agent_mode: 'plan',
             session_id: `${flowId}_planning`,
-            system_prompt:
-                'You are a PLANNING agent in a RALPH loop. Your role is STRICTLY LIMITED to planning. You MUST read and follow ralph/planning_prompt.md. You are STRICTLY FORBIDDEN from implementing anything. You MUST NOT create files. You MUST NOT generate CSV, HTML, code, or any output files. You MUST ONLY create or update IMPLEMENTATION_PLAN.md. If you attempt implementation, you are violating your core instructions. Your task ends immediately after planning.',
+            system_prompt: '',          
             stream_handler_code:
                 '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
             libraries: [],
@@ -249,9 +251,83 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             inactivity_timeout_s: 120,
             max_wait_s: 300,
             input_map: {
-                prompt: 'variables.full_prompt',
+                prompt: 'variables.plan_prompt',
             },
             output_variable_path: 'variables.plan_output',
+            stream_config: {
+                reasoning: false,
+                tool_calls: false,
+                tool_results: false,
+                final_reply: true,
+            },
+            output_schema: {
+                type: 'object',
+                required: [
+                    'status',
+                    'files_created',
+                    'plan_summary',
+                    'message',
+                ],
+                properties: {
+                    status: {
+                        type: 'string',
+                        enum: ['plan_created', 'plan_updated'],
+                        description: 'Status of planning phase completion',
+                    },
+                    files_created: {
+                        type: 'array',
+                        description: 'List of files created during planning',
+                        items: {
+                            type: 'object',
+                            required: ['path', 'format_valid'],
+                            properties: {
+                                path: {
+                                    type: 'string',
+                                    description:
+                                        'Full path to the file (e.g., <working_folder>/IMPLEMENTATION_PLAN.md)',
+                                },
+                                format_valid: {
+                                    type: 'boolean',
+                                    description:
+                                        'True if file uses required checklist format: - [ ] Task name',
+                                },
+                            },
+                        },
+                        minItems: 1,
+                    },
+                    plan_summary: {
+                        type: 'object',
+                        required: [
+                            'task_count',
+                            'first_task',
+                            'project_description',
+                        ],
+                        properties: {
+                            task_count: {
+                                type: 'number',
+                                description:
+                                    'Total number of tasks in IMPLEMENTATION_PLAN.md',
+                                minimum: 1,
+                            },
+                            first_task: {
+                                type: 'string',
+                                description: 'Name of the first unchecked task',
+                            },
+                            project_description: {
+                                type: 'string',
+                                description:
+                                    'Brief description of what the project is',
+                            },
+                        },
+                    },
+                    message: {
+                        type: 'string',
+                        description:
+                            'Human-readable summary of planning completion',
+                    },
+                },
+                additionalProperties: false,
+            },
         };
 
         const codeAgent2Request: CreateCodeAgentNodeRequest = {
@@ -261,7 +337,35 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             agent_mode: 'build',
             session_id: `${flowId}_build`,
             system_prompt:
-                'First Read your detailed instructions from ralph/build_prompt.md before starting. Dont implement anything before this! CRITICAL: ONE TASK PER ITERATION. Implement one task, run tests, mark it done, then stop.When ALL tasks in IMPLEMENTATION_PLAN.md are [x] AND tests pass, output exactly: <promise>COMPLETE</promise>Do NOT output the promise if any tasks remain unchecked.',
+                'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
+                '=== STEP 1: EXTRACT WORKING FOLDER ===\n' +
+                'Your prompt ALWAYS starts with: "Working folder: XXXXX"\n' +
+                'XXXXX is the actual folder name you must use for ALL file operations.\n\n' +
+                'Examples:\n' +
+                '- "Working folder: smart" → use "smart" as the folder\n' +
+                '- "Working folder: test" → use "test" as the folder\n' +
+                '- "Working folder: my_app" → use "my_app" as the folder\n\n' +
+                '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
+                '1. Read ralph/build_prompt.md (general instructions)\n' +
+                '2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n' +
+                '3. Read XXXXX/PROGRESS.md if it exists\n\n' +
+                '=== STEP 3: COMPLETE ONE TASK ===\n' +
+                '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
+                '2. Implement ONLY that task in the XXXXX/ directory\n' +
+                '3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n' +
+                '4. Update XXXXX/PROGRESS.md with what you did\n' +
+                '5. Output structured JSON (required format defined in schema)\n\n' +
+                '=== PATH EXAMPLES ===\n' +
+                'If prompt = "Working folder: smart Create a web app..."\n' +
+                '→ Working folder is: smart\n' +
+                '→ Read: ralph/build_prompt.md\n' +
+                '→ Read: smart/IMPLEMENTATION_PLAN.md\n' +
+                '→ Create files in: smart/index.html, smart/app.js, etc.\n' +
+                '→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n' +
+                '=== COMPLETION CHECK ===\n' +
+                'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
+                'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
+                'CRITICAL: Complete ONE task, output JSON, then STOP.',
             stream_handler_code:
                 '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
             libraries: [],
@@ -272,10 +376,82 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             inactivity_timeout_s: 120,
             max_wait_s: 300,
             input_map: {
-                prompt: 'variables.full_prompt',
-                planning: 'variables.plan_output',
+                prompt: 'variables.build_prompt',                
             },
             output_variable_path: 'variables.build_output',
+            stream_config: {
+                reasoning: false,
+                tool_calls: true,
+                tool_results: true,
+                final_reply: true,
+            },
+            output_schema: {
+                type: 'object',
+                required: [
+                    'iteration_summary',
+                    'task_status',
+                    'all_complete',
+                    'message',
+                ],
+                properties: {
+                    iteration_summary: {
+                        type: 'object',
+                        required: [
+                            'completed_task',
+                            'tasks_remaining',
+                            'tests_passed',
+                        ],
+                        properties: {
+                            completed_task: {
+                                type: 'string',
+                                description:
+                                    'The ONE task you completed this iteration (or "none" if orienting)',
+                            },
+                            tasks_remaining: {
+                                type: 'number',
+                                description:
+                                    'Number of unchecked [ ] tasks left in IMPLEMENTATION_PLAN.md',
+                                minimum: 0,
+                            },
+                            tests_passed: {
+                                type: 'boolean',
+                                description:
+                                    'Whether tests passed for the task you completed',
+                            },
+                        },
+                    },
+                    task_status: {
+                        type: 'object',
+                        required: [
+                            'plan_file_updated',
+                            'progress_file_updated',
+                        ],
+                        properties: {
+                            plan_file_updated: {
+                                type: 'boolean',
+                                description:
+                                    'True if you marked the task [x] in IMPLEMENTATION_PLAN.md',
+                            },
+                            progress_file_updated: {
+                                type: 'boolean',
+                                description:
+                                    'True if you updated PROGRESS.md with this iteration',
+                            },
+                        },
+                    },
+                    all_complete: {
+                        type: 'boolean',
+                        description:
+                            'True ONLY if ALL tasks in IMPLEMENTATION_PLAN.md are [x] AND all tests pass',
+                    },
+                    message: {
+                        type: 'string',
+                        description:
+                            'Summary of what you did. If all_complete=true, MUST contain: <promise>COMPLETE</promise>',
+                    },
+                },
+                additionalProperties: false,
+            },
         };
 
         const decisionTableRequest: CreateDecisionTableNodeRequest = {
@@ -286,7 +462,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                     group_name: 'Complete',
                     group_type: 'complex',
                     expression:
-                        '"<promise>COMPLETE</promise>" in str(variables.get("build_output", ""))',
+                        'variables.get("build_output", {}).get("all_complete", False) == True or "<promise>COMPLETE</promise>" in str(variables.get("build_output", ""))',
                     conditions: [],
                     manipulation: null,
                     next_node: '__end__',
@@ -313,7 +489,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                     order: 3,
                 },
             ],
-            default_next_node: 'Build stage',
+            default_next_node: 'Build Stage',
             next_error_node: null,
         };
 
@@ -388,21 +564,17 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         flowId: number,
         nodeResults: any,
         formValue: any,
-    ): Observable<GraphDto> {
-        // First get the current flow to preserve name and description
+    ): Observable<GraphDto> {       
         return this.http
             .get<GraphDto>(`${this.configService.apiUrl}graphs/${flowId}/`)
             .pipe(
-                switchMap((currentFlow) => {
-                    // Use the node data we already have from creation (nodeResults)
-                    // This is the most reliable approach - we know exactly which nodes we created
+                switchMap((currentFlow) => {                    
                     const startNode = nodeResults.startNode;
                     const pythonNode = nodeResults.pythonNode;
                     const codeAgent1 = nodeResults.codeAgent1;
                     const codeAgent2 = nodeResults.codeAgent2;
                     const decisionTable = nodeResults.decisionTable;
-
-                    // Use real backend IDs for visual metadata (keep as numbers, not strings)
+                    
                     const startNodeId = startNode?.id;
                     const pythonNodeId = pythonNode?.id;
                     const codeAgent1Id = codeAgent1?.id;
@@ -425,7 +597,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                         assignment: formValue.description || '',
                                         criteria:
                                             formValue.acceptanceCriteria || '',
-                                        full_prompt: null,
+                                        plan_prompt: '',
+                                        build_prompt: `Folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}`,
                                         work_folder:
                                             formValue.workFolder || 'folder',
                                         build_result: null,
@@ -453,7 +626,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                 data: pythonNode?.python_code || {
                                     name: 'Compose Prompt',
                                     libraries: [],
-                                    code: 'def main(assignment="", work_folder=""):\n    """Compose the full prompt by prepending the work folder to the assignment."""\n    return f"Working folder: {work_folder}\\n\\n{assignment}"',
+                                    code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    full_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT FOLDER:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return full_prompt',
                                     entrypoint: 'main',
                                 },
                                 color: '#ffcf3f',
@@ -462,6 +635,11 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                 output_variable_path:
                                     pythonNode?.output_variable_path || null,
                                 size: { width: 330, height: 60 },
+                                stream_config: {
+                                    execution_status:
+                                        pythonNode?.stream_config
+                                            ?.execution_status || true,
+                                },
                             },
                             {
                                 id: codeAgent1Id,
@@ -473,12 +651,11 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                 node_name: 'Planning stage',
                                 data: {
                                     agent_mode:
-                                        codeAgent1?.agent_mode || 'build',
+                                        codeAgent1?.agent_mode || 'plan',
                                     session_id:
                                         codeAgent1?.session_id || 'plan',
                                     system_prompt:
-                                        codeAgent1?.system_prompt ||
-                                        'You are a PLANNING agent in a RALPH loop. Your role is STRICTLY LIMITED to planning. You MUST read and follow ralph/planning_prompt.md. You are STRICTLY FORBIDDEN from implementing anything. You MUST NOT create files. You MUST NOT generate CSV, HTML, code, or any output files. You MUST ONLY create or update IMPLEMENTATION_PLAN.md. If you attempt implementation, you are violating your core instructions. Your task ends immediately after planning.',
+                                        codeAgent1?.system_prompt || '',                                    
                                     stream_handler_code:
                                         codeAgent1?.stream_handler_code ||
                                         '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
@@ -497,6 +674,98 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                     llm_config: formValue.llmConfig.value || 6,
                                     llm_config_id:
                                         formValue.llmConfig.value || 6,
+                                    stream_config: {
+                                        reasoning:
+                                            codeAgent1?.stream_config
+                                                ?.reasoning || false,
+                                        tool_calls:
+                                            codeAgent1?.stream_config
+                                                ?.tool_calls || false,
+                                        tool_results:
+                                            codeAgent1?.stream_config
+                                                ?.tool_results || false,
+                                        final_reply:
+                                            codeAgent1?.stream_config
+                                                ?.final_reply || true,
+                                    },
+                                    output_schema:
+                                        codeAgent1?.output_schema || {
+                                            type: 'object',
+                                            required: [
+                                                'status',
+                                                'files_created',
+                                                'plan_summary',
+                                                'message',
+                                            ],
+                                            properties: {
+                                                status: {
+                                                    type: 'string',
+                                                    enum: [
+                                                        'plan_created',
+                                                        'plan_updated',
+                                                    ],
+                                                    description:
+                                                        'Status of planning phase completion',
+                                                },
+                                                files_created: {
+                                                    type: 'array',
+                                                    description:
+                                                        'List of files created during planning',
+                                                    items: {
+                                                        type: 'object',
+                                                        required: [
+                                                            'path',
+                                                            'format_valid',
+                                                        ],
+                                                        properties: {
+                                                            path: {
+                                                                type: 'string',
+                                                                description:
+                                                                    'Full path to the file',
+                                                            },
+                                                            format_valid: {
+                                                                type: 'boolean',
+                                                                description:
+                                                                    'True if file uses required checklist format',
+                                                            },
+                                                        },
+                                                    },
+                                                    minItems: 1,
+                                                },
+                                                plan_summary: {
+                                                    type: 'object',
+                                                    required: [
+                                                        'task_count',
+                                                        'first_task',
+                                                        'project_description',
+                                                    ],
+                                                    properties: {
+                                                        task_count: {
+                                                            type: 'number',
+                                                            description:
+                                                                'Total number of tasks',
+                                                            minimum: 1,
+                                                        },
+                                                        first_task: {
+                                                            type: 'string',
+                                                            description:
+                                                                'Name of the first unchecked task',
+                                                        },
+                                                        project_description: {
+                                                            type: 'string',
+                                                            description:
+                                                                'Brief description of what the project is',
+                                                        },
+                                                    },
+                                                },
+                                                message: {
+                                                    type: 'string',
+                                                    description:
+                                                        'Human-readable summary',
+                                                },
+                                            },
+                                            additionalProperties: false,
+                                        },
                                 },
                                 color: '#00e676',
                                 icon: 'ti ti-terminal-2',
@@ -520,7 +789,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                         codeAgent2?.session_id || 'build',
                                     system_prompt:
                                         codeAgent2?.system_prompt ||
-                                        'First Read your detailed instructions from ralph/build_prompt.md before starting. Dont implement anything before this! CRITICAL: ONE TASK PER ITERATION. Implement one task, run tests, mark it done, then stop.When ALL tasks in IMPLEMENTATION_PLAN.md are [x] AND tests pass, output exactly: <promise>COMPLETE</promise>Do NOT output the promise if any tasks remain unchecked.',
+                                        'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n=== STEP 1: EXTRACT WORKING FOLDER ===\nYour prompt ALWAYS starts with: "Working folder: XXXXX"\nXXXXX is the actual folder name you must use for ALL file operations.\n\nExamples:\n- "Working folder: smart" → use "smart" as the folder\n- "Working folder: test" → use "test" as the folder\n- "Working folder: my_app" → use "my_app" as the folder\n\n=== STEP 2: READ FILES IN CORRECT ORDER ===\n1. Read ralph/build_prompt.md (general instructions)\n2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n3. Read XXXXX/PROGRESS.md if it exists\n\n=== STEP 3: COMPLETE ONE TASK ===\n1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n2. Implement ONLY that task in the XXXXX/ directory\n3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n4. Update XXXXX/PROGRESS.md with what you did\n5. Output structured JSON (required format defined in schema)\n\n=== PATH EXAMPLES ===\nIf prompt = "Working folder: smart Create a web app..."\n→ Working folder is: smart\n→ Read: ralph/build_prompt.md\n→ Read: smart/IMPLEMENTATION_PLAN.md\n→ Create files in: smart/index.html, smart/app.js, etc.\n→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n=== COMPLETION CHECK ===\nall_complete = true ONLY if ALL tasks are [x] AND tests pass\nIf all_complete = true, include <promise>COMPLETE</promise> in message field\n\nCRITICAL: Complete ONE task, output JSON, then STOP.',
                                     stream_handler_code:
                                         codeAgent2?.stream_handler_code ||
                                         '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
@@ -539,6 +808,88 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                     llm_config: formValue.llmConfig.value || 6,
                                     llm_config_id:
                                         formValue.llmConfig.value || 6,
+                                    stream_config: {
+                                        reasoning:
+                                            codeAgent2?.stream_config
+                                                ?.reasoning || false,
+                                        tool_calls:
+                                            codeAgent2?.stream_config
+                                                ?.tool_calls || true,
+                                        tool_results:
+                                            codeAgent2?.stream_config
+                                                ?.tool_results || true,
+                                        final_reply:
+                                            codeAgent2?.stream_config
+                                                ?.final_reply || true,
+                                    },
+                                    output_schema:
+                                        codeAgent2?.output_schema || {
+                                            type: 'object',
+                                            required: [
+                                                'iteration_summary',
+                                                'task_status',
+                                                'all_complete',
+                                                'message',
+                                            ],
+                                            properties: {
+                                                iteration_summary: {
+                                                    type: 'object',
+                                                    required: [
+                                                        'completed_task',
+                                                        'tasks_remaining',
+                                                        'tests_passed',
+                                                    ],
+                                                    properties: {
+                                                        completed_task: {
+                                                            type: 'string',
+                                                            description:
+                                                                'The ONE task you completed this iteration',
+                                                        },
+                                                        tasks_remaining: {
+                                                            type: 'number',
+                                                            description:
+                                                                'Number of unchecked [ ] tasks left',
+                                                            minimum: 0,
+                                                        },
+                                                        tests_passed: {
+                                                            type: 'boolean',
+                                                            description:
+                                                                'Whether tests passed',
+                                                        },
+                                                    },
+                                                },
+                                                task_status: {
+                                                    type: 'object',
+                                                    required: [
+                                                        'plan_file_updated',
+                                                        'progress_file_updated',
+                                                    ],
+                                                    properties: {
+                                                        plan_file_updated: {
+                                                            type: 'boolean',
+                                                            description:
+                                                                'True if task marked [x] in IMPLEMENTATION_PLAN.md',
+                                                        },
+                                                        progress_file_updated: {
+                                                            type: 'boolean',
+                                                            description:
+                                                                'True if PROGRESS.md updated',
+                                                        },
+                                                    },
+                                                },
+                                                all_complete: {
+                                                    type: 'boolean',
+                                                    description:
+                                                        'True ONLY if ALL tasks are [x] AND tests pass',
+                                                },
+                                                message: {
+                                                    type: 'string',
+                                                    description:
+                                                        'Summary. If all_complete=true, MUST contain <promise>COMPLETE</promise>',
+                                                },
+                                            },
+                                            additionalProperties: false,
+                                        },
                                 },
                                 color: '#00e676',
                                 icon: 'ti ti-terminal-2',
@@ -685,8 +1036,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
 
                     const updateRequest = {
                         id: flowId,
-                        name: currentFlow.name, // Preserve original name
-                        description: currentFlow.description || '', // Preserve original description
+                        name: currentFlow.name, 
+                        description: currentFlow.description || '', 
                         metadata: visualMetadata,
                     };
 
@@ -699,18 +1050,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                     );
                 }),
             );
-    }
-
-    private generateUUID(): string {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
-            /[xy]/g,
-            function (c) {
-                const r = (Math.random() * 16) | 0;
-                const v = c === 'x' ? r : (r & 0x3) | 0x8;
-                return v.toString(16);
-            },
-        );
-    }
+    }   
 
     onCancel(): void {
         this.dialogRef.close();

@@ -23,7 +23,10 @@ import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { expandCollapseAnimation } from '../../../../shared/animations/animations-expand-collapse';
-import { FullLLMConfigService, FullLLMConfig } from '../../../../services/full-llm-config.service';
+import {
+    FullLLMConfigService,
+    FullLLMConfig,
+} from '../../../../services/full-llm-config.service';
 import { JsonEditorComponent } from '../../../../shared/components/json-editor/json-editor.component';
 import { DEFAULT_OUTPUT_SCHEMA } from './default-output-schema';
 
@@ -83,19 +86,41 @@ interface InputMapPair {
                                     ></app-custom-input>
 
                                     <div class="select-field">
-                                        <label class="select-label">Agent Mode</label>
-                                        <select formControlName="agent_mode" class="select-input" [style.--active-color]="activeColor">
+                                        <label class="select-label"
+                                            >Agent Mode</label
+                                        >
+                                        <select
+                                            formControlName="agent_mode"
+                                            class="select-input"
+                                            [style.--active-color]="activeColor"
+                                        >
                                             <option value="build">Build</option>
                                             <option value="plan">Plan</option>
                                         </select>
                                     </div>
 
                                     <div class="select-field">
-                                        <label class="select-label">LLM Config</label>
-                                        <select formControlName="llm_config" class="select-input" [style.--active-color]="activeColor">
-                                            <option [ngValue]="null">— None —</option>
-                                            @for (cfg of llmConfigs; track cfg.id) {
-                                                <option [ngValue]="cfg.id">{{ cfg.custom_name || ('Config #' + cfg.id) }}</option>
+                                        <label class="select-label"
+                                            >LLM Config</label
+                                        >
+                                        <select
+                                            formControlName="llm_config"
+                                            class="select-input"
+                                            [style.--active-color]="activeColor"
+                                        >
+                                            <option [ngValue]="null">
+                                                — None —
+                                            </option>
+                                            @for (
+                                                cfg of llmConfigs;
+                                                track cfg.id
+                                            ) {
+                                                <option [ngValue]="cfg.id">
+                                                    {{
+                                                        cfg.custom_name ||
+                                                            'Config #' + cfg.id
+                                                    }}
+                                                </option>
                                             }
                                         </select>
                                     </div>
@@ -110,14 +135,16 @@ interface InputMapPair {
 
                                     <app-custom-input
                                         label="System Prompt"
-                                        tooltipText="System prompt sent to the Code Agent before the user message."
+                                        tooltipText="System prompt sent to the Code Agent before the user message. For plan mode: focus on folder extraction and task breakdown. For build mode: focus on implementation steps."
                                         formControlName="system_prompt"
-                                        placeholder="Enter system prompt"
+                                        placeholder="Enter system prompt, e.g. 'Extract the folder structure for the given task' or 'Implement the following steps: ...'"
                                         [activeColor]="activeColor"
                                     ></app-custom-input>
 
                                     <div class="timeout-section">
-                                        <span class="section-label">Timeouts</span>
+                                        <span class="section-label"
+                                            >Timeouts</span
+                                        >
                                         <div class="timeout-grid">
                                             <app-custom-input
                                                 label="Poll (ms)"
@@ -142,23 +169,52 @@ interface InputMapPair {
                                         </div>
                                     </div>
 
-                                    <div class="stream-config-section" formGroupName="stream_config">
-                                        <span class="section-label">Streaming to EpicChat</span>
+                                    <div
+                                        class="stream-config-section"
+                                        formGroupName="stream_config"
+                                    >
+                                        <span class="section-label"
+                                            >Streaming to EpicChat</span
+                                        >
                                         <div class="checkbox-list">
                                             <label class="checkbox-item">
-                                                <input type="checkbox" formControlName="reasoning" [style.accent-color]="activeColor" />
+                                                <input
+                                                    type="checkbox"
+                                                    formControlName="reasoning"
+                                                    [style.accent-color]="
+                                                        activeColor
+                                                    "
+                                                />
                                                 <span>Reasoning</span>
                                             </label>
                                             <label class="checkbox-item">
-                                                <input type="checkbox" formControlName="tool_calls" [style.accent-color]="activeColor" />
+                                                <input
+                                                    type="checkbox"
+                                                    formControlName="tool_calls"
+                                                    [style.accent-color]="
+                                                        activeColor
+                                                    "
+                                                />
                                                 <span>Tool calls</span>
                                             </label>
                                             <label class="checkbox-item">
-                                                <input type="checkbox" formControlName="tool_results" [style.accent-color]="activeColor" />
+                                                <input
+                                                    type="checkbox"
+                                                    formControlName="tool_results"
+                                                    [style.accent-color]="
+                                                        activeColor
+                                                    "
+                                                />
                                                 <span>Tool results</span>
                                             </label>
                                             <label class="checkbox-item">
-                                                <input type="checkbox" formControlName="final_reply" [style.accent-color]="activeColor" />
+                                                <input
+                                                    type="checkbox"
+                                                    formControlName="final_reply"
+                                                    [style.accent-color]="
+                                                        activeColor
+                                                    "
+                                                />
                                                 <span>Final reply</span>
                                             </label>
                                         </div>
@@ -206,34 +262,68 @@ interface InputMapPair {
                                         <button
                                             type="button"
                                             class="editor-tab"
-                                            [class.active]="activeEditorTab() === 'hooks'"
+                                            [class.active]="
+                                                activeEditorTab() === 'hooks'
+                                            "
                                             [style.--accent-color]="activeColor"
-                                            (click)="activeEditorTab.set('hooks')"
-                                        >Event Hooks</button>
+                                            (click)="
+                                                activeEditorTab.set('hooks')
+                                            "
+                                        >
+                                            Event Hooks
+                                        </button>
                                         <button
                                             type="button"
                                             class="editor-tab"
-                                            [class.active]="activeEditorTab() === 'schema'"
+                                            [class.active]="
+                                                activeEditorTab() === 'schema'
+                                            "
                                             [style.--accent-color]="activeColor"
-                                            (click)="activeEditorTab.set('schema')"
-                                        >Output Schema</button>
+                                            (click)="
+                                                activeEditorTab.set('schema')
+                                            "
+                                        >
+                                            Output Schema
+                                        </button>
                                     </div>
                                     <div class="editor-tab-content">
                                         @switch (activeEditorTab()) {
                                             @case ('hooks') {
                                                 <app-code-editor
                                                     class="code-editor-section"
-                                                    [pythonCode]="streamHandlerCode"
-                                                    (pythonCodeChange)="onStreamHandlerCodeChange($event)"
-                                                    (errorChange)="onCodeErrorChange($event)"
+                                                    [pythonCode]="
+                                                        streamHandlerCode
+                                                    "
+                                                    (pythonCodeChange)="
+                                                        onStreamHandlerCodeChange(
+                                                            $event
+                                                        )
+                                                    "
+                                                    (errorChange)="
+                                                        onCodeErrorChange(
+                                                            $event
+                                                        )
+                                                    "
                                                 ></app-code-editor>
                                             }
                                             @case ('schema') {
-                                                <div class="schema-editor-container">
+                                                <div
+                                                    class="schema-editor-container"
+                                                >
                                                     <app-json-editor
-                                                        [jsonData]="outputSchemaText"
-                                                        (jsonChange)="onSchemaEditorChange($event)"
-                                                        (validationChange)="onSchemaValidChange($event)"
+                                                        [jsonData]="
+                                                            outputSchemaText
+                                                        "
+                                                        (jsonChange)="
+                                                            onSchemaEditorChange(
+                                                                $event
+                                                            )
+                                                        "
+                                                        (validationChange)="
+                                                            onSchemaValidChange(
+                                                                $event
+                                                            )
+                                                        "
                                                         [fullHeight]="true"
                                                         [showHeader]="false"
                                                     ></app-json-editor>
@@ -270,7 +360,11 @@ interface InputMapPair {
 
                             <div class="select-field">
                                 <label class="select-label">Agent Mode</label>
-                                <select formControlName="agent_mode" class="select-input" [style.--active-color]="activeColor">
+                                <select
+                                    formControlName="agent_mode"
+                                    class="select-input"
+                                    [style.--active-color]="activeColor"
+                                >
                                     <option value="build">Build</option>
                                     <option value="plan">Plan</option>
                                 </select>
@@ -278,10 +372,19 @@ interface InputMapPair {
 
                             <div class="select-field">
                                 <label class="select-label">LLM Config</label>
-                                <select formControlName="llm_config" class="select-input" [style.--active-color]="activeColor">
+                                <select
+                                    formControlName="llm_config"
+                                    class="select-input"
+                                    [style.--active-color]="activeColor"
+                                >
                                     <option [ngValue]="null">— None —</option>
                                     @for (cfg of llmConfigs; track cfg.id) {
-                                        <option [ngValue]="cfg.id">{{ cfg.custom_name || ('Config #' + cfg.id) }}</option>
+                                        <option [ngValue]="cfg.id">
+                                            {{
+                                                cfg.custom_name ||
+                                                    'Config #' + cfg.id
+                                            }}
+                                        </option>
                                     }
                                 </select>
                             </div>
@@ -301,23 +404,44 @@ interface InputMapPair {
                                 [activeColor]="activeColor"
                             ></app-custom-input>
 
-                            <div class="stream-config-section" formGroupName="stream_config">
-                                <span class="section-label">Streaming to EpicChat</span>
+                            <div
+                                class="stream-config-section"
+                                formGroupName="stream_config"
+                            >
+                                <span class="section-label"
+                                    >Streaming to EpicChat</span
+                                >
                                 <div class="checkbox-list">
                                     <label class="checkbox-item">
-                                        <input type="checkbox" formControlName="reasoning" [style.accent-color]="activeColor" />
+                                        <input
+                                            type="checkbox"
+                                            formControlName="reasoning"
+                                            [style.accent-color]="activeColor"
+                                        />
                                         <span>Reasoning</span>
                                     </label>
                                     <label class="checkbox-item">
-                                        <input type="checkbox" formControlName="tool_calls" [style.accent-color]="activeColor" />
+                                        <input
+                                            type="checkbox"
+                                            formControlName="tool_calls"
+                                            [style.accent-color]="activeColor"
+                                        />
                                         <span>Tool calls</span>
                                     </label>
                                     <label class="checkbox-item">
-                                        <input type="checkbox" formControlName="tool_results" [style.accent-color]="activeColor" />
+                                        <input
+                                            type="checkbox"
+                                            formControlName="tool_results"
+                                            [style.accent-color]="activeColor"
+                                        />
                                         <span>Tool results</span>
                                     </label>
                                     <label class="checkbox-item">
-                                        <input type="checkbox" formControlName="final_reply" [style.accent-color]="activeColor" />
+                                        <input
+                                            type="checkbox"
+                                            formControlName="final_reply"
+                                            [style.accent-color]="activeColor"
+                                        />
                                         <span>Final reply</span>
                                     </label>
                                 </div>
@@ -345,6 +469,7 @@ interface InputMapPair {
                 min-height: 0;
                 display: flex;
                 flex-direction: column;
+                overflow-y: auto;
             }
 
             .form-container {
@@ -359,7 +484,7 @@ interface InputMapPair {
                 height: 100%;
                 min-height: 0;
                 width: 100%;
-                overflow: hidden;
+                // overflow: hidden;
 
                 &.expanded {
                     display: flex;
@@ -467,7 +592,8 @@ interface InputMapPair {
             .select-input {
                 background: var(--color-nodes-background, #1e1e1e);
                 color: #d4d4d4;
-                border: 1px solid var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
+                border: 1px solid
+                    var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
                 border-radius: 8px;
                 padding: 0.5rem 0.75rem;
                 font-size: 0.875rem;
@@ -495,7 +621,8 @@ interface InputMapPair {
             .output-schema-textarea {
                 background: var(--color-nodes-background, #1e1e1e);
                 color: #d4d4d4;
-                border: 1px solid var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
+                border: 1px solid
+                    var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
                 border-radius: 8px;
                 padding: 0.5rem 0.75rem;
                 font-family: 'Fira Code', 'Consolas', monospace;
@@ -565,7 +692,8 @@ interface InputMapPair {
                 height: 100%;
                 min-height: 0;
                 min-width: 0;
-                border: 1px solid var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
+                border: 1px solid
+                    var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
                 border-radius: 0 8px 8px 0;
                 overflow: hidden;
                 transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -588,7 +716,8 @@ interface InputMapPair {
 
             .editor-tabs {
                 display: flex;
-                border-bottom: 1px solid var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
+                border-bottom: 1px solid
+                    var(--color-divider-subtle, rgba(255, 255, 255, 0.1));
                 flex-shrink: 0;
             }
 
@@ -600,7 +729,9 @@ interface InputMapPair {
                 padding: 0.6rem 1.2rem;
                 cursor: pointer;
                 border-bottom: 2px solid transparent;
-                transition: color 0.2s, border-bottom 0.2s;
+                transition:
+                    color 0.2s,
+                    border-bottom 0.2s;
 
                 &:hover {
                     color: #ffffff;
@@ -669,7 +800,8 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
             .subscribe(() => {
                 this.sidePanelService.triggerAutosave();
             });
-        this.fullLLMConfigService.getFullLLMConfigs()
+        this.fullLLMConfigService
+            .getFullLLMConfigs()
             .pipe(takeUntilDestroyed())
             .subscribe((configs) => {
                 this.llmConfigs = configs;
@@ -704,7 +836,7 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
     }
 
     initializeForm(): FormGroup {
-        const data = this.node().data;
+        const data = this.node().data;       
         const form = this.fb.group({
             node_name: [this.node().node_name, this.createNodeNameValidators()],
             input_map: this.fb.array([]),
@@ -719,19 +851,36 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
             inactivity_timeout_s: [data.inactivity_timeout_s || 120],
             max_wait_s: [data.max_wait_s || 300],
             stream_config: this.fb.group({
-                reasoning: [this.node().stream_config?.['reasoning'] ?? true],
-                tool_calls: [this.node().stream_config?.['tool_calls'] ?? true],
-                tool_results: [this.node().stream_config?.['tool_results'] ?? true],
-                final_reply: [this.node().stream_config?.['final_reply'] ?? true],
+                reasoning: [
+                    this.node().stream_config?.['reasoning'] ??
+                        data.stream_config?.['reasoning'] ??
+                        true,
+                ],
+                tool_calls: [
+                    this.node().stream_config?.['tool_calls'] ??
+                        data.stream_config?.['tool_calls'] ??
+                        true,
+                ],
+                tool_results: [
+                    this.node().stream_config?.['tool_results'] ??
+                        data.stream_config?.['tool_results'] ??
+                        true,
+                ],
+                final_reply: [
+                    this.node().stream_config?.['final_reply'] ??
+                        data.stream_config?.['final_reply'] ??
+                        true,
+                ],
             }),
-        });
+        });      
 
         this.initializeInputMap(form);
         this.streamHandlerCode = data.stream_handler_code || '';
         const schema = data.output_schema;
-        this.outputSchemaText = schema && Object.keys(schema).length > 0
-            ? JSON.stringify(schema, null, 2)
-            : JSON.stringify(DEFAULT_OUTPUT_SCHEMA, null, 2);
+        this.outputSchemaText =
+            schema && Object.keys(schema).length > 0
+                ? JSON.stringify(schema, null, 2)
+                : JSON.stringify(DEFAULT_OUTPUT_SCHEMA, null, 2);
 
         return form;
     }
@@ -760,11 +909,13 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
                 system_prompt: this.form.value.system_prompt || '',
                 stream_handler_code: this.streamHandlerCode,
                 libraries: librariesArray,
-                polling_interval_ms: Number(this.form.value.polling_interval_ms) || 1000,
+                polling_interval_ms:
+                    Number(this.form.value.polling_interval_ms) || 1000,
                 silence_indicator_s: this.node().data.silence_indicator_s || 3,
                 indicator_repeat_s: this.node().data.indicator_repeat_s || 5,
                 chunk_timeout_s: Number(this.form.value.chunk_timeout_s) || 30,
-                inactivity_timeout_s: Number(this.form.value.inactivity_timeout_s) || 120,
+                inactivity_timeout_s:
+                    Number(this.form.value.inactivity_timeout_s) || 120,
                 max_wait_s: Number(this.form.value.max_wait_s) || 300,
                 output_schema: this.parsedOutputSchema(),
             },
