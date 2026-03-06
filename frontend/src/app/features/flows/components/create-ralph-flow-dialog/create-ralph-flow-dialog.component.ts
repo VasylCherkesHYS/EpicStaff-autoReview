@@ -199,6 +199,33 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         const apiUrl = this.configService.apiUrl;
 
         // Prepare node creation requests
+        const workFolder = formValue.workFolder || 'folder';
+        const buildSystemPrompt =
+            'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
+            `=== STEP 1: EXTRACT WORKING FOLDER ===\n` +
+            `Your prompt ALWAYS starts with: "Working folder: ${workFolder}"\n` +
+            `${workFolder} is the actual folder name you must use for ALL file operations.\n\n` +
+            '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
+            '1. Read ralph/build_prompt.md (general instructions)\n' +
+            `2. Read ${workFolder}/IMPLEMENTATION_PLAN.md\n` +
+            `3. Read ${workFolder}/PROGRESS.md if it exists\n\n` +
+            '=== STEP 3: COMPLETE ONE TASK ===\n' +
+            '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
+            `2. Implement ONLY that task in the ${workFolder}/ directory\n` +
+            `3. Update ${workFolder}/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n` +
+            `4. Update ${workFolder}/PROGRESS.md with what you did\n` +
+            '5. Output structured JSON (required format defined in schema)\n\n' +
+            '=== PATH EXAMPLES ===\n' +
+            `Working folder: ${workFolder}\n` +
+            '→ Read: ralph/build_prompt.md\n' +
+            `→ Read: ${workFolder}/IMPLEMENTATION_PLAN.md\n` +
+            `→ Create files in: ${workFolder}/index.html, ${workFolder}/app.js, etc.\n` +
+            `→ Update: ${workFolder}/IMPLEMENTATION_PLAN.md and ${workFolder}/PROGRESS.md\n\n` +
+            '=== COMPLETION CHECK ===\n' +
+            'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
+            'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
+            'CRITICAL: Complete ONE task, output JSON, then STOP.';
+
         const startNodeRequest: CreateStartNodeRequest = {
             graph: flowId,
             variables: {
@@ -209,7 +236,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                 assignment: formValue.description || '',
                 criteria: formValue.acceptanceCriteria || '',
                 plan_prompt: '',
-                build_prompt: `Folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}`,
+                build_prompt: `Working folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}\n\n${buildSystemPrompt}`,
                 work_folder: formValue.workFolder || '',
                 build_result: null,
                 max_iterations: formValue.maxIterations || 5,
@@ -221,7 +248,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             node_name: 'Compose Prompt',
             python_code: {
                 libraries: [],
-                code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    plan_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT FOLDER:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return plan_prompt',
+                code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    plan_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT OR CREATE FOLDER IF IT DOES NOT EXIST:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return plan_prompt',
                 entrypoint: 'main',
             },
             input_map: {
@@ -336,36 +363,36 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             llm_config: formValue.llmConfig.value || 6,
             agent_mode: 'build',
             session_id: `${flowId}_build`,
-            system_prompt:
-                'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
-                '=== STEP 1: EXTRACT WORKING FOLDER ===\n' +
-                'Your prompt ALWAYS starts with: "Working folder: XXXXX"\n' +
-                'XXXXX is the actual folder name you must use for ALL file operations.\n\n' +
-                'Examples:\n' +
-                '- "Working folder: smart" → use "smart" as the folder\n' +
-                '- "Working folder: test" → use "test" as the folder\n' +
-                '- "Working folder: my_app" → use "my_app" as the folder\n\n' +
-                '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
-                '1. Read ralph/build_prompt.md (general instructions)\n' +
-                '2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n' +
-                '3. Read XXXXX/PROGRESS.md if it exists\n\n' +
-                '=== STEP 3: COMPLETE ONE TASK ===\n' +
-                '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
-                '2. Implement ONLY that task in the XXXXX/ directory\n' +
-                '3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n' +
-                '4. Update XXXXX/PROGRESS.md with what you did\n' +
-                '5. Output structured JSON (required format defined in schema)\n\n' +
-                '=== PATH EXAMPLES ===\n' +
-                'If prompt = "Working folder: smart Create a web app..."\n' +
-                '→ Working folder is: smart\n' +
-                '→ Read: ralph/build_prompt.md\n' +
-                '→ Read: smart/IMPLEMENTATION_PLAN.md\n' +
-                '→ Create files in: smart/index.html, smart/app.js, etc.\n' +
-                '→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n' +
-                '=== COMPLETION CHECK ===\n' +
-                'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
-                'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
-                'CRITICAL: Complete ONE task, output JSON, then STOP.',
+            system_prompt: '',
+            // 'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
+            // '=== STEP 1: EXTRACT WORKING FOLDER ===\n' +
+            // 'Your prompt ALWAYS starts with: "Working folder: XXXXX"\n' +
+            // 'XXXXX is the actual folder name you must use for ALL file operations.\n\n' +
+            // 'Examples:\n' +
+            // '- "Working folder: smart" → use "smart" as the folder\n' +
+            // '- "Working folder: test" → use "test" as the folder\n' +
+            // '- "Working folder: my_app" → use "my_app" as the folder\n\n' +
+            // '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
+            // '1. Read ralph/build_prompt.md (general instructions)\n' +
+            // '2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n' +
+            // '3. Read XXXXX/PROGRESS.md if it exists\n\n' +
+            // '=== STEP 3: COMPLETE ONE TASK ===\n' +
+            // '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
+            // '2. Implement ONLY that task in the XXXXX/ directory\n' +
+            // '3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n' +
+            // '4. Update XXXXX/PROGRESS.md with what you did\n' +
+            // '5. Output structured JSON (required format defined in schema)\n\n' +
+            // '=== PATH EXAMPLES ===\n' +
+            // 'If prompt = "Working folder: smart Create a web app..."\n' +
+            // '→ Working folder is: smart\n' +
+            // '→ Read: ralph/build_prompt.md\n' +
+            // '→ Read: smart/IMPLEMENTATION_PLAN.md\n' +
+            // '→ Create files in: smart/index.html, smart/app.js, etc.\n' +
+            // '→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n' +
+            // '=== COMPLETION CHECK ===\n' +
+            // 'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
+            // 'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
+            // 'CRITICAL: Complete ONE task, output JSON, then STOP.',
             stream_handler_code:
                 '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
             libraries: [],
@@ -565,6 +592,33 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         nodeResults: any,
         formValue: any,
     ): Observable<GraphDto> {
+        const workFolder = formValue.workFolder || 'folder';
+        const buildSystemPrompt =
+            'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
+            `=== STEP 1: EXTRACT WORKING FOLDER ===\n` +
+            `Your prompt ALWAYS starts with: "Working folder: ${workFolder}"\n` +
+            `${workFolder} is the actual folder name you must use for ALL file operations.\n\n` +
+            '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
+            '1. Read ralph/build_prompt.md (general instructions)\n' +
+            `2. Read ${workFolder}/IMPLEMENTATION_PLAN.md\n` +
+            `3. Read ${workFolder}/PROGRESS.md if it exists\n\n` +
+            '=== STEP 3: COMPLETE ONE TASK ===\n' +
+            '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
+            `2. Implement ONLY that task in the ${workFolder}/ directory\n` +
+            `3. Update ${workFolder}/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n` +
+            `4. Update ${workFolder}/PROGRESS.md with what you did\n` +
+            '5. Output structured JSON (required format defined in schema)\n\n' +
+            '=== PATH EXAMPLES ===\n' +
+            `Working folder: ${workFolder}\n` +
+            '→ Read: ralph/build_prompt.md\n' +
+            `→ Read: ${workFolder}/IMPLEMENTATION_PLAN.md\n` +
+            `→ Create files in: ${workFolder}/index.html, ${workFolder}/app.js, etc.\n` +
+            `→ Update: ${workFolder}/IMPLEMENTATION_PLAN.md and ${workFolder}/PROGRESS.md\n\n` +
+            '=== COMPLETION CHECK ===\n' +
+            'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
+            'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
+            'CRITICAL: Complete ONE task, output JSON, then STOP.';
+
         return this.http
             .get<GraphDto>(`${this.configService.apiUrl}graphs/${flowId}/`)
             .pipe(
@@ -598,7 +652,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                         criteria:
                                             formValue.acceptanceCriteria || '',
                                         plan_prompt: '',
-                                        build_prompt: `Folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}`,
+                                        build_prompt: `Working folder: ${formValue.workFolder || ''}\n\n${formValue.description || ''}\n\n${formValue.acceptanceCriteria || ''}\n\n${buildSystemPrompt}`,
                                         work_folder:
                                             formValue.workFolder || 'folder',
                                         build_result: null,
@@ -626,7 +680,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                 data: pythonNode?.python_code || {
                                     name: 'Compose Prompt',
                                     libraries: [],
-                                    code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    full_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT FOLDER:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return full_prompt',
+                                    code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    full_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT OR CREATE FOLDER IF IT DOES NOT EXIST:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return full_prompt',
                                     entrypoint: 'main',
                                 },
                                 color: '#ffcf3f',
@@ -788,8 +842,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                     session_id:
                                         codeAgent2?.session_id || 'build',
                                     system_prompt:
-                                        codeAgent2?.system_prompt ||
-                                        'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n=== STEP 1: EXTRACT WORKING FOLDER ===\nYour prompt ALWAYS starts with: "Working folder: XXXXX"\nXXXXX is the actual folder name you must use for ALL file operations.\n\nExamples:\n- "Working folder: smart" → use "smart" as the folder\n- "Working folder: test" → use "test" as the folder\n- "Working folder: my_app" → use "my_app" as the folder\n\n=== STEP 2: READ FILES IN CORRECT ORDER ===\n1. Read ralph/build_prompt.md (general instructions)\n2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n3. Read XXXXX/PROGRESS.md if it exists\n\n=== STEP 3: COMPLETE ONE TASK ===\n1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n2. Implement ONLY that task in the XXXXX/ directory\n3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n4. Update XXXXX/PROGRESS.md with what you did\n5. Output structured JSON (required format defined in schema)\n\n=== PATH EXAMPLES ===\nIf prompt = "Working folder: smart Create a web app..."\n→ Working folder is: smart\n→ Read: ralph/build_prompt.md\n→ Read: smart/IMPLEMENTATION_PLAN.md\n→ Create files in: smart/index.html, smart/app.js, etc.\n→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n=== COMPLETION CHECK ===\nall_complete = true ONLY if ALL tasks are [x] AND tests pass\nIf all_complete = true, include <promise>COMPLETE</promise> in message field\n\nCRITICAL: Complete ONE task, output JSON, then STOP.',
+                                        codeAgent2?.system_prompt || '',
+                                    // 'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n=== STEP 1: EXTRACT WORKING FOLDER ===\nYour prompt ALWAYS starts with: "Working folder: XXXXX"\nXXXXX is the actual folder name you must use for ALL file operations.\n\nExamples:\n- "Working folder: smart" → use "smart" as the folder\n- "Working folder: test" → use "test" as the folder\n- "Working folder: my_app" → use "my_app" as the folder\n\n=== STEP 2: READ FILES IN CORRECT ORDER ===\n1. Read ralph/build_prompt.md (general instructions)\n2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n3. Read XXXXX/PROGRESS.md if it exists\n\n=== STEP 3: COMPLETE ONE TASK ===\n1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n2. Implement ONLY that task in the XXXXX/ directory\n3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n4. Update XXXXX/PROGRESS.md with what you did\n5. Output structured JSON (required format defined in schema)\n\n=== PATH EXAMPLES ===\nIf prompt = "Working folder: smart Create a web app..."\n→ Working folder is: smart\n→ Read: ralph/build_prompt.md\n→ Read: smart/IMPLEMENTATION_PLAN.md\n→ Create files in: smart/index.html, smart/app.js, etc.\n→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n=== COMPLETION CHECK ===\nall_complete = true ONLY if ALL tasks are [x] AND tests pass\nIf all_complete = true, include <promise>COMPLETE</promise> in message field\n\nCRITICAL: Complete ONE task, output JSON, then STOP.',
                                     stream_handler_code:
                                         codeAgent2?.stream_handler_code ||
                                         '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
