@@ -265,7 +265,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             graph: flowId,
             node_name: 'Planning stage',
             llm_config: formValue.llmConfig.value || 6,
-            agent_mode: 'plan',
+            agent_mode: 'build',
             session_id: `${flowId}_planning`,
             system_prompt: '',
             stream_handler_code:
@@ -363,36 +363,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             llm_config: formValue.llmConfig.value || 6,
             agent_mode: 'build',
             session_id: `${flowId}_build`,
-            system_prompt: '',
-            // 'You are the BUILD agent in a RALPH loop. You implement ONE task per iteration.\n\n' +
-            // '=== STEP 1: EXTRACT WORKING FOLDER ===\n' +
-            // 'Your prompt ALWAYS starts with: "Working folder: XXXXX"\n' +
-            // 'XXXXX is the actual folder name you must use for ALL file operations.\n\n' +
-            // 'Examples:\n' +
-            // '- "Working folder: smart" → use "smart" as the folder\n' +
-            // '- "Working folder: test" → use "test" as the folder\n' +
-            // '- "Working folder: my_app" → use "my_app" as the folder\n\n' +
-            // '=== STEP 2: READ FILES IN CORRECT ORDER ===\n' +
-            // '1. Read ralph/build_prompt.md (general instructions)\n' +
-            // '2. Read XXXXX/IMPLEMENTATION_PLAN.md (where XXXXX = working folder from Step 1)\n' +
-            // '3. Read XXXXX/PROGRESS.md if it exists\n\n' +
-            // '=== STEP 3: COMPLETE ONE TASK ===\n' +
-            // '1. Find the FIRST unchecked task in IMPLEMENTATION_PLAN.md: - [ ] Task name\n' +
-            // '2. Implement ONLY that task in the XXXXX/ directory\n' +
-            // '3. Update XXXXX/IMPLEMENTATION_PLAN.md: change - [ ] to - [x] for completed task\n' +
-            // '4. Update XXXXX/PROGRESS.md with what you did\n' +
-            // '5. Output structured JSON (required format defined in schema)\n\n' +
-            // '=== PATH EXAMPLES ===\n' +
-            // 'If prompt = "Working folder: smart Create a web app..."\n' +
-            // '→ Working folder is: smart\n' +
-            // '→ Read: ralph/build_prompt.md\n' +
-            // '→ Read: smart/IMPLEMENTATION_PLAN.md\n' +
-            // '→ Create files in: smart/index.html, smart/app.js, etc.\n' +
-            // '→ Update: smart/IMPLEMENTATION_PLAN.md and smart/PROGRESS.md\n\n' +
-            // '=== COMPLETION CHECK ===\n' +
-            // 'all_complete = true ONLY if ALL tasks are [x] AND tests pass\n' +
-            // 'If all_complete = true, include <promise>COMPLETE</promise> in message field\n\n' +
-            // 'CRITICAL: Complete ONE task, output JSON, then STOP.',
+            system_prompt: '',            
             stream_handler_code:
                 '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
             libraries: [],
@@ -408,8 +379,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             output_variable_path: 'variables.build_output',
             stream_config: {
                 reasoning: false,
-                tool_calls: true,
-                tool_results: true,
+                tool_calls: false,
+                tool_results: false,
                 final_reply: true,
             },
             output_schema: {
@@ -705,7 +676,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                 node_name: 'Planning stage',
                                 data: {
                                     agent_mode:
-                                        codeAgent1?.agent_mode || 'plan',
+                                        codeAgent1?.agent_mode || 'build',
                                     session_id:
                                         codeAgent1?.session_id || 'plan',
                                     system_prompt:
@@ -867,10 +838,10 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                                 ?.reasoning || false,
                                         tool_calls:
                                             codeAgent2?.stream_config
-                                                ?.tool_calls || true,
+                                                ?.tool_calls || false,
                                         tool_results:
                                             codeAgent2?.stream_config
-                                                ?.tool_results || true,
+                                                ?.tool_results || false,
                                         final_reply:
                                             codeAgent2?.stream_config
                                                 ?.final_reply || true,
