@@ -135,7 +135,7 @@ export class FlowVisualProgrammingComponent
         private readonly configService: ConfigService,
         private readonly sidePanelService: SidePanelService,
         private readonly flowUnsavedStateService: FlowUnsavedStateService,
-        private readonly epicChatService: EpicChatService
+        private readonly epicChatService: EpicChatService,
     ) {
         this.isEpicChatEnabled = this.configService.isEpicChatEnabled;
     }
@@ -147,14 +147,16 @@ export class FlowVisualProgrammingComponent
             .subscribe((queryParams) => {
                 this.initialNodeId = queryParams.get('nodeId');
             });
-        this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
-            const id = Number(params.get('id'));
-            if (!id) {
-                console.warn('Invalid graph ID.');
-                return;
-            }
-            this.fetchGraph(id);
-        });
+        this.route.paramMap
+            .pipe(takeUntil(this.destroy$))
+            .subscribe((params) => {
+                const id = Number(params.get('id'));
+                if (!id) {
+                    console.warn('Invalid graph ID.');
+                    return;
+                }
+                this.fetchGraph(id);
+            });
     }
 
     public refreshCurrentFlow(): void {
@@ -169,7 +171,7 @@ export class FlowVisualProgrammingComponent
     private fetchGraph(
         graphId: number,
         forceRefresh = false,
-        showRefreshToast = false
+        showRefreshToast = false,
     ): void {
         this.flowApiService
             .getGraphById(graphId, forceRefresh)
@@ -394,40 +396,56 @@ export class FlowVisualProgrammingComponent
     }
 
     private saveGraphForRun(): Observable<any> {
-        // Trigger autosave before getting flow state
+        // For RALPH flows in view mode, fetch latest graph from backend (FlowGraphComponent is not rendered)
+        if (this.graph?.is_ralph && !this.isRalphEditMode()) {
+            
+            return this.flowApiService.getGraphById(this.graph.id, true).pipe(
+                tap((latestGraph: GraphDto) => {                  
+                  
+                    this.graph = latestGraph;                  
+                    this.initialState = {
+                        nodes: latestGraph.metadata.nodes || [],
+                        connections: latestGraph.metadata.connections || [],
+                        groups: latestGraph.metadata.groups || [],
+                    };                   
+                }),
+            );
+        }
+
+        // For normal flows and RALPH in edit mode       
+        
         this.flushActiveSidePanelState();
         this.sidePanelService.triggerAutosave();
-
-        // Wait for autosave to complete before getting flow state
+      
         return of(null).pipe(
             switchMap(() => new Promise((resolve) => setTimeout(resolve, 200))),
-            switchMap(() => {
-                const flowState: FlowModel = this.flowService.getFlowState();
+            switchMap(() => {              
+                const flowState: FlowModel = this.flowService.getFlowState();               
 
                 const startNodeInFlow = flowState.nodes.find(
                     (node) => node.type === NodeType.START,
-                ) as StartNodeModel | undefined;
+                ) as StartNodeModel | undefined;             
 
-                if (!startNodeInFlow) {
+                if (!startNodeInFlow) {                    
                     return this.graphUpdateService
                         .saveGraph(flowState, this.graph)
                         .pipe(
-                            tap((result) => {
+                            tap((result) => {                               
                                 this.graph = result.graph;
                                 this.initialState = flowState;
                             }),
                         );
-                }
+                }               
 
-                const initialStateData = startNodeInFlow.data.initialState;
+                const initialStateData = startNodeInFlow.data.initialState;               
 
-                return this.startNodeService.getStartNodes().pipe(
+                return this.startNodeService.getStartNodes().pipe(                   
                     switchMap((startNodes) => {
                         const matchingStartNode = startNodes.find(
                             (sn) => sn.graph === this.graph.id,
-                        );
+                        );                       
 
-                        if (matchingStartNode) {
+                        if (matchingStartNode) {                          
                             return this.startNodeService.updateStartNode(
                                 matchingStartNode.id,
                                 {
@@ -436,19 +454,19 @@ export class FlowVisualProgrammingComponent
                                 },
                             );
                         }
-
+                       
                         return this.startNodeService.createStartNode({
                             graph: this.graph.id,
                             variables: initialStateData,
                         });
-                    }),
+                    }),                   
                     switchMap(() =>
                         this.graphUpdateService.saveGraph(
                             flowState,
                             this.graph,
                         ),
                     ),
-                    tap((result) => {
+                    tap((result) => {                      
                         this.graph = result.graph;
                         this.initialState = flowState;
                     }),
@@ -458,25 +476,27 @@ export class FlowVisualProgrammingComponent
     }
 
     public handleRunFlow(): void {
-        if (this.isRunning || !this.graph?.id) return;
+        if (this.isRunning || !this.graph?.id) return;       
 
         this.isRunning = true;
 
         // Check if we have unsaved changes and save first if needed
-        const saveFirst$ = this.hasUnsavedChanges()
-            ? this.saveGraphForRun()
-            : of(null);
+        const shouldSave =
+            (this.graph?.is_ralph && !this.isRalphEditMode()) ||
+            this.hasUnsavedChanges();       
+
+        const saveFirst$ = shouldSave ? this.saveGraphForRun() : of(null);
 
         saveFirst$
-            .pipe(
-                switchMap(() =>
-                    this.runGraphService.runGraph(
+            .pipe(                
+                switchMap(() => {                    
+                    return this.runGraphService.runGraph(
                         this.graph.id,
                         this.graph.start_node_list[0].variables,
-                    ),
-                ),
+                    );
+                }),
                 takeUntil(this.destroy$),
-                finalize(() => {
+                finalize(() => {                  
                     this.isRunning = false;
                     this.cdr.markForCheck();
                 }),
@@ -528,7 +548,7 @@ export class FlowVisualProgrammingComponent
                 'Unable to generate CURL: Missing flow ID or start node data',
             );
         }
-    }   
+    }
 
     public handleConnectChat(): void {
         if (!this.graph?.id) {

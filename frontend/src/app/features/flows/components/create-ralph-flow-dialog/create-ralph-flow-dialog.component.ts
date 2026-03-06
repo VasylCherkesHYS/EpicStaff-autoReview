@@ -93,7 +93,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         }
     }
 
-    ngOnInit(): void {       
+    ngOnInit(): void {
         this.loadLLMConfigs();
 
         if (this.isEditMode && this.data.flow) {
@@ -218,7 +218,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
 
         const pythonNodeRequest: CreatePythonNodeRequest = {
             graph: flowId,
-            node_name: 'Compose Promt',
+            node_name: 'Compose Prompt',
             python_code: {
                 libraries: [],
                 code: 'def main(assignment: str = "", work_folder: str = "") -> str:\n    """Build the planning prompt for the Ralph planning agent."""\n\n    plan_prompt = f"""Working folder: {work_folder}\n\nPLANNING AGENT - Your task is to create an execution plan for the following request.\n\nSTEP 1 - EXTRACT FOLDER:\nThe working folder for this task is: {work_folder}\nALL file operations MUST use this folder.\n\nSTEP 2 - READ GUIDELINES:\nRead ralph/planning_prompt.md for detailed planning instructions.\n\nSTEP 3 - CREATE IMPLEMENTATION PLAN:\nCreate {work_folder}/IMPLEMENTATION_PLAN.md with a checklist of concrete implementation tasks.\n\nUse this format:\n- [ ] Task description here\n- [ ] Next task description\n\nBreak down the user request into specific, actionable steps.\n\nDO NOT create meta-tasks like:\n- [ ] Create IMPLEMENTATION_PLAN.md\n- [ ] Write code for the project\n\nCREATE actual implementation tasks like:\n- [ ] Install required Python libraries (pandas, openpyxl)\n- [ ] Create Python script to generate DataFrame with specified columns\n- [ ] Add 20 empty rows to the DataFrame\n- [ ] Export DataFrame to .xls format\n- [ ] Save file as {work_folder}/table.xls\n\nSTEP 4 - OUTPUT JSON:\nReturn structured JSON matching your output schema with:\n- status: \"plan_created\"\n- files_created: [{{\"path\": \"{work_folder}/IMPLEMENTATION_PLAN.md\", \"format_valid\": true}}]\n- plan_summary: {{task_count, first_task, project_description}}\n- message: Summary of what you created\n\nCRITICAL RULES:\n- Create files in {work_folder}/ directory, NOT ralph/\n- Do NOT write implementation code, only create the plan\n- Do NOT create files other than {work_folder}/IMPLEMENTATION_PLAN.md\n\nUSER REQUEST:\n{assignment}\n"""\n\n    return plan_prompt',
@@ -240,7 +240,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             llm_config: formValue.llmConfig.value || 6,
             agent_mode: 'plan',
             session_id: `${flowId}_planning`,
-            system_prompt: '',          
+            system_prompt: '',
             stream_handler_code:
                 '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
             libraries: [],
@@ -332,7 +332,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
 
         const codeAgent2Request: CreateCodeAgentNodeRequest = {
             graph: flowId,
-            node_name: 'Build Stage',
+            node_name: 'Build stage',
             llm_config: formValue.llmConfig.value || 6,
             agent_mode: 'build',
             session_id: `${flowId}_build`,
@@ -376,7 +376,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
             inactivity_timeout_s: 120,
             max_wait_s: 300,
             input_map: {
-                prompt: 'variables.build_prompt',                
+                prompt: 'variables.build_prompt',
             },
             output_variable_path: 'variables.build_output',
             stream_config: {
@@ -489,7 +489,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                     order: 3,
                 },
             ],
-            default_next_node: 'Build Stage',
+            default_next_node: 'Build stage',
             next_error_node: null,
         };
 
@@ -564,17 +564,17 @@ export class CreateRalphFlowDialogComponent implements OnInit {
         flowId: number,
         nodeResults: any,
         formValue: any,
-    ): Observable<GraphDto> {       
+    ): Observable<GraphDto> {
         return this.http
             .get<GraphDto>(`${this.configService.apiUrl}graphs/${flowId}/`)
             .pipe(
-                switchMap((currentFlow) => {                    
+                switchMap((currentFlow) => {
                     const startNode = nodeResults.startNode;
                     const pythonNode = nodeResults.pythonNode;
                     const codeAgent1 = nodeResults.codeAgent1;
                     const codeAgent2 = nodeResults.codeAgent2;
                     const decisionTable = nodeResults.decisionTable;
-                    
+
                     const startNodeId = startNode?.id;
                     const pythonNodeId = pythonNode?.id;
                     const codeAgent1Id = codeAgent1?.id;
@@ -655,7 +655,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                                     session_id:
                                         codeAgent1?.session_id || 'plan',
                                     system_prompt:
-                                        codeAgent1?.system_prompt || '',                                    
+                                        codeAgent1?.system_prompt || '',
                                     stream_handler_code:
                                         codeAgent1?.stream_handler_code ||
                                         '# ── Code Agent Stream Handler ──────────────────────────────────\n# Define any of these functions to hook into the agent lifecycle.\n# Each receives a \'context\' dict containing all input_map fields\n# plus \'session_id\' and \'node_name\'.\n# Return a dict from any handler to persist state across calls\n# (e.g. store a message ID in on_stream_start, read it in on_complete).\n\n# def on_stream_start(context):\n#     """Called once before the prompt is sent to OpenCode."""\n#     pass\n\n# def on_chunk(text, context):\n#     """Called each time the agent\'s reasoning or tool output updates.\n#     \'text\' contains the accumulated thinking/tool-call text so far."""\n#     pass\n\n# def on_complete(full_reply, context):\n#     """Called when the agent finishes (or is stopped).\n#     \'full_reply\' contains the agent\'s final response text."""\n#     pass\n',
@@ -1036,8 +1036,8 @@ export class CreateRalphFlowDialogComponent implements OnInit {
 
                     const updateRequest = {
                         id: flowId,
-                        name: currentFlow.name, 
-                        description: currentFlow.description || '', 
+                        name: currentFlow.name,
+                        description: currentFlow.description || '',
                         metadata: visualMetadata,
                     };
 
@@ -1050,7 +1050,7 @@ export class CreateRalphFlowDialogComponent implements OnInit {
                     );
                 }),
             );
-    }   
+    }
 
     onCancel(): void {
         this.dialogRef.close();
