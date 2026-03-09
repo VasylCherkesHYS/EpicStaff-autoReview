@@ -47,6 +47,7 @@ export interface GraphDto {
     tags?: [];
     audio_transcription_node_list: GetAudioToTextNodeRequest[];
     code_agent_node_list: GetCodeAgentNodeRequest[];
+    epicchat_enabled?: boolean;
     is_ralph?: boolean;
 }
 
@@ -55,6 +56,7 @@ export interface GetGraphLightRequest {
     name: string;
     description: string;
     tags: string[];
+    epicchat_enabled?: boolean;
 }
 
 export interface CreateGraphDtoRequest {
