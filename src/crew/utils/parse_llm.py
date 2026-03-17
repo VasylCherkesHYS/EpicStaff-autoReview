@@ -1,3 +1,6 @@
+import json
+import os
+
 from crewai import LLM
 
 from models.request_models import LLMData
@@ -6,6 +9,14 @@ from models.request_models import LLMData
 def parse_llm(llm: LLMData, **kwargs):
     llm_config = {**llm.config.model_dump()}
     llm_config.update(kwargs)
+
+    raw_headers = os.environ.get("LLM_HEADERS")
+    if raw_headers:
+        extra_headers = json.loads(raw_headers)
+        existing = llm_config.get("extra_headers") or {}
+        existing.update(extra_headers)
+        llm_config["extra_headers"] = existing
+
     return LLM(**llm_config)
 
 

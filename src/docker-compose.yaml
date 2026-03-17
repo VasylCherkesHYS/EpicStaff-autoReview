@@ -224,6 +224,7 @@ services:
       - SESSION_STATUS_CHANNEL=sessions:session_status
       - CODE_RESULT_CHANNEL=code_results
       - MAX_CONCURRENT_SESSIONS=${MAX_CONCURRENT_SESSIONS}
+      - LLM_HEADERS=${LLM_HEADERS:-}
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
