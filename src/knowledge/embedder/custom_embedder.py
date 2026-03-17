@@ -1,3 +1,4 @@
+import json
 from typing import List
 import requests
 import os
@@ -21,13 +22,18 @@ class CustomEmbedder(BaseEmbedder):
     def embed(self, text: str) -> List[float]:
         """Get embedding for text."""
         text = text.replace("\n", " ")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        raw_headers = os.environ.get("EMBEDDING_HEADERS")
+        if raw_headers:
+            extra_headers = json.loads(raw_headers)
+            headers.update(extra_headers)
 
         response = requests.post(
             self.endpoint,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             json={"model": self.model_name, "input": [text]},
         )
         response.raise_for_status()
