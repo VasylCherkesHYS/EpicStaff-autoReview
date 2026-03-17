@@ -232,7 +232,7 @@ export function getWebhookTriggerNodeForComparisonFromBackend(node: GetWebhookTr
         entrypoint: node.python_code.entrypoint,
         input_map: node.input_map,
         output_variable_path: node.output_variable_path,
-        webhook_trigger_path: node.webhook_trigger_path,
+        webhook_trigger: node.webhook_trigger,
         metadata: getBackendMetadataForComparison(node),
     };
 }
@@ -245,7 +245,7 @@ export function getWebhookTriggerNodeForComparisonFromUI(node: WebhookTriggerNod
         entrypoint: node.data.python_code.entrypoint,
         input_map: node.input_map || {},
         output_variable_path: node.output_variable_path || null,
-        webhook_trigger_path: node.data.webhook_trigger_path,
+        webhook_trigger: node.data.webhook_trigger,
         metadata: getUIMetadataForComparison(node),
     };
 }
@@ -279,7 +279,6 @@ export function getTelegramTriggerNodeForComparisonFromUI(node: TelegramTriggerN
 export function getConditionalEdgeForComparisonFromBackend(node: ConditionalEdge) {
     return {
         source_node_id: node.source_node_id,
-        node_name: (node.metadata as any)?.['node_name'] ?? '',
         libraries: node.python_code.libraries,
         code: (node.python_code.code || '').trimEnd(),
         entrypoint: node.python_code.entrypoint,
@@ -292,7 +291,6 @@ export function getConditionalEdgeForComparisonFromBackend(node: ConditionalEdge
 export function getConditionalEdgeForComparisonFromUI(node: ResolvedConditionalEdge) {
     return {
         source_node_id: node.sourceBackendId,
-        node_name: node.edgeNode.node_name,
         libraries: node.edgeNode.data.python_code.libraries,
         code: (node.edgeNode.data.python_code.code || '').trimEnd(),
         entrypoint: node.edgeNode.data.python_code.entrypoint,

@@ -38,7 +38,7 @@ import { ConditionalEdgeService } from './services/conditional-edge.service';
 import { CrewNodeService } from './services/crew-node.service';
 import { EdgeService } from './services/edge.service';
 import { PythonNodeService } from './services/python-node.service';
-import { RunGraphService } from '../../../../services/run-graph-session.service';
+import { RunGraphService } from '../../../../features/flows/services/run-graph-session.service';
 import { StartNodeService } from './services/start-node.service';
 import { StartNode, CreateStartNodeRequest } from './models/start-node.model';
 
@@ -223,7 +223,7 @@ export class FlowVisualProgrammingComponent
         showNotif: boolean
     ): Observable<boolean> {
         const initialStateData = startNode.data.initialState;
-        const startNodeMetadata = getUIMetadataForComparison(startNode);
+        const metadata = getUIMetadataForComparison(startNode);
 
         return this.startNodeService.getStartNodes().pipe(
             takeUntil(this.destroy$),
@@ -238,7 +238,7 @@ export class FlowVisualProgrammingComponent
                         {
                             graph: this.graph.id,
                             variables: initialStateData,
-                            metadata: startNodeMetadata,
+                            metadata,
                         }
                     );
                 }
@@ -246,7 +246,7 @@ export class FlowVisualProgrammingComponent
                 return this.startNodeService.createStartNode({
                     graph: this.graph.id,
                     variables: initialStateData,
-                    metadata: startNodeMetadata,
+                    metadata,
                 });
             }),
             switchMap((startNodeResult) => {
@@ -344,7 +344,7 @@ export class FlowVisualProgrammingComponent
                 }
 
                 const initialStateData = startNodeInFlow.data.initialState;
-                const startMeta = getUIMetadataForComparison(startNodeInFlow);
+                const metadata = getUIMetadataForComparison(startNodeInFlow);
 
                 return this.startNodeService.getStartNodes().pipe(
                     switchMap((startNodes) => {
@@ -358,7 +358,7 @@ export class FlowVisualProgrammingComponent
                                 {
                                     graph: this.graph.id,
                                     variables: initialStateData,
-                                    metadata: startMeta,
+                                    metadata,
                                 }
                             );
                         }
@@ -366,7 +366,7 @@ export class FlowVisualProgrammingComponent
                         return this.startNodeService.createStartNode({
                             graph: this.graph.id,
                             variables: initialStateData,
-                            metadata: startMeta,
+                            metadata,
                         });
                     }),
                     switchMap(() =>

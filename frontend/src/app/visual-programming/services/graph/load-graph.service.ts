@@ -299,7 +299,7 @@ function buildWebhookTriggerNode(wn: GetWebhookTriggerNodeRequest, idx: number):
         node_name: wn.node_name,
         nodeNumber: readNodeNumber(wn.metadata),
         data: {
-            webhook_trigger_path: wn.webhook_trigger_path,
+            webhook_trigger: wn.webhook_trigger,
             python_code: {
                 name: wn.node_name,
                 libraries: wn.python_code.libraries,
@@ -329,6 +329,7 @@ function buildTelegramTriggerNode(tn: GetTelegramTriggerNodeRequest, idx: number
         nodeNumber: readNodeNumber(tn.metadata),
         data: {
             telegram_bot_api_key: tn.telegram_bot_api_key,
+            webhook_trigger: tn.webhook_trigger,
             fields: tn.fields,
         },
         position: ui.position,
@@ -430,7 +431,7 @@ function buildDecisionTableNode(dn: GetDecisionTableNodeRequest, idx: number): D
 
 function buildConditionalEdgeNode(ce: ConditionalEdge, idx: number): EdgeNodeModel {
     const ui = readUIMetadata(ce.metadata, NodeType.EDGE, idx);
-    const nodeName = (ce.metadata as any)?.['node_name'] || `cond_edge_${ce.id}`;
+    const nodeName = 'Conditional Edge';
     return {
         id: uuidv4(),
         backendId: ce.id,
@@ -471,7 +472,7 @@ function getOutputPortRole(nodeType: NodeType): string {
         case NodeType.PYTHON: return 'python-out';
         case NodeType.LLM: return 'llm-out-right';
         case NodeType.EDGE: return 'edge-out';
-        case NodeType.TABLE: return 'table-out';
+        case NodeType.TABLE: return 'decision-default';
         case NodeType.FILE_EXTRACTOR: return 'file-extractor-out';
         case NodeType.AUDIO_TO_TEXT: return 'audio-to-text-out';
         case NodeType.SUBGRAPH: return 'subgraph-out';
@@ -518,6 +519,11 @@ function buildEdgeConnections(
         const targetNode = nodeByBackendId.get(edge.end_node_id);
         if (!sourceNode || !targetNode) continue;
 
+        // DT connections are handled by buildDecisionTableConnections;
+        // EDGE connections are handled by buildConditionalEdgeConnections.
+        if (sourceNode.type === NodeType.TABLE || sourceNode.type === NodeType.EDGE) continue;
+        if (targetNode.type === NodeType.EDGE) continue;
+
         const sourcePortRole = getOutputPortRole(sourceNode.type);
         const targetPortRole = getInputPortRole(targetNode.type);
 
@@ -540,7 +546,8 @@ function buildConditionalEdgeConnections(
     conditionalEdges: ConditionalEdge[],
     edgeNodes: EdgeNodeModel[],
     backendIdToUuid: Map<number, string>,
-    nodeByBackendId: Map<number, NodeModel>
+    nodeByBackendId: Map<number, NodeModel>,
+    decisionTableNodes: DecisionTableNodeModel[]
 ): ConnectionModel[] {
     const connections: ConnectionModel[] = [];
 
@@ -553,14 +560,22 @@ function buildConditionalEdgeConnections(
         if (sourceUuid) {
             const sourceNode = nodeByBackendId.get(ce.source_node_id);
             if (sourceNode) {
-                const sourcePortRole = getOutputPortRole(sourceNode.type);
+                let sourcePortId: CustomPortId;
+                if (sourceNode.type === NodeType.TABLE) {
+                    const dtPort = resolveDTPortForTarget(sourceNode as DecisionTableNodeModel, edgeNode.id);
+                    sourcePortId = `${sourceUuid}_${dtPort}` as CustomPortId;
+                } else {
+                    sourcePortId = `${sourceUuid}_${getOutputPortRole(sourceNode.type)}` as CustomPortId;
+                }
                 connections.push(makeConnection(
                     sourceUuid,
                     edgeNode.id,
-                    `${sourceUuid}_${sourcePortRole}` as CustomPortId,
+                    sourcePortId,
                     `${edgeNode.id}_edge-in` as CustomPortId,
                 ));
             }
+        } else if (ce.source_node_id != null) {
+            console.warn(`[CE-connections] CE backendId=${ce.id}: source_node_id=${ce.source_node_id} not found in backendIdToUuid`);
         }
 
         // edgeNode → target (using then_node_id from metadata)
@@ -578,10 +593,33 @@ function buildConditionalEdgeConnections(
                         `${targetUuid}_${targetPortRole}` as CustomPortId,
                     ));
                 }
+            } else {
+                console.warn(`[CE-connections] CE backendId=${ce.id}: then_node_id=${thenNodeId} not found in backendIdToUuid`);
             }
         }
     }
     return connections;
+}
+
+/**
+ * Determines which DT output port connects to a given target node UUID.
+ * Checks default_next_node, next_error_node, and condition group next_node fields.
+ */
+function resolveDTPortForTarget(dtNode: DecisionTableNodeModel, targetUuid: string): string {
+    const table = dtNode.data?.table;
+    if (!table) return 'decision-default';
+
+    if (table.default_next_node === targetUuid) return 'decision-default';
+    if (table.next_error_node === targetUuid) return 'decision-error';
+
+    for (const group of (table.condition_groups ?? [])) {
+        if (group.next_node === targetUuid) {
+            const normalized = group.group_name.toLowerCase().replace(/\s+/g, '-');
+            return `decision-out-${normalized}`;
+        }
+    }
+
+    return 'decision-default';
 }
 
 /**
@@ -600,7 +638,12 @@ function buildDecisionTableConnections(
     for (let i = 0; i < decisionTableNodes.length; i++) {
         const dtNode = decisionTableNodes[i];
         const backendDt = backendDecisionTables[i];
-        if (!backendDt) continue;
+        if (!backendDt) {
+            console.warn(`[DT-connections] No backend DT found at index ${i} for dtNode ${dtNode.id}`);
+            continue;
+        }
+
+        console.log(`[DT-connections] DT "${backendDt.node_name}" (backendId=${backendDt.id}): default_next_node_id=${backendDt.default_next_node_id}, next_error_node_id=${backendDt.next_error_node_id}, groups=${backendDt.condition_groups?.length ?? 0}`);
 
         for (const group of backendDt.condition_groups) {
             if (group.next_node_id != null) {
@@ -608,14 +651,20 @@ function buildDecisionTableConnections(
                 if (targetUuid) {
                     const targetNode = nodeByBackendId.get(group.next_node_id);
                     if (targetNode) {
-                        const normalizedGroupName = group.group_name.toLowerCase().replace(/\s+/g, '-');
-                        connections.push(makeConnection(
-                            dtNode.id,
-                            targetUuid,
-                            `${dtNode.id}_decision-out-${normalizedGroupName}` as CustomPortId,
-                            `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
-                        ));
+                        if (targetNode.type === NodeType.EDGE) {
+                            console.log(`[DT-connections] Group "${group.group_name}" → EDGE node skipped (handled by CE connections)`);
+                        } else {
+                            const normalizedGroupName = group.group_name.toLowerCase().replace(/\s+/g, '-');
+                            connections.push(makeConnection(
+                                dtNode.id,
+                                targetUuid,
+                                `${dtNode.id}_decision-out-${normalizedGroupName}` as CustomPortId,
+                                `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
+                            ));
+                        }
                     }
+                } else {
+                    console.warn(`[DT-connections] Group "${group.group_name}": next_node_id=${group.next_node_id} not found in backendIdToUuid`);
                 }
             }
         }
@@ -625,13 +674,21 @@ function buildDecisionTableConnections(
             if (targetUuid) {
                 const targetNode = nodeByBackendId.get(backendDt.default_next_node_id);
                 if (targetNode) {
-                    connections.push(makeConnection(
-                        dtNode.id,
-                        targetUuid,
-                        `${dtNode.id}_decision-default` as CustomPortId,
-                        `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
-                    ));
+                    // Skip EDGE targets — those connections are handled by buildConditionalEdgeConnections
+                    if (targetNode.type === NodeType.EDGE) {
+                        console.log(`[DT-connections] Default → EDGE node skipped (handled by CE connections)`);
+                    } else {
+                        console.log(`[DT-connections] Default → ${targetNode.node_name} (type=${targetNode.type}, backendId=${targetNode.backendId})`);
+                        connections.push(makeConnection(
+                            dtNode.id,
+                            targetUuid,
+                            `${dtNode.id}_decision-default` as CustomPortId,
+                            `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
+                        ));
+                    }
                 }
+            } else {
+                console.warn(`[DT-connections] default_next_node_id=${backendDt.default_next_node_id} not found in backendIdToUuid (map size=${backendIdToUuid.size})`);
             }
         }
 
@@ -640,16 +697,24 @@ function buildDecisionTableConnections(
             if (targetUuid) {
                 const targetNode = nodeByBackendId.get(backendDt.next_error_node_id);
                 if (targetNode) {
-                    connections.push(makeConnection(
-                        dtNode.id,
-                        targetUuid,
-                        `${dtNode.id}_decision-error` as CustomPortId,
-                        `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
-                    ));
+                    if (targetNode.type === NodeType.EDGE) {
+                        console.log(`[DT-connections] Error → EDGE node skipped (handled by CE connections)`);
+                    } else {
+                        connections.push(makeConnection(
+                            dtNode.id,
+                            targetUuid,
+                            `${dtNode.id}_decision-error` as CustomPortId,
+                            `${targetUuid}_${getInputPortRole(targetNode.type)}` as CustomPortId,
+                        ));
+                    }
                 }
+            } else {
+                console.warn(`[DT-connections] next_error_node_id=${backendDt.next_error_node_id} not found in backendIdToUuid`);
             }
         }
     }
+
+    console.log(`[DT-connections] Total DT connections built: ${connections.length}`);
     return connections;
 }
 
@@ -770,10 +835,19 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
     const nodeByBackendId = new Map<number, NodeModel>();
     for (const n of allNodes) {
         if (n.backendId != null) {
+            if (backendIdToUuid.has(n.backendId)) {
+                const existing = nodeByBackendId.get(n.backendId);
+                console.warn(
+                    `[load-graph] backendId collision: id=${n.backendId} claimed by "${n.node_name}" (type=${n.type}) ` +
+                    `but already used by "${existing?.node_name}" (type=${existing?.type}). ` +
+                    `ConditionalEdge IDs are in a separate namespace from global node IDs — this may cause connection issues.`
+                );
+            }
             backendIdToUuid.set(n.backendId, n.id);
             nodeByBackendId.set(n.backendId, n);
         }
     }
+    console.log(`[load-graph] backendIdToUuid map: ${backendIdToUuid.size} entries from ${allNodes.length} nodes`);
 
     // ── 5. Post-process: resolve backend ID refs → UUIDs in decision tables
     resolveDecisionTableNodeRefs(
@@ -801,7 +875,8 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         graph.conditional_edge_list ?? [],
         conditionalEdgeNodes,
         backendIdToUuid,
-        nodeByBackendId
+        nodeByBackendId,
+        decisionTableNodes
     );
 
     const decisionTableConnections = buildDecisionTableConnections(
@@ -817,6 +892,12 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         ...conditionalEdgeConnections,
         ...decisionTableConnections,
     ];
+
+    const badConns = allConnections.filter(c => c.sourcePortId.includes('table-out'));
+    if (badConns.length) {
+        console.error('[load-graph] BUG: connections with table-out port still exist!', badConns);
+    }
+    console.log(`[load-graph] Built ${allConnections.length} connections: edges=${edgeConnections.length}, CE=${conditionalEdgeConnections.length}, DT=${decisionTableConnections.length}`);
 
     return {
         nodes: allNodes,
