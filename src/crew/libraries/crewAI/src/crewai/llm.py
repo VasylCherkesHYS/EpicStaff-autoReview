@@ -44,7 +44,8 @@ class FilteredStream(io.TextIOBase):
                 "give feedback / get help" in lower_s
                 or "litellm.info:" in lower_s
                 or "litellm" in lower_s
-                or "Consider using a smaller input or implementing a text splitting strategy" in lower_s
+                or "Consider using a smaller input or implementing a text splitting strategy"
+                in lower_s
             ):
                 return 0
 
@@ -255,6 +256,7 @@ class LLM:
         api_key: Optional[str] = None,
         callbacks: List[Any] = [],
         stop_event: Any = None,
+        extra_headers: Optional[dict] = None,
     ):
         self.model = model
         self.timeout = timeout
@@ -277,6 +279,7 @@ class LLM:
         self.callbacks = callbacks
         self.context_window_size = 0
         self.stop_event = stop_event
+        self.extra_headers = extra_headers
 
         litellm.drop_params = True
 
@@ -359,6 +362,7 @@ class LLM:
                     "api_key": self.api_key,
                     "stream": True,
                     "tools": tools,
+                    "extra_headers": self.extra_headers,
                 }
 
                 # Remove None values from params

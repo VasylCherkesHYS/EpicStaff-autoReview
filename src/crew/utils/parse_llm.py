@@ -13,9 +13,7 @@ def parse_llm(llm: LLMData, **kwargs):
     raw_headers = os.environ.get("LLM_HEADERS")
     if raw_headers:
         extra_headers = json.loads(raw_headers)
-        existing = llm_config.get("extra_headers") or {}
-        existing.update(extra_headers)
-        llm_config["extra_headers"] = existing
+        llm_config["extra_headers"] = extra_headers
 
     return LLM(**llm_config)
 

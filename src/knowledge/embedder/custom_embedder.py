@@ -7,14 +7,11 @@ from .base_embedder import BaseEmbedder
 
 
 class CustomEmbedder(BaseEmbedder):
-
     def __init__(
         self, api_key: str = None, model_name: str = None, base_url: str = None
     ):
         """Initialize the embedder."""
-        self.base_url = base_url or os.getenv(
-            "CUSTOM_EMBED_BASE_URL"
-        )
+        self.base_url = base_url or os.getenv("CUSTOM_EMBED_BASE_URL")
         self.api_key = api_key or os.getenv("CUSTOM_EMBED_API_KEY")
         self.model_name = model_name or "nomic-embed-text-v2-moe"
         self.endpoint = f"{self.base_url}"
@@ -37,5 +34,4 @@ class CustomEmbedder(BaseEmbedder):
             json={"model": self.model_name, "input": [text]},
         )
         response.raise_for_status()
-        return response.json()["embeddings"][0]
-
+        return response.json()["data"][0]["embedding"]
