@@ -1,17 +1,14 @@
-import { Component, DestroyRef, inject, input, effect } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, effect,inject, input } from '@angular/core';
+import { FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
+
 import { NodeModel } from './node.model';
-import { UniqueNodeNameValidatorService } from '../../services/unique-node-name.validator';
 
 @Component({
     template: '',
-    standalone: true,
     imports: [],
 })
 export abstract class BaseSidePanel<T extends NodeModel> {
     protected fb = inject(FormBuilder);
-    protected uniqueNameValidator = inject(UniqueNodeNameValidatorService);
     private lastInitializedNodeId: string | null = null;
 
     node = input.required<T>();
@@ -46,7 +43,6 @@ export abstract class BaseSidePanel<T extends NodeModel> {
         return updatedNode;
     }
 
-
     // Returns the updated node without emitting outputs or closing the panel
     public onSaveSilently(): T | null {
         if (!this.form) return null;
@@ -58,25 +54,14 @@ export abstract class BaseSidePanel<T extends NodeModel> {
         }
     }
 
-    protected createNodeNameValidators(
-        additionalValidators: any[] = []
-    ): any[] {
-        const currentNodeId = this.node().id;
-        return [
-            Validators.required,
-            this.uniqueNameValidator.createSyncUniqueNameValidator(
-                currentNodeId
-            ),
-            ...additionalValidators,
-        ];
+    protected createNodeNameValidators(additionalValidators: ValidatorFn[] = []): ValidatorFn[] {
+        return [Validators.required, ...additionalValidators];
     }
 
     protected getNodeNameErrorMessage(): string {
         const nodeNameControl = this.form.get('node_name');
-        if (nodeNameControl && nodeNameControl.errors) {
-            return this.uniqueNameValidator.getValidationErrorMessage(
-                nodeNameControl.errors
-            );
+        if (nodeNameControl?.errors?.['required']) {
+            return 'Node name is required';
         }
         return '';
     }
