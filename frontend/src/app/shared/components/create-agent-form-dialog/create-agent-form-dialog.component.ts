@@ -1,9 +1,9 @@
 import { Dialog, DialogRef } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule,Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ErrorStateMatcher } from '@angular/material/core';
-import { of,Subscription, switchMap, takeUntil } from 'rxjs';
+import { of, Subscription, switchMap, takeUntil } from 'rxjs';
 import { Subject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
@@ -61,7 +61,6 @@ export type AgentDialogResult =
     selector: 'app-create-agent-form',
     templateUrl: './create-agent-form-dialog.component.html',
     styleUrls: ['./create-agent-form-dialog.component.scss'],
-    standalone: true,
     imports: [
         CommonModule,
         FormsModule,

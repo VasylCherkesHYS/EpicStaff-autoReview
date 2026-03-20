@@ -1,5 +1,5 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy,OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin, of, Subject, takeUntil } from 'rxjs';
 
@@ -57,7 +57,6 @@ export interface AdvancedSettingsData {
         LlmModelSelectorComponent,
         SelectComponent,
     ],
-    standalone: true,
     templateUrl: './advanced-settings-dialog.component.html',
     styleUrls: ['./advanced-settings-dialog.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

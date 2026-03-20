@@ -1,12 +1,12 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule,Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ErrorStateMatcher } from '@angular/material/core';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { CustomErrorStateMatcher } from '../../../../shared/error-state-matcher/custom-error-state-matcher';
 import { MATERIAL_FORMS } from '../../../../shared/material-forms';
-import { CreateProjectRequest,ProjectProcess } from '../../models/project.model';
+import { CreateProjectRequest, ProjectProcess } from '../../models/project.model';
 import { ProjectsStorageService } from '../../services/projects-storage.service';
 
 // Typed interface for the form data - all fields are non-nullable
@@ -23,7 +23,6 @@ interface ProjectFormData {
 
 @Component({
     selector: 'app-create-project',
-    standalone: true,
     templateUrl: './create-project.component.html',
     styleUrls: ['./create-project.component.scss'],
     imports: [ReactiveFormsModule, ...MATERIAL_FORMS, AppSvgIconComponent],

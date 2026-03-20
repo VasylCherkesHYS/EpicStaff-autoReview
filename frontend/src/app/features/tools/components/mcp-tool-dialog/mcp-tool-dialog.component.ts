@@ -1,4 +1,4 @@
-import { DIALOG_DATA, DialogModule,DialogRef } from '@angular/cdk/dialog';
+import { DIALOG_DATA, DialogModule, DialogRef } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
 import {
@@ -20,7 +20,7 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
-import { CreateMcpToolRequest,GetMcpToolRequest } from '../../models/mcp-tool.model';
+import { CreateMcpToolRequest, GetMcpToolRequest } from '../../models/mcp-tool.model';
 import { McpToolsService } from '../../services/mcp-tools/mcp-tools.service';
 
 interface DialogData {
@@ -29,7 +29,6 @@ interface DialogData {
 
 @Component({
     selector: 'app-mcp-tool-dialog',
-    standalone: true,
     imports: [
         ReactiveFormsModule,
         CommonModule,
