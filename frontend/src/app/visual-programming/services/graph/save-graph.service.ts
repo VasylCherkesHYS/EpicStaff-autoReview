@@ -20,7 +20,7 @@ import { TelegramTriggerNodeService } from '../../../pages/flows-page/components
 import { WebhookTriggerNodeService } from '../../../pages/flows-page/components/flow-visual-programming/services/webhook-trigger.service';
 import { ToastService } from '../../../services/notifications/toast.service';
 import { FlowModel } from '../../core/models/flow.model';
-import { DecisionTableNodeModel,NodeModel } from '../../core/models/node.model';
+import { DecisionTableNodeModel, NodeModel } from '../../core/models/node.model';
 import {
     buildAudioToTextPayload,
     buildCondEdgePayload,
@@ -41,7 +41,7 @@ import {
     getConnectionDiff,
     getNodeOnlyDiff,
 } from './save-graph.diff';
-import { ConnectionDiff,CreatedNodeMapping, NodeDiff, NodeDiffResult, NodeOnlyDiff } from './save-graph.types';
+import { ConnectionDiff, CreatedNodeMapping, NodeDiff, NodeDiffResult, NodeOnlyDiff } from './save-graph.types';
 
 @Injectable({
     providedIn: 'root',
@@ -155,47 +155,52 @@ export class GraphUpdateService {
                 const phase1Mappings = this.collectMappings(phase1Results);
                 const idMap = buildUuidToBackendIdMap(allNodes, phase1Mappings);
 
-                // ── Phase 1.5: Decision table nodes (need idMap for next_node references) ──
+                // ── Phase 1.5a: Decision table nodes (need idMap for next_node references) ──
                 return this.executeDTNodeOps(nodeDiff.decisionTableNodes, graphId, allNodes, idMap).pipe(
                     switchMap((dtResults) => {
                         for (const m of dtResults.createdMappings) {
                             idMap.set(m.uiNodeId, m.backendId);
                         }
 
-                        // ── Phase 2: Create/update/delete edges + conditional edges ──
-                        const connDiff = getConnectionDiff(
-                            previousState.edges,
-                            previousState.conditionalEdges,
-                            newState.edges,
-                            newState.conditionalEdges,
-                            idMap
-                        );
+                        // ── Phase 1.5b: Fix DT→DT cross-references ──
+                        return this.fixDTCrossReferences(nodeDiff.decisionTableNodes, graphId, allNodes, idMap).pipe(
+                            switchMap(() => {
+                                // ── Phase 2: Create/update/delete edges + conditional edges ──
+                                const connDiff = getConnectionDiff(
+                                    previousState.edges,
+                                    previousState.conditionalEdges,
+                                    newState.edges,
+                                    newState.conditionalEdges,
+                                    idMap
+                                );
 
-                        return this.executePhase2(connDiff, graphId).pipe(
-                            switchMap((phase2Results) => {
-                                const allCreatedMappings = [
-                                    ...phase1Mappings,
-                                    ...dtResults.createdMappings,
-                                    ...phase2Results.conditionalEdges.createdMappings,
-                                ];
+                                return this.executePhase2(connDiff, graphId).pipe(
+                                    switchMap((phase2Results) => {
+                                        const allCreatedMappings = [
+                                            ...phase1Mappings,
+                                            ...dtResults.createdMappings,
+                                            ...phase2Results.conditionalEdges.createdMappings,
+                                        ];
 
-                                const updateRequest: UpdateGraphDtoRequest = {
-                                    id: graph.id,
-                                    name: graph.name,
-                                    description: graph.description,
-                                    metadata: this.buildGraphMetadata(flowState),
-                                };
+                                        const updateRequest: UpdateGraphDtoRequest = {
+                                            id: graph.id,
+                                            name: graph.name,
+                                            description: graph.description,
+                                            metadata: this.buildGraphMetadata(flowState),
+                                        };
 
-                                return this.graphService.updateGraph(graph.id, updateRequest).pipe(
-                                    map((updatedGraph) => ({
-                                        graph: updatedGraph,
-                                        updatedNodes: {
-                                            ...phase1Results,
-                                            decisionTableNodes: dtResults,
-                                            ...phase2Results,
-                                        },
-                                        createdMappings: allCreatedMappings,
-                                    }))
+                                        return this.graphService.updateGraph(graph.id, updateRequest).pipe(
+                                            map((updatedGraph) => ({
+                                                graph: updatedGraph,
+                                                updatedNodes: {
+                                                    ...phase1Results,
+                                                    decisionTableNodes: dtResults,
+                                                    ...phase2Results,
+                                                },
+                                                createdMappings: allCreatedMappings,
+                                            }))
+                                        );
+                                    })
                                 );
                             })
                         );
@@ -305,6 +310,43 @@ export class GraphUpdateService {
                 ),
             (n) => n.id
         );
+    }
+
+    // ── Phase 1.5b: Update DT nodes that reference other newly created DT nodes ──
+
+    private fixDTCrossReferences(
+        diff: NodeDiff<GetDecisionTableNodeRequest, DecisionTableNodeModel>,
+        graphId: number,
+        allNodes: NodeModel[],
+        idMap: Map<string, number>
+    ): Observable<unknown> {
+        const newDtUuids = new Set(diff.toCreate.map((n) => n.id).filter((uuid) => idMap.has(uuid)));
+        if (newDtUuids.size === 0) return of(null);
+
+        const allModifiedDtNodes = [...diff.toCreate, ...diff.toUpdate.map((u) => u.ui)];
+
+        const nodesToUpdate = allModifiedDtNodes.filter((n) => {
+            const table = n.data.table;
+            const refs: (string | null)[] = [
+                table.default_next_node,
+                table.next_error_node,
+                ...table.condition_groups.map((g) => g.next_node),
+            ];
+            return refs.some((ref) => ref != null && newDtUuids.has(ref));
+        });
+
+        if (nodesToUpdate.length === 0) return of(null);
+
+        const updateOps = nodesToUpdate.map((n) => {
+            const backendId = idMap.get(n.id);
+            if (backendId == null) return of(null);
+            return this.decisionTableNodeService.updateDecisionTableNode(
+                backendId,
+                buildDecisionTablePayload(n, graphId, allNodes, idMap)
+            );
+        });
+
+        return forkJoin(updateOps);
     }
 
     // ── Phase 2: Edge + conditional edge operations ─────────────────────────
