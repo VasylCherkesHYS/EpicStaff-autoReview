@@ -2,6 +2,9 @@ import json
 import os
 
 from crewai import LLM
+from openai import NOT_GIVEN
+from openai._models import construct_type
+from openai.lib import Omit
 
 from models.request_models import LLMData
 
@@ -13,6 +16,7 @@ def parse_llm(llm: LLMData, **kwargs):
     raw_headers = os.environ.get("LLM_HEADERS")
     if raw_headers:
         extra_headers = json.loads(raw_headers)
+        
         llm_config["extra_headers"] = extra_headers
 
     return LLM(**llm_config)

@@ -294,6 +294,26 @@ services:
       redis:
         condition: service_healthy
 
+  llmproxy:
+    image: llmproxy
+    pull_policy: never
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile.proxy
+    container_name: llmproxy
+    ports:
+      - "${PROXY_PORT:-8080}:${PROXY_PORT:-8080}"
+    environment:
+      - PROXY_TARGET_HOST=${PROXY_TARGET_HOST}
+      - PROXY_HEADERS=${PROXY_HEADERS:-}
+      - PROXY_PORT=${PROXY_PORT:-8080}
+      - PROXY_SSL_VERIFY=${PROXY_SSL_VERIFY:-true}
+      - PROXY_LOG_BODY=${PROXY_LOG_BODY:-true}
+    networks:
+      - backend-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   frontend:
     image: frontend
     build:

@@ -69,7 +69,7 @@ def upload_providers():
     for name in current_provider_names:
         Provider.objects.get_or_create(name=name)
 
-    Provider.objects.exclude(name__in=current_provider_names).delete()
+    # Provider.objects.exclude(name__in=current_provider_names).delete()
 
 
 def upload_llm_models():

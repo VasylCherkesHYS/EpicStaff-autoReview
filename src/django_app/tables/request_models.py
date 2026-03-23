@@ -28,7 +28,7 @@ class LLMConfigData(BaseModel):
 class EmbedderConfigData(BaseModel):
     model: str
     deployment_name: str | None = None
-    base_url: HttpUrl | None = None
+    base_url: str | None = None
     api_key: str | None = None
 
 
