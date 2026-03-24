@@ -23,6 +23,7 @@ import {
 import { CreateFlowDialogComponent } from '../../components/create-flow-dialog/create-flow-dialog.component';
 import { ImportResultDialogComponent } from '../../components/import-result-dialog/import-result-dialog.component';
 import { ImportResult } from '../../models/import-result.model';
+import { ImportFlowOptionsDialogComponent, ImportFlowOptions } from '../../components/import-flow-options-dialog/import-flow-options-dialog.component';
 
 import { Dialog } from '@angular/cdk/dialog';
 
@@ -129,36 +130,44 @@ export class FlowsListPageComponent implements OnDestroy {
     }
 
     public onImportClick(): void {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (event: any) => {
-            const file = event.target.files[0];
-            if (file) {
-                this.importExportService.importFlow(file).subscribe({
-                    next: (result: ImportResult) => {
-                        console.log('Flow imported successfully:', result);
+        const dialogRef = this.dialog.open<ImportFlowOptions | undefined>(
+            ImportFlowOptionsDialogComponent,
+        );
 
-                        // Open result dialog
-                        this.dialog.open(ImportResultDialogComponent, {
-                            width: '80vw',
-                            data: { importResult: result },
-                        });
+        dialogRef.closed.subscribe((options) => {
+            if (options === undefined) return;
 
-                        // Refresh flows list without hard reload
-                        this.flowStorageService.getFlows(true).subscribe(() => {
-                            console.log('Flows list updated after import');
-                        });
-                    },
-                    error: (error) => {
-                        console.error('Import failed:', error);
-                        const message = error?.error?.detail || error?.error?.message || 'Failed to import flow. Please check the file and try again.';
-                        this.toastService.error(message);
-                    },
-                });
-            }
-        };
-        input.click();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (event: any) => {
+                const file = event.target.files[0];
+                if (file) {
+                    this.importExportService.importFlow(file, options.preserveUuids).subscribe({
+                        next: (result: ImportResult) => {
+                            console.log('Flow imported successfully:', result);
+
+                            // Open result dialog
+                            this.dialog.open(ImportResultDialogComponent, {
+                                width: '80vw',
+                                data: { importResult: result },
+                            });
+
+                            // Refresh flows list without hard reload
+                            this.flowStorageService.getFlows(true).subscribe(() => {
+                                console.log('Flows list updated after import');
+                            });
+                        },
+                        error: (error) => {
+                            console.error('Import failed:', error);
+                            const message = error?.error?.detail || error?.error?.message || 'Failed to import flow. Please check the file and try again.';
+                            this.toastService.error(message);
+                        },
+                    });
+                }
+            };
+            input.click();
+        });
     }
 
     public onExportClick(): void {

@@ -16,6 +16,7 @@ from tables.models.base_models import (
 
 
 class Graph(TimestampMixin, models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True)
     tags = models.ManyToManyField(to="GraphTag", blank=True, default=[])
 
     name = models.CharField(max_length=255, blank=False, unique=True)

@@ -1707,6 +1707,7 @@ class GraphSerializer(serializers.ModelSerializer):
         model = Graph
         fields = [
             "id",
+            "uuid",
             "name",
             "metadata",
             "description",

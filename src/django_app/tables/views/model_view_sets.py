@@ -161,6 +161,7 @@ from tables.serializers.serializers import (
     GraphFileUpdateSerializer,
     UploadGraphFileSerializer,
     FileImportSerializer,
+    BulkExportSerializer,
 )
 from tables.serializers.telegram_trigger_serializers import (
     TelegramTriggerNodeFieldSerializer,
@@ -172,6 +173,7 @@ from tables.services.redis_service import RedisService
 from tables.exceptions import BuiltInToolModificationError
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.import_export.enums import EntityType
+from tables.serializers.import_serializers import ImportRequestSerializer
 from utils.logger import logger
 
 redis_service = RedisService()
@@ -411,7 +413,7 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
-        file_serializer = FileImportSerializer(data=request.data)
+        file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
         data = self.import_export_service.import_entity(
@@ -452,7 +454,7 @@ class CrewReadWriteViewSet(CopyActionMixin, ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
-        file_serializer = FileImportSerializer(data=request.data)
+        file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
         data = self.import_export_service.import_entity(
@@ -750,11 +752,13 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
-        file_serializer = FileImportSerializer(data=request.data)
+        file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
         data = self.import_export_service.import_entity(
-            file_serializer.validated_data["file"]
+            file_serializer.validated_data["file"],
+            Graph,
+            preserve_uuids=file_serializer.validated_data["preserve_uuids"],
         )
         return Response(data, status=status.HTTP_200_OK)
 
