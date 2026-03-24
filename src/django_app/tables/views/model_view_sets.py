@@ -160,7 +160,7 @@ from tables.serializers.serializers import (
     BulkExportSerializer,
     GraphFileUpdateSerializer,
     UploadGraphFileSerializer,
-    FileImportSerializer,
+    ImportRequestSerializer,
     BulkExportSerializer,
 )
 from tables.serializers.telegram_trigger_serializers import (
@@ -173,7 +173,6 @@ from tables.services.redis_service import RedisService
 from tables.exceptions import BuiltInToolModificationError
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.import_export.enums import EntityType
-from tables.serializers.import_serializers import ImportRequestSerializer
 from utils.logger import logger
 
 redis_service = RedisService()
