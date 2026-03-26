@@ -53,7 +53,7 @@ services:
         sh -c 'curl -f http://${DJANGO_HOST:-localhost}:${DJANGO_PORT:-8000}/ht/ || exit 1'
       interval: 30s
       timeout: 10s
-      retries: 12
+      retries: 15
 
   realtime:
     image: realtime
@@ -202,7 +202,6 @@ services:
       <<: *common_env
       MANAGER_HOST: ${MANAGER_HOST}
       MANAGER_PORT: ${MANAGER_PORT:-8001}
-      CODE_CONTAINER_URL: http://code:${CODE_MANAGER_PORT:-4080}
       HAYSTACK_TELEMETRY_ENABLED: ${HAYSTACK_TELEMETRY_ENABLED}
       ANONYMIZED_TELEMETRY: ${ANONYMIZED_TELEMETRY}
       EC_TELEMETRY: ${EC_TELEMETRY}
@@ -242,36 +241,6 @@ services:
       - sandbox_venvs:${BASE_VENV_PATH}
       - sandbox_executions:${OUTPUT_PATH}
       - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - backend-network
-    tty: true
-    stdin_open: true
-    depends_on:
-      - redis
-
-  code:
-    image: code
-    build:
-      context: .
-      dockerfile: ./code/Dockerfile.code
-    container_name: code
-    init: true
-    environment:
-      - DJANGO_API_URL=http://django_app:${DJANGO_PORT:-8000}/api
-      - CODE_MANAGER_PORT=${CODE_MANAGER_PORT}
-      - CODE_BASE_PORT=${CODE_BASE_PORT}
-      - CODE_MAX_INSTANCES=${CODE_MAX_INSTANCES}
-      - CODE_IDLE_TIMEOUT=${CODE_IDLE_TIMEOUT}
-      - CODE_REAP_INTERVAL=${CODE_REAP_INTERVAL}
-      - CODE_INSTANCES_DIR=${CODE_INSTANCES_DIR}
-      - CONTAINER_SAVEFILES_PATH=${CONTAINER_SAVEFILES_PATH}
-    ports:
-      - "${CODE_MANAGER_PORT:-4080}:${CODE_MANAGER_PORT:-4080}"
-    volumes:
-      - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
-      - code_instances:${CODE_INSTANCES_DIR}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -379,7 +348,6 @@ volumes:
   media_data:
     external: true
   redis_data: {}
-  code_instances: {}
 
 networks:
   backend-network:
