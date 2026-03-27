@@ -4,10 +4,47 @@ import sys
 import os
 import re
 import json
+import time
 import urllib.request
 import urllib.error
 from pathlib import Path
-from datetime import datetime
+from loguru import logger
+
+# ---------------------------------------------------------------------------
+# CLI logging setup — file-only sink (stdout/stderr are captured by OpenCode)
+# ---------------------------------------------------------------------------
+
+def _setup_cli_logging():
+    """Configure loguru for CLI context: file sink only, never stdout/stderr."""
+    logger.remove()
+    if os.environ.get("DEBUG_LOG", "").lower() not in ("true", "1", "yes"):
+        logger.disable("__main__")
+        logger.disable("common")
+        logger.disable("flows_read")
+        logger.disable("flows_write")
+        logger.disable("flows_create")
+        logger.disable("tools_read")
+        logger.disable("tools_write")
+        logger.disable("tools_create")
+        logger.disable("projects_read")
+        logger.disable("projects_write")
+        logger.disable("projects_create")
+        return
+    log_path = os.environ.get(
+        "LOG_FILE_PATH", "/opt/opencode/instances/logs/epicstaff.log"
+    )
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    logger.add(
+        log_path,
+        level="DEBUG",
+        rotation="50 MB",
+        retention="7 days",
+        compression="gz",
+        enqueue=True,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} - {message}",
+    )
+
+_setup_cli_logging()
 
 _SKILL_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -92,6 +129,8 @@ def api_get(path, params=None):
         qs = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
         if qs:
             url += f"?{qs}"
+    logger.debug("GET {}", url)
+    t0 = time.time()
     req = urllib.request.Request(url, headers=_API_HOST_HEADER)
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read())
@@ -102,6 +141,9 @@ def api_get(path, params=None):
             with urllib.request.urlopen(nreq) as resp:
                 data = json.loads(resp.read())
             results.extend(data.get("results", []))
+    elapsed = time.time() - t0
+    count = len(results) if isinstance(results, list) else "dict"
+    logger.debug("GET {} -> OK ({:.3f}s, {})", url, elapsed, count)
     return results
 
 
@@ -114,34 +156,50 @@ def api_get_page(path, params=None):
         qs = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
         if qs:
             url += f"?{qs}"
+    logger.debug("GET(page) {}", url)
+    t0 = time.time()
     req = urllib.request.Request(url, headers=_API_HOST_HEADER)
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read())
-    return data.get("results", data) if isinstance(data, dict) and "results" in data else data
+    elapsed = time.time() - t0
+    results = data.get("results", data) if isinstance(data, dict) and "results" in data else data
+    logger.debug("GET(page) {} -> OK ({:.3f}s)", url, elapsed)
+    return results
 
 
 def api_patch(path, payload):
     url = f"{BASE_URL}/{path.lstrip('/')}"
+    logger.debug("PATCH {} payload_keys={}", url, list(payload.keys()))
+    t0 = time.time()
     body = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, method="PATCH",
                                 headers={"Content-Type": "application/json", **_API_HOST_HEADER})
     with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+        result = json.loads(resp.read())
+    logger.debug("PATCH {} -> OK ({:.3f}s)", url, time.time() - t0)
+    return result
 
 
 def api_post(path, payload):
     url = f"{BASE_URL}/{path.lstrip('/')}"
+    logger.debug("POST {} payload_keys={}", url, list(payload.keys()))
+    t0 = time.time()
     body = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, method="POST",
                                 headers={"Content-Type": "application/json", **_API_HOST_HEADER})
     with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+        result = json.loads(resp.read())
+    logger.debug("POST {} -> OK ({:.3f}s)", url, time.time() - t0)
+    return result
 
 
 def api_delete(path):
     url = f"{BASE_URL}/{path.lstrip('/')}"
+    logger.debug("DELETE {}", url)
+    t0 = time.time()
     req = urllib.request.Request(url, method="DELETE", headers=_API_HOST_HEADER)
     urllib.request.urlopen(req)
+    logger.debug("DELETE {} -> OK ({:.3f}s)", url, time.time() - t0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -226,7 +284,9 @@ def resolve_node_id(name, graph):
             return nid
         if norm in _normalize_slug(node_name):
             return nid
-    print(f"Node '{name}' not found in flow. Available: {', '.join(sorted(m.keys()))}", file=sys.stderr)
+    msg = f"Node '{name}' not found in flow. Available: {', '.join(sorted(m.keys()))}"
+    print(msg, file=sys.stderr)
+    logger.warning(msg)
     sys.exit(1)
 
 
@@ -433,7 +493,9 @@ def _read_value(args):
             return f.read()
     if getattr(args, "value", None):
         return args.value
-    print("Provide --value or --value-file", file=sys.stderr)
+    msg = "Provide --value or --value-file"
+    print(msg, file=sys.stderr)
+    logger.error(msg)
     sys.exit(1)
 
 
@@ -460,6 +522,7 @@ def _oc_curl(path, method="GET", timeout=10):
                 raw = resp.read()
             return json.loads(raw) if raw.strip() else None
         except Exception as e:
+            logger.error("Error reaching OpenCode: {}", e)
             print(f"  Error reaching OpenCode: {e}", file=sys.stderr)
             return None
     else:
@@ -471,6 +534,7 @@ def _oc_curl(path, method="GET", timeout=10):
                 return None
             return json.loads(result.stdout) if result.stdout.strip() else None
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
+            logger.error("Error reaching OpenCode: {}", e)
             print(f"  Error reaching OpenCode: {e}", file=sys.stderr)
             return None
 

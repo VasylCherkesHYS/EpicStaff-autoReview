@@ -11,6 +11,7 @@ from common import (
     _read_value, _oc_curl,
     SLUG_TO_CDT_NAME, SLUG_TO_PN_NAME, SLUG_TO_WH_NAME,
 )
+from loguru import logger
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -18,9 +19,12 @@ from common import (
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _push_cdt(spec, content, graph_id):
+    logger.info("_push_cdt: slug={} field={} graph_id={}", spec.slug, spec.field, graph_id)
     node = _match_node(spec.slug, _get_cdt_nodes(graph_id), SLUG_TO_CDT_NAME)
     if not node:
-        print(f"  ❌ {Path(spec.path).name}: CDT not found for slug '{spec.slug}'")
+        msg = f"  ❌ {Path(spec.path).name}: CDT not found for slug '{spec.slug}'"
+        print(msg)
+        logger.error(msg)
         return False
     node_id, node_name = node["id"], node["node_name"]
     if spec.field == "condition_groups":
@@ -40,13 +44,17 @@ def _push_cdt(spec, content, graph_id):
         db_payload = {spec.field: content}
     api_patch(f"/classification-decision-table-node/{node_id}/", db_payload)
     print(f"  ✅ {Path(spec.path).name} → CDT '{node_name}' .{spec.field}  [DB]")
+    logger.info("DB updated for CDT '{}' .{}", node_name, spec.field)
     return True
 
 
 def _push_python(spec, content, graph_id):
+    logger.info("_push_python: slug={} graph_id={}", spec.slug, graph_id)
     node = _match_node(spec.slug, _get_pn_nodes(graph_id), SLUG_TO_PN_NAME)
     if not node:
-        print(f"  ❌ {Path(spec.path).name}: Python node not found for slug '{spec.slug}'")
+        msg = f"  ❌ {Path(spec.path).name}: Python node not found for slug '{spec.slug}'"
+        print(msg)
+        logger.error(msg)
         return False
     node_id = node["id"]
     node_name = node.get("node_name", "?")
@@ -55,13 +63,17 @@ def _push_python(spec, content, graph_id):
         print(f"  ⚠️  {Path(spec.path).name}: no 'def main(...)' — Python nodes require a main() entrypoint")
     api_patch(f"/pythonnodes/{node_id}/", {"python_code": {"code": content, "libraries": libs}})
     print(f"  ✅ {Path(spec.path).name} → Python '{node_name}'  [DB]")
+    logger.info("DB updated for Python node '{}'", node_name)
     return True
 
 
 def _push_webhook(spec, content, graph_id):
+    logger.info("_push_webhook: slug={} graph_id={}", spec.slug, graph_id)
     node = _match_node(spec.slug, _get_wh_nodes(graph_id), SLUG_TO_WH_NAME)
     if not node:
-        print(f"  ❌ {Path(spec.path).name}: Webhook node not found for slug '{spec.slug}'")
+        msg = f"  ❌ {Path(spec.path).name}: Webhook node not found for slug '{spec.slug}'"
+        print(msg)
+        logger.error(msg)
         return False
     node_id = node["id"]
     node_name = node.get("node_name", "?")
@@ -70,11 +82,13 @@ def _push_webhook(spec, content, graph_id):
         print(f"  ⚠️  {Path(spec.path).name}: no 'def main(...)' — Webhook nodes require a main() entrypoint")
     api_patch(f"/webhook-trigger-nodes/{node_id}/", {"python_code": {"code": content, "libraries": libs}})
     print(f"  ✅ {Path(spec.path).name} → Webhook '{node_name}'  [DB]")
+    logger.info("DB updated for Webhook node '{}'", node_name)
     return True
 
 
 def cmd_push(args):
     """Push file(s) to DB."""
+    logger.info("cmd_push: graph_id={} path={}", args.graph_id, getattr(args, 'path', None))
     if not args.path:
         args.path = str(_flows_dir(args.graph_id))
     specs = _discover_files(args.path)
@@ -99,9 +113,12 @@ def cmd_push(args):
             else:
                 fail += 1
         except Exception as e:
-            print(f"  ❌ {Path(spec.path).name}: {e}")
+            msg = f"  ❌ {Path(spec.path).name}: {e}"
+            print(msg)
+            logger.error(msg)
             fail += 1
     print(f"\nDone: {ok} pushed, {fail} failed.")
+    logger.info("cmd_push done: {} pushed, {} failed", ok, fail)
     if fail:
         sys.exit(1)
 
@@ -112,6 +129,7 @@ def cmd_pull(args):
     Uses the graph's embedded node lists (python_node_list, etc.) rather than
     separate API endpoints, which can return cross-graph nodes.
     """
+    logger.info("cmd_pull: graph_id={} path={}", args.graph_id, getattr(args, 'path', None))
     outdir = Path(args.path) if args.path else _flows_dir(args.graph_id)
     outdir.mkdir(parents=True, exist_ok=True)
     graph = _get_graph(args.graph_id)
@@ -165,6 +183,7 @@ def cmd_pull(args):
             print(f"  {p.name} ({len(code)} chars)")
             count += 1
     print(f"\nPulled {count} files.")
+    logger.info("cmd_pull done: {} files pulled to {}", count, outdir)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -173,6 +192,7 @@ def cmd_pull(args):
 
 def cmd_patch_cdt(args):
     """Patch a CDT field in DB."""
+    logger.info("cmd_patch_cdt: graph_id={} node_name={} field={}", args.graph_id, args.node_name, args.field)
     node_name = args.node_name
     field = args.field
     graph_id = args.graph_id
@@ -184,16 +204,20 @@ def cmd_patch_cdt(args):
     cdts = _get_cdt_nodes(graph_id)
     matches = [c for c in cdts if c["node_name"] == node_name]
     if not matches:
-        print(f"Error: CDT '{node_name}' not found in flow {graph_id}.", file=sys.stderr)
+        msg = f"Error: CDT '{node_name}' not found in flow {graph_id}."
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
     cdt_id = matches[0]["id"]
     print(f"PATCHing CDT '{node_name}' (id={cdt_id}), field='{field}'")
     result = api_patch(f"/classification-decision-table-node/{cdt_id}/", {field: value})
-    print(f"  DB updated.")
+    print("  DB updated.")
+    logger.info("DB updated for CDT '{}' field '{}'", node_name, field)
 
 
 def cmd_patch_python(args):
     """Patch Python node code in DB."""
+    logger.info("cmd_patch_python: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     value = _read_value(args)
@@ -205,20 +229,24 @@ def cmd_patch_python(args):
             db_node = pn
             break
     if not db_node:
-        print(f"Python node '{node_name}' not found in flow {graph_id}")
+        msg = f"Python node '{node_name}' not found in flow {graph_id}"
+        print(msg)
+        logger.error(msg)
         sys.exit(1)
     node_id = db_node["id"]
     libs = (db_node.get("python_code", {}) or {}).get("libraries", "")
     print(f"PATCHing Python node '{node_name}' (id={node_id})")
     if "def main(" not in value:
-        print(f"  ⚠️  WARNING: Code does not contain 'def main(...)'. Python nodes require a main() entrypoint.")
-        print(f"     The crew executor calls main() with the node's input_map keys as keyword arguments.")
+        print("  ⚠️  WARNING: Code does not contain 'def main(...)'. Python nodes require a main() entrypoint.")
+        print("     The crew executor calls main() with the node's input_map keys as keyword arguments.")
     api_patch(f"/pythonnodes/{node_id}/", {"python_code": {"code": value, "libraries": libs}})
-    print(f"  DB updated.")
+    print("  DB updated.")
+    logger.info("DB updated for Python node '{}'", node_name)
 
 
 def cmd_patch_webhook(args):
     """Patch webhook node code in DB."""
+    logger.info("cmd_patch_webhook: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     value = _read_value(args)
@@ -230,19 +258,23 @@ def cmd_patch_webhook(args):
             db_node = wn
             break
     if not db_node:
-        print(f"Webhook node '{node_name}' not found in flow {graph_id}")
+        msg = f"Webhook node '{node_name}' not found in flow {graph_id}"
+        print(msg)
+        logger.error(msg)
         sys.exit(1)
     node_id = db_node["id"]
     libs = (db_node.get("python_code", {}) or {}).get("libraries", [])
     print(f"PATCHing Webhook node '{node_name}' (id={node_id})")
     if "def main(" not in value:
-        print(f"  ⚠️  WARNING: Code does not contain 'def main(...)'. Webhook nodes require a main() entrypoint.")
+        print("  ⚠️  WARNING: Code does not contain 'def main(...)'. Webhook nodes require a main() entrypoint.")
     api_patch(f"/webhook-trigger-nodes/{node_id}/", {"python_code": {"code": value, "libraries": libs}})
-    print(f"  DB updated.")
+    print("  DB updated.")
+    logger.info("DB updated for Webhook node '{}'", node_name)
 
 
 def cmd_patch_code_agent(args):
     """Patch Code Agent node fields in DB."""
+    logger.info("cmd_patch_code_agent: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     graph = _get_graph(graph_id)
@@ -253,7 +285,9 @@ def cmd_patch_code_agent(args):
             db_node = cn
             break
     if not db_node:
-        print(f"Code Agent node '{node_name}' not found in flow {graph_id}", file=sys.stderr)
+        msg = f"Code Agent node '{node_name}' not found in flow {graph_id}"
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
     node_id = db_node["id"]
 
@@ -283,7 +317,9 @@ def cmd_patch_code_agent(args):
         db_payload["agent_mode"] = args.agent_mode
 
     if not db_payload:
-        print("No fields to patch. Use --value, --llm-config, --system-prompt, --input-map, --output-variable-path, or --libraries.", file=sys.stderr)
+        msg = "No fields to patch. Use --value, --llm-config, --system-prompt, --input-map, --output-variable-path, or --libraries."
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
 
     print(f"PATCHing Code Agent node '{node_name}' (id={node_id})")
@@ -291,11 +327,13 @@ def cmd_patch_code_agent(args):
         label = repr(v) if not isinstance(v, str) or len(v) < 80 else repr(v[:77] + "...")
         print(f"  {k} = {label}")
     api_patch(f"/code-agent-nodes/{node_id}/", db_payload)
-    print(f"  DB updated.")
+    print("  DB updated.")
+    logger.info("DB updated for Code Agent node '{}'", node_name)
 
 
 def cmd_patch_dt(args):
     """Patch Decision Table node fields in DB."""
+    logger.info("cmd_patch_dt: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     graph = _get_graph(graph_id)
@@ -306,7 +344,9 @@ def cmd_patch_dt(args):
             db_node = dn
             break
     if not db_node:
-        print(f"Decision Table node '{node_name}' not found in flow {graph_id}", file=sys.stderr)
+        msg = f"Decision Table node '{node_name}' not found in flow {graph_id}"
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
     node_id = db_node["id"]
 
@@ -325,7 +365,9 @@ def cmd_patch_dt(args):
         db_payload["next_error_node"] = args.error_node
 
     if not db_payload:
-        print("No fields to patch. Use --groups, --default-next-node, or --error-node.", file=sys.stderr)
+        msg = "No fields to patch. Use --groups, --default-next-node, or --error-node."
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
 
     print(f"PATCHing Decision Table '{node_name}' (id={node_id})")
@@ -339,11 +381,13 @@ def cmd_patch_dt(args):
         print(f"  next_error_node: {db_payload['next_error_node']}")
 
     api_patch(f"/decision-table-node/{node_id}/", db_payload)
-    print(f"  DB updated.")
+    print("  DB updated.")
+    logger.info("DB updated for Decision Table node '{}'", node_name)
 
 
 def cmd_patch_libraries(args):
     """Patch libraries on a Python node in DB."""
+    logger.info("cmd_patch_libraries: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     libs = [l.strip() for l in args.libraries.split(",") if l.strip()]
@@ -365,6 +409,7 @@ def cmd_patch_libraries(args):
 
 def cmd_patch_node_meta(args):
     """Patch input_map / output_variable_path on a node in DB."""
+    logger.info("cmd_patch_node_meta: graph_id={} node_name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     graph = _get_graph(graph_id)
@@ -409,6 +454,7 @@ def cmd_patch_node_meta(args):
 
 def cmd_patch_start_vars(args):
     """Set start node variables (PATCH). Use --replace to overwrite entirely."""
+    logger.info("cmd_patch_start_vars: graph_id={} replace={}", args.graph_id, getattr(args, 'replace', False))
     graph_id = args.graph_id
     graph = _get_graph(graph_id)
     start_nodes = graph.get("start_node_list", [])
@@ -434,6 +480,7 @@ def cmd_patch_start_vars(args):
 
 def cmd_rename_node(args):
     """Rename a node in DB. Edges use integer IDs, no edge update needed."""
+    logger.info("cmd_rename_node: graph_id={} old={} new={}", args.graph_id, args.old_name, args.new_name)
     graph_id = args.graph_id
     old_name = args.old_name
     new_name = args.new_name
@@ -472,6 +519,7 @@ def cmd_sync_metadata(args):
     and derives connections from DB edges at load time. Graph.metadata
     is saved as empty {nodes: [], connections: []} on every UI save.
     """
+    logger.info("cmd_sync_metadata: graph_id={}", args.graph_id)
     print("sync-metadata is no longer needed.")
     print("Graph.metadata is not used by the frontend or backend runtime.")
     print("All data lives in DB models. Use 'patch-*' commands to update DB directly.")
@@ -483,6 +531,7 @@ def cmd_sync_metadata(args):
 
 def cmd_oc_abort(args):
     """Abort any in-flight request on an OpenCode session."""
+    logger.info("cmd_oc_abort: oc_session_id={}", getattr(args, 'oc_session_id', None))
     sid = getattr(args, "oc_session_id", None)
     if not sid:
         sessions = _oc_curl("/session")
@@ -509,6 +558,7 @@ def cmd_oc_abort(args):
 
 def cmd_run_session(args):
     """Trigger a flow session and poll until it completes or times out."""
+    logger.info("cmd_run_session: graph_id={} timeout={}", args.graph_id, getattr(args, 'timeout', 300))
     gid = args.graph_id
     timeout = getattr(args, "timeout", 300) or 300
     variables = {}
@@ -518,7 +568,7 @@ def cmd_run_session(args):
         try:
             variables = json.loads(var_json)
         except json.JSONDecodeError:
-            print(f"Error: --variables must be valid JSON", file=sys.stderr)
+            print("Error: --variables must be valid JSON", file=sys.stderr)
             sys.exit(1)
 
     print(f"Starting session for flow {gid}...")

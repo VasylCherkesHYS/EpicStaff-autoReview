@@ -2,11 +2,12 @@
 
 import json
 
-from common import api_get
+from common import api_get, logger
 
 
 def cmd_crews(args):
     """List all crews, or show only the crew(s) used by the current flow."""
+    logger.info("cmd_crews: graph_id={}", args.graph_id)
     if args.graph_id:
         graph = api_get(f"/graphs/{args.graph_id}/")
         crew_nodes = graph.get("crew_node_list", [])
@@ -43,6 +44,7 @@ def cmd_crews(args):
 
 def _print_crew_detail(crew_id):
     """Print detailed crew info including agents, tasks, tools."""
+    logger.info("_print_crew_detail: crew_id={}", crew_id)
     crew = api_get(f"/crews/{crew_id}/")
     print(f"{'='*70}")
     print(f"CREW {crew_id}: {crew.get('name')}")
@@ -113,6 +115,7 @@ def _print_agent_summary(agent_id, indent=2):
 
 def cmd_agents(args):
     """List all agents, or show agents for the flow's crew."""
+    logger.info("cmd_agents: graph_id={}", args.graph_id)
     if args.graph_id:
         graph = api_get(f"/graphs/{args.graph_id}/")
         crew_nodes = graph.get("crew_node_list", [])

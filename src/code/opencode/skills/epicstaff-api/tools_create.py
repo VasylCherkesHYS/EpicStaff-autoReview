@@ -1,12 +1,12 @@
 """Tool create operations — create new Python code tools."""
 
-import json
 
-from common import api_post, api_get
+from common import api_post, logger
 
 
 def cmd_create_tool(args):
     """Create a new Python code tool."""
+    logger.info("cmd_create_tool: name={}", args.name)
     name = args.name
     description = getattr(args, "description", "")
     code = ""
@@ -22,7 +22,9 @@ def cmd_create_tool(args):
     }
     result = api_post("/python-code-tool/", payload)
     tid = result.get("id")
-    print(f"Created tool: [{tid}] {result.get('name')}")
+    msg = f"Created tool: [{tid}] {result.get('name')}"
+    print(msg)
+    logger.info(msg)
     if description:
         print(f"  description: {description}")
     if code:

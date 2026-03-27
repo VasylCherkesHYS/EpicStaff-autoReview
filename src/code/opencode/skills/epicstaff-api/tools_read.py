@@ -1,12 +1,12 @@
 """Tool inspection commands — list and show tool details."""
 
-import json
 
-from common import api_get
+from common import api_get, logger
 
 
 def cmd_tools(args):
     """List all python code tools, or show tools for the flow's agents."""
+    logger.info("cmd_tools: graph_id={}", args.graph_id)
     if args.graph_id:
         graph = api_get(f"/graphs/{args.graph_id}/")
         crew_nodes = graph.get("crew_node_list", [])
@@ -38,13 +38,14 @@ def cmd_tools(args):
 
 def cmd_tool(args):
     """Show detailed tool info including code."""
+    logger.info("cmd_tool: tool_id={}", args.tool_id)
     tool = api_get(f"/python-code-tool/{args.tool_id}/")
     print(f"Tool {tool['id']}: {tool.get('name')}")
     print(f"  description: {tool.get('description')}")
     schema = tool.get("args_schema", {})
     props = schema.get("properties", {})
     if props:
-        print(f"  args:")
+        print("  args:")
         for k, v in props.items():
             print(f"    {k}: {v.get('type','?')} — {v.get('description','')}")
     code_obj = tool.get("python_code", {})

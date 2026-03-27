@@ -12,11 +12,14 @@ RUN curl -fsSL https://opencode.ai/install | bash
 ENV PATH="/root/.opencode/bin:${PATH}"
 ENV HOME="/opt/opencode/instances/shared"
 
+RUN pip install loguru
+
 # Bake skill files into image
 COPY ./code/opencode/skills opencode/skills
 
 # Copy instance manager
 COPY ./code/instance_manager.py .
+COPY ./code/log_config.py .
 COPY ./code/start.sh .
 
 RUN chmod +x start.sh

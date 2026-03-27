@@ -1,9 +1,9 @@
 """Flow create operations — create new flows, nodes, edges, and metadata."""
 
 import sys
-import json
 
-from common import api_get, api_post, api_patch, api_delete, _get_graph, build_id_to_name_map, resolve_node_id
+from common import api_get, api_post, api_patch, api_delete, _get_graph, resolve_node_id
+from loguru import logger
 
 # Vertical gap between stacked nodes
 _NODE_STACK_GAP = 60
@@ -76,13 +76,16 @@ def _auto_position(existing_nodes, x=None, y=None):
 
 def cmd_create_flow(args):
     """Create a new flow (graph) with a start node."""
+    logger.info("cmd_create_flow: name={}", args.name)
     payload = {
         "name": args.name,
         "description": getattr(args, "description", ""),
     }
     result = api_post("/graphs/", payload)
     gid = result.get("id")
-    print(f"Created flow: [{gid}] {result.get('name')}")
+    msg = f"Created flow: [{gid}] {result.get('name')}"
+    print(msg)
+    logger.info(msg)
 
     # Create a start node (every flow needs one)
     start_payload = {
@@ -93,7 +96,9 @@ def cmd_create_flow(args):
     }
     start_result = api_post("/startnodes/", start_payload)
     start_id = start_result.get("id")
-    print(f"  Created start node (id={start_id})")
+    msg = f"  Created start node (id={start_id})"
+    print(msg)
+    logger.info(msg)
 
     # Set position on start node's own metadata field
     start_meta = {
@@ -104,12 +109,15 @@ def cmd_create_flow(args):
         "parentId": None,
     }
     api_patch(f"/startnodes/{start_id}/", {"metadata": start_meta})
-    print(f"  Node metadata initialized.")
+    msg = "  Node metadata initialized."
+    print(msg)
+    logger.info(msg)
     return result
 
 
 def cmd_create_start_node(args):
     """Create a start node in a flow (every flow needs one)."""
+    logger.info("cmd_create_start_node: graph_id={}", args.graph_id)
     graph_id = args.graph_id
 
     start_payload = {
@@ -120,7 +128,9 @@ def cmd_create_start_node(args):
     }
     result = api_post("/startnodes/", start_payload)
     start_id = result.get("id")
-    print(f"Created start node (id={start_id}) in flow {graph_id}")
+    msg = f"Created start node (id={start_id}) in flow {graph_id}"
+    print(msg)
+    logger.info(msg)
 
     # Set position on start node's own metadata field
     x = getattr(args, "x", None) if getattr(args, "x", None) is not None else -800
@@ -133,13 +143,18 @@ def cmd_create_start_node(args):
         "parentId": None,
     }
     api_patch(f"/startnodes/{start_id}/", {"metadata": start_meta})
-    print(f"  Position: x={x}, y={y}")
-    print(f"  Node metadata set.")
+    msg = f"  Position: x={x}, y={y}"
+    print(msg)
+    logger.info(msg)
+    msg = "  Node metadata set."
+    print(msg)
+    logger.info(msg)
     return result
 
 
 def cmd_create_node(args):
     """Create a Python node in a flow."""
+    logger.info("cmd_create_node: graph_id={} name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     code = ""
@@ -155,7 +170,9 @@ def cmd_create_node(args):
     }
     result = api_post("/pythonnodes/", payload)
     node_id = result.get("id")
-    print(f"Created Python node '{node_name}' (id={node_id}) in flow {graph_id}")
+    msg = f"Created Python node '{node_name}' (id={node_id}) in flow {graph_id}"
+    print(msg)
+    logger.info(msg)
 
     # Set position on node's own metadata field
     graph = _get_graph(graph_id)
@@ -169,12 +186,15 @@ def cmd_create_node(args):
         "parentId": None,
     }
     api_patch(f"/pythonnodes/{node_id}/", {"metadata": node_meta})
-    print(f"  Position: x={position['x']}, y={position['y']}")
+    msg = f"  Position: x={position['x']}, y={position['y']}"
+    print(msg)
+    logger.info(msg)
     return result
 
 
 def cmd_create_code_agent_node(args):
     """Create a Code Agent node in a flow."""
+    logger.info("cmd_create_code_agent_node: graph_id={} name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
 
@@ -210,7 +230,9 @@ def cmd_create_code_agent_node(args):
 
     result = api_post("/code-agent-nodes/", payload)
     node_id = result.get("id")
-    print(f"Created Code Agent node '{node_name}' (id={node_id}) in flow {graph_id}")
+    msg = f"Created Code Agent node '{node_name}' (id={node_id}) in flow {graph_id}"
+    print(msg)
+    logger.info(msg)
 
     # Set position on node's own metadata field
     graph = _get_graph(graph_id)
@@ -224,15 +246,22 @@ def cmd_create_code_agent_node(args):
         "parentId": None,
     }
     api_patch(f"/code-agent-nodes/{node_id}/", {"metadata": node_meta})
-    print(f"  Position: x={position['x']}, y={position['y']}")
-    print(f"  Agent mode: {payload['agent_mode']}")
+    msg = f"  Position: x={position['x']}, y={position['y']}"
+    print(msg)
+    logger.info(msg)
+    msg = f"  Agent mode: {payload['agent_mode']}"
+    print(msg)
+    logger.info(msg)
     if llm_config_id:
-        print(f"  LLM config: {llm_config_id}")
+        msg = f"  LLM config: {llm_config_id}"
+        print(msg)
+        logger.info(msg)
     return result
 
 
 def cmd_create_webhook(args):
     """Create a Webhook Trigger node in a flow."""
+    logger.info("cmd_create_webhook: graph_id={} name={}", args.graph_id, args.node_name)
     graph_id = args.graph_id
     node_name = args.node_name
     code = ""
@@ -255,8 +284,12 @@ def cmd_create_webhook(args):
     }
     result = api_post("/webhook-trigger-nodes/", payload)
     node_id = result.get("id")
-    print(f"Created Webhook node '{node_name}' (id={node_id}) in flow {graph_id}")
-    print(f"  webhook_trigger_path: {webhook_path}")
+    msg = f"Created Webhook node '{node_name}' (id={node_id}) in flow {graph_id}"
+    print(msg)
+    logger.info(msg)
+    msg = f"  webhook_trigger_path: {webhook_path}"
+    print(msg)
+    logger.info(msg)
 
     # Set position on node's own metadata field
     graph = _get_graph(graph_id)
@@ -270,12 +303,15 @@ def cmd_create_webhook(args):
         "parentId": None,
     }
     api_patch(f"/webhook-trigger-nodes/{node_id}/", {"metadata": node_meta})
-    print(f"  Position: x={position['x']}, y={position['y']}")
+    msg = f"  Position: x={position['x']}, y={position['y']}"
+    print(msg)
+    logger.info(msg)
     return result
 
 
 def cmd_create_note(args):
     """Add a note to a flow's canvas (NoteNode DB record + metadata)."""
+    logger.info("cmd_create_note: graph_id={} text={}", args.graph_id, args.text[:80])
     graph_id = args.graph_id
     text = args.text
     graph = api_get(f"/graphs/{graph_id}/")
@@ -323,13 +359,18 @@ def cmd_create_note(args):
     }
     result = api_post("/note-nodes/", payload)
     note_id = result.get("id")
-    print(f"Created {node_name} (id={note_id}) at x={x}, y={y}")
-    print(f"  Text: {text[:80]}{'...' if len(text) > 80 else ''}")
+    msg = f"Created {node_name} (id={note_id}) at x={x}, y={y}"
+    print(msg)
+    logger.info(msg)
+    msg = f"  Text: {text[:80]}{'...' if len(text) > 80 else ''}"
+    print(msg)
+    logger.info(msg)
     return result
 
 
 def cmd_delete_edge(args):
     """Delete an edge between two nodes in a flow."""
+    logger.info("cmd_delete_edge: graph_id={} start_node={} end_node={}", args.graph_id, args.start_node, args.end_node)
     graph_id = args.graph_id
     graph = _get_graph(graph_id)
     start_id = resolve_node_id(args.start_node, graph)
@@ -338,14 +379,19 @@ def cmd_delete_edge(args):
     for e in edges:
         if e.get("start_node_id") == start_id and e.get("end_node_id") == end_id:
             api_delete(f"/edges/{e['id']}/")
-            print(f"Deleted edge {e['id']}: {args.start_node} → {args.end_node}")
+            msg = f"Deleted edge {e['id']}: {args.start_node} → {args.end_node}"
+            print(msg)
+            logger.info(msg)
             return
-    print(f"Edge {args.start_node} → {args.end_node} not found in flow {graph_id}", file=sys.stderr)
+    msg = f"Edge {args.start_node} → {args.end_node} not found in flow {graph_id}"
+    print(msg, file=sys.stderr)
+    logger.error(msg)
     sys.exit(1)
 
 
 def cmd_create_edge(args):
     """Create an edge between two nodes in a flow."""
+    logger.info("cmd_create_edge: graph_id={} start_node={} end_node={}", args.graph_id, args.start_node, args.end_node)
     graph_id = args.graph_id
     graph = _get_graph(graph_id)
     start_id = resolve_node_id(args.start_node, graph)
@@ -356,7 +402,9 @@ def cmd_create_edge(args):
         "graph": graph_id,
     })
     eid = result.get("id")
-    print(f"Created edge {eid}: {args.start_node} \u2192 {args.end_node} ({start_id}\u2192{end_id})")
+    msg = f"Created edge {eid}: {args.start_node} \u2192 {args.end_node} ({start_id}\u2192{end_id})"
+    print(msg)
+    logger.info(msg)
     return result
 
 
@@ -464,6 +512,7 @@ def cmd_init_metadata(args):
     This command assigns auto-layout positions and PATCHes each
     node's metadata field via its type-specific API endpoint.
     """
+    logger.info("cmd_init_metadata: graph_id={}", args.graph_id)
     graph_id = args.graph_id
     graph = api_get(f"/graphs/{graph_id}/")
 

@@ -266,6 +266,8 @@ services:
       - CODE_REAP_INTERVAL=${CODE_REAP_INTERVAL}
       - CODE_INSTANCES_DIR=${CODE_INSTANCES_DIR}
       - CONTAINER_SAVEFILES_PATH=${CONTAINER_SAVEFILES_PATH}
+      - DEBUG_LOG=${DEBUG_LOG:-False}
+      - LOG_FILE_PATH=${LOG_FILE_PATH:-/opt/opencode/instances/logs/epicstaff.log}
     ports:
       - "${CODE_MANAGER_PORT:-4080}:${CODE_MANAGER_PORT:-4080}"
     volumes:

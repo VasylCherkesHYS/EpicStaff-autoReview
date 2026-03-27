@@ -5,11 +5,12 @@ import json
 import sys
 from pathlib import Path
 
-from common import api_get, api_patch, _tool_slug, _get_flow_tool_ids, TOOLS_DIR
+from common import api_get, api_patch, _tool_slug, _get_flow_tool_ids, TOOLS_DIR, logger
 
 
 def cmd_pull_tools(args):
     """Pull tool code and metadata into .my_epicstaff/tools/."""
+    logger.info("cmd_pull_tools: graph_id={}", args.graph_id)
     if args.graph_id:
         tool_ids = _get_flow_tool_ids(args.graph_id)
         outdir = TOOLS_DIR / str(args.graph_id)
@@ -44,11 +45,14 @@ def cmd_pull_tools(args):
         p.write_text(json.dumps(meta, indent=2))
         print(f"  {p.name}")
         count += 1
-    print(f"\nPulled {count} files.")
+    msg = f"Pulled {count} files."
+    print(f"\n{msg}")
+    logger.info(msg)
 
 
 def cmd_push_tools(args):
     """Push tool code from local files back to the API."""
+    logger.info("cmd_push_tools: path={}", getattr(args, 'path', None))
     if not args.path:
         args.path = str(TOOLS_DIR)
     p = Path(args.path)
@@ -77,10 +81,14 @@ def cmd_push_tools(args):
                 "python_code": {"code": code, "libraries": libs}
             })
             print(f"  ✅ {f.name} → tool {tid}")
+            logger.info("Pushed tool {} from {}", tid, f.name)
             ok += 1
         except Exception as e:
             print(f"  ❌ {f.name}: {e}")
+            logger.error("Failed to push tool {} from {}: {}", tid, f.name, e)
             fail += 1
-    print(f"\nDone: {ok} pushed, {fail} failed.")
+    msg = f"Done: {ok} pushed, {fail} failed."
+    print(f"\n{msg}")
+    logger.info(msg)
     if fail:
         sys.exit(1)

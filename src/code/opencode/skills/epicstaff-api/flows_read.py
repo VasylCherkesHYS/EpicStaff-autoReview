@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+from loguru import logger
+
 from common import (
     api_get, api_get_page, _get_graph, _get_cdt_nodes,
     _discover_files, _read_from_file, _read_from_db, _read_from_metadata,
@@ -20,6 +22,7 @@ from common import (
 
 def cmd_list(args):
     """List all flows."""
+    logger.info("cmd_list")
     data = api_get("/graphs/")
     results = data if isinstance(data, list) else data
     for g in results:
@@ -27,6 +30,7 @@ def cmd_list(args):
 
 
 def cmd_get(args):
+    logger.info("cmd_get: graph_id={}", args.graph_id)
     data = _get_graph(args.graph_id)
     if args.json:
         print(json.dumps(data, indent=2))
@@ -50,6 +54,7 @@ def cmd_get(args):
 
 def cmd_nodes(args):
     """List all nodes with DB IDs."""
+    logger.info("cmd_nodes: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     node_lists = [
         ("start_node_list", "start"), ("end_node_list", "end"),
@@ -60,7 +65,9 @@ def cmd_nodes(args):
         ("llm_node_list", "llm"),
         ("code_agent_node_list", "code-agent"),
     ]
-    print(f"Nodes in flow {args.graph_id}:\n")
+    msg = f"Nodes in flow {args.graph_id}:"
+    print(msg)
+    logger.debug(msg)
     for key, ntype in node_lists:
         for n in graph.get(key, []):
             name = n.get("node_name", "?")
@@ -90,13 +97,17 @@ def cmd_edges(args):
     NOTE: EdgeViewSet has no filter_backends, so ?graph=<id> is silently ignored.
     We filter client-side by comparing edge graph FK against args.graph_id.
     """
+    logger.info("cmd_edges: graph_id={}", args.graph_id)
+    logger.info("cmd_edges: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     id_to_name = build_id_to_name_map(graph)
-    all_edges = api_get(f"/edges/")
+    all_edges = api_get("/edges/")
     if isinstance(all_edges, dict):
         all_edges = all_edges.get("results", [])
     edges = [e for e in all_edges if e.get("graph") == args.graph_id]
-    print(f"DB edges for flow {args.graph_id} ({len(edges)}):\n")
+    msg = f"DB edges for flow {args.graph_id} ({len(edges)}):"
+    print(msg)
+    logger.debug(msg)
     for e in edges:
         src = id_to_name.get(e['start_node_id'], f"?#{e['start_node_id']}")
         tgt = id_to_name.get(e['end_node_id'], f"?#{e['end_node_id']}")
@@ -105,6 +116,7 @@ def cmd_edges(args):
 
 def cmd_connections(args):
     """Show all graph connections: edges + conditional edges + DT routing (from DB)."""
+    logger.info("cmd_connections: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     id_to_name = build_id_to_name_map(graph)
 
@@ -149,6 +161,7 @@ def cmd_connections(args):
 
 def cmd_route_map(args):
     """Verify CDT/DT route maps from DB condition groups."""
+    logger.info("cmd_route_map: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     id_to_name = build_id_to_name_map(graph)
 
@@ -156,7 +169,9 @@ def cmd_route_map(args):
         ("classification_decision_table_node_list", "CDT"),
         ("decision_table_node_list", "DT"),
     ]
-    print(f"Route maps for flow {args.graph_id}:\n")
+    msg = f"Route maps for flow {args.graph_id}:"
+    print(msg)
+    logger.debug(msg)
     all_ok = True
     found_any = False
 
@@ -205,6 +220,7 @@ def cmd_route_map(args):
 
 def cmd_cdt(args):
     """Show CDT node details."""
+    logger.info("cmd_cdt: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     cdts = graph.get("classification_decision_table_node_list", [])
     if not cdts:
@@ -235,6 +251,7 @@ def cmd_cdt(args):
 
 def cmd_cdt_code(args):
     """Show CDT pre/post computation code."""
+    logger.info("cmd_cdt_code: graph_id={} cdt_id={}", getattr(args, 'graph_id', None), getattr(args, 'cdt_id', None))
     if args.cdt_id:
         nodes = [api_get(f"/classification-decision-table-node/{args.cdt_id}/")]
     else:
@@ -267,6 +284,7 @@ def cmd_cdt_code(args):
 
 def cmd_cdt_prompts(args):
     """Show CDT prompts."""
+    logger.info("cmd_cdt_prompts: graph_id={}", args.graph_id)
     cdts = _get_cdt_nodes(args.graph_id)
     for cdt in cdts:
         prompts = cdt.get("prompts", {})
@@ -385,6 +403,7 @@ def _print_session(session_id, messages, compact=False, json_mode=False):
 
 def cmd_sessions(args):
     """Last N sessions for a flow (or all flows if -g not given)."""
+    logger.info("cmd_sessions: graph_id={} n={}", args.graph_id, args.n)
     params = {"ordering": "-id", "limit": args.n}
     if args.graph_id:
         params["graph"] = args.graph_id
@@ -405,6 +424,7 @@ def cmd_sessions(args):
 
 def cmd_session(args):
     """Show specific session(s)."""
+    logger.info("cmd_session: session_ids={}", args.session_ids)
     for sid in args.session_ids:
         msgs = api_get("/graph-session-messages/", {"session_id": sid, "ordering": "id"})
         if not msgs:
@@ -415,6 +435,7 @@ def cmd_session(args):
 
 def cmd_session_inspect(args):
     """Inspect what each node received as input and produced as output."""
+    logger.info("cmd_session_inspect: session_ids={}", args.session_ids)
     full = getattr(args, 'full', False)
     for sid in args.session_ids:
         msgs = api_get("/graph-session-messages/", {"session_id": sid, "ordering": "id"})
@@ -459,6 +480,7 @@ def cmd_session_inspect(args):
 
 def cmd_session_timings(args):
     """Show per-node timing breakdown for session(s)."""
+    logger.info("cmd_session_timings: session_ids={}", args.session_ids)
     for sid in args.session_ids:
         msgs = api_get("/graph-session-messages/", {"session_id": sid, "ordering": "id"})
         if not msgs:
@@ -516,7 +538,7 @@ def cmd_session_timings(args):
                 node_durations[name] = node_durations.get(name, 0) + dur
 
         if node_durations:
-            print(f"\n  Node durations:")
+            print("\n  Node durations:")
             for name, dur in sorted(node_durations.items(), key=lambda x: -x[1]):
                 pct = (dur / total_s * 100) if total_s > 0 else 0
                 bar = "█" * int(pct / 2)
@@ -525,6 +547,7 @@ def cmd_session_timings(args):
 
 def cmd_vars(args):
     """Show persistent variables."""
+    logger.info("cmd_vars: graph_id={}", args.graph_id)
     results = api_get("/graph-organizations/")
     go = None
     for r in results:
@@ -556,6 +579,7 @@ def cmd_vars(args):
 
 def cmd_history(args):
     """Show message_history."""
+    logger.info("cmd_history: graph_id={} chat_id={}", args.graph_id, getattr(args, 'chat_id', None))
     results = api_get("/graph-organizations/")
     go = None
     for r in results:
@@ -590,6 +614,7 @@ def cmd_history(args):
 
 def cmd_trace(args):
     """Trace message_history through a session."""
+    logger.info("cmd_trace: session_id={}", args.session_id)
     msgs = api_get("/graph-session-messages/", {"session_id": args.session_id, "ordering": "id"})
     if not msgs:
         print(f"No messages for session {args.session_id}")
@@ -610,6 +635,7 @@ def cmd_trace(args):
 
 def cmd_crew_input(args):
     """Show Crew node input/output."""
+    logger.info("cmd_crew_input: session_id={}", args.session_id)
     msgs = api_get("/graph-session-messages/", {"session_id": args.session_id, "ordering": "id"})
     if not msgs:
         print(f"No messages for session {args.session_id}")
@@ -653,14 +679,19 @@ def cmd_crew_input(args):
 
 def cmd_verify(args):
     """Three-way verify: file <-> DB <-> metadata."""
+    logger.info("cmd_verify: graph_id={} path={}", args.graph_id, getattr(args, 'path', None))
     if not args.path:
         args.path = str(_flows_dir(args.graph_id))
     specs = _discover_files(args.path)
     if not specs:
-        print(f"No recognized files in: {args.path}")
+        msg = f"No recognized files in: {args.path}"
+        print(msg)
+        logger.error(msg)
         sys.exit(1)
     verbose = getattr(args, "verbose", False)
-    print(f"Verifying {len(specs)} file(s) against flow {args.graph_id}:\n")
+    msg = f"Verifying {len(specs)} file(s) against flow {args.graph_id}:"
+    print(msg)
+    logger.debug(msg)
     total_ok, total_issues = 0, 0
     for spec in specs:
         try:
@@ -706,11 +737,14 @@ def cmd_verify(args):
 
 def cmd_export_compare(args):
     """Compare export JSON with current DB state."""
+    logger.info("cmd_export_compare: graph_id={} file={}", getattr(args, 'graph_id', None), args.file)
     with open(args.file) as f:
         export = json.load(f)
     graph_id = args.graph_id or export.get("id")
     if not graph_id:
-        print("Cannot determine graph ID. Use -g or ensure export has 'id'.")
+        msg = "Cannot determine graph ID. Use -g or ensure export has 'id'."
+        print(msg)
+        logger.error(msg)
         sys.exit(1)
     graph = _get_graph(graph_id)
     print(f"=== EXPORT vs CURRENT DB (flow {graph_id}) ===\n")
@@ -764,7 +798,7 @@ def cmd_export_compare(args):
             print(f"  {status} {name}: {' | '.join(issues) if issues else 'identical'}")
 
     export_edges = export.get("edge_list", [])
-    current_edges = api_get(f"/edges/", {"graph": graph_id})
+    current_edges = api_get("/edges/", {"graph": graph_id})
     if isinstance(current_edges, dict):
         current_edges = current_edges.get("results", [])
     print(f"\nEdges: export={len(export_edges)} current={len(current_edges)}")
@@ -776,14 +810,21 @@ def cmd_export_compare(args):
 
 def cmd_oc_status(args):
     """Show OpenCode session statuses (idle/busy)."""
+    logger.info("cmd_oc_status")
     statuses = _oc_curl("/session/status")
     if statuses is None:
-        print("Cannot reach OpenCode in sandbox container.")
+        msg = "Cannot reach OpenCode in sandbox container."
+        print(msg)
+        logger.error(msg)
         return
     if not statuses:
-        print("All OpenCode sessions idle (no active requests).")
+        msg = "All OpenCode sessions idle (no active requests)."
+        print(msg)
+        logger.debug(msg)
         return
-    print("OpenCode session statuses:")
+    msg = "OpenCode session statuses:"
+    print(msg)
+    logger.debug(msg)
     for sid, s in statuses.items():
         stype = s.get("type", "?")
         print(f"  {sid}: {stype}")
@@ -791,9 +832,12 @@ def cmd_oc_status(args):
 
 def cmd_oc_sessions(args):
     """List OpenCode sessions with details."""
+    logger.info("cmd_oc_sessions")
     sessions = _oc_curl("/session")
     if sessions is None:
-        print("Cannot reach OpenCode in sandbox container.")
+        msg = "Cannot reach OpenCode in sandbox container."
+        print(msg)
+        logger.error(msg)
         return
     if not sessions:
         print("No OpenCode sessions.")
@@ -825,6 +869,7 @@ def cmd_oc_sessions(args):
 
 def cmd_oc_messages(args):
     """Show last N messages in an OpenCode session."""
+    logger.info("cmd_oc_messages: oc_session_id={} n={}", getattr(args, 'oc_session_id', None), getattr(args, 'n', 10))
     sid = getattr(args, "oc_session_id", None)
     if not sid:
         sessions = _oc_curl("/session")
@@ -872,6 +917,7 @@ def cmd_oc_session(args):
     Accepts an EpicStaff session ID (numeric) or an OpenCode session ID (ses_...).
     Tries the OpenCode API first; falls back to Django graph-session-messages.
     """
+    logger.info("cmd_oc_session: oc_session_id={}", args.oc_session_id)
     raw_id = args.oc_session_id
     oc_sid = None
     es_sid = None
@@ -970,7 +1016,7 @@ def _print_oc_session_from_oc(oc_sid, msgs, es_sid=None):
                         print(text[:1000])
                         print(f"  [...truncated, {len(text)} chars total]")
                     else:
-                        print(f"  📝 Answer:")
+                        print("  📝 Answer:")
                         print(text)
                 elif pt == "tool":
                     state = p.get("state", {}) or {}
@@ -1039,7 +1085,7 @@ def _print_oc_session_from_django(es_sid, oc_sid=None):
     # Print prompt
     if prompt:
         print(f"{'─' * 60}")
-        print(f"👤 PROMPT")
+        print("👤 PROMPT")
         print(f"{'─' * 60}")
         if len(prompt) > 500:
             print(f"{prompt[:500]}...")
@@ -1082,7 +1128,7 @@ def _print_oc_session_from_django(es_sid, oc_sid=None):
     # Print output metadata
     if output_data and isinstance(output_data, dict):
         print(f"{'─' * 60}")
-        print(f"📊 OUTPUT")
+        print("📊 OUTPUT")
         print(f"{'─' * 60}")
         for k, v in output_data.items():
             if k == "message":
@@ -1104,6 +1150,7 @@ def _print_oc_session_from_django(es_sid, oc_sid=None):
 
 def cmd_test_flow(args):
     """Verify flow structure: nodes, edges, connections, CDT groups, local files."""
+    logger.info("cmd_test_flow: graph_id={} verbose={} verify={}", args.graph_id, getattr(args, 'verbose', False), getattr(args, 'verify', False))
     gid = args.graph_id
     verbose = getattr(args, "verbose", False)
     do_verify = getattr(args, "verify", False)

@@ -32,7 +32,7 @@ _SKILL_DIR = str(Path(__file__).resolve().parent)
 if _SKILL_DIR not in sys.path:
     sys.path.insert(0, _SKILL_DIR)
 
-from common import _set_base_url, BASE_URL, READ_ONLY_COMMANDS
+from common import _set_base_url, BASE_URL, READ_ONLY_COMMANDS, logger
 
 from flows_read import (
     cmd_list, cmd_get, cmd_nodes, cmd_edges, cmd_connections, cmd_route_map,
@@ -305,9 +305,13 @@ def main():
         parser.print_help()
         return
 
+    logger.info("CLI: command={} graph_id={} read_only={}", args.command, args.graph_id, args.read_only)
+
     # Validate -r flag
     if args.read_only and args.command not in READ_ONLY_COMMANDS:
-        print(f"Error: '{args.command}' is not a read-only command. Remove -r.", file=sys.stderr)
+        msg = f"Error: '{args.command}' is not a read-only command. Remove -r."
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
 
     # Commands that require graph_id
@@ -325,7 +329,9 @@ def main():
         needs_graph.add("cdt-code")
 
     if args.command in needs_graph and not args.graph_id:
-        print(f"Error: --graph-id / -g is required for '{args.command}'", file=sys.stderr)
+        msg = f"Error: --graph-id / -g is required for '{args.command}'"
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
 
     cmd_map = {
@@ -371,14 +377,19 @@ def main():
 
     try:
         cmd_map[args.command](args)
+        logger.info("CLI completed: command={}", args.command)
     except urllib.error.HTTPError as e:
         body = e.read().decode()[:500] if hasattr(e, "read") else ""
-        print(f"HTTP Error {e.code}: {e.reason}", file=sys.stderr)
+        msg = f"HTTP Error {e.code}: {e.reason}"
+        print(msg, file=sys.stderr)
+        logger.error("{} body={}", msg, body)
         if body:
             print(f"  {body}", file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as e:
-        print(f"Connection error: {e.reason}", file=sys.stderr)
+        msg = f"Connection error: {e.reason}"
+        print(msg, file=sys.stderr)
+        logger.error(msg)
         sys.exit(1)
 
 

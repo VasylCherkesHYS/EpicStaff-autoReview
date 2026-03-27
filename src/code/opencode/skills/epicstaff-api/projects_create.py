@@ -1,12 +1,12 @@
 """Project create operations — create new crews, agents, and tasks."""
 
-import json
 
-from common import api_get, api_post, api_patch
+from common import api_get, api_post, api_patch, logger
 
 
 def cmd_create_crew(args):
     """Create a new crew."""
+    logger.info("cmd_create_crew: name={}", args.name)
     payload = {
         "name": args.name,
         "process": getattr(args, "process", "sequential"),
@@ -15,15 +15,18 @@ def cmd_create_crew(args):
     }
     result = api_post("/crews/", payload)
     cid = result.get("id")
-    print(f"Created crew: [{cid}] {result.get('name')} (process={result.get('process')})")
-    print(f"  ⚠️  REMINDER: When adding this crew to a flow, the crew node needs:")
-    print(f"     - input_map: map node parameters to flow variables (e.g. {{\"topic\": \"variables.request.topic\"}})")
-    print(f"     - output_variable_path: set to 'variables' or 'variables.<domain>' to store crew output")
+    msg = f"Created crew: [{cid}] {result.get('name')} (process={result.get('process')})"
+    print(msg)
+    logger.info(msg)
+    print("  ⚠️  REMINDER: When adding this crew to a flow, the crew node needs:")
+    print("     - input_map: map node parameters to flow variables (e.g. {\"topic\": \"variables.request.topic\"})")
+    print("     - output_variable_path: set to 'variables' or 'variables.<domain>' to store crew output")
     return result
 
 
 def cmd_create_agent(args):
     """Create a new agent and optionally add to a crew."""
+    logger.info("cmd_create_agent: role={} crew_id={}", args.role, getattr(args, 'crew_id', None))
     payload = {
         "role": args.role,
         "goal": getattr(args, "goal", ""),
@@ -35,12 +38,15 @@ def cmd_create_agent(args):
 
     result = api_post("/agents/", payload)
     aid = result.get("id")
-    print(f"Created agent: [{aid}] role={result.get('role')}")
+    msg = f"Created agent: [{aid}] role={result.get('role')}"
+    print(msg)
+    logger.info(msg)
 
     if not llm_config_id:
-        print(f"  ⚠️  WARNING: No LLM config set. Agent will not work until an LLM config is assigned.")
+        print("  ⚠️  WARNING: No LLM config set. Agent will not work until an LLM config is assigned.")
         print(f"     Fix: PATCH /agents/{aid}/ with {{\"llm_config\": <config_id>}}")
-        print(f"     Available configs: run 'epicstaff_tools.py -r llm-configs'")
+        print("     Available configs: run 'epicstaff_tools.py -r llm-configs'")
+        logger.warning("Agent {} created without LLM config", aid)
 
     crew_id = getattr(args, "crew_id", None)
     if crew_id:
@@ -50,11 +56,13 @@ def cmd_create_agent(args):
             agents.append(aid)
             api_patch(f"/crews/{crew_id}/", {"agents": agents})
             print(f"  Added to crew {crew_id}")
+            logger.info("Agent {} added to crew {}", aid, crew_id)
     return result
 
 
 def cmd_create_task(args):
     """Create a new task and optionally add to a crew."""
+    logger.info("cmd_create_task: name={} crew_id={}", args.name, getattr(args, 'crew_id', None))
     payload = {
         "name": args.name,
         "instructions": getattr(args, "instructions", ""),
@@ -66,7 +74,9 @@ def cmd_create_task(args):
 
     result = api_post("/tasks/", payload)
     tid = result.get("id")
-    print(f"Created task: [{tid}] {result.get('name')}")
+    msg = f"Created task: [{tid}] {result.get('name')}"
+    print(msg)
+    logger.info(msg)
     if agent_id:
         print(f"  Assigned to agent {agent_id}")
 
@@ -78,4 +88,5 @@ def cmd_create_task(args):
             tasks.append(tid)
             api_patch(f"/crews/{crew_id}/", {"tasks": tasks})
             print(f"  Added to crew {crew_id}")
+            logger.info("Task {} added to crew {}", tid, crew_id)
     return result

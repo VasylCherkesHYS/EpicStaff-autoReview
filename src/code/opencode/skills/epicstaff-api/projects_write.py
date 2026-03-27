@@ -4,11 +4,12 @@ import json
 import sys
 from pathlib import Path
 
-from common import api_get, api_patch, _normalize_slug, PROJECTS_DIR
+from common import api_get, api_patch, _normalize_slug, PROJECTS_DIR, logger
 
 
 def cmd_pull_project(args):
     """Pull crew/agent/task configs into .my_epicstaff/projects/."""
+    logger.info("cmd_pull_project: graph_id={}", args.graph_id)
     graph = api_get(f"/graphs/{args.graph_id}/")
     crew_nodes = graph.get("crew_node_list", [])
     if not crew_nodes:
@@ -95,6 +96,7 @@ def cmd_pull_project(args):
 
 def cmd_push_project(args):
     """Push agent/task configs from local files back to the API."""
+    logger.info("cmd_push_project: path={}", getattr(args, 'path', None))
     if not args.path:
         args.path = str(PROJECTS_DIR)
     p = Path(args.path)
@@ -138,7 +140,10 @@ def cmd_push_project(args):
                     ok += 1
         except Exception as e:
             print(f"  ❌ {f.name}: {e}")
+            logger.error("Failed to push {}: {}", f.name, e)
             fail += 1
-    print(f"\nDone: {ok} pushed, {fail} failed.")
+    msg = f"Done: {ok} pushed, {fail} failed."
+    print(f"\n{msg}")
+    logger.info(msg)
     if fail:
         sys.exit(1)
