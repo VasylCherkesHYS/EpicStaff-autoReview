@@ -91,7 +91,7 @@ def cmd_create_flow(args):
     start_payload = {
         "node_name": "__start__",
         "graph": gid,
-        "variables": {"$schema": "start"},
+        "variables": {"context": None},
         "metadata": {},
     }
     start_result = api_post("/startnodes/", start_payload)
@@ -108,7 +108,12 @@ def cmd_create_flow(args):
         "size": {"width": 125, "height": 60},
         "parentId": None,
     }
-    api_patch(f"/startnodes/{start_id}/", {"metadata": start_meta})
+    # StartNodeSerializer.validate() requires 'variables' in payload even for
+    # metadata-only PATCH — otherwise attrs.get("variables") is None → AttributeError.
+    api_patch(f"/startnodes/{start_id}/", {
+        "metadata": start_meta,
+        "variables": {"context": None},
+    })
     msg = "  Node metadata initialized."
     print(msg)
     logger.info(msg)
@@ -123,7 +128,7 @@ def cmd_create_start_node(args):
     start_payload = {
         "node_name": "__start__",
         "graph": graph_id,
-        "variables": {"$schema": "start"},
+        "variables": {"context": None},
         "metadata": {},
     }
     result = api_post("/startnodes/", start_payload)
@@ -142,7 +147,10 @@ def cmd_create_start_node(args):
         "size": {"width": 125, "height": 60},
         "parentId": None,
     }
-    api_patch(f"/startnodes/{start_id}/", {"metadata": start_meta})
+    api_patch(f"/startnodes/{start_id}/", {
+        "metadata": start_meta,
+        "variables": {"context": None},
+    })
     msg = f"  Position: x={x}, y={y}"
     print(msg)
     logger.info(msg)
@@ -616,7 +624,11 @@ def cmd_init_metadata(args):
             "size": defaults["size"],
             "parentId": None,
         }
-        api_patch(f"{endpoint}{node_id}/", {"metadata": node_meta})
+        patch_payload = {"metadata": node_meta}
+        # StartNodeSerializer.validate() requires 'variables' in every PATCH
+        if info["list_key"] == "start_node_list":
+            patch_payload["variables"] = info["db_node"].get("variables", {"context": None})
+        api_patch(f"{endpoint}{node_id}/", patch_payload)
         patched += 1
         print(f"  {info['type']:30s} {name:30s} x={pos['x']:>6} y={pos['y']:>6}  (id={node_id})")
 

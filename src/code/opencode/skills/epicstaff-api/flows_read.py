@@ -98,7 +98,6 @@ def cmd_edges(args):
     We filter client-side by comparing edge graph FK against args.graph_id.
     """
     logger.info("cmd_edges: graph_id={}", args.graph_id)
-    logger.info("cmd_edges: graph_id={}", args.graph_id)
     graph = _get_graph(args.graph_id)
     id_to_name = build_id_to_name_map(graph)
     all_edges = api_get("/edges/")

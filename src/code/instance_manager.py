@@ -244,7 +244,11 @@ def spawn_instance(config_id: int) -> Instance:
     port = pool.next_port()
     logger.info(
         "Spawning opencode: provider={!r} model={!r} port={} api_key_set={} base_url={!r}",
-        provider, model, port, bool(api_key), base_url,
+        provider,
+        model,
+        port,
+        bool(api_key),
+        base_url,
     )
 
     _write_opencode_config(provider, model)
@@ -321,7 +325,11 @@ def spawn_instance(config_id: int) -> Instance:
     pool.add(inst)
     logger.info(
         "Spawned instance config={} port={} pid={} model={}/{}",
-        config_id, port, proc.pid, provider, model,
+        config_id,
+        port,
+        proc.pid,
+        provider,
+        model,
     )
     return inst
 
@@ -335,11 +343,15 @@ def stop_instance(config_id: int) -> bool:
         os.kill(inst.pid, signal.SIGTERM)
         logger.info(
             "Stopped instance config={} port={} pid={}",
-            config_id, inst.port, inst.pid,
+            config_id,
+            inst.port,
+            inst.pid,
         )
     except ProcessLookupError:
         logger.info(
-            "Instance config={} pid={} already dead", config_id, inst.pid,
+            "Instance config={} pid={} already dead",
+            config_id,
+            inst.pid,
         )
     # Reap the child to prevent zombies
     try:
@@ -398,7 +410,8 @@ def reap_idle():
         if not _is_alive(inst):
             logger.info(
                 "Removing dead instance config={} pid={}",
-                inst.llm_config_id, inst.pid,
+                inst.llm_config_id,
+                inst.pid,
             )
             pool.remove(inst.llm_config_id)
             continue
@@ -407,7 +420,8 @@ def reap_idle():
                 inst.last_used = now
                 continue
             logger.info(
-                "Reaping idle instance config={}", inst.llm_config_id,
+                "Reaping idle instance config={}",
+                inst.llm_config_id,
             )
             stop_instance(inst.llm_config_id)
 
@@ -443,7 +457,8 @@ class ManagerHandler(BaseHTTPRequestHandler):
                     )
                     return
                 logger.warning(
-                    "Cached instance config={} is dead, respawning", config_id,
+                    "Cached instance config={} is dead, respawning",
+                    config_id,
                 )
                 pool.remove(config_id)
 

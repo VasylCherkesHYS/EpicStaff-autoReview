@@ -20,6 +20,21 @@ Do not write raw `urllib`, `requests`, `curl`, or ad-hoc scripts against the Dja
 1. CLI command exists → use it
 2. No command exists → add it to `epicstaff_tools.py` first, then use the CLI
 
+### Do NOT Explore Existing Flows Unless Asked
+
+**When the user asks to CREATE a new flow, go straight to creation.** Do not:
+- Run `list` to see existing flows
+- Run `nodes`, `edges`, `get` on other flows to "understand the system"
+- Run `pull` on other flows
+- Browse SAVEFILES for existing flow code
+
+The user's request to create/build a new flow is self-contained — all the information you need is in this skill file and the user's description. Reading existing flows wastes time and token budget.
+
+**Only read existing flows when:**
+- The user explicitly asks to inspect, debug, modify, or copy an existing flow
+- The user references a specific flow by name or ID
+- You need to verify your newly created flow after building it
+
 ### File Structure
 
 ```
@@ -186,3 +201,5 @@ Flags can go in any order: `sessions -g 55 -n 2 -r` and `sessions -r -g 55 -n 2`
 - **Decision Table nodes have NO edges — only DB refs.** DT outputs are wired via `condition_group.next_node_id`, `default_next_node_id`, `next_error_node_id`. Use `connections` (not `edges`) to see DT wiring. When rewiring, use `patch-dt`.
 - **Python node API endpoint is `/pythonnodes/`** (no hyphen). Other endpoints: `/code-agent-nodes/`, `/crewnodes/`, `/llmnodes/`.
 - **DT `condition_groups` PATCH requires `conditions: []` in each group.** The viewset calls `pop("conditions")` — missing key causes silent rollback. The `patch-dt` command auto-adds this.
+- **DT `default_next_node` must use `_id` suffix for integer FK fields.** The API field is `default_next_node_id` (integer), NOT `default_next_node` (string). Same for `next_error_node_id`. The `patch-dt` command handles this — use `--default-next-node <node_name>` and it resolves to the correct ID.
+- **StartNode PATCH requires `variables` in payload.** The `StartNodeSerializer.validate()` always reads `variables` from attrs — sending only `metadata` causes `AttributeError`. The CLI includes `variables` automatically in startnode PATCHes.

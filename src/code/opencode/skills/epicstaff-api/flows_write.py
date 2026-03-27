@@ -8,7 +8,7 @@ from pathlib import Path
 from common import (
     api_get, api_post, api_patch, _get_graph, _get_cdt_nodes, _get_pn_nodes, _get_wh_nodes,
     _flows_dir, _normalize_slug, _match_node, _discover_files,
-    _read_value, _oc_curl,
+    _read_value, _oc_curl, resolve_node_id,
     SLUG_TO_CDT_NAME, SLUG_TO_PN_NAME, SLUG_TO_WH_NAME,
 )
 from loguru import logger
@@ -360,9 +360,9 @@ def cmd_patch_dt(args):
         for g in db_payload["condition_groups"]:
             g.setdefault("conditions", [])
     if getattr(args, "default_next_node", None):
-        db_payload["default_next_node"] = args.default_next_node
+        db_payload["default_next_node_id"] = resolve_node_id(args.default_next_node, graph)
     if getattr(args, "error_node", None):
-        db_payload["next_error_node"] = args.error_node
+        db_payload["next_error_node_id"] = resolve_node_id(args.error_node, graph)
 
     if not db_payload:
         msg = "No fields to patch. Use --groups, --default-next-node, or --error-node."
@@ -375,10 +375,10 @@ def cmd_patch_dt(args):
         print(f"  condition_groups: {len(db_payload['condition_groups'])} groups")
         for g in db_payload["condition_groups"]:
             print(f"    [{g.get('order','-')}] {g.get('group_name','?')} → {g.get('next_node','default')} | expr: {g.get('expression','')}")
-    if "default_next_node" in db_payload:
-        print(f"  default_next_node: {db_payload['default_next_node']}")
-    if "next_error_node" in db_payload:
-        print(f"  next_error_node: {db_payload['next_error_node']}")
+    if "default_next_node_id" in db_payload:
+        print(f"  default_next_node_id: {db_payload['default_next_node_id']}")
+    if "next_error_node_id" in db_payload:
+        print(f"  next_error_node_id: {db_payload['next_error_node_id']}")
 
     api_patch(f"/decision-table-node/{node_id}/", db_payload)
     print("  DB updated.")
@@ -465,7 +465,7 @@ def cmd_patch_start_vars(args):
     start_id = start["id"]
     new_vars = json.loads(args.variables)
     if getattr(args, "replace", False):
-        final = {"$schema": "start"}
+        final = {"context": None}
         final.update(new_vars)
     else:
         final = start.get("variables", {})
