@@ -43,15 +43,12 @@ import { UnsavedChangesDialogService } from '../../../../shared/components/unsav
 import { NodeType } from '../../../../visual-programming/core/enums/node-type';
 import { ConnectionModel } from '../../../../visual-programming/core/models/connection.model';
 import { FlowModel } from '../../../../visual-programming/core/models/flow.model';
-import { NodeModel, StartNodeModel } from '../../../../visual-programming/core/models/node.model';
+import { NodeModel } from '../../../../visual-programming/core/models/node.model';
 import { FlowGraphComponent } from '../../../../visual-programming/flow-graph/flow-graph.component';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
 import { buildFlowModelFromGraph } from '../../../../visual-programming/services/graph/load-graph.service';
 import { GraphUpdateService } from '../../../../visual-programming/services/graph/save-graph.service';
-import {
-    CreatedNodeMapping,
-    getUIMetadataForComparison,
-} from '../../../../visual-programming/services/graph/save-graph.types';
+import { CreatedNodeMapping } from '../../../../visual-programming/services/graph/save-graph.types';
 import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
 import { FlowUnsavedStateService } from '../../services/flow-unsaved-state.service';
 import { FlowHeaderComponent } from './components/header/flow-header.component';
@@ -66,12 +63,10 @@ import {
 import { CreateCrewNodeRequest, CrewNode } from './models/crew-node.model';
 import { CreateEdgeRequest, Edge } from './models/edge.model';
 import { CreatePythonNodeRequest, PythonNode } from './models/python-node.model';
-import { CreateStartNodeRequest, StartNode } from './models/start-node.model';
 import { ConditionalEdgeService } from './services/conditional-edge.service';
 import { CrewNodeService } from './services/crew-node.service';
 import { EdgeService } from './services/edge.service';
 import { PythonNodeService } from './services/python-node.service';
-import { StartNodeService } from './services/start-node.service';
 
 @Component({
     selector: 'app-flow-visual-programming',
@@ -109,7 +104,6 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         private readonly toastService: ToastService,
         private readonly graphUpdateService: GraphUpdateService,
         private readonly runGraphService: RunGraphService,
-        private readonly startNodeService: StartNodeService,
         private readonly dialog: CdkDialog,
         private readonly unsavedChangesDialogService: UnsavedChangesDialogService,
         private readonly configService: ConfigService,
@@ -213,73 +207,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             switchMap(() => new Promise((resolve) => setTimeout(resolve, 200))),
             switchMap(() => {
                 const flowState: FlowModel = this.flowService.getFlowState();
-
-                const startNodeInFlow = flowState.nodes.find((node) => node.type === NodeType.START) as
-                    | StartNodeModel
-                    | undefined;
-
-                if (!startNodeInFlow) {
-                    return this.saveGraphDirectly(flowState, showNotif);
-                }
-                return this.saveGraphWithStartNode(flowState, startNodeInFlow, showNotif);
-            })
-        );
-    }
-
-    private saveGraphWithStartNode(
-        flowState: FlowModel,
-        startNode: StartNodeModel,
-        showNotif: boolean
-    ): Observable<boolean> {
-        const initialStateData = startNode.data.initialState;
-        const metadata = getUIMetadataForComparison(startNode);
-
-        return this.startNodeService.getStartNodes().pipe(
-            takeUntil(this.destroy$),
-            switchMap((startNodes) => {
-                const matchingStartNode = startNodes.find((sn) => sn.graph === this.graph.id);
-
-                if (matchingStartNode) {
-                    return this.startNodeService.partialUpdateStartNode(matchingStartNode.id, {
-                        graph: this.graph.id,
-                        variables: initialStateData,
-                        metadata,
-                    });
-                }
-
-                return this.startNodeService.createStartNode({
-                    graph: this.graph.id,
-                    variables: initialStateData,
-                    metadata,
-                });
-            }),
-            switchMap((startNodeResult) => {
-                if (startNodeResult?.id != null) {
-                    const sn = flowState.nodes.find((n) => n.type === NodeType.START);
-                    if (sn) sn.backendId = startNodeResult.id;
-
-                    const snInService = this.flowService.nodes()?.find((n) => n.type === NodeType.START);
-                    if (snInService) snInService.backendId = startNodeResult.id;
-                }
-                return this.graphUpdateService.saveGraph(flowState, this.graph);
-            }),
-            map((result) => {
-                this.graph = result.graph;
-                this.patchBackendIds(result.createdMappings);
-                this.initialState = this.flowService.getFlowState();
-                if (showNotif) {
-                    this.toastService.success('Graph saved successfully');
-                }
-                return true;
-            }),
-            catchError((err) => {
-                this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
-                console.error('Error saving graph:', err);
-                return of(false);
-            }),
-            finalize(() => {
-                this.isSaving = false;
-                this.cdr.markForCheck();
+                return this.saveGraphDirectly(flowState, showNotif);
             })
         );
     }
@@ -317,43 +245,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             switchMap(() => new Promise((resolve) => setTimeout(resolve, 200))),
             switchMap(() => {
                 const flowState: FlowModel = this.flowService.getFlowState();
-
-                const startNodeInFlow = flowState.nodes.find((node) => node.type === NodeType.START) as
-                    | StartNodeModel
-                    | undefined;
-
-                if (!startNodeInFlow) {
-                    return this.graphUpdateService.saveGraph(flowState, this.graph).pipe(
-                        tap((result) => {
-                            this.graph = result.graph;
-                            this.patchBackendIds(result.createdMappings);
-                            this.initialState = this.flowService.getFlowState();
-                        })
-                    );
-                }
-
-                const initialStateData = startNodeInFlow.data.initialState;
-                const metadata = getUIMetadataForComparison(startNodeInFlow);
-
-                return this.startNodeService.getStartNodes().pipe(
-                    switchMap((startNodes) => {
-                        const matchingStartNode = startNodes.find((sn) => sn.graph === this.graph.id);
-
-                        if (matchingStartNode) {
-                            return this.startNodeService.partialUpdateStartNode(matchingStartNode.id, {
-                                graph: this.graph.id,
-                                variables: initialStateData,
-                                metadata,
-                            });
-                        }
-
-                        return this.startNodeService.createStartNode({
-                            graph: this.graph.id,
-                            variables: initialStateData,
-                            metadata,
-                        });
-                    }),
-                    switchMap(() => this.graphUpdateService.saveGraph(flowState, this.graph)),
+                return this.graphUpdateService.saveGraph(flowState, this.graph).pipe(
                     tap((result) => {
                         this.graph = result.graph;
                         this.patchBackendIds(result.createdMappings);

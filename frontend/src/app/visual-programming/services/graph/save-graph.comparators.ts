@@ -445,3 +445,24 @@ export function getCodeAgentNodeForComparisonFromUI(node: CodeAgentNodeModel) {
         metadata: getUIMetadataForComparison(node),
     };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StartNode
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { StartNode } from '../../../pages/flows-page/components/flow-visual-programming/models/start-node.model';
+import { StartNodeModel } from '../../core/models/node.model';
+
+export function getStartNodeForComparisonFromBackend(node: StartNode) {
+    return {
+        variables: node.variables,
+        metadata: getBackendMetadataForComparison(node),
+    };
+}
+
+export function getStartNodeForComparisonFromUI(node: StartNodeModel) {
+    return {
+        variables: node.data.initialState,
+        metadata: getUIMetadataForComparison(node),
+    };
+}

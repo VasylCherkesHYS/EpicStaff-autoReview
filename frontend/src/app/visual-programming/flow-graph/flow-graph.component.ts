@@ -165,7 +165,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     private applyIncomingFlowState(): void {
         this.initializeFlowStateIfEmpty();
-        this.addStartNodeIfNeeded();
+        this.addPaletteStartNodeIfNeeded();
         this.generatePortsForNodesIfNeeded();
         this.sanitizeConnections();
         this.flowService.setFlow(this.flowState);
@@ -211,35 +211,28 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         }
     }
 
-    private addStartNodeIfNeeded(): void {
-        // Check if a Start node already exists
-        const alreadyHasStart: boolean = this.flowState.nodes.some((node) => node.type === NodeType.START);
+    private addPaletteStartNodeIfNeeded(): void {
+        const hasCanvasStart = this.flowState.nodes.some((n) => n.type === NodeType.START && n.category === 'web');
+        const hasPaletteStart = this.flowState.nodes.some((n) => n.type === NodeType.START && n.category === 'vscode');
 
-        if (!alreadyHasStart) {
-            // Generate unique ID
-            const newStartNodeId: string = uuidv4();
-
-            // Create a new Start node
-            const startNode: StartNodeModel = {
-                id: newStartNodeId,
+        if (!hasCanvasStart && !hasPaletteStart) {
+            const id = uuidv4();
+            const paletteNode: StartNodeModel = {
+                id,
                 backendId: null,
-                category: 'web',
+                category: 'vscode',
                 type: NodeType.START,
                 node_name: '__start__',
-                data: {
-                    initialState: {},
-                },
+                data: { initialState: {} },
                 position: { x: 0, y: 0 },
-                ports: generatePortsForNode(newStartNodeId, NodeType.START),
+                ports: generatePortsForNode(id, NodeType.START),
                 color: NODE_COLORS[NodeType.START],
                 icon: NODE_ICONS[NodeType.START],
                 input_map: {},
                 output_variable_path: null,
                 size: { width: 125, height: 60 },
             };
-
-            // Add Start node to the flow
-            this.flowState.nodes.push(startNode);
+            this.flowState.nodes.push(paletteNode);
         }
     }
 
@@ -486,17 +479,35 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         // Save state for undo
         this.undoRedoService.stateChanged();
 
-        // Filter out START nodes from deletion
-        const nodeIdsToDelete = selections.fNodeIds.filter((nodeId) => {
+        const deletingStartNode = selections.fNodeIds.some((nodeId) => {
             const node = this.flowService.nodes().find((n) => n.id === nodeId);
-            return node && node.type !== NodeType.START;
+            return node?.type === NodeType.START;
         });
 
-        // Perform deletion with filtered node IDs
         this.flowService.deleteSelections({
-            fNodeIds: nodeIdsToDelete,
+            fNodeIds: selections.fNodeIds,
             fConnectionIds: selections.fConnectionIds,
         });
+
+        // Re-add start node to palette after it's deleted from canvas
+        if (deletingStartNode) {
+            const id = uuidv4();
+            this.flowService.addNode({
+                id,
+                backendId: null,
+                category: 'vscode',
+                type: NodeType.START,
+                node_name: '__start__',
+                data: { initialState: {} },
+                position: { x: 0, y: 0 },
+                ports: generatePortsForNode(id, NodeType.START),
+                color: NODE_COLORS[NodeType.START],
+                icon: NODE_ICONS[NodeType.START],
+                input_map: {},
+                output_variable_path: null,
+                size: { width: 125, height: 60 },
+            } as StartNodeModel);
+        }
     }
 
     public onCreateNode(event: FCreateNodeEvent): void {

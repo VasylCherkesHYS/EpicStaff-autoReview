@@ -15,7 +15,10 @@ import { GraphDto } from '../../../features/flows/models/graph.model';
 import { GetProjectRequest } from '../../../features/projects/models/project.model';
 import { CreateAudioToTextNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/audio-to-text.model';
 import { CreateCodeAgentNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/code-agent-node.model';
-import { CreateConditionalEdgeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/conditional-edge.model';
+import {
+    ConditionalEdge,
+    CreateConditionalEdgeRequest,
+} from '../../../pages/flows-page/components/flow-visual-programming/models/conditional-edge.model';
 import { CreateCrewNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/crew-node.model';
 import {
     CreateConditionGroupRequest,
@@ -30,6 +33,7 @@ import {
 } from '../../../pages/flows-page/components/flow-visual-programming/models/graph-note.model';
 import { CreateLLMNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/llm-node.model';
 import { CreatePythonNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/python-node.model';
+import { StartNode } from '../../../pages/flows-page/components/flow-visual-programming/models/start-node.model';
 import { CreateSubGraphNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/subgraph-node.model';
 import { CreateTelegramTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/telegram-trigger.model';
 import { CreateWebhookTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/webhook-trigger';
@@ -49,6 +53,7 @@ import {
     NodeModel,
     ProjectNodeModel,
     PythonNodeModel,
+    StartNodeModel,
     SubGraphNodeModel,
     TelegramTriggerNodeModel,
     WebhookTriggerNodeModel,
@@ -74,6 +79,8 @@ import {
     getLLMNodeForComparisonFromUI,
     getPythonNodeForComparisonFromBackend,
     getPythonNodeForComparisonFromUI,
+    getStartNodeForComparisonFromBackend,
+    getStartNodeForComparisonFromUI,
     getSubGraphNodeForComparisonFromBackend,
     getSubGraphNodeForComparisonFromUI,
     getTelegramTriggerNodeForComparisonFromBackend,
@@ -160,6 +167,7 @@ export function diffByKey<TBackend extends { id: number }, TUI>(
 
 export function extractPreviousState(graph: GraphDto): GraphPreviousState {
     return {
+        startNodes: graph.start_node_list ?? [],
         crewNodes: graph.crew_node_list ?? [],
         pythonNodes: graph.python_node_list ?? [],
         llmNodes: graph.llm_node_list ?? [],
@@ -244,6 +252,7 @@ export function extractNewState(flowState: FlowModel): GraphNewState {
     const edgeNodeModels = nodes.filter((n) => n.type === NodeType.EDGE) as EdgeNodeModel[];
 
     return {
+        startNodes: nodes.filter((n) => n.type === NodeType.START && n.category !== 'vscode') as StartNodeModel[],
         crewNodes: nodes.filter((n) => n.type === NodeType.PROJECT) as ProjectNodeModel[],
         pythonNodes: nodes.filter((n) => n.type === NodeType.PYTHON) as PythonNodeModel[],
         llmNodes: nodes.filter((n) => n.type === NodeType.LLM) as LLMNodeModel[],
@@ -268,6 +277,15 @@ export function extractNewState(flowState: FlowModel): GraphNewState {
 
 export function getNodeOnlyDiff(previous: GraphPreviousState, current: GraphNewState): NodeOnlyDiff {
     const allNodes = current.allNodes;
+
+    const startNodes = diffByKey(
+        previous.startNodes,
+        current.startNodes,
+        (n) => n.backendId,
+        getStartNodeForComparisonFromBackend,
+        getStartNodeForComparisonFromUI,
+        'StartNode'
+    );
 
     const crewNodes = diffByKey(
         previous.crewNodes,
@@ -378,6 +396,7 @@ export function getNodeOnlyDiff(previous: GraphPreviousState, current: GraphNewS
     );
 
     return {
+        startNodes,
         crewNodes,
         pythonNodes,
         llmNodes,
@@ -640,6 +659,14 @@ export function buildDecisionTablePayload(
     };
 }
 
+export function buildStartNodePayload(n: StartNodeModel, graphId: number) {
+    return {
+        graph: graphId,
+        variables: n.data.initialState,
+        metadata: getUIMetadataForComparison(n),
+    };
+}
+
 export function buildGraphNotePayload(n: GraphNoteModel, graphId: number): CreateGraphNoteRequest {
     return {
         node_name: n.node_name,
@@ -674,4 +701,288 @@ export function buildCodeAgentPayload(node: CodeAgentNodeModel, graphId: number)
         output_schema: node.data?.output_schema ?? {},
         metadata: getUIMetadataForComparison(node),
     };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulk save payload builder  (POST /graphs/{id}/save/)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Computes the conditional-edge diff and returns both the resolved edges and the diff.
+ * Exported so the service can use resolved edges for Phase-2 ref updates.
+ */
+export function buildConditionalEdgeDiff(
+    previousCondEdges: ConditionalEdge[],
+    currentCondEdges: ResolvedConditionalEdge[],
+    idMap: Map<string, number>
+): { diff: NodeDiff<ConditionalEdge, ResolvedConditionalEdge>; resolved: ResolvedConditionalEdge[] } {
+    const resolved = resolveConditionalEdgeIds(currentCondEdges, idMap);
+    const diff = diffByKey(
+        previousCondEdges,
+        resolved,
+        (n) => n.edgeNode.backendId,
+        getConditionalEdgeForComparisonFromBackend,
+        getConditionalEdgeForComparisonFromUI,
+        'ConditionalEdge'
+    );
+    return { diff, resolved };
+}
+
+/**
+ * Builds the single payload for POST /graphs/{id}/save/.
+ *
+ * - New nodes  → id: null, temp_id: UI-UUID  (edges reference new nodes via temp_id)
+ * - Updated    → id: backendId
+ * - Deleted    → collected in `deleted` sub-object
+ * - Regular edges to new nodes → start_temp_id / end_temp_id instead of node IDs
+ * - Conditional edges to new source nodes → source_temp_id
+ *   (then_node_id in metadata stays null if target is new — fixed in Phase 2)
+ */
+export function buildBulkSavePayload(
+    nodeDiff: NodeOnlyDiff,
+    conditionalEdgeDiff: NodeDiff<ConditionalEdge, ResolvedConditionalEdge>,
+    previousState: GraphPreviousState,
+    newState: GraphNewState,
+    graphId: number,
+    idMap: Map<string, number>
+): Record<string, unknown> {
+    // ── Helper: build list items for one node type ──────────────────────────
+    function buildNodeItems<TBackend extends { id: number }, TUI extends BaseNodeModel>(
+        diff: NodeDiff<TBackend, TUI>,
+        toPayload: (n: TUI) => object
+    ): unknown[] {
+        return [
+            ...diff.toCreate.map((n) => ({ ...toPayload(n), id: null, temp_id: n.id })),
+            ...diff.toUpdate.map(({ backend, ui }) => ({ ...toPayload(ui), id: backend.id })),
+        ];
+    }
+
+    // ── Regular edge list ───────────────────────────────────────────────────
+    const backendEdgeSet = new Set(previousState.edges.map((e) => `${e.start_node_id}__${e.end_node_id}`));
+    const edge_list: unknown[] = [];
+
+    for (const edge of newState.edges) {
+        const srcId = idMap.get(edge.sourceNodeUuid) ?? edge.sourceBackendId;
+        const tgtId = idMap.get(edge.targetNodeUuid) ?? edge.targetBackendId;
+
+        // Skip edges that already exist between two known backend nodes
+        if (srcId != null && tgtId != null && backendEdgeSet.has(`${srcId}__${tgtId}`)) {
+            continue;
+        }
+
+        const item: Record<string, unknown> = { graph: graphId };
+        if (srcId != null) {
+            item['start_node_id'] = srcId;
+        } else {
+            item['start_temp_id'] = edge.sourceNodeUuid;
+        }
+        if (tgtId != null) {
+            item['end_node_id'] = tgtId;
+        } else {
+            item['end_temp_id'] = edge.targetNodeUuid;
+        }
+        edge_list.push(item);
+    }
+
+    // Edges deleted: in backend but no longer in UI
+    const uiEdgeKeys = new Set(
+        newState.edges.map((e) => {
+            const s = idMap.get(e.sourceNodeUuid) ?? e.sourceBackendId;
+            const t = idMap.get(e.targetNodeUuid) ?? e.targetBackendId;
+            return `${s}__${t}`;
+        })
+    );
+    const deletedEdgeIds = previousState.edges
+        .filter((e) => !uiEdgeKeys.has(`${e.start_node_id}__${e.end_node_id}`))
+        .map((e) => e.id);
+
+    // ── Conditional edge list ───────────────────────────────────────────────
+    const conditional_edge_list: unknown[] = [];
+
+    function buildCondEdgeBulkItem(re: ResolvedConditionalEdge, backendId?: number): Record<string, unknown> {
+        const sourceId = re.sourceNodeUuid ? (idMap.get(re.sourceNodeUuid) ?? re.sourceBackendId) : re.sourceBackendId;
+        const targetId = re.targetNodeUuid ? (idMap.get(re.targetNodeUuid) ?? re.targetBackendId) : re.targetBackendId;
+
+        const item: Record<string, unknown> = {
+            graph: graphId,
+            python_code: re.edgeNode.data.python_code,
+            input_map: re.edgeNode.input_map || {},
+            metadata: {
+                ...getUIMetadataForComparison(re.edgeNode),
+                then_node_id: targetId ?? null,
+            },
+        };
+
+        if (backendId != null) {
+            item['id'] = backendId;
+        } else {
+            item['temp_id'] = re.edgeNode.id;
+        }
+
+        if (sourceId != null) {
+            item['source_node_id'] = sourceId;
+        } else {
+            item['source_temp_id'] = re.sourceNodeUuid;
+        }
+
+        return item;
+    }
+
+    for (const re of conditionalEdgeDiff.toCreate) {
+        conditional_edge_list.push(buildCondEdgeBulkItem(re));
+    }
+    for (const { backend, ui } of conditionalEdgeDiff.toUpdate) {
+        conditional_edge_list.push(buildCondEdgeBulkItem(ui, backend.id));
+    }
+
+    // ── Assemble payload ────────────────────────────────────────────────────
+    return {
+        start_node_list: buildNodeItems(nodeDiff.startNodes, (n) => buildStartNodePayload(n, graphId)),
+        crew_node_list: buildNodeItems(nodeDiff.crewNodes, (n) => buildCrewPayload(n, graphId)),
+        python_node_list: buildNodeItems(nodeDiff.pythonNodes, (n) => buildPythonPayload(n, graphId)),
+        llm_node_list: buildNodeItems(nodeDiff.llmNodes, (n) => buildLLMPayload(n, graphId)),
+        file_extractor_node_list: buildNodeItems(nodeDiff.fileExtractorNodes, (n) =>
+            buildFileExtractorPayload(n, graphId)
+        ),
+        audio_transcription_node_list: buildNodeItems(nodeDiff.audioToTextNodes, (n) =>
+            buildAudioToTextPayload(n, graphId)
+        ),
+        end_node_list: buildNodeItems(nodeDiff.endNodes, (n) => buildEndNodePayload(n, graphId)),
+        subgraph_node_list: buildNodeItems(nodeDiff.subGraphNodes, (n) => buildSubGraphPayload(n, graphId)),
+        webhook_trigger_node_list: buildNodeItems(nodeDiff.webhookTriggerNodes, (n) => buildWebhookPayload(n, graphId)),
+        telegram_trigger_node_list: buildNodeItems(nodeDiff.telegramTriggerNodes, (n) =>
+            buildTelegramPayload(n, graphId)
+        ),
+        decision_table_node_list: buildNodeItems(nodeDiff.decisionTableNodes, (n) =>
+            buildDecisionTablePayload(n, graphId, newState.allNodes)
+        ),
+        graph_note_list: buildNodeItems(nodeDiff.graphNotes, (n) => buildGraphNotePayload(n, graphId)),
+        code_agent_node_list: buildNodeItems(nodeDiff.codeAgentNodes, (n) => buildCodeAgentPayload(n, graphId)),
+        edge_list,
+        conditional_edge_list,
+        deleted: {
+            edge_ids: deletedEdgeIds,
+            conditional_edge_ids: conditionalEdgeDiff.toDelete.map((e) => e.id),
+            start_node_ids: nodeDiff.startNodes.toDelete.map((n) => n.id),
+            crew_node_ids: nodeDiff.crewNodes.toDelete.map((n) => n.id),
+            python_node_ids: nodeDiff.pythonNodes.toDelete.map((n) => n.id),
+            llm_node_ids: nodeDiff.llmNodes.toDelete.map((n) => n.id),
+            file_extractor_node_ids: nodeDiff.fileExtractorNodes.toDelete.map((n) => n.id),
+            audio_transcription_node_ids: nodeDiff.audioToTextNodes.toDelete.map((n) => n.id),
+            end_node_ids: nodeDiff.endNodes.toDelete.map((n) => n.id),
+            subgraph_node_ids: nodeDiff.subGraphNodes.toDelete.map((n) => n.id),
+            webhook_trigger_node_ids: nodeDiff.webhookTriggerNodes.toDelete.map((n) => n.id),
+            telegram_trigger_node_ids: nodeDiff.telegramTriggerNodes.toDelete.map((n) => n.id),
+            decision_table_node_ids: nodeDiff.decisionTableNodes.toDelete.map((n) => n.id),
+            graph_note_ids: nodeDiff.graphNotes.toDelete.map((n) => n.id),
+            code_agent_node_ids: nodeDiff.codeAgentNodes.toDelete.map((n) => n.id),
+        },
+    };
+}
+
+/**
+ * After a bulk save, extracts { uiNodeId → backendId } mappings for nodes that
+ * were newly created (had no backendId before the save).
+ *
+ * Matching strategy: node_name first (reliable for most types), positional fallback
+ * for types without a stable name (e.g. EndNode).
+ */
+export function buildCreatedMappingsFromResponse(
+    nodeDiff: NodeOnlyDiff,
+    previousState: GraphPreviousState,
+    responseGraph: GraphDto
+): CreatedNodeMapping[] {
+    const mappings: CreatedNodeMapping[] = [];
+
+    function matchNodes(
+        toCreate: BaseNodeModel[],
+        previousIds: Set<number>,
+        responseNodes: Array<{ id: number; node_name?: string }>
+    ): void {
+        if (!toCreate.length) return;
+        const newResponseNodes = responseNodes.filter((n) => !previousIds.has(n.id));
+        const used = new Set<number>();
+
+        for (const uiNode of toCreate) {
+            const byName = newResponseNodes.find((r) => !used.has(r.id) && r.node_name === uiNode.node_name);
+            if (byName) {
+                mappings.push({ uiNodeId: uiNode.id, backendId: byName.id });
+                used.add(byName.id);
+                continue;
+            }
+            const byPos = newResponseNodes.find((r) => !used.has(r.id));
+            if (byPos) {
+                mappings.push({ uiNodeId: uiNode.id, backendId: byPos.id });
+                used.add(byPos.id);
+            }
+        }
+    }
+
+    matchNodes(
+        nodeDiff.startNodes.toCreate,
+        new Set(previousState.startNodes.map((n) => n.id)),
+        responseGraph.start_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.crewNodes.toCreate,
+        new Set(previousState.crewNodes.map((n) => n.id)),
+        responseGraph.crew_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.pythonNodes.toCreate,
+        new Set(previousState.pythonNodes.map((n) => n.id)),
+        responseGraph.python_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.llmNodes.toCreate,
+        new Set(previousState.llmNodes.map((n) => n.id)),
+        responseGraph.llm_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.fileExtractorNodes.toCreate,
+        new Set(previousState.fileExtractorNodes.map((n) => n.id)),
+        responseGraph.file_extractor_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.audioToTextNodes.toCreate,
+        new Set(previousState.audioToTextNodes.map((n) => n.id)),
+        responseGraph.audio_transcription_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.endNodes.toCreate,
+        new Set(previousState.endNodes.map((n) => n.id)),
+        responseGraph.end_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.subGraphNodes.toCreate,
+        new Set(previousState.subGraphNodes.map((n) => n.id)),
+        responseGraph.subgraph_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.webhookTriggerNodes.toCreate,
+        new Set(previousState.webhookTriggerNodes.map((n) => n.id)),
+        responseGraph.webhook_trigger_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.telegramTriggerNodes.toCreate,
+        new Set(previousState.telegramTriggerNodes.map((n) => n.id)),
+        responseGraph.telegram_trigger_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.decisionTableNodes.toCreate,
+        new Set(previousState.decisionTableNodes.map((n) => n.id)),
+        responseGraph.decision_table_node_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.graphNotes.toCreate,
+        new Set(previousState.graphNotes.map((n) => n.id)),
+        responseGraph.graph_note_list as Array<{ id: number; node_name?: string }>
+    );
+    matchNodes(
+        nodeDiff.codeAgentNodes.toCreate,
+        new Set(previousState.codeAgentNodes.map((n) => n.id)),
+        responseGraph.code_agent_node_list as Array<{ id: number; node_name?: string }>
+    );
+
+    return mappings;
 }

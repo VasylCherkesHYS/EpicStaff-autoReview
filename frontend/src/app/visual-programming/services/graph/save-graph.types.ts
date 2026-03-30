@@ -9,6 +9,7 @@ import { GetFileExtractorNodeRequest } from '../../../pages/flows-page/component
 import { GraphNote } from '../../../pages/flows-page/components/flow-visual-programming/models/graph-note.model';
 import { GetLLMNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/llm-node.model';
 import { PythonNode } from '../../../pages/flows-page/components/flow-visual-programming/models/python-node.model';
+import { StartNode } from '../../../pages/flows-page/components/flow-visual-programming/models/start-node.model';
 import { SubGraphNode } from '../../../pages/flows-page/components/flow-visual-programming/models/subgraph-node.model';
 import { GetTelegramTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/telegram-trigger.model';
 import { GetWebhookTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/webhook-trigger';
@@ -25,6 +26,7 @@ import {
     NodeModel,
     ProjectNodeModel,
     PythonNodeModel,
+    StartNodeModel,
     SubGraphNodeModel,
     TelegramTriggerNodeModel,
     WebhookTriggerNodeModel,
@@ -104,6 +106,7 @@ export interface ResolvedUiEdge {
 // ---- Previous state (what the backend currently has) ----
 
 export interface GraphPreviousState {
+    startNodes: StartNode[];
     crewNodes: CrewNode[];
     pythonNodes: PythonNode[];
     llmNodes: GetLLMNodeRequest[];
@@ -123,6 +126,7 @@ export interface GraphPreviousState {
 // ---- New state (what the UI currently shows) ----
 
 export interface GraphNewState {
+    startNodes: StartNodeModel[];
     crewNodes: ProjectNodeModel[];
     pythonNodes: PythonNodeModel[];
     llmNodes: LLMNodeModel[];
@@ -146,6 +150,7 @@ export interface GraphNewState {
 // ---- Node-only diff (Phase 1) ----
 
 export interface NodeOnlyDiff {
+    startNodes: NodeDiff<StartNode, StartNodeModel>;
     crewNodes: NodeDiff<CrewNode, ProjectNodeModel>;
     pythonNodes: NodeDiff<PythonNode, PythonNodeModel>;
     llmNodes: NodeDiff<GetLLMNodeRequest, LLMNodeModel>;
