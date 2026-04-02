@@ -609,9 +609,11 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         const ports: ViewPort[] =
             event.type === NodeType.NOTE ? [] : generatePortsForNode(newNodeId, event.type, event.data);
 
-        // Build the display name
-        const currentNodes = this.flowService.getFlowState().nodes;
-        const newNodeName = generateNodeDisplayName(event.type, event.data, currentNodes);
+        // Assign sequential badge number first so the name and badge always match
+        const nodeNumber = this.flowService.getNextNodeNumber();
+
+        // Build the display name using the same nodeNumber as the badge
+        const newNodeName = generateNodeDisplayName(event.type, event.data, nodeNumber);
 
         // Create and add a regular node
         let nodeData = event.data as NodeModel['data'];
@@ -626,8 +628,6 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                 },
             } as NodeModel['data'];
         }
-
-        const nodeNumber = this.flowService.getNextNodeNumber();
 
         const nodePreview = {
             id: newNodeId,
