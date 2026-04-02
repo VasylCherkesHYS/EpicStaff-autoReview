@@ -1,11 +1,5 @@
+import { GraphNoteModel, NodeModel, ProjectNodeModel, PythonNodeModel, SubGraphNodeModel } from '../models/node.model';
 import { NodeType } from './node-type';
-import {
-    NodeModel,
-    ProjectNodeModel,
-    PythonNodeModel,
-    NoteNodeModel,
-    SubGraphNodeModel,
-} from '../models/node.model';
 
 /** Strips the legacy auto-generated instance counter suffix, e.g. "Python-Node (#2)" → "Python-Node" */
 function stripCounter(name: string | null | undefined): string {
@@ -46,6 +40,8 @@ export function getNodeTitle(node: NodeModel): string {
             return withNumber(stripCounter((node as any).node_name), node);
         case NodeType.END:
             return withNumber('End', node);
+        case NodeType.CODE_AGENT:
+            return withNumber(stripCounter(node.node_name), node);
         case NodeType.SUBGRAPH:
             const subgraphNode = node as SubGraphNodeModel;
             if (subgraphNode.isBlocked || !subgraphNode.data?.name) {
