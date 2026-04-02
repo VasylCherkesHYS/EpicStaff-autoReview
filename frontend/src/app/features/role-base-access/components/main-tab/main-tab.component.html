@@ -1,0 +1,42 @@
+<div class="stats-row">
+    @for (stat of stats; track stat.label) {
+        <app-stat-card
+            [icon]="stat.icon"
+            [title]="stat.label"
+            [value]="stat.value"
+            [deltaValue]="stat.delta"
+            [deltaColor]="'green'"
+            [deltaDirection]="'increase'"
+            [deltaLabel]="'this month'"
+        />
+    }
+</div>
+
+<div class="content-columns">
+    <!-- Organizations -->
+    <div class="section">
+        <div class="header">
+            <h2 class="title">Organizations</h2>
+        </div>
+
+        <div class="orgs-grid">
+            @for (org of organizations; track org.id) {
+                <app-org-card [organization]="org" />
+            }
+            <!-- Create New Team -->
+            <div class="org-card-create">
+                <span class="plus">+</span>
+                <span class="label">Create New Team</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="section">
+        <div class="header">
+            <h2 class="title">Recent Activity</h2>
+            <app-button mod="small" type="outline-primary">View All</app-button>
+        </div>
+        <app-activity-list [activities]="activities" />
+    </div>
+</div>

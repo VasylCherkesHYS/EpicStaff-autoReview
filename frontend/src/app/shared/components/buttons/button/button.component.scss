@@ -1,49 +1,51 @@
 .btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  border: none;
-  border-radius: 7px;
-  color: var(--color-text-primary);
-  background: var(--accent-color);
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: none;
+    border-radius: 7px;
+    color: var(--color-text-primary);
+    background: var(--accent-color);
+    cursor: pointer;
+    transition:
+        background-color 0.2s,
+        color 0.2s;
 }
 
 .btn-primary {
-  background: var(--accent-color);
-  border: 1px solid transparent;
-  &:hover {
-    background: var(--accent-color-hover);
-  }
-  &:active {
-    background: var(--accent-color-active);
-  }
+    background: var(--accent-color);
+    border: 1px solid transparent;
+    &:hover {
+        background: var(--accent-color-hover);
+    }
+    &:active {
+        background: var(--accent-color-active);
+    }
 }
 
 .btn-secondary {
-  background: var(--color-nodes-background);
-  border: 1px solid var(--color-divider-subtle);
-  &:hover {
-    background: var(--color-secondary-btn-background-hover);
-  }
-  //   &:active {
-  //     background: rgba(104, 95, 255, 0.15);
-  //   }
+    background: var(--color-nodes-background);
+    border: 1px solid var(--color-divider-subtle);
+    &:hover {
+        background: var(--color-secondary-btn-background-hover);
+    }
+    //   &:active {
+    //     background: rgba(104, 95, 255, 0.15);
+    //   }
 }
 
 .btn-ghost {
-  background: transparent;
-  color: var(--accent-color);
-  border: 1px solid transparent;
-  &:hover {
-    background: var(--color-ghost-btn-hover);
-  }
-  &:active {
-    background: var(--color-ghost-btn-active);
-  }
+    background: transparent;
+    color: var(--accent-color);
+    border: 1px solid transparent;
+    &:hover {
+        background: var(--color-ghost-btn-hover);
+    }
+    &:active {
+        background: var(--color-ghost-btn-active);
+    }
 }
 
 .btn-outline-primary {
@@ -59,11 +61,9 @@
 }
 
 .btn-outline-secondary {
-
     background: transparent;
     color: var(--color-ks-text);
     border: 1px solid var(--color-ks-transparent-text-80);
-
 
     &:hover {
         border-color: var(--accent-color-hover);
@@ -83,7 +83,7 @@
         height: 28px;
         font-weight: 200;
         font-size: 0.625rem;
-        padding: 0.625rem 0.5rem;
+        padding: 0.625rem 1rem;
     }
 
     &--icon-left {
@@ -92,7 +92,7 @@
         }
 
         &-small {
-            padding-left: 1.5rem;
+            padding-left: 2rem;
         }
     }
 
@@ -102,50 +102,50 @@
         }
 
         &-small {
-            padding-left: 1.5rem;
+            padding-right: 2rem;
         }
     }
 }
 
 .btn--icon {
-  padding: 0.6rem;
-  .btn-icon.left,
-  .btn-icon.right {
-    margin-left: 0;
-    margin-right: 0;
-    position: static;
-    top: auto;
-    left: auto;
-    right: auto;
-    transform: none;
-  }
+    padding: 0.6rem;
+    .btn-icon.left,
+    .btn-icon.right {
+        margin-left: 0;
+        margin-right: 0;
+        position: static;
+        top: auto;
+        left: auto;
+        right: auto;
+        transform: none;
+    }
 }
 
 .btn-icon.left {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-right: 0;
-  pointer-events: none;
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 0;
+    pointer-events: none;
 }
 
 .btn-icon.right {
-  position: absolute;
-  right: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-left: 0;
-  pointer-events: none;
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0;
+    pointer-events: none;
 }
 
 button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .btn-content {
-  display: flex;
-  align-items: center;
-  line-height: 1;
+    display: flex;
+    align-items: center;
+    line-height: 1;
 }

@@ -1,0 +1,16 @@
+<div class="stat-card">
+    <div class="stat-header">
+        <app-svg-icon [icon]="icon()" size="16px" class="stat-icon" />
+        <span class="stat-label">{{ title() }}</span>
+    </div>
+    <div class="stat-value">{{ value() }}</div>
+    <div class="stat-footer">
+        @if (deltaValue()) {
+            <span class="stat-delta" [class.red]="deltaColor() === 'red'" [class.green]="deltaColor() === 'green'">
+                <app-svg-icon [icon]="deltaDirection() === 'increase' ? 'arrow-up' : 'arrow-down'" size="16px" />
+                {{ deltaValue() }}
+            </span>
+        }
+        <span class="stat-delta-label">{{ deltaLabel() }}</span>
+    </div>
+</div>

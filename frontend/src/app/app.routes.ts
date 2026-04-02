@@ -1,27 +1,27 @@
 import { Routes } from '@angular/router';
-import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
 
-import { CustomToolsComponent } from './features/tools/pages/tools-list-page/components/custom-tools/custom-tools.component';
-import { McpToolsComponent } from './features/tools/pages/tools-list-page/components/mcp-tools/mcp-tools.component';
-
-import { OpenProjectPageComponent } from './open-project-page/open-project-page.component';
-
-import { FlowVisualProgrammingComponent } from './pages/flows-page/components/flow-visual-programming/flow-visual-programming.component';
-import { StaffPageComponent } from './pages/staff-page/staff-page.component';
-import { RunningGraphComponent } from './pages/running-graph/pages/running-graph-page/running-graph-page.component';
-import { ChatsPageComponent } from './pages/chats-page/chats-page.component';
-
-import { ProjectsListPageComponent } from './features/projects/pages/projects-list-page/projects-list-page.component';
+import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
+import { FlowTemplatesComponent } from './features/flows/pages/flows-list-page/components/flow-templates/flow-templates.component';
+import { MyFlowsComponent } from './features/flows/pages/flows-list-page/components/my-flows/my-flows.component';
+import { FlowsListPageComponent } from './features/flows/pages/flows-list-page/flows-list-page.component';
+import { CollectionsListPageComponent } from './features/knowledge-sources/pages/collections-list-page/collections-list-page.component';
 import { MyProjectsComponent } from './features/projects/pages/projects-list-page/components/my-projects/my-projects.component';
 import { ProjectTemplatesComponent } from './features/projects/pages/projects-list-page/components/templates/project-templates.component';
-import { MyFlowsComponent } from './features/flows/pages/flows-list-page/components/my-flows/my-flows.component';
-import { FlowTemplatesComponent } from './features/flows/pages/flows-list-page/components/flow-templates/flow-templates.component';
-import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
+import { ProjectsListPageComponent } from './features/projects/pages/projects-list-page/projects-list-page.component';
+import { MainTabComponent } from './features/role-base-access/components/main-tab/main-tab.component';
+import { OrganizationsTabComponent } from './features/role-base-access/components/organizations-tab/organizations-tab.component';
+import { OverviewComponent } from './features/role-base-access/components/overview/overview.component';
+import { RolesTabComponent } from './features/role-base-access/components/roles-tab/roles-tab.component';
+import { UsersTabComponent } from './features/role-base-access/components/users-tab/users-tab.component';
+import { CustomToolsComponent } from './features/tools/pages/tools-list-page/components/custom-tools/custom-tools.component';
+import { McpToolsComponent } from './features/tools/pages/tools-list-page/components/mcp-tools/mcp-tools.component';
 import { ToolsListPageComponent } from './features/tools/pages/tools-list-page/tools-list-page.component';
-import { FlowsListPageComponent } from './features/flows/pages/flows-list-page/flows-list-page.component';
-import {
-    CollectionsListPageComponent
-} from "./features/knowledge-sources/pages/collections-list-page/collections-list-page.component";
+import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
+import { OpenProjectPageComponent } from './open-project-page/open-project-page.component';
+import { ChatsPageComponent } from './pages/chats-page/chats-page.component';
+import { FlowVisualProgrammingComponent } from './pages/flows-page/components/flow-visual-programming/flow-visual-programming.component';
+import { RunningGraphComponent } from './pages/running-graph/pages/running-graph-page/running-graph-page.component';
+import { StaffPageComponent } from './pages/staff-page/staff-page.component';
 
 export const routes: Routes = [
     {
@@ -86,6 +86,17 @@ export const routes: Routes = [
             {
                 path: 'chats',
                 component: ChatsPageComponent,
+            },
+            {
+                path: 'role-access',
+                component: OverviewComponent,
+                children: [
+                    { path: '', redirectTo: 'main', pathMatch: 'full' },
+                    { path: 'main', component: MainTabComponent },
+                    { path: 'organizations', component: OrganizationsTabComponent },
+                    { path: 'users', component: UsersTabComponent },
+                    { path: 'roles', component: RolesTabComponent },
+                ],
             },
 
             { path: '**', redirectTo: '' },

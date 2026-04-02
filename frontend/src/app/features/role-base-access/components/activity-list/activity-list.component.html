@@ -1,0 +1,21 @@
+<div class="list">
+    @for (item of activities(); track item.id) {
+        <div class="item">
+            <div class="activity-icon">
+                <app-svg-icon icon="clock" size="12px" />
+            </div>
+            <div class="activity-body">
+                <span class="activity-time">{{ item.time }}</span>
+                <p class="activity-text">
+                    @for (part of item.parts; track $index) {
+                        @if (part.accent) {
+                            <span class="activity-accent">{{ part.text }}</span>
+                        } @else {
+                            <span>{{ part.text }}</span>
+                        }
+                    }
+                </p>
+            </div>
+        </div>
+    }
+</div>

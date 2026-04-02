@@ -1,21 +1,33 @@
-import {
-    Component,
-    ChangeDetectionStrategy,
-    CUSTOM_ELEMENTS_SCHEMA,
-    ElementRef,
-    ViewChild,
-    AfterViewInit,
-} from '@angular/core';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { ICONS } from '../../../shared/constants/icons.constants';
-import { TooltipComponent } from './tooltip/tooltip.component';
-import { RouterLink, RouterLinkActive } from '@angular/router';
-import { SettingsDialogService } from '../../../features/settings-dialog/settings-dialog.service';
 import { OverlayModule } from '@angular/cdk/overlay';
 import { PortalModule } from '@angular/cdk/portal';
-import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
-import { ConfigService } from '../../../services/config/config.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import {
+    AfterViewInit,
+    ChangeDetectionStrategy,
+    Component,
+    CUSTOM_ELEMENTS_SCHEMA,
+    DestroyRef,
+    ElementRef,
+    HostListener,
+    OnInit,
+    signal,
+    ViewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+import { ICONS } from '@shared/constants';
+import { UserService } from '@shared/services';
+import { EMPTY } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
+
+import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
+import { UserMenuComponent } from '../../../features/role-base-access/components/user-menu/user-menu.component';
+import { SettingsDialogService } from '../../../features/settings-dialog/settings-dialog.service';
+import { ConfigService } from '../../../services/config';
+import { GetUserResponse } from '../../../shared/models';
+import { TooltipComponent } from './tooltip/tooltip.component';
 
 interface NavItem {
     id: string;
@@ -29,20 +41,13 @@ interface NavItem {
 
 @Component({
     selector: 'app-left-sidebar',
-    standalone: true,
-    imports: [
-        TooltipComponent,
-        RouterLinkActive,
-        RouterLink,
-        OverlayModule,
-        PortalModule,
-    ],
+    imports: [TooltipComponent, RouterLinkActive, RouterLink, OverlayModule, PortalModule, UserMenuComponent],
     templateUrl: './sidenav.component.html',
     styleUrls: ['./sidenav.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
     schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
-export class LeftSidebarComponent implements AfterViewInit {
+export class LeftSidebarComponent implements OnInit, AfterViewInit {
     public topNavItems: NavItem[];
     public bottomNavItems: NavItem[];
     public isEpicChatEnabled: boolean;
@@ -95,8 +100,7 @@ export class LeftSidebarComponent implements AfterViewInit {
                 primaryBg: 'var(--color-nodes-background)',
                 primaryBorder: 'var(--accent-color)',
                 primaryText: 'var(--accent-color)',
-                primaryHoverBg:
-                    'color-mix(in srgb, var(--color-nodes-background) 70%, var(--accent-color) 30%)',
+                primaryHoverBg: 'color-mix(in srgb, var(--color-nodes-background) 70%, var(--accent-color) 30%)',
                 ghostBg: 'transparent',
                 ghostText: 'var(--color-text-secondary)',
                 ghostHoverBg: 'var(--color-ghost-btn-hover)',
@@ -106,6 +110,10 @@ export class LeftSidebarComponent implements AfterViewInit {
             shadowMd: 'rgba(0, 0, 0, 0.6)',
         },
     };
+
+    public user = signal<GetUserResponse | null>(null);
+    public isUserMenuOpen = signal<boolean>(false);
+
     @ViewChild('epicChat', { static: false })
     private epicChat?: ElementRef<HTMLElement>;
 
@@ -113,7 +121,9 @@ export class LeftSidebarComponent implements AfterViewInit {
         private sanitizer: DomSanitizer,
         public epicChatService: EpicChatService,
         private settingsDialogService: SettingsDialogService,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private userService: UserService,
+        private destroyRef: DestroyRef
     ) {
         this.isEpicChatEnabled = this.configService.isEpicChatEnabled;
         // COMMIT_COMMENTS: Derive apiBaseUrl from browser origin so the EpicChat widget's
@@ -189,6 +199,19 @@ export class LeftSidebarComponent implements AfterViewInit {
         });
     }
 
+    public ngOnInit() {
+        this.userService
+            .getCurrentUser()
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                catchError((error: HttpErrorResponse) => {
+                    console.log('Error fetching current user:', error);
+                    return EMPTY;
+                })
+            )
+            .subscribe((user) => this.user.set(user));
+    }
+
     public ngAfterViewInit(): void {
         // COMMIT_COMMENTS: Widget's internal syncAgentsFromApi does not reliably fire in
         // custom-element mode. Instead, we use AGENT_REMOVE + AGENT_CREATE per flow —
@@ -204,6 +227,19 @@ export class LeftSidebarComponent implements AfterViewInit {
 
     public toggleEpicChat(): void {
         this.epicChatService.toggleChat(this.epicChat?.nativeElement);
+    }
+
+    @HostListener('document:click', ['$event'])
+    public onDocumentClick(event: MouseEvent): void {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.user-avatar-btn')) {
+            this.isUserMenuOpen.set(false);
+        }
+    }
+
+    public toggleUserMenu(event: MouseEvent): void {
+        event.stopPropagation();
+        this.isUserMenuOpen.update((prev) => !prev);
     }
 
     public onEpChatCommandResult(event: Event): void {
