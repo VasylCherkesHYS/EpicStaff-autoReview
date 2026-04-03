@@ -1,7 +1,4 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { IPoint, IRect } from '@foblex/2d';
-import { Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
 
 import { NodeType } from '../core/enums/node-type';
 import { generatePortsForDecisionTableNode } from '../core/helpers/helpers';
@@ -73,7 +70,7 @@ export class FlowService {
         // Re-seed the counter above the highest existing nodeNumber
         let max = 0;
         for (const n of flow.nodes) {
-            if (n.nodeNumber != null && n.nodeNumber > max) {
+            if (n.type !== NodeType.NOTE && n.nodeNumber != null && n.nodeNumber > max) {
                 max = n.nodeNumber;
             }
         }

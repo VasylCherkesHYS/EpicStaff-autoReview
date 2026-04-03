@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { NodeType } from '../core/enums/node-type';
 import { generateMultipleNodeDisplayNames } from '../core/helpers/generate-node-display-name.util';
-import { generatePortsForNode, getPortsForType, parsePortId } from '../core/helpers/helpers';
+import { generatePortsForNode, parsePortId } from '../core/helpers/helpers';
 import { ConnectionModel } from '../core/models/connection.model';
 import { NodeModel } from '../core/models/node.model';
 import { CustomPortId, ViewPort } from '../core/models/port.model';
@@ -100,7 +100,9 @@ export class ClipboardService {
             type: oldNode.type,
             data: oldNode.data,
         }));
-        const nodeNumbers = nodesToCreate.map(() => this.flowService.getNextNodeNumber());
+        const nodeNumbers = nodesToCreate.map((n) =>
+            n.type !== NodeType.NOTE ? this.flowService.getNextNodeNumber() : undefined
+        );
         const displayNames = generateMultipleNodeDisplayNames(nodesToCreate, nodeNumbers);
 
         // Create new nodes with backendId: null for diff-save support

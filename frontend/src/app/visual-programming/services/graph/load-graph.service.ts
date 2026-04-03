@@ -913,6 +913,20 @@ export function buildFlowModelFromGraph(graph: GraphDto): FlowModel {
         ...conditionalEdgeNodes,
     ];
 
+    // ── 2.5. Fallback: assign nodeNumbers to nodes loaded from old data ────
+    // Covers flows/portfolios that predate the nodeNumber feature.
+    let nextFallbackNumber = 1;
+    for (const n of allNodes) {
+        if (n.type !== NodeType.NOTE && n.nodeNumber != null && n.nodeNumber >= nextFallbackNumber) {
+            nextFallbackNumber = n.nodeNumber + 1;
+        }
+    }
+    for (const n of allNodes) {
+        if (n.nodeNumber == null && n.type !== NodeType.NOTE) {
+            n.nodeNumber = nextFallbackNumber++;
+        }
+    }
+
     // ── 3. Build backendId → UUID and backendId → node maps ──────────────
     const backendIdToUuid = new Map<number, string>();
     const nodeByBackendId = new Map<number, NodeModel>();

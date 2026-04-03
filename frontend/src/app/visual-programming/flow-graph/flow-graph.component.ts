@@ -570,8 +570,8 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         const ports: ViewPort[] =
             event.type === NodeType.NOTE ? [] : generatePortsForNode(newNodeId, event.type, event.data);
 
-        // Assign sequential badge number first so the name and badge always match
-        const nodeNumber = this.flowService.getNextNodeNumber();
+        // Note nodes don't use nodeNumber — skip the counter for them
+        const nodeNumber = event.type !== NodeType.NOTE ? this.flowService.getNextNodeNumber() : undefined;
 
         // Build the display name using the same nodeNumber as the badge
         const newNodeName = generateNodeDisplayName(event.type, event.data, nodeNumber);
