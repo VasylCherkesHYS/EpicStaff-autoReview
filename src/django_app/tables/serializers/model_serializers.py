@@ -96,8 +96,10 @@ from tables.models.realtime_models import (
 from tables.models.tag_models import (
     AgentTag,
     CrewTag,
+    EmbeddingConfigTag,
     EmbeddingModelTag,
     GraphTag,
+    LLMConfigTag,
     LLMModelTag,
 )
 from tables.models.vector_models import MemoryDatabase
@@ -132,12 +134,6 @@ from django.core.exceptions import ValidationError
 from tables.exceptions import InvalidTaskOrderError
 
 
-class LLMConfigSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LLMConfig
-        fields = "__all__"
-
-
 class DefaultLLMConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = DefaultLLMConfig
@@ -160,6 +156,13 @@ class LLMModelTagSerializer(serializers.ModelSerializer):
 class EmbeddingTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmbeddingModelTag
+        fields = ("id", "name", "predefined")
+        read_only_fields = ("predefined",)
+
+
+class LLMConfigTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LLMConfigTag
         fields = ("id", "name", "predefined")
         read_only_fields = ("predefined",)
 
@@ -223,8 +226,34 @@ class TagHandlingMixin:
                 )
 
 
+class LLMConfigSerializer(TagHandlingMixin, serializers.ModelSerializer):
+    tags = LLMConfigTagSerializer(many=True, required=False)
+    tag_model = LLMConfigTag
+
+    class Meta:
+        model = LLMConfig
+        fields = "__all__"
+
+    def create(self, validated_data):
+        tags_data = validated_data.pop("tags", [])
+        instance = super().create(validated_data)
+        if tags_data:
+            resolved_tags = self._resolve_tags(tags_data)
+            self._validate_predefined_tags_on_create(resolved_tags)
+            instance.tags.set(resolved_tags)
+        return instance
+
+    def update(self, instance, validated_data):
+        tags_data = validated_data.pop("tags", None)
+        if tags_data is not None:
+            resolved_tags = self._resolve_tags(tags_data)
+            self._validate_predefined_tags_on_update(instance, resolved_tags)
+            instance.tags.set(resolved_tags)
+        return super().update(instance, validated_data)
+
+
 class LLMModelSerializer(TagHandlingMixin, serializers.ModelSerializer):
-    tags = LLMModelTagSerializer(many=True, required=False)
+    capabilities = LLMModelTagSerializer(source="tags", many=True, required=False)
     tag_model = LLMModelTag
 
     class Meta:
@@ -285,10 +314,37 @@ class EmbeddingModelSerializer(TagHandlingMixin, serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
-class EmbeddingConfigSerializer(serializers.ModelSerializer):
+class EmbeddingConfigTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmbeddingConfigTag
+        fields = ("id", "name", "predefined")
+        read_only_fields = ("predefined",)
+
+
+class EmbeddingConfigSerializer(TagHandlingMixin, serializers.ModelSerializer):
+    tags = EmbeddingConfigTagSerializer(many=True, required=False)
+    tag_model = EmbeddingConfigTag
+
     class Meta:
         model = EmbeddingConfig
         fields = "__all__"
+
+    def create(self, validated_data):
+        tags_data = validated_data.pop("tags", [])
+        instance = super().create(validated_data)
+        if tags_data:
+            resolved_tags = self._resolve_tags(tags_data)
+            self._validate_predefined_tags_on_create(resolved_tags)
+            instance.tags.set(resolved_tags)
+        return instance
+
+    def update(self, instance, validated_data):
+        tags_data = validated_data.pop("tags", None)
+        if tags_data is not None:
+            resolved_tags = self._resolve_tags(tags_data)
+            self._validate_predefined_tags_on_update(instance, resolved_tags)
+            instance.tags.set(resolved_tags)
+        return super().update(instance, validated_data)
 
 
 class DefaultEmbeddingConfigSerializer(serializers.ModelSerializer):
