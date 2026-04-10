@@ -2,7 +2,7 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
 import { IconButtonComponent } from '../../shared/components/buttons/icon-button/icon-button.component';
 import { EmbeddingModelsTabComponent } from './components/embedding-models-tab/embedding-models-tab.component';
 import { LlmModelsTabComponent } from './components/llm-models-tab/llm-models-tab.component';
@@ -37,7 +37,7 @@ export interface Tab {
         EmbeddingModelsTabComponent,
         VoiceModelsTabComponent,
         PreferencesTabComponent,
-        AppIconComponent,
+        AppSvgIconComponent,
         QuickstartTabComponent,
         NgrokConfigTabComponent,
         VoiceSettingsTabComponent,
@@ -46,10 +46,10 @@ export interface Tab {
         <div class="settings-dialog">
             <header>
                 <div class="header-title">
-                    <app-icon icon="ui/settings-filled" size="20"></app-icon>
+                    <app-svg-icon icon="settings-filled" size="20px" />
                     <h2>Settings</h2>
                 </div>
-                <app-icon-button icon="ui/x" ariaLabel="Close settings" (click)="close()"></app-icon-button>
+                <app-icon-button icon="x" ariaLabel="Close settings" (click)="close()"></app-icon-button>
             </header>
 
             <div class="dialog-content">
@@ -171,7 +171,6 @@ export interface Tab {
 
                     .tab-content {
                         flex: 1;
-
                         overflow-y: auto;
                     }
                 }
