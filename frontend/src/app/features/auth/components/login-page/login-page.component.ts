@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
+    AppSvgIconComponent,
     ButtonComponent,
     CheckboxComponent,
     CustomInputComponent,
@@ -11,7 +12,6 @@ import {
 } from '@shared/components';
 
 import { AuthService } from '../../../../services/auth/auth.service';
-import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 
 @Component({
     selector: 'app-login-page',

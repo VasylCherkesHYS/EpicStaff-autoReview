@@ -9,7 +9,7 @@
 
         <form [formGroup]="form" class="form">
             <div>
-                <app-custom-input label="Username" placeholder="Enter username" formControlName="username" />
+                <app-custom-input label="Email" placeholder="example@gmail.com" formControlName="username" />
                 <app-validation-errors [control]="form.get('username')!" />
             </div>
 
@@ -25,7 +25,8 @@
 
             <div class="remember-row">
                 <app-checkbox formControlName="rememberMe" />
-                <span>Remember me</span>
+                <span class="remember-label">Remember me</span>
+                <span class="forgot-label">Forgot?</span>
             </div>
         </form>
 

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
+// import { onboardingGuard } from './core/guards/onboarding.guard';
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
 
@@ -17,6 +18,14 @@ export const routes: Routes = [
         loadComponent: () =>
             import('./features/auth/components/sign-up-page/sign-up-page.component').then((m) => m.SignUpPageComponent),
         canActivate: [guestGuard],
+    },
+    {
+        path: 'onboarding',
+        loadComponent: () =>
+            import('./features/auth/components/onboarding-page/onboarding-page.component').then(
+                (m) => m.OnboardingPageComponent
+            ),
+        // canActivate: [onboardingGuard],
     },
     {
         path: '',
