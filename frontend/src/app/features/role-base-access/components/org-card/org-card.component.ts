@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { AppSvgIconComponent, ButtonComponent } from '@shared/components';
-
-import { GetOrganizationsResponse } from '../../../../shared/models';
+import { GetOrganizationsResponse } from '@shared/models';
 
 @Component({
     selector: 'app-org-card',

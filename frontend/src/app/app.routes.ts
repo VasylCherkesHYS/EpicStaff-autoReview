@@ -125,34 +125,44 @@ export const routes: Routes = [
                     import('./pages/chats-page/chats-page.component').then((m) => m.ChatsPageComponent),
             },
             {
-                path: 'role-access',
+                path: 'workspace',
                 loadComponent: () =>
-                    import('./features/role-base-access/components/overview/overview.component').then((m) => m.OverviewComponent),
+                    import('./features/role-base-access/components/overview/overview.component').then(
+                        (m) => m.OverviewComponent
+                    ),
                 children: [
                     {
                         path: '',
                         redirectTo: 'main',
-                        pathMatch: 'full'
+                        pathMatch: 'full',
                     },
                     {
                         path: 'main',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/main-tab/main-tab.component').then((m) => m.MainTabComponent),
+                            import('./features/role-base-access/components/main-tab/main-tab.component').then(
+                                (m) => m.MainTabComponent
+                            ),
                     },
                     {
                         path: 'organizations',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/organizations-tab/organizations-tab.component').then((m) => m.OrganizationsTabComponent),
+                            import('./features/role-base-access/components/organizations-tab/organizations-tab.component').then(
+                                (m) => m.OrganizationsTabComponent
+                            ),
                     },
                     {
                         path: 'users',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/users-tab/users-tab.component').then((m) => m.UsersTabComponent),
+                            import('./features/role-base-access/components/users-tab/users-tab.component').then(
+                                (m) => m.UsersTabComponent
+                            ),
                     },
                     {
                         path: 'roles',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/roles-tab/roles-tab.component').then((m) => m.RolesTabComponent),
+                            import('./features/role-base-access/components/roles-tab/roles-tab.component').then(
+                                (m) => m.RolesTabComponent
+                            ),
                     },
                 ],
             },

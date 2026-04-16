@@ -43,7 +43,7 @@ export class UserMenuComponent implements OnInit {
     }
 
     public onWorkspaceClick(): void {
-        this.router.navigate(['/role-access']);
+        this.router.navigate(['/workspace']);
         this.isUserMenuOpen.set(false);
     }
 

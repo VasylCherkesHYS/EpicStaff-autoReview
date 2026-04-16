@@ -13,16 +13,6 @@
     flex-shrink: 0;
 }
 
-.content-columns {
-    display: grid;
-    grid-template-columns: 1fr 0.6fr;
-    gap: 1.5rem;
-    align-items: stretch;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-
 .section-title {
     font-size: 20px;
     font-weight: 700;
@@ -50,7 +40,7 @@
 
 .orgs-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
     overflow: auto;
 }
@@ -60,17 +50,15 @@
     border-radius: 10px;
     border: 1px dashed var(--color-divider-subtle);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: space-evenly;
     cursor: pointer;
-    gap: 16px;
-    height: 126px;
     transition: background 0.3s;
     font-size: 18px;
     font-weight: 500;
 
     .plus {
-        font-size: 30px;
         color: var(--purple-primary);
     }
 

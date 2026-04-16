@@ -1,0 +1,53 @@
+<div class="dialog">
+    <div class="header">
+        <span class="title"> Create New Organization </span>
+
+        <div class="actions">
+            <app-button type="outline-primary" (click)="onCancel()"> Cancel </app-button>
+
+            <app-button type="primary" (click)="onCreate()"> Create </app-button>
+        </div>
+    </div>
+
+    <div class="subheader">
+        <div class="control">
+            <label class="label">Organization Name <span class="required">*</span></label>
+
+            <app-custom-input placeholder="Enter organization name" [formControl]="orgNameControl" />
+        </div>
+
+        <app-validation-errors [control]="orgNameControl" />
+    </div>
+
+    <div class="content">
+        <div class="engage-bar">
+            <span class="engage-label">
+                Engage users to the Organization:
+                <span class="engage-count">({{ selectedUsers().length }})</span>
+            </span>
+            <app-search placeholder="Search by name, username..." />
+        </div>
+
+        <app-table
+            [columns]="columns"
+            [data]="users"
+            [selectable]="true"
+            rowId="id"
+            (selectionChange)="onSelection($event)"
+        >
+            <ng-template appTableCell="user" let-row>
+                <div class="user-cell">
+                    <span class="avatar">{{ row['initials'] }}</span>
+                    <div class="user-info">
+                        <span class="user-name">{{ row['name'] }}</span>
+                        <span class="user-email">{{ row['email'] }}</span>
+                    </div>
+                </div>
+            </ng-template>
+
+            <ng-template appTableCell="role" let-row>
+                <app-select class="role-select" [items]="roleItems" [(selectedValue)]="row['role']" />
+            </ng-template>
+        </app-table>
+    </div>
+</div>

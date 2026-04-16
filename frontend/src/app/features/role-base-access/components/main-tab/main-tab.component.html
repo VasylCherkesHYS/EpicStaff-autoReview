@@ -12,31 +12,23 @@
     }
 </div>
 
-<div class="content-columns">
-    <!-- Organizations -->
-    <div class="section">
-        <div class="header">
-            <h2 class="title">Organizations</h2>
-        </div>
-
-        <div class="orgs-grid">
-            @for (org of organizations; track org.id) {
-                <app-org-card [organization]="org" />
-            }
-            <!-- Create New Team -->
-            <div class="org-card-create">
-                <span class="plus">+</span>
-                <span class="label">Create New Team</span>
-            </div>
-        </div>
+<!-- Organizations -->
+<div class="section">
+    <div class="header">
+        <h2 class="title">Organizations</h2>
+        <app-button type="outline-primary" mod="small" leftIcon="plus" (click)="onCreateOrganization()"
+            >Create Organization</app-button
+        >
     </div>
 
-    <!-- Recent Activity -->
-    <div class="section">
-        <div class="header">
-            <h2 class="title">Recent Activity</h2>
-            <app-button mod="small" type="outline-primary">View All</app-button>
+    <div class="orgs-grid">
+        @for (org of organizations; track org.id) {
+            <app-org-card [organization]="org" />
+        }
+        <!-- Create New Team -->
+        <div class="org-card-create" (click)="onCreateOrganization()">
+            <app-svg-icon class="plus" icon="plus" size="30px" />
+            <span class="label">Create New Organization</span>
         </div>
-        <app-activity-list [activities]="activities" />
     </div>
 </div>
