@@ -72,13 +72,11 @@
     &:hover {
         border-color: var(--accent-color, #675fff2a);
         // border-color: var(--accent-color, #685fff);
-
     }
 
     &__icon {
-        font-size: 10px;
+        display: inline-flex;
         color: rgba(255, 255, 255, 0.6);
-        line-height: 1;
     }
 }
 

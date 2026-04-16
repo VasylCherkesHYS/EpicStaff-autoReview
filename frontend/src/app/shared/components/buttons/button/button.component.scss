@@ -4,6 +4,7 @@
     align-items: center;
     justify-content: center;
     width: 100%;
+    min-width: 0;
     border: none;
     border-radius: 7px;
     color: var(--color-text-primary);
@@ -148,4 +149,29 @@ button:disabled {
     display: flex;
     align-items: center;
     line-height: 1;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    gap: 0.5rem;
+}
+
+.btn--only-icon {
+    padding-left: 0.6rem !important;
+    padding-right: 0.6rem !important;
+
+    .btn-content {
+        display: none;
+    }
+
+    .btn-icon.left,
+    .btn-icon.right {
+        position: static;
+        top: auto;
+        left: auto;
+        right: auto;
+        transform: none;
+        margin: 0;
+    }
 }

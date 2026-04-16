@@ -1,27 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
-import { FlowTemplatesComponent } from './features/flows/pages/flows-list-page/components/flow-templates/flow-templates.component';
-import { MyFlowsComponent } from './features/flows/pages/flows-list-page/components/my-flows/my-flows.component';
-import { FlowsListPageComponent } from './features/flows/pages/flows-list-page/flows-list-page.component';
-import { CollectionsListPageComponent } from './features/knowledge-sources/pages/collections-list-page/collections-list-page.component';
-import { MyProjectsComponent } from './features/projects/pages/projects-list-page/components/my-projects/my-projects.component';
-import { ProjectTemplatesComponent } from './features/projects/pages/projects-list-page/components/templates/project-templates.component';
-import { ProjectsListPageComponent } from './features/projects/pages/projects-list-page/projects-list-page.component';
-import { MainTabComponent } from './features/role-base-access/components/main-tab/main-tab.component';
-import { OrganizationsTabComponent } from './features/role-base-access/components/organizations-tab/organizations-tab.component';
-import { OverviewComponent } from './features/role-base-access/components/overview/overview.component';
-import { RolesTabComponent } from './features/role-base-access/components/roles-tab/roles-tab.component';
-import { UsersTabComponent } from './features/role-base-access/components/users-tab/users-tab.component';
-import { CustomToolsComponent } from './features/tools/pages/tools-list-page/components/custom-tools/custom-tools.component';
-import { McpToolsComponent } from './features/tools/pages/tools-list-page/components/mcp-tools/mcp-tools.component';
-import { ToolsListPageComponent } from './features/tools/pages/tools-list-page/tools-list-page.component';
 import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
-import { OpenProjectPageComponent } from './open-project-page/open-project-page.component';
-import { ChatsPageComponent } from './pages/chats-page/chats-page.component';
-import { FlowVisualProgrammingComponent } from './pages/flows-page/components/flow-visual-programming/flow-visual-programming.component';
-import { RunningGraphComponent } from './pages/running-graph/pages/running-graph-page/running-graph-page.component';
-import { StaffPageComponent } from './pages/staff-page/staff-page.component';
 
 export const routes: Routes = [
     {
@@ -35,67 +15,145 @@ export const routes: Routes = [
             },
             {
                 path: 'projects',
-                component: ProjectsListPageComponent,
+                loadComponent: () =>
+                    import('./features/projects/pages/projects-list-page/projects-list-page.component').then(
+                        (m) => m.ProjectsListPageComponent
+                    ),
                 children: [
                     { path: '', redirectTo: 'my', pathMatch: 'full' },
-                    { path: 'my', component: MyProjectsComponent },
-                    { path: 'templates', component: ProjectTemplatesComponent },
+                    {
+                        path: 'my',
+                        loadComponent: () =>
+                            import('./features/projects/pages/projects-list-page/components/my-projects/my-projects.component').then(
+                                (m) => m.MyProjectsComponent
+                            ),
+                    },
+                    {
+                        path: 'templates',
+                        loadComponent: () =>
+                            import('./features/projects/pages/projects-list-page/components/templates/project-templates.component').then(
+                                (m) => m.ProjectTemplatesComponent
+                            ),
+                    },
                 ],
             },
             {
                 path: 'projects/:projectId',
-                component: OpenProjectPageComponent,
+                loadComponent: () =>
+                    import('./open-project-page/open-project-page.component').then((m) => m.OpenProjectPageComponent),
                 canDeactivate: [UnsavedChangesGuard],
             },
             {
                 path: 'staff',
-                component: StaffPageComponent,
+                loadComponent: () =>
+                    import('./pages/staff-page/staff-page.component').then((m) => m.StaffPageComponent),
                 canDeactivate: [UnsavedChangesGuard],
             },
             {
                 path: 'tools',
-                component: ToolsListPageComponent,
+                loadComponent: () =>
+                    import('./features/tools/pages/tools-list-page/tools-list-page.component').then(
+                        (m) => m.ToolsListPageComponent
+                    ),
                 children: [
                     { path: '', redirectTo: 'custom', pathMatch: 'full' },
-                    { path: 'custom', component: CustomToolsComponent },
-                    { path: 'mcp', component: McpToolsComponent },
+                    {
+                        path: 'custom',
+                        loadComponent: () =>
+                            import('./features/tools/pages/tools-list-page/components/custom-tools/custom-tools.component').then(
+                                (m) => m.CustomToolsComponent
+                            ),
+                    },
+                    {
+                        path: 'mcp',
+                        loadComponent: () =>
+                            import('./features/tools/pages/tools-list-page/components/mcp-tools/mcp-tools.component').then(
+                                (m) => m.McpToolsComponent
+                            ),
+                    },
                 ],
             },
             {
                 path: 'flows',
-                component: FlowsListPageComponent,
+                loadComponent: () =>
+                    import('./features/flows/pages/flows-list-page/flows-list-page.component').then(
+                        (m) => m.FlowsListPageComponent
+                    ),
                 children: [
                     { path: '', redirectTo: 'my', pathMatch: 'full' },
-                    { path: 'my', component: MyFlowsComponent },
-                    { path: 'templates', component: FlowTemplatesComponent },
+                    {
+                        path: 'my',
+                        loadComponent: () =>
+                            import('./features/flows/pages/flows-list-page/components/my-flows/my-flows.component').then(
+                                (m) => m.MyFlowsComponent
+                            ),
+                    },
+                    {
+                        path: 'templates',
+                        loadComponent: () =>
+                            import('./features/flows/pages/flows-list-page/components/flow-templates/flow-templates.component').then(
+                                (m) => m.FlowTemplatesComponent
+                            ),
+                    },
                 ],
             },
             {
                 path: 'flows/:id',
-                component: FlowVisualProgrammingComponent,
+                loadComponent: () =>
+                    import('./pages/flows-page/components/flow-visual-programming/flow-visual-programming.component').then(
+                        (m) => m.FlowVisualProgrammingComponent
+                    ),
                 canDeactivate: [UnsavedChangesGuard],
             },
             {
                 path: 'graph/:graphId/session/:sessionId',
-                component: RunningGraphComponent,
+                loadComponent: () =>
+                    import('./pages/running-graph/pages/running-graph-page/running-graph-page.component').then(
+                        (m) => m.RunningGraphComponent
+                    ),
             },
             {
                 path: 'knowledge-sources',
-                component: CollectionsListPageComponent,
+                loadComponent: () =>
+                    import('./features/knowledge-sources/pages/collections-list-page/collections-list-page.component').then(
+                        (m) => m.CollectionsListPageComponent
+                    ),
             },
             {
                 path: 'chats',
-                component: ChatsPageComponent,
+                loadComponent: () =>
+                    import('./pages/chats-page/chats-page.component').then((m) => m.ChatsPageComponent),
             },
             {
                 path: 'role-access',
-                component: OverviewComponent,
+                loadComponent: () =>
+                    import('./features/role-base-access/components/overview/overview.component').then((m) => m.OverviewComponent),
                 children: [
-                    { path: '', redirectTo: 'main', pathMatch: 'full' },
-                    { path: 'main', component: MainTabComponent },
-                    { path: 'organizations', component: OrganizationsTabComponent },
-                    { path: 'users', component: UsersTabComponent },
-                    { path: 'roles', component: RolesTabComponent },
+                    {
+                        path: '',
+                        redirectTo: 'main',
+                        pathMatch: 'full'
+                    },
+                    {
+                        path: 'main',
+                        loadComponent: () =>
+                            import('./features/role-base-access/components/main-tab/main-tab.component').then((m) => m.MainTabComponent),
+                    },
+                    {
+                        path: 'organizations',
+                        loadComponent: () =>
+                            import('./features/role-base-access/components/organizations-tab/organizations-tab.component').then((m) => m.OrganizationsTabComponent),
+                    },
+                    {
+                        path: 'users',
+                        loadComponent: () =>
+                            import('./features/role-base-access/components/users-tab/users-tab.component').then((m) => m.UsersTabComponent),
+                    },
+                    {
+                        path: 'roles',
+                        loadComponent: () =>
+                            import('./features/role-base-access/components/roles-tab/roles-tab.component').then((m) => m.RolesTabComponent),
+                    },
                 ],
             },
 

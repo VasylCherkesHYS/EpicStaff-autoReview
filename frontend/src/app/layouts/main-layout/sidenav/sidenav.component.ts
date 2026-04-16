@@ -14,25 +14,25 @@ import {
     ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { ICONS } from '@shared/constants';
 import { UserService } from '@shared/services';
 import { EMPTY } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError } from "rxjs/operators";
 import { environment } from 'src/environments/environment';
 
+import { ConfigureModelsDialogService } from '../../../features/configure-models/services/configure-models-dialog.service';
 import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
 import { UserMenuComponent } from '../../../features/role-base-access/components/user-menu/user-menu.component';
-import { SettingsDialogService } from '../../../features/settings-dialog/settings-dialog.service';
-import { ConfigService } from '../../../services/config';
+import { ConfigService } from '../../../services/config/config.service';
+import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GetUserResponse } from '../../../shared/models';
 import { TooltipComponent } from './tooltip/tooltip.component';
+
 
 interface NavItem {
     id: string;
     routeLink?: string;
-    svgIcon: SafeHtml;
+    icon?: string;
     label: string;
     showTooltip: boolean;
     action?: () => void;
@@ -41,7 +41,16 @@ interface NavItem {
 
 @Component({
     selector: 'app-left-sidebar',
-    imports: [TooltipComponent, RouterLinkActive, RouterLink, OverlayModule, PortalModule, UserMenuComponent],
+    standalone: true,
+    imports: [
+        TooltipComponent,
+        RouterLinkActive,
+        RouterLink,
+        OverlayModule,
+        PortalModule,
+        UserMenuComponent,
+        AppSvgIconComponent,
+    ],
     templateUrl: './sidenav.component.html',
     styleUrls: ['./sidenav.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,6 +61,7 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
     public bottomNavItems: NavItem[];
     public isEpicChatEnabled: boolean;
     public apiBaseUrl: string;
+    public showLogoTooltip = false;
     public readonly epicChatThemeConfig = {
         semantic: {
             surface: 'var(--color-background-body)',
@@ -118,10 +128,9 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
     private epicChat?: ElementRef<HTMLElement>;
 
     constructor(
-        private sanitizer: DomSanitizer,
         public epicChatService: EpicChatService,
-        private settingsDialogService: SettingsDialogService,
         private configService: ConfigService,
+        private configureModelsDialogService: ConfigureModelsDialogService,
         private userService: UserService,
         private destroyRef: DestroyRef
     ) {
@@ -138,60 +147,51 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
             {
                 id: 'projects',
                 routeLink: 'projects',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.projects),
+                icon: 'project',
                 label: 'Projects',
                 showTooltip: false,
             },
             {
                 id: 'staff',
                 routeLink: 'staff',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.staff),
+                icon: 'agent',
                 label: 'Staff',
                 showTooltip: false,
             },
             {
                 id: 'tools',
                 routeLink: 'tools',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.tools),
+                icon: 'tools',
                 label: 'Tools',
                 showTooltip: false,
             },
             {
                 id: 'flows',
                 routeLink: 'flows',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.flows),
+                icon: 'flows',
                 label: 'Flows',
                 showTooltip: false,
             },
             {
                 id: 'knowledge-sources',
                 routeLink: 'knowledge-sources',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.sources),
+                icon: 'sources',
                 label: 'Knowledge Sources',
                 showTooltip: false,
             },
             {
                 id: 'chats',
                 routeLink: 'chats',
-                svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.chats),
+                icon: 'chats',
                 label: 'Chats',
                 showTooltip: false,
             },
         ];
 
         this.bottomNavItems = [];
-        // if (this.isEpicChatEnabled) {
-        //     this.bottomNavItems.push({
-        //         id: 'epic-chat',
-        //         svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.chats),
-        //         label: 'Epic Chat',
-        //         showTooltip: false,
-        //         action: () => this.toggleEpicChat(),
-        //     });
-        // }
         this.bottomNavItems.push({
             id: 'settings',
-            svgIcon: this.sanitizer.bypassSecurityTrustHtml(ICONS.settings),
+            icon: 'settings',
             label: 'Settings',
             showTooltip: false,
             action: () => this.onSettingsClick(),
@@ -222,7 +222,7 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
     }
 
     private onSettingsClick(): void {
-        this.settingsDialogService.openSettingsDialog();
+        this.configureModelsDialogService.open();
     }
 
     public toggleEpicChat(): void {
