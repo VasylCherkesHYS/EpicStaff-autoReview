@@ -1,5 +1,7 @@
 # --- Stage 1: Builder ---
-FROM python:3.12.10-slim@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db AS builder
+# Pinned to linux/amd64 so Apple Silicon hosts use Rosetta emulation and
+# consume prebuilt x86_64 wheels (thinc/blis/spacy have no linux/arm64 wheels).
+FROM --platform=linux/amd64 python:3.12.10-slim@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db AS builder
 
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1 \
@@ -37,7 +39,7 @@ COPY ./knowledge /app/src/knowledge
 COPY ./shared /app/src/shared
 
 # --- Stage 2: Runtime ---
-FROM python:3.12.10-slim@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db AS runtime
+FROM --platform=linux/amd64 python:3.12.10-slim@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db AS runtime
 
 # libpq-dev are required for psycopg2 https://www.psycopg.org/docs/install.html
 RUN apt-get update && apt-get install -y libpq-dev \

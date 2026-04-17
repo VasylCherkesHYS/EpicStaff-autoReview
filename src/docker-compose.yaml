@@ -291,9 +291,12 @@ services:
 
   knowledge:
     image: knowledge
+    platform: linux/amd64
     build:
       context: .
       dockerfile: ./knowledge/Dockerfile.knowledge
+      platforms:
+        - linux/amd64
     container_name: knowledge
     environment:
       <<: *common_env
