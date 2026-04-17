@@ -1,6 +1,9 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { Dialog } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, input } from '@angular/core';
 import { AppSvgIconComponent, ButtonComponent } from '@shared/components';
 import { GetOrganizationsResponse } from '@shared/models';
+
+import { OrganizationDetailsDialogComponent } from '../organization-details-dialog/organization-details-dialog.component';
 
 @Component({
     selector: 'app-org-card',
@@ -10,5 +13,19 @@ import { GetOrganizationsResponse } from '@shared/models';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrgCardComponent {
+    private dialog = inject(Dialog);
+    private destroyRef = inject(DestroyRef);
+
     organization = input.required<GetOrganizationsResponse>();
+
+    onOpen(): void {
+        const id = this.organization().id;
+
+        this.dialog.open(OrganizationDetailsDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            disableClose: true,
+            data: { id },
+        });
+    }
 }

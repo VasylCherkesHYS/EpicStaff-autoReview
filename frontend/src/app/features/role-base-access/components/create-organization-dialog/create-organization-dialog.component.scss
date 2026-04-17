@@ -60,11 +60,13 @@
 .engage-bar {
     display: flex;
     align-items: center;
+    gap: 16px;
     justify-content: space-between;
     flex-shrink: 0;
 }
 
 .engage-label {
+    white-space: nowrap;
     font-size: 0.875rem;
     color: var(--text-secondary-60);
 }
@@ -97,8 +99,7 @@
 .user-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    line-height: 100%;
 }
 
 .user-name {

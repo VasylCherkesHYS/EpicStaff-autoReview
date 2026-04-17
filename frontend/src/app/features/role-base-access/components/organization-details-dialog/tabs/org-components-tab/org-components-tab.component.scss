@@ -1,0 +1,112 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 20px 40px;
+    gap: 16px;
+    overflow: hidden;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .section-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--text);
+
+        .section-count {
+            color: var(--purple-primary);
+        }
+    }
+
+    app-select {
+        width: 120px;
+    }
+}
+
+.list-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+
+    .group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .group-icon {
+            color: var(--purple-primary);
+        }
+
+        .group-label {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .group-count {
+            color: var(--purple-primary);
+        }
+    }
+
+    .group-items {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--color-divider-subtle);
+        border-radius: 10px;
+
+        .component-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 24px 8px 16px;
+            border-bottom: 1px solid var(--color-divider-subtle);
+
+            &:last-child {
+                border-bottom: none;
+            }
+
+            .component-name {
+                font-size: 14px;
+                font-weight: 500;
+                color: var(--text);
+            }
+
+            .link-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                border: 1px solid var(--purple-primary);
+                border-radius: 4px;
+                background: transparent;
+                color: var(--purple-primary);
+                cursor: pointer;
+                transition: background-color 0.15s ease;
+                flex-shrink: 0;
+
+                &:hover {
+                    background: var(--transparent-white-8);
+                    color: var(--text);
+                }
+            }
+        }
+    }
+}

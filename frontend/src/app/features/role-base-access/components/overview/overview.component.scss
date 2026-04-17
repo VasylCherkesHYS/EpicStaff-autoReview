@@ -38,7 +38,8 @@
 
 .overview-tabs {
     display: flex;
-    padding: 4px 60px 4px 40px;
+    padding: 4px 60px 0 40px;
+    margin-bottom: -1px;
     gap: 0;
 }
 

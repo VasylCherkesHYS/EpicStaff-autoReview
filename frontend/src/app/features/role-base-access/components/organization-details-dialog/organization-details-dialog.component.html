@@ -1,0 +1,25 @@
+<div class="dialog">
+    <!-- HEADER -->
+    <div class="header">
+        <span class="org-name">EpicStaff</span>
+        <button class="close-btn" type="button" (click)="onClose()">
+            <app-svg-icon icon="close" size="20px" />
+        </button>
+    </div>
+
+    <!-- TABS -->
+    <nav class="tabs">
+        <a class="tab" [class.active]="activeTab() === 'users'" (click)="activeTab.set('users')"> Users </a>
+        <span class="tab-divider">/</span>
+        <a class="tab" [class.active]="activeTab() === 'components'" (click)="activeTab.set('components')">
+            Components
+        </a>
+    </nav>
+
+    @if (activeTab() === 'users') {
+        <app-org-users-tab />
+    }
+    @if (activeTab() === 'components') {
+        <app-org-components-tab />
+    }
+</div>

@@ -1,0 +1,47 @@
+<div class="stats-row">
+    <app-stat-card
+        icon="profile"
+        title="USERS"
+        [value]="34"
+        [deltaValue]="2"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+    <app-stat-card
+        icon="briefcase"
+        title="ROLES"
+        [value]="11"
+        [deltaValue]="2"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+</div>
+
+<div class="section-header">
+    <span class="section-title">
+        <app-svg-icon icon="profile" size="18px" />
+        Users
+        <span class="section-count">{{ allUsers.length }}</span>
+    </span>
+    <app-select
+        placeholder="Filter by"
+        [items]="roleFilterItems"
+        [selectedValue]="roleFilter()"
+        (changed)="onRoleFilterChange($event)"
+    />
+</div>
+
+<div class="list-scroll">
+    @for (user of filteredUsers(); track user.id) {
+        <div class="user-row">
+            <span class="user-avatar">{{ user.initials }}</span>
+            <div class="user-info">
+                <span class="user-name">{{ user.name }}</span>
+                <span class="user-email">{{ user.email }}</span>
+            </div>
+            <span class="user-role">{{ user.role }}</span>
+        </div>
+    }
+</div>

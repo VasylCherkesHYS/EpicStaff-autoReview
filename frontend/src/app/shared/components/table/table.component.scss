@@ -1,12 +1,16 @@
 :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 
 .table-wrapper {
     display: flex;
     flex-direction: column;
     width: 100%;
+    max-height: 100%;
     overflow: hidden;
     border: 1px solid var(--color-divider-subtle);
     border-radius: 8px;
@@ -17,6 +21,7 @@
     display: grid;
     align-items: center;
     min-height: 2.25rem;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--color-divider-subtle);
 }
 
@@ -52,6 +57,8 @@
 .table-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 

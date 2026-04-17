@@ -1,0 +1,78 @@
+<div class="stats-row">
+    <app-stat-card
+        icon="folder"
+        title="PROJECTS"
+        [value]="2"
+        [deltaValue]="2"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+    <app-stat-card
+        icon="agent"
+        title="AGENTS"
+        [value]="2"
+        [deltaValue]="2"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+    <app-stat-card
+        icon="tools"
+        title="TOOLS"
+        [value]="1"
+        [deltaValue]="null"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+    <app-stat-card
+        icon="flow"
+        title="FLOWS"
+        [value]="4"
+        [deltaValue]="4"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+    <app-stat-card
+        icon="knowledge"
+        title="KNOWLEDGE SOURCES"
+        [value]="12"
+        [deltaValue]="12"
+        deltaDirection="increase"
+        deltaColor="green"
+        deltaLabel="this month"
+    />
+</div>
+
+<div class="section-header">
+    <span class="section-title">
+        <app-svg-icon icon="diamond-grid" size="18px" />
+        Summary Components
+        <span class="section-count">{{ totalComponents }}</span>
+    </span>
+    <app-select placeholder="Show All" [items]="[]" />
+</div>
+
+<div class="list-scroll">
+    @for (group of componentGroups; track group.key) {
+        <div class="group-header">
+            <app-svg-icon [icon]="group.icon" size="18px" class="group-icon" />
+            <span class="group-label">{{ group.label }}</span>
+            <span class="group-count">{{ group.items.length }}</span>
+        </div>
+        @if (group.items.length > 0) {
+            <div class="group-items">
+                @for (item of group.items; track item.id) {
+                    <div class="component-row">
+                        <span class="component-name">{{ item.name }}</span>
+                        <button class="link-btn" type="button" title="Open">
+                            <app-svg-icon icon="arrow-up-right" size="18px" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
