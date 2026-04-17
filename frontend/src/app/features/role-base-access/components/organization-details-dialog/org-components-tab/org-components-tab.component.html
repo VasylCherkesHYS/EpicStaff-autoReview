@@ -1,49 +1,7 @@
 <div class="stats-row">
-    <app-stat-card
-        icon="folder"
-        title="PROJECTS"
-        [value]="2"
-        [deltaValue]="2"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
-    <app-stat-card
-        icon="agent"
-        title="AGENTS"
-        [value]="2"
-        [deltaValue]="2"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
-    <app-stat-card
-        icon="tools"
-        title="TOOLS"
-        [value]="1"
-        [deltaValue]="null"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
-    <app-stat-card
-        icon="flow"
-        title="FLOWS"
-        [value]="4"
-        [deltaValue]="4"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
-    <app-stat-card
-        icon="knowledge"
-        title="KNOWLEDGE SOURCES"
-        [value]="12"
-        [deltaValue]="12"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
+    @for (stat of stats; track stat.label) {
+        <app-stat-card [data]="stat" />
+    }
 </div>
 
 <div class="section-header">

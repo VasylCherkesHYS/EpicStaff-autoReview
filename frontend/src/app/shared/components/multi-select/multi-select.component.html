@@ -1,15 +1,37 @@
 <div class="multi-select">
-    <div #triggerBtn class="multi-select__btn" (click)="toggle()">
-        {{ label() }}
-        @if (icon()) {
-            <app-svg-icon
-                class="multi-select__icon"
-                [class.multi-select__icon--active]="selectedValues().length"
-                size="1rem"
-                [icon]="icon()"
-            />
-        }
-    </div>
+    @if (triggerMode() === 'select') {
+        <button
+            #triggerBtn
+            class="multi-select__select-btn"
+            [class.multi-select__select-btn--placeholder]="!selectedLabels()"
+            [class.multi-select__select-btn--open]="isOpen()"
+            type="button"
+            (click)="toggle()"
+        >
+            <span class="multi-select__select-text">{{ selectedLabels() ?? label() }}</span>
+            <svg
+                class="multi-select__chevron"
+                [class.multi-select__chevron--open]="isOpen()"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+            >
+                <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+            </svg>
+        </button>
+    } @else {
+        <div #triggerBtn class="multi-select__btn" (click)="toggle()">
+            {{ label() }}
+            @if (icon()) {
+                <app-svg-icon
+                    class="multi-select__icon"
+                    [class.multi-select__icon--active]="selectedValues().length"
+                    size="1rem"
+                    [icon]="icon()"
+                />
+            }
+        </div>
+    }
 </div>
 
 <ng-template #dropdownTemplate>

@@ -13,8 +13,8 @@ import {
     TableRow,
 } from '@shared/components';
 
-import { CreateOrganizationDialogComponent } from '../create-organization-dialog/create-organization-dialog.component';
-import { OrganizationDetailsDialogComponent } from '../organization-details-dialog/organization-details-dialog.component';
+import { CreateOrganizationDialogComponent } from '../../../components/create-organization-dialog/create-organization-dialog.component';
+import { OrganizationDetailsDialogComponent } from '../../../components/organization-details-dialog/organization-details-dialog.component';
 
 const STATUS_ITEMS: SelectItem[] = [
     { name: 'Active', value: 'active' },

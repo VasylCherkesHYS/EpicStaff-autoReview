@@ -142,7 +142,7 @@ export const routes: Routes = [
             {
                 path: 'workspace',
                 loadComponent: () =>
-                    import('./features/role-base-access/components/overview/overview.component').then(
+                    import('./features/role-base-access/pages/overview-page/overview.component').then(
                         (m) => m.OverviewComponent
                     ),
                 children: [
@@ -154,28 +154,28 @@ export const routes: Routes = [
                     {
                         path: 'main',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/main-tab/main-tab.component').then(
+                            import('./features/role-base-access/pages/overview-page/main-tab/main-tab.component').then(
                                 (m) => m.MainTabComponent
                             ),
                     },
                     {
                         path: 'organizations',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/organizations-tab/organizations-tab.component').then(
+                            import('./features/role-base-access/pages/overview-page/organizations-tab/organizations-tab.component').then(
                                 (m) => m.OrganizationsTabComponent
                             ),
                     },
                     {
                         path: 'users',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/users-tab/users-tab.component').then(
+                            import('./features/role-base-access/pages/overview-page/users-tab/users-tab.component').then(
                                 (m) => m.UsersTabComponent
                             ),
                     },
                     {
                         path: 'roles',
                         loadComponent: () =>
-                            import('./features/role-base-access/components/roles-tab/roles-tab.component').then(
+                            import('./features/role-base-access/pages/overview-page/roles-tab/roles-tab.component').then(
                                 (m) => m.RolesTabComponent
                             ),
                     },

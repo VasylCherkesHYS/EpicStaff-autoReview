@@ -2,8 +2,8 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { AppSvgIconComponent } from '@shared/components';
 
-import { OrgComponentsTabComponent } from './tabs/org-components-tab/org-components-tab.component';
-import { OrgUsersTabComponent } from './tabs/org-users-tab/org-users-tab.component';
+import { OrgComponentsTabComponent } from './org-components-tab/org-components-tab.component';
+import { OrgUsersTabComponent } from './org-users-tab/org-users-tab.component';
 
 @Component({
     selector: 'app-organization-details-dialog',

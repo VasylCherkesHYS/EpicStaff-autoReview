@@ -1,22 +1,7 @@
 <div class="stats-row">
-    <app-stat-card
-        icon="profile"
-        title="USERS"
-        [value]="34"
-        [deltaValue]="2"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
-    <app-stat-card
-        icon="briefcase"
-        title="ROLES"
-        [value]="11"
-        [deltaValue]="2"
-        deltaDirection="increase"
-        deltaColor="green"
-        deltaLabel="this month"
-    />
+    @for (stat of stats; track stat.label) {
+        <app-stat-card [data]="stat" />
+    }
 </div>
 
 <div class="section-header">

@@ -1,5 +1,6 @@
 import { DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
     AppTableCellDirective,
@@ -7,27 +8,18 @@ import {
     AppTableComponent,
     ButtonComponent,
     CustomInputComponent,
+    MultiSelectComponent,
     SearchComponent,
-    SelectComponent,
-    SelectItem,
     TableRow,
     ValidationErrorsComponent,
 } from '@shared/components';
+import { UserOrganizationRole } from '@shared/models';
+import { UserService } from '@shared/services';
+import { map } from 'rxjs/operators';
 
-const ROLE_ITEMS: SelectItem[] = [
-    { name: 'User', value: 'user' },
-    { name: 'Admin', value: 'admin' },
-    { name: 'Super Admin', value: 'super_admin' },
-    { name: 'Flow Designer', value: 'flow_designer' },
-    { name: 'Knowledge Specialist', value: 'knowledge_specialist' },
-    { name: 'Python Developer', value: 'python_developer' },
-];
-
-const MOCK_USERS: TableRow[] = [
-    { id: 1, initials: 'IB', name: 'Ivan Bohun', email: 'ivan_bohun@gmail.com', role: 'user' },
-    { id: 2, initials: 'IV', name: 'Ivan Vyhovskyi', email: 'ivan_vyhovskyi@gmail.com', role: 'user' },
-    { id: 3, initials: 'BK', name: 'Bohdan Khmelnytsky', email: 'bohdan_khmelnytsky@gmail.com', role: 'user' },
-];
+import { USER_ROLES } from '../../constants/user-roles-select-items.constant';
+import { CreateOrganizationRequest } from '../../models/organization.model';
+import { OrganizationsService } from '../../services/organizations.service';
 
 @Component({
     selector: 'app-create-organization-dialog',
@@ -40,25 +32,64 @@ const MOCK_USERS: TableRow[] = [
         CustomInputComponent,
         AppTableComponent,
         AppTableCellDirective,
-        SelectComponent,
         SearchComponent,
+        MultiSelectComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CreateOrganizationDialogComponent {
+export class CreateOrganizationDialogComponent implements OnInit {
+    private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
+    private organizationsService = inject(OrganizationsService);
+    private userService = inject(UserService);
 
     orgNameControl = new FormControl('', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]);
 
-    readonly roleItems = ROLE_ITEMS;
-    readonly users = MOCK_USERS;
+    usersTableData = signal<TableRow[]>([]);
+    searchTerm = signal('');
+
+    filteredUsers = computed(() => {
+        const term = this.searchTerm().toLowerCase().trim();
+        if (!term) return this.usersTableData();
+        return this.usersTableData().filter(
+            (row) =>
+                (row['name'] as string)?.toLowerCase().includes(term) ||
+                (row['email'] as string)?.toLowerCase().includes(term)
+        );
+    });
+
+    isUsersLoading = signal(true);
 
     readonly columns: AppTableColumnDef[] = [
         { key: 'user', label: 'User', width: '1fr' },
-        { key: 'role', label: 'System Role', width: '1fr', filterItems: ROLE_ITEMS },
+        { key: 'roles', label: 'System Role', width: '1fr', filterItems: USER_ROLES },
     ];
 
     readonly selectedUsers = signal<TableRow[]>([]);
+
+    ngOnInit() {
+        this.userService
+            .getUsers()
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                map((users) =>
+                    users.map((user) => ({
+                        id: user.id,
+                        name: user.name,
+                        roles: user.roles,
+                        initials: user.initials,
+                        email: user.email,
+                    }))
+                )
+            )
+            .subscribe({
+                next: (users) => {
+                    this.usersTableData.set(users);
+                    this.isUsersLoading.set(false);
+                },
+                error: () => this.isUsersLoading.set(false),
+            });
+    }
 
     onSelection(items: TableRow[]): void {
         this.selectedUsers.set(items);
@@ -69,6 +100,26 @@ export class CreateOrganizationDialogComponent {
     }
 
     onCreate(): void {
-        // TODO: submit selectedUsers with orgNameControl.value
+        if (this.orgNameControl.invalid) {
+            this.orgNameControl.markAsTouched();
+            return;
+        }
+
+        const request: CreateOrganizationRequest = {
+            name: this.orgNameControl.value!,
+            users: this.selectedUsers().map((row) => ({
+                id: row['id'] as number,
+                roles: (row['roles'] as UserOrganizationRole[]) ?? [],
+            })),
+        };
+
+        this.organizationsService
+            .createOrganization(request)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: () => this.dialogRef.close(true),
+            });
     }
+
+    protected readonly USER_ROLES = USER_ROLES;
 }

@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
 import { ConfigService } from '../../../services/config';
-import { GetUserResponse, UserRole } from '../../models';
+import { GetUserResponse, GetUsersResponse, UserOrganizationRole } from '../../models';
 
 @Injectable({
     providedIn: 'root',
@@ -21,9 +21,57 @@ export class UserService {
     }
 
     getCurrentUser(): Observable<GetUserResponse> {
-        // mock data
-        return of({ id: 1, name: 'Ivan Bohun', role: UserRole.SUPER_ADMIN, initials: 'IB' });
+        return of({
+            id: 1,
+            name: 'Ivan Bohun',
+            role: UserOrganizationRole.SUPER_ADMIN,
+            initials: 'IB',
+            organizations: [
+                {
+                    id: 1,
+                    name: 'EpicStaff',
+                    initial: 'E',
+                    active: true,
+                },
+                {
+                    id: 2,
+                    name: 'EpicFlow',
+                    initial: 'E',
+                    active: false,
+                },
+                {
+                    id: 3,
+                    name: 'MYM',
+                    initial: 'M',
+                    active: false,
+                },
+            ],
+        });
+    }
 
-        // return this.http.get<GetUserResponse>(this.apiUrl + 'me/');
+    getUsers(): Observable<GetUsersResponse[]> {
+        return of([
+            {
+                id: 1,
+                initials: 'IB',
+                name: 'Ivan Bohun',
+                email: 'ivan_bohun@gmail.com',
+                roles: [UserOrganizationRole.SUPER_ADMIN],
+            },
+            {
+                id: 2,
+                initials: 'IV',
+                name: 'Ivan Vyhovskyi',
+                email: 'ivan_vyhovskyi@gmail.com',
+                roles: [UserOrganizationRole.SUPER_ADMIN],
+            },
+            {
+                id: 3,
+                initials: 'BK',
+                name: 'Bohdan Khmelnytsky',
+                email: 'bohdan_khmelnytsky@gmail.com',
+                roles: [UserOrganizationRole.SUPER_ADMIN],
+            },
+        ]);
     }
 }

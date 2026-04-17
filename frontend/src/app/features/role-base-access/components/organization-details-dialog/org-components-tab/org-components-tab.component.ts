@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { AppSvgIconComponent, SelectComponent } from '@shared/components';
 
-import { StatCardComponent } from '../../../stat-card/stat-card.component';
+import { StatCardComponent } from '../../stat-card/stat-card.component';
+import { StatCardData } from '../../stat-card/stat-card.interface';
 
 interface ComponentItem {
     id: number;
@@ -56,6 +57,39 @@ const COMPONENT_GROUPS: ComponentGroup[] = [
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrgComponentsTabComponent {
+    readonly stats: StatCardData[] = [
+        {
+            icon: 'folder',
+            label: 'PROJECTS',
+            value: 2,
+            delta: { value: 2, label: 'this month', trend: 'increase', color: 'green' },
+        },
+        {
+            icon: 'agent',
+            label: 'AGENTS',
+            value: 2,
+            delta: { value: 2, label: 'this month', trend: 'increase', color: 'green' },
+        },
+        {
+            icon: 'tools',
+            label: 'TOOLS',
+            value: 1,
+            delta: { value: 2, label: 'this month', trend: 'increase', color: 'green' },
+        },
+        {
+            icon: 'flow',
+            label: 'FLOWS',
+            value: 4,
+            delta: { value: 4, label: 'this month', trend: 'increase', color: 'green' },
+        },
+        {
+            icon: 'knowledge',
+            label: 'KNOWLEDGE SOURCES',
+            value: 12,
+            delta: { value: 12, label: 'this month', trend: 'increase', color: 'green' },
+        },
+    ];
+
     readonly componentGroups = COMPONENT_GROUPS;
     readonly totalComponents = COMPONENT_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
 }

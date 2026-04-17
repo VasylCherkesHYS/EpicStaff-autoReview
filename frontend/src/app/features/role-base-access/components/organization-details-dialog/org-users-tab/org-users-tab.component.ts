@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { AppSvgIconComponent, SelectComponent, SelectItem } from '@shared/components';
 
-import { StatCardComponent } from '../../../stat-card/stat-card.component';
+import { StatCardComponent } from '../../stat-card/stat-card.component';
+import { StatCardData } from '../../stat-card/stat-card.interface';
 
 interface OrgUser {
     id: number;
@@ -41,6 +42,21 @@ const MOCK_USERS: OrgUser[] = [
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrgUsersTabComponent {
+    readonly stats: StatCardData[] = [
+        {
+            icon: 'profile',
+            label: 'USERS',
+            value: 34,
+            delta: { value: 2, label: 'this month', trend: 'increase', color: 'green' },
+        },
+        {
+            icon: 'briefcase',
+            label: 'ROLES',
+            value: 11,
+            delta: { value: 2, label: 'this month', trend: 'increase', color: 'green' },
+        },
+    ];
+
     readonly roleFilter = signal<string | null>(null);
     readonly roleFilterItems = ROLE_FILTER_ITEMS;
     readonly allUsers = MOCK_USERS;

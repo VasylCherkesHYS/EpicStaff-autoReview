@@ -17,17 +17,16 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { UserService } from '@shared/services';
 import { EMPTY } from 'rxjs';
-import { catchError } from "rxjs/operators";
+import { catchError } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 
 import { ConfigureModelsDialogService } from '../../../features/configure-models/services/configure-models-dialog.service';
 import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
-import { UserMenuComponent } from '../../../features/role-base-access/components/user-menu/user-menu.component';
+import { UserMenuComponent } from '../../../features/role-base-access/components/user-sidebar-menu/user-menu.component';
 import { ConfigService } from '../../../services/config/config.service';
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GetUserResponse } from '../../../shared/models';
 import { TooltipComponent } from './tooltip/tooltip.component';
-
 
 interface NavItem {
     id: string;

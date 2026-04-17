@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { AppSvgIconComponent } from '@shared/components';
 
+import { StatCardData } from './stat-card.interface';
+
 @Component({
     selector: 'app-stat-card',
     templateUrl: './stat-card.component.html',
@@ -9,11 +11,5 @@ import { AppSvgIconComponent } from '@shared/components';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatCardComponent {
-    icon = input<string>('');
-    title = input.required<string>();
-    value = input.required<number>();
-    deltaValue = input.required<number | null>();
-    deltaDirection = input.required<'increase'>();
-    deltaColor = input.required<'green' | 'red'>();
-    deltaLabel = input.required<string>();
+    data = input.required<StatCardData>();
 }

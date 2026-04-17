@@ -3,7 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
 import { ConfigService } from '../../../services/config';
-import { GetOrganizationsResponse } from '../../models';
+import {
+    CreateOrganizationRequest,
+    GetOrganizationDetailsResponse,
+    GetOrganizationsResponse,
+} from '../models/organization.model';
 
 @Injectable({
     providedIn: 'root',
@@ -20,8 +24,23 @@ export class OrganizationsService {
         return this.configService.apiUrl + 'organizations/';
     }
 
+    createOrganization(data: CreateOrganizationRequest): Observable<GetOrganizationsResponse> {
+        return of({
+            id: 2,
+            name: data.name,
+            initial: 'CS',
+            active: true,
+            users: data.users.length,
+            projects: 0,
+            agents: 0,
+            tools: 0,
+            flows: 0,
+            knowledges: 0,
+        });
+    }
+
     getOrganizationsByUserId(id: number): Observable<GetOrganizationsResponse[]> {
-        // mock data
+        void id;
         return of([
             {
                 id: 1,
@@ -60,7 +79,10 @@ export class OrganizationsService {
                 knowledges: 12,
             },
         ]);
+    }
 
-        // return this.http.get<GetOrganizationsResponse[]>(`${this.apiUrl}?user_id=${id}`);
+    getOrganizationDetailsById(id: number): Observable<GetOrganizationDetailsResponse> {
+        void id;
+        return of();
     }
 }

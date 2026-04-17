@@ -25,12 +25,12 @@
                 Engage users to the Organization:
                 <span class="engage-count">({{ selectedUsers().length }})</span>
             </span>
-            <app-search placeholder="Search by name, username..." />
+            <app-search placeholder="Search by name, username..." [(searchTerm)]="searchTerm" />
         </div>
 
         <app-table
             [columns]="columns"
-            [data]="users"
+            [data]="filteredUsers()"
             [selectable]="true"
             rowId="id"
             (selectionChange)="onSelection($event)"
@@ -45,8 +45,13 @@
                 </div>
             </ng-template>
 
-            <ng-template appTableCell="role" let-row>
-                <app-select class="role-select" [items]="roleItems" [(selectedValue)]="row['role']" />
+            <ng-template appTableCell="roles" let-row>
+                <app-multi-select
+                    class="role-select"
+                    triggerMode="select"
+                    [items]="USER_ROLES"
+                    [(selectedValues)]="row['roles']"
+                />
             </ng-template>
         </app-table>
     </div>

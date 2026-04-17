@@ -30,7 +30,6 @@ interface GroupedItems {
 
 @Component({
     selector: 'app-multi-select',
-    standalone: true,
     imports: [AppSvgIconComponent, CheckboxComponent, ButtonComponent],
     templateUrl: './multi-select.component.html',
     styleUrls: ['./multi-select.component.scss'],
@@ -43,12 +42,22 @@ export class MultiSelectComponent implements OnInit {
     items = input<SelectItem[]>([]);
     selectedValues = model<unknown[]>([]);
     selectionChange = output<unknown[]>();
+    triggerMode = input<'default' | 'select'>('default');
 
     grouped = input<boolean>(false);
 
     isOpen = signal(false);
     search = signal('');
     tempSelected = signal<unknown[]>([]);
+
+    selectedLabels = computed<string | null>(() => {
+        const selected = this.selectedValues();
+        if (!selected.length) return null;
+        return this.items()
+            .filter((i) => selected.includes(i.value))
+            .map((i) => i.name)
+            .join(', ');
+    });
 
     groupedFiltered = computed<GroupedItems[]>(() => {
         const search = this.search().toLowerCase();

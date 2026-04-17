@@ -8,6 +8,7 @@
 
 .stats-row {
     display: flex;
+    justify-content: center;
     gap: 1rem;
     margin-bottom: 1.5rem;
     flex-shrink: 0;
@@ -46,6 +47,7 @@
 }
 
 .org-card-create {
+    height: 130px;
     background: transparent;
     border-radius: 10px;
     border: 1px dashed var(--color-divider-subtle);
