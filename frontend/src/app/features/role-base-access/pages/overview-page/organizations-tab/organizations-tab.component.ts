@@ -28,7 +28,6 @@ const STATUS_ITEMS: SelectItem[] = [
 const MOCK_ORGS: TableRow[] = [
     {
         id: 1,
-        initial: 'E',
         name: 'EpicStaff',
         adminInitials: 'IB',
         adminName: 'Ivan Bohun',
@@ -39,7 +38,6 @@ const MOCK_ORGS: TableRow[] = [
     },
     {
         id: 2,
-        initial: 'E',
         name: 'EpicFlow',
         adminInitials: 'IB',
         adminName: 'Ivan Bohun',
@@ -50,7 +48,6 @@ const MOCK_ORGS: TableRow[] = [
     },
     {
         id: 3,
-        initial: 'M',
         name: 'MYM',
         adminInitials: 'IB',
         adminName: 'Ivan Bohun',

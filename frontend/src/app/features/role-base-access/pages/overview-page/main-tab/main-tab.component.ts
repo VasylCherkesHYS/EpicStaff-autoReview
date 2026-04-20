@@ -2,15 +2,15 @@ import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppSvgIconComponent, ButtonComponent, LoadingSpinnerComponent } from '@shared/components';
+import { GetOrganizationsResponse } from '@shared/models';
+import { OrganizationService } from '@shared/services';
 import { delay } from 'rxjs/operators';
 
 import { CreateOrganizationDialogComponent } from '../../../components/create-organization-dialog/create-organization-dialog.component';
 import { OrgCardComponent } from '../../../components/org-card/org-card.component';
 import { StatCardComponent } from '../../../components/stat-card/stat-card.component';
 import { CardDeltaInfo, StatCardData } from '../../../components/stat-card/stat-card.interface';
-import { GetOrganizationsResponse } from '../../../models/organization.model';
 import { GetWorkspaceInfoResponse, WorkspaceInfoItem } from '../../../models/workspace-main.model';
-import { OrganizationsService } from '../../../services/organizations.service';
 import { WorkspaceMainService } from '../../../services/workspace-main.service';
 
 @Component({
@@ -24,7 +24,7 @@ export class MainTabComponent implements OnInit {
     private readonly dialog = inject(Dialog);
     private readonly destroyRef = inject(DestroyRef);
     private readonly workspaceMainService = inject(WorkspaceMainService);
-    private readonly organizationsService = inject(OrganizationsService);
+    private readonly organizationService = inject(OrganizationService);
 
     public stats = signal<StatCardData[]>([]);
     public organizations = signal<GetOrganizationsResponse[]>([]);
@@ -50,7 +50,7 @@ export class MainTabComponent implements OnInit {
     }
 
     private getOrganizations(): void {
-        this.organizationsService
+        this.organizationService
             .getOrganizationsByUserId(1)
             .pipe(takeUntilDestroyed(this.destroyRef), delay(2000))
             .subscribe({

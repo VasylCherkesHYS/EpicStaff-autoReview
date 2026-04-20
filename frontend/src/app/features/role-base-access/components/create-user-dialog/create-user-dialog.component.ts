@@ -2,11 +2,10 @@ import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppSvgIconComponent, ButtonComponent, StepConfig, StepperComponent } from '@shared/components';
-import { UserService } from '@shared/services';
+import { OrganizationService, UserService } from '@shared/services';
 import { of } from 'rxjs';
 
 import { CreateUserStep } from '../../enums/create-user-steps.enum';
-import { OrganizationsService } from '../../services/organizations.service';
 import { StepAssignToOrgComponent } from './steps/assign-to-org/step-assign-to-org.component';
 import { StepUserDetailsComponent } from './steps/user-details/step-user-details.component';
 
@@ -26,10 +25,11 @@ import { StepUserDetailsComponent } from './steps/user-details/step-user-details
 export class CreateUserDialogComponent {
     private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
-    private organizationsService = inject(OrganizationsService);
+    private organizationService = inject(OrganizationService);
     private userService = inject(UserService);
 
     currentStepIndex = signal(0);
+
     currentStep = computed(() => this.steps()[this.currentStepIndex()]);
     nextDisabled = computed(() => !this.currentStep().canProceed());
     nextText = computed(() => this.currentStep().proceedLabel);

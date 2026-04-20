@@ -23,7 +23,6 @@ import { UserAvatarComponent } from '../../../components/user-avatar/user-avatar
 interface UserOrg {
     id: number;
     name: string;
-    initial: string;
 }
 
 const ROLE_LABELS: Record<UserOrganizationRole, string> = {
@@ -48,13 +47,13 @@ const STATUS_ITEMS: SelectItem[] = [
 // Mock extra data keyed by index (service doesn't return org/status yet)
 const MOCK_ORGS: UserOrg[][] = [
     [
-        { id: 1, name: 'EpicStaff', initial: 'E' },
-        { id: 2, name: 'EpicFlow', initial: 'E' },
-        { id: 3, name: 'MYM', initial: 'M' },
+        { id: 1, name: 'EpicStaff' },
+        { id: 2, name: 'EpicFlow' },
+        { id: 3, name: 'MYM' },
     ],
     [
-        { id: 1, name: 'EpicStaff', initial: 'E' },
-        { id: 3, name: 'MYM', initial: 'M' },
+        { id: 1, name: 'EpicStaff' },
+        { id: 3, name: 'MYM' },
     ],
     [],
 ];
@@ -152,7 +151,6 @@ export class UsersTabComponent implements OnInit {
         const orgs = MOCK_ORGS[index] ?? [];
         return {
             id: user.id,
-            initials: user.initials,
             name: user.name,
             email: user.email,
             role: user.roles.map((r) => ROLE_LABELS[r]).join(', '),

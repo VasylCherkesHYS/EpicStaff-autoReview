@@ -1,18 +1,14 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { CreateOrganizationRequest, GetOrganizationDetailsResponse, GetOrganizationsResponse } from '@shared/models';
 import { Observable, of } from 'rxjs';
 
 import { ConfigService } from '../../../services/config';
-import {
-    CreateOrganizationRequest,
-    GetOrganizationDetailsResponse,
-    GetOrganizationsResponse,
-} from '../models/organization.model';
 
 @Injectable({
     providedIn: 'root',
 })
-export class OrganizationsService {
+export class OrganizationService {
     private readonly configService = inject(ConfigService);
     private readonly http = inject(HttpClient);
 
@@ -21,7 +17,7 @@ export class OrganizationsService {
     });
 
     private get apiUrl(): string {
-        return this.configService.apiUrl + 'organizations/';
+        return this.configService.apiUrl + 'user/';
     }
 
     createOrganization(data: CreateOrganizationRequest): Observable<GetOrganizationsResponse> {

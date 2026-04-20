@@ -28,51 +28,55 @@
             <app-search placeholder="Search by name, username..." [(searchTerm)]="searchTerm" />
         </div>
 
-        <app-table
-            [columns]="columns"
-            [data]="filteredUsers()"
-            [selectable]="true"
-            rowId="id"
-            (selectionChange)="onSelection($event)"
-        >
-            <ng-template appTableCell="user" let-row>
-                <div class="user-cell">
-                    <app-user-avatar [name]="$any(row['name'])" />
-                    <div class="user-info">
-                        <span class="user-name">{{ row['name'] }}</span>
-                        <span class="user-email">{{ row['email'] }}</span>
+        @if (isUsersLoading()) {
+            <app-loading-spinner size="md" message="Loading Users..." />
+        } @else {
+            <app-table
+                [columns]="columns"
+                [data]="filteredUsers()"
+                [selectable]="true"
+                rowId="id"
+                (selectionChange)="onSelection($event)"
+            >
+                <ng-template appTableCell="user" let-row>
+                    <div class="user-cell">
+                        <app-user-avatar [name]="$any(row['name'])" />
+                        <div class="user-info">
+                            <span class="user-name">{{ row['name'] }}</span>
+                            <span class="user-email">{{ row['email'] }}</span>
+                        </div>
                     </div>
-                </div>
-            </ng-template>
+                </ng-template>
 
-            <ng-template appTableCell="roles" let-row>
-                <app-multi-select #ms class="role-select" [items]="USER_ROLES" [(selectedValues)]="row['roles']">
-                    <button
-                        appMultiSelectTrigger
-                        class="role-select-trigger"
-                        [class.role-select-trigger--placeholder]="!ms.selectedLabels()"
-                        [class.role-select-trigger--open]="ms.isOpen()"
-                        type="button"
-                    >
-                        <span class="role-select-trigger__text">{{ ms.selectedLabels() ?? 'Select roles' }}</span>
-                        <svg
-                            class="role-select-trigger__chevron"
-                            [class.role-select-trigger__chevron--open]="ms.isOpen()"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
+                <ng-template appTableCell="roles" let-row>
+                    <app-multi-select #ms class="role-select" [items]="USER_ROLES" [(selectedValues)]="row['roles']">
+                        <button
+                            appMultiSelectTrigger
+                            class="role-select-trigger"
+                            [class.role-select-trigger--placeholder]="!ms.selectedLabels()"
+                            [class.role-select-trigger--open]="ms.isOpen()"
+                            type="button"
                         >
-                            <path
-                                d="M6 9l6 6 6-6"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                fill="none"
-                                stroke-linecap="round"
-                            />
-                        </svg>
-                    </button>
-                </app-multi-select>
-            </ng-template>
-        </app-table>
+                            <span class="role-select-trigger__text">{{ ms.selectedLabels() ?? 'Select roles' }}</span>
+                            <svg
+                                class="role-select-trigger__chevron"
+                                [class.role-select-trigger__chevron--open]="ms.isOpen()"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M6 9l6 6 6-6"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    fill="none"
+                                    stroke-linecap="round"
+                                />
+                            </svg>
+                        </button>
+                    </app-multi-select>
+                </ng-template>
+            </app-table>
+        }
     </div>
 </div>

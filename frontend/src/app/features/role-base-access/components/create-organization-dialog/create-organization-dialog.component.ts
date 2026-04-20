@@ -8,19 +8,18 @@ import {
     AppTableComponent,
     ButtonComponent,
     CustomInputComponent,
+    LoadingSpinnerComponent,
     MultiSelectComponent,
     MultiSelectTriggerDirective,
     SearchComponent,
     TableRow,
     ValidationErrorsComponent,
 } from '@shared/components';
-import { UserOrganizationRole } from '@shared/models';
-import { UserService } from '@shared/services';
+import { CreateOrganizationRequest, UserOrganizationRole } from '@shared/models';
+import { OrganizationService, UserService } from '@shared/services';
 import { map } from 'rxjs/operators';
 
 import { USER_ROLES } from '../../constants/user-roles-select-items.constant';
-import { CreateOrganizationRequest } from '../../models/organization.model';
-import { OrganizationsService } from '../../services/organizations.service';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 @Component({
@@ -38,19 +37,22 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
         MultiSelectComponent,
         MultiSelectTriggerDirective,
         UserAvatarComponent,
+        LoadingSpinnerComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateOrganizationDialogComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
-    private organizationsService = inject(OrganizationsService);
+    private organizationService = inject(OrganizationService);
     private userService = inject(UserService);
 
     orgNameControl = new FormControl('', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]);
 
     usersTableData = signal<TableRow[]>([]);
     searchTerm = signal('');
+    isUsersLoading = signal(true);
+    readonly selectedUsers = signal<TableRow[]>([]);
 
     filteredUsers = computed(() => {
         const term = this.searchTerm().toLowerCase().trim();
@@ -62,14 +64,10 @@ export class CreateOrganizationDialogComponent implements OnInit {
         );
     });
 
-    isUsersLoading = signal(true);
-
     readonly columns: AppTableColumnDef[] = [
         { key: 'user', label: 'User', width: '1fr' },
         { key: 'roles', label: 'System Role', width: '1fr', filterItems: USER_ROLES },
     ];
-
-    readonly selectedUsers = signal<TableRow[]>([]);
 
     ngOnInit() {
         this.userService
@@ -81,7 +79,6 @@ export class CreateOrganizationDialogComponent implements OnInit {
                         id: user.id,
                         name: user.name,
                         roles: user.roles,
-                        initials: user.initials,
                         email: user.email,
                     }))
                 )
@@ -117,7 +114,7 @@ export class CreateOrganizationDialogComponent implements OnInit {
             })),
         };
 
-        this.organizationsService
+        this.organizationService
             .createOrganization(request)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({

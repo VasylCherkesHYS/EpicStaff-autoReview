@@ -1,18 +1,19 @@
-import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     AppTableCellDirective,
     AppTableColumnDef,
     AppTableComponent,
+    LoadingSpinnerComponent,
     MultiSelectComponent,
     MultiSelectTriggerDirective,
     SearchComponent,
     TableRow,
 } from '@shared/components';
-import { UserService } from '@shared/services';
+import { OrganizationService } from '@shared/services';
+import { map } from 'rxjs/operators';
 
 import { USER_ROLES } from '../../../../constants/user-roles-select-items.constant';
-import { OrganizationsService } from '../../../../services/organizations.service';
 import { OrgAvatarComponent } from '../../../org-avatar/org-avatar.component';
 
 @Component({
@@ -27,16 +28,17 @@ import { OrgAvatarComponent } from '../../../org-avatar/org-avatar.component';
         MultiSelectTriggerDirective,
         SearchComponent,
         OrgAvatarComponent,
+        LoadingSpinnerComponent,
     ],
 })
 export class StepAssignToOrgComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
-    private dialogRef = inject(DialogRef);
-    private organizationsService = inject(OrganizationsService);
-    private userService = inject(UserService);
+    private organizationService = inject(OrganizationService);
 
     usersTableData = signal<TableRow[]>([]);
     searchTerm = signal('');
+    isOrgsLoading = signal<boolean>(true);
+    selectedOrganizations = signal<TableRow[]>([]);
 
     filteredOrganizations = computed(() => {
         const term = this.searchTerm().toLowerCase().trim();
@@ -48,46 +50,34 @@ export class StepAssignToOrgComponent implements OnInit {
         );
     });
 
-    isOrganizationsLoading = signal(true);
-
     readonly columns: AppTableColumnDef[] = [
         { key: 'organization', label: 'Organization', width: '1fr' },
         { key: 'roles', label: 'System Role', width: '1fr', filterItems: USER_ROLES },
     ];
 
-    readonly selectedOrganizations = signal<TableRow[]>([]);
-
     ngOnInit() {
-        // todo org service
-        // this.userService
-        //     .getUsers()
-        //     .pipe(
-        //         takeUntilDestroyed(this.destroyRef),
-        //         map((users) =>
-        //             users.map((user) => ({
-        //                 id: user.id,
-        //                 name: user.name,
-        //                 roles: user.roles,
-        //                 initials: user.initials,
-        //                 email: user.email,
-        //             }))
-        //         )
-        //     )
-        //     .subscribe({
-        //         next: (users) => {
-        //             this.usersTableData.set(users);
-        //             this.isUsersLoading.set(false);
-        //         },
-        //         error: () => this.isUsersLoading.set(false),
-        //     });
+        this.organizationService
+            .getOrganizationsByUserId(1)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                map((orgs) =>
+                    orgs.map((org) => ({
+                        id: org.id,
+                        name: org.name,
+                    }))
+                )
+            )
+            .subscribe({
+                next: (users) => {
+                    this.usersTableData.set(users);
+                    this.isOrgsLoading.set(false);
+                },
+                error: () => this.isOrgsLoading.set(false),
+            });
     }
 
     onSelection(items: TableRow[]): void {
         this.selectedOrganizations.set(items);
-    }
-
-    onCancel(): void {
-        this.dialogRef.close();
     }
 
     protected readonly USER_ROLES = USER_ROLES;

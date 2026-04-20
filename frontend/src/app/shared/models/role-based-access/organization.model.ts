@@ -1,4 +1,4 @@
-import { UserOrganizationRole } from '@shared/models';
+import { UserOrganizationRole } from '../index';
 
 export interface CreateOrganizationRequest {
     name: string;
@@ -13,7 +13,6 @@ interface CreateOrgUser {
 export interface GetOrganizationsResponse {
     id: number;
     name: string;
-    initial: string;
     active: boolean;
     users: number;
     projects: number;

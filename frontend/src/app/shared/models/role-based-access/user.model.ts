@@ -5,6 +5,17 @@ export enum UserOrganizationRole {
     RAG_ENGINEER = 'rag_engineer',
 }
 
+export interface CreateUserRequest {
+    name: string;
+    email: string;
+    password: string;
+    superadmin: boolean;
+    organization: {
+        id: number;
+        roles: UserOrganizationRole[];
+    };
+}
+
 export interface GetUserResponse {
     id: number;
     name: string;
@@ -16,7 +27,6 @@ export interface GetUserResponse {
 export interface UserOrganization {
     id: number;
     name: string;
-    initial: string;
     active: boolean;
 }
 
@@ -25,5 +35,4 @@ export interface GetUsersResponse {
     name: string;
     email: string;
     roles: UserOrganizationRole[];
-    initials: string;
 }
