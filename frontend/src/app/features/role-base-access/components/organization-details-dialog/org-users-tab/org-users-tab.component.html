@@ -21,7 +21,7 @@
 <div class="list-scroll">
     @for (user of filteredUsers(); track user.id) {
         <div class="user-row">
-            <span class="user-avatar">{{ user.initials }}</span>
+            <app-user-avatar [name]="user.name" />
             <div class="user-info">
                 <span class="user-name">{{ user.name }}</span>
                 <span class="user-email">{{ user.email }}</span>

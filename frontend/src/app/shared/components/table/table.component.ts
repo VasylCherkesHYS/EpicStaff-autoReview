@@ -35,7 +35,15 @@ export class AppTableComponent {
         const data = this.data();
         const activeEntries = Object.entries(filters).filter(([, v]) => v.length > 0);
         if (!activeEntries.length) return data;
-        return data.filter((row) => activeEntries.every(([key, values]) => values.includes(row[key])));
+        return data.filter((row) =>
+            activeEntries.every(([key, values]) => {
+                const rowVal = row[key];
+                if (Array.isArray(rowVal)) {
+                    return values.some((v) => (rowVal as unknown[]).includes(v));
+                }
+                return values.includes(rowVal);
+            })
+        );
     });
 
     readonly allSelected = computed(() => {

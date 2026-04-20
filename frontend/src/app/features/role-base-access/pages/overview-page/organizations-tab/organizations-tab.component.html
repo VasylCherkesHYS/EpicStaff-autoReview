@@ -4,82 +4,79 @@
     <span class="count-label"> {{ filteredOrgs().length }} of {{ allOrgs.length }} organizations </span>
 
     <div class="toolbar-actions">
-        <app-button type="primary" leftIcon="plus" (click)="onCreateOrganization()"> Create Organization </app-button>
+        <app-button type="primary" leftIcon="plus" (click)="onCreateOrganization()"> Create Organization</app-button>
 
         <button class="settings-btn" type="button">
             <app-svg-icon icon="settings" size="18px" />
         </button>
     </div>
 </div>
-
-<app-table [columns]="columns" [data]="filteredOrgs()" [selectable]="true" rowId="id">
-    <!-- ORGANIZATION -->
-    <ng-template appTableCell="organization" let-row>
-        <div class="org-cell">
-            <span class="org-badge">{{ row['initial'] }}</span>
-            <span class="org-name">{{ row['name'] }}</span>
-        </div>
-    </ng-template>
-
-    <!-- ADMIN -->
-    <ng-template appTableCell="admin" let-row>
-        <div class="user-cell">
-            <span class="user-avatar">{{ row['adminInitials'] }}</span>
-            <div class="user-info">
-                <span class="user-name">{{ row['adminName'] }}</span>
-                <span class="user-role">{{ row['adminRole'] }}</span>
+@if (isLoading()) {
+    <app-loading-spinner size="sm" />
+} @else {
+    <app-table [columns]="columns" [data]="filteredOrgs()" [selectable]="true" rowId="id">
+        <!-- ORGANIZATION -->
+        <ng-template appTableCell="organization" let-row>
+            <div class="org-cell">
+                <app-org-avatar [name]="$any(row['name'])" />
+                <span class="org-name">{{ row['name'] }}</span>
             </div>
-        </div>
-    </ng-template>
+        </ng-template>
 
-    <!-- MEMBERS -->
-    <ng-template appTableCell="members" let-row>
-        <span class="cell-text">{{ row['members'] }}</span>
-    </ng-template>
+        <!-- ADMIN -->
+        <ng-template appTableCell="admin" let-row>
+            <div class="user-cell">
+                <app-user-avatar [name]="$any(row['adminName'])" />
+                <div class="user-info">
+                    <span class="user-name">{{ row['adminName'] }}</span>
+                    <span class="user-role">{{ row['adminRole'] }}</span>
+                </div>
+            </div>
+        </ng-template>
 
-    <!-- CREATED -->
-    <ng-template appTableCell="created" let-row>
-        <span class="cell-text">{{ row['created'] }}</span>
-    </ng-template>
+        <!-- MEMBERS -->
+        <ng-template appTableCell="members" let-row>
+            <span class="cell-text">{{ row['members'] }}</span>
+        </ng-template>
 
-    <!-- STATUS -->
-    <ng-template appTableCell="status" let-row>
-        @if (row['status'] === 'active') {
-            <span class="status-badge status-badge--active">
-                <span class="status-dot"></span>
-                Active
-            </span>
-        } @else {
-            <span class="status-badge status-badge--deactivated">
-                <app-svg-icon icon="clock" size="12px" />
-                Deactivated
-            </span>
-        }
-    </ng-template>
+        <!-- CREATED -->
+        <ng-template appTableCell="created" let-row>
+            <span class="cell-text">{{ row['created'] }}</span>
+        </ng-template>
 
-    <!-- ACTIONS -->
-    <ng-template appTableCell="actions" let-row>
-        <div class="actions-cell">
-            <button class="action-btn" type="button" title="View" (click)="onOpen(row['id'])">
-                <app-svg-icon icon="eye" size="16px" />
-            </button>
-            <button class="action-btn" type="button" title="Edit">
-                <app-svg-icon icon="edit" size="16px" />
-            </button>
-            @if (row['status'] === 'active') {
-                <button
-                    class="action-btn action-btn--danger"
-                    type="button"
-                    title="Deactivate"
-                    (click)="onDeactivateOrganization(row)"
-                >
-                    <app-svg-icon icon="stop" size="16px" />
+        <!-- STATUS -->
+        <ng-template appTableCell="status" let-row>
+            <app-status-badge
+                [modifier]="$any(row['status'])"
+                [label]="row['status'] === 'active' ? 'Active' : 'Deactivated'"
+                [icon]="row['status'] === 'deactivated' ? 'clock' : null"
+            />
+        </ng-template>
+
+        <!-- ACTIONS -->
+        <ng-template appTableCell="actions" let-row>
+            <div class="actions-cell">
+                <button class="action-btn" type="button" title="View" (click)="onOpen(row['id'])">
+                    <app-svg-icon icon="eye" size="16px" />
                 </button>
-            } @else {
-                <button class="action-btn action-btn--muted" type="button" title="Activate">
-                    <app-svg-icon icon="play" size="16px" />
+                <button class="action-btn" type="button" title="Edit">
+                    <app-svg-icon icon="edit" size="16px" />
                 </button>
-            }
-        </div>
-    </ng-template>
-</app-table>
+                @if (row['status'] === 'active') {
+                    <button
+                        class="action-btn action-btn--danger"
+                        type="button"
+                        title="Deactivate"
+                        (click)="onDeactivateOrganization(row)"
+                    >
+                        <app-svg-icon icon="stop" size="16px" />
+                    </button>
+                } @else {
+                    <button class="action-btn action-btn--muted" type="button" title="Activate">
+                        <app-svg-icon icon="play" size="16px" />
+                    </button>
+                }
+            </div>
+        </ng-template>
+    </app-table>
+}

@@ -17,22 +17,6 @@
         align-items: center;
         gap: 8px;
 
-        .avatar {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-            background-color: var(--transparent-white-8);
-            color: var(--text-secondary-60);
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            transition:
-                background-color 0.15s ease,
-                color 0.15s ease;
-        }
-
         .name {
             font-size: 0.875rem;
             font-weight: 500;

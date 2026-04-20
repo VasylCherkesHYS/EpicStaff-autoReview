@@ -1,5 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     AppSvgIconComponent,
@@ -8,13 +8,17 @@ import {
     AppTableComponent,
     ButtonComponent,
     ConfirmationDialogService,
+    LoadingSpinnerComponent,
     SearchComponent,
     SelectItem,
     TableRow,
 } from '@shared/components';
 
 import { CreateOrganizationDialogComponent } from '../../../components/create-organization-dialog/create-organization-dialog.component';
+import { OrgAvatarComponent } from '../../../components/org-avatar/org-avatar.component';
 import { OrganizationDetailsDialogComponent } from '../../../components/organization-details-dialog/organization-details-dialog.component';
+import { StatusBadgeComponent } from '../../../components/status-badge/status-badge.component';
+import { UserAvatarComponent } from '../../../components/user-avatar/user-avatar.component';
 
 const STATUS_ITEMS: SelectItem[] = [
     { name: 'Active', value: 'active' },
@@ -61,24 +65,39 @@ const MOCK_ORGS: TableRow[] = [
     selector: 'app-organizations-tab',
     templateUrl: './organizations-tab.component.html',
     styleUrls: ['./organizations-tab.component.scss'],
-    imports: [AppTableComponent, AppTableCellDirective, ButtonComponent, SearchComponent, AppSvgIconComponent],
+    imports: [
+        AppTableComponent,
+        AppTableCellDirective,
+        ButtonComponent,
+        SearchComponent,
+        AppSvgIconComponent,
+        LoadingSpinnerComponent,
+        StatusBadgeComponent,
+        OrgAvatarComponent,
+        UserAvatarComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrganizationsTabComponent {
+export class OrganizationsTabComponent implements OnInit {
     private dialog = inject(Dialog);
     private destroyRef = inject(DestroyRef);
     private confirmation = inject(ConfirmationDialogService);
 
     readonly searchTerm = signal('');
+    readonly isLoading = signal(true);
 
     readonly columns: AppTableColumnDef[] = [
         { key: 'organization', label: 'Organization', width: '1fr' },
         { key: 'admin', label: 'Admin', width: '1fr' },
-        { key: 'members', label: 'Members', width: '100px' },
-        { key: 'created', label: 'Created', width: '140px' },
+        { key: 'members', label: 'Members', width: '1fr' },
+        { key: 'created', label: 'Created', width: '160px' },
         { key: 'status', label: 'Status', width: '160px', filterItems: STATUS_ITEMS },
-        { key: 'actions', label: 'Actions', width: '120px', align: 'end' },
+        { key: 'actions', label: 'Actions', width: '120px', align: 'center' },
     ];
+
+    ngOnInit() {
+        this.isLoading.set(false);
+    }
 
     readonly allOrgs = MOCK_ORGS;
 

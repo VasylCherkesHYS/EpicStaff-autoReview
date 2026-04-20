@@ -3,11 +3,12 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, input } from '@
 import { AppSvgIconComponent, ButtonComponent } from '@shared/components';
 
 import { GetOrganizationsResponse } from '../../models/organization.model';
+import { OrgAvatarComponent } from '../org-avatar/org-avatar.component';
 import { OrganizationDetailsDialogComponent } from '../organization-details-dialog/organization-details-dialog.component';
 
 @Component({
     selector: 'app-org-card',
-    imports: [AppSvgIconComponent, ButtonComponent],
+    imports: [AppSvgIconComponent, ButtonComponent, OrgAvatarComponent],
     templateUrl: './org-card.component.html',
     styleUrls: ['./org-card.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

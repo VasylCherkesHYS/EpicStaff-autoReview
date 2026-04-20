@@ -3,6 +3,7 @@ import { AppSvgIconComponent, SelectComponent, SelectItem } from '@shared/compon
 
 import { StatCardComponent } from '../../stat-card/stat-card.component';
 import { StatCardData } from '../../stat-card/stat-card.interface';
+import { UserAvatarComponent } from '../../user-avatar/user-avatar.component';
 
 interface OrgUser {
     id: number;
@@ -38,7 +39,7 @@ const MOCK_USERS: OrgUser[] = [
     selector: 'app-org-users-tab',
     templateUrl: './org-users-tab.component.html',
     styleUrls: ['./org-users-tab.component.scss'],
-    imports: [StatCardComponent, SelectComponent, AppSvgIconComponent],
+    imports: [StatCardComponent, SelectComponent, AppSvgIconComponent, UserAvatarComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrgUsersTabComponent {

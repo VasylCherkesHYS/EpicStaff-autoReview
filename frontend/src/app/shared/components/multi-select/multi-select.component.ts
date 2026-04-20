@@ -4,6 +4,7 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
+    contentChild,
     DestroyRef,
     ElementRef,
     inject,
@@ -22,6 +23,7 @@ import { AppSvgIconComponent } from '../app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../buttons';
 import { CheckboxComponent } from '../checkbox/checkbox.component';
 import { SelectItem } from '../select/select.component';
+import { MultiSelectTriggerDirective } from './multi-select-trigger.directive';
 
 interface GroupedItems {
     group: string | null;
@@ -42,7 +44,6 @@ export class MultiSelectComponent implements OnInit {
     items = input<SelectItem[]>([]);
     selectedValues = model<unknown[]>([]);
     selectionChange = output<unknown[]>();
-    triggerMode = input<'default' | 'select'>('default');
 
     grouped = input<boolean>(false);
 
@@ -93,7 +94,8 @@ export class MultiSelectComponent implements OnInit {
         }));
     });
 
-    @ViewChild('triggerBtn') triggerBtn!: ElementRef<HTMLElement>;
+    readonly triggerDir = contentChild(MultiSelectTriggerDirective);
+    @ViewChild('defaultTrigger') defaultTrigger?: ElementRef<HTMLElement>;
     @ViewChild('dropdownTemplate') dropdownTemplate!: TemplateRef<unknown>;
 
     private overlayRef!: OverlayRef;
@@ -112,9 +114,11 @@ export class MultiSelectComponent implements OnInit {
     }
 
     openDropdown() {
+        const triggerEl = this.triggerDir()?.elementRef ?? this.defaultTrigger!;
+
         if (!this.overlayRef) {
             const positionStrategy = this.overlayPositionBuilder
-                .flexibleConnectedTo(this.triggerBtn)
+                .flexibleConnectedTo(triggerEl)
                 .withPositions([
                     {
                         originX: 'start',

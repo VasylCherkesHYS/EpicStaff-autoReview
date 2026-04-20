@@ -21,9 +21,9 @@
 
     <div class="content">
         <div class="engage-bar">
-            <span class="engage-label">
+            <span class="label">
                 Engage users to the Organization:
-                <span class="engage-count">({{ selectedUsers().length }})</span>
+                <span class="count">({{ selectedUsers().length }})</span>
             </span>
             <app-search placeholder="Search by name, username..." [(searchTerm)]="searchTerm" />
         </div>
@@ -37,7 +37,7 @@
         >
             <ng-template appTableCell="user" let-row>
                 <div class="user-cell">
-                    <span class="avatar">{{ row['initials'] }}</span>
+                    <app-user-avatar [name]="$any(row['name'])" />
                     <div class="user-info">
                         <span class="user-name">{{ row['name'] }}</span>
                         <span class="user-email">{{ row['email'] }}</span>
@@ -46,12 +46,32 @@
             </ng-template>
 
             <ng-template appTableCell="roles" let-row>
-                <app-multi-select
-                    class="role-select"
-                    triggerMode="select"
-                    [items]="USER_ROLES"
-                    [(selectedValues)]="row['roles']"
-                />
+                <app-multi-select #ms class="role-select" [items]="USER_ROLES" [(selectedValues)]="row['roles']">
+                    <button
+                        appMultiSelectTrigger
+                        class="role-select-trigger"
+                        [class.role-select-trigger--placeholder]="!ms.selectedLabels()"
+                        [class.role-select-trigger--open]="ms.isOpen()"
+                        type="button"
+                    >
+                        <span class="role-select-trigger__text">{{ ms.selectedLabels() ?? 'Select roles' }}</span>
+                        <svg
+                            class="role-select-trigger__chevron"
+                            [class.role-select-trigger__chevron--open]="ms.isOpen()"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M6 9l6 6 6-6"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                fill="none"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+                    </button>
+                </app-multi-select>
             </ng-template>
         </app-table>
     </div>

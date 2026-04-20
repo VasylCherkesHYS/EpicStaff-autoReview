@@ -1,6 +1,6 @@
 <div class="header">
     <div class="name-row">
-        <div class="avatar">{{ organization().initial }}</div>
+        <app-org-avatar [name]="organization().name" />
         <span class="name">{{ organization().name }}</span>
     </div>
     <app-button mod="small" type="primary" class="open-btn" rightIcon="arrow-up-right" (click)="onOpen()">

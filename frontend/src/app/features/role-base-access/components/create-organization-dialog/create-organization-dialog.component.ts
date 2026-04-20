@@ -9,6 +9,7 @@ import {
     ButtonComponent,
     CustomInputComponent,
     MultiSelectComponent,
+    MultiSelectTriggerDirective,
     SearchComponent,
     TableRow,
     ValidationErrorsComponent,
@@ -20,6 +21,7 @@ import { map } from 'rxjs/operators';
 import { USER_ROLES } from '../../constants/user-roles-select-items.constant';
 import { CreateOrganizationRequest } from '../../models/organization.model';
 import { OrganizationsService } from '../../services/organizations.service';
+import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 @Component({
     selector: 'app-create-organization-dialog',
@@ -34,6 +36,8 @@ import { OrganizationsService } from '../../services/organizations.service';
         AppTableCellDirective,
         SearchComponent,
         MultiSelectComponent,
+        MultiSelectTriggerDirective,
+        UserAvatarComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
