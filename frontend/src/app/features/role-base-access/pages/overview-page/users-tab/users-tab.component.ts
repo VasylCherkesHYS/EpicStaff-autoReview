@@ -12,7 +12,7 @@ import {
     SelectItem,
     TableRow,
 } from '@shared/components';
-import { GetUsersResponse, UserOrganizationRole } from '@shared/models';
+import { GetUserResponse } from '@shared/models';
 import { UserService } from '@shared/services';
 
 import { CreateUserDialogComponent } from '../../../components/create-user-dialog/create-user-dialog.component';
@@ -24,13 +24,6 @@ interface UserOrg {
     id: number;
     name: string;
 }
-
-const ROLE_LABELS: Record<UserOrganizationRole, string> = {
-    [UserOrganizationRole.SUPER_ADMIN]: 'Super Admin',
-    [UserOrganizationRole.ADMIN]: 'Admin',
-    [UserOrganizationRole.FLOW_DESIGNER]: 'Flow Designer',
-    [UserOrganizationRole.RAG_ENGINEER]: 'RAG Engineer',
-};
 
 const ORG_ITEMS: SelectItem[] = [
     { name: 'EpicStaff', value: 1 },
@@ -97,7 +90,7 @@ export class UsersTabComponent implements OnInit {
 
     readonly columns: AppTableColumnDef[] = [
         { key: 'user', label: 'USER', width: '1fr' },
-        { key: 'role', label: 'SYSTEM ROLE', width: '1fr' },
+        { key: 'roles', label: 'SYSTEM ROLE', width: '1fr' },
         { key: 'organization', label: 'ORGANIZATION', width: '1fr', filterItems: ORG_ITEMS },
         { key: 'lastActive', label: 'LAST ACTIVE', width: '160px' },
         { key: 'status', label: 'STATUS', width: '160px', filterItems: STATUS_ITEMS },
@@ -147,13 +140,13 @@ export class UsersTabComponent implements OnInit {
         });
     }
 
-    private mapToRow(user: GetUsersResponse, index: number): TableRow {
+    private mapToRow(user: GetUserResponse, index: number): TableRow {
         const orgs = MOCK_ORGS[index] ?? [];
         return {
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.roles.map((r) => ROLE_LABELS[r]).join(', '),
+            roles: 'Admin, Super Admin',
             // organization stores IDs for table-level array filtering
             organization: orgs.map((o) => o.id),
             // organizationDetails stores full objects for display

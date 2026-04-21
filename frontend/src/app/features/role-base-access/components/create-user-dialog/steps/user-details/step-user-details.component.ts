@@ -1,11 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
     CustomInputComponent,
     HelpTooltipComponent,
     ToggleSwitchComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
+import { map } from 'rxjs';
 
 @Component({
     selector: 'app-step-user-details',
@@ -20,17 +22,17 @@ import {
         HelpTooltipComponent,
     ],
 })
-export class StepUserDetailsComponent implements OnInit {
+export class StepUserDetailsComponent {
     private fb = inject(FormBuilder);
 
-    form!: FormGroup;
+    form = this.fb.group({
+        full_name: ['', [Validators.required]],
+        email: ['', [Validators.required, Validators.email]],
+        password: ['', [Validators.required, Validators.minLength(8)]],
+        superadmin: [false],
+    });
 
-    ngOnInit() {
-        this.form = this.fb.group({
-            full_name: ['', [Validators.required]],
-            email: ['', [Validators.required, Validators.email]],
-            password: ['', [Validators.required, Validators.minLength(8)]],
-            superadmin: [false],
-        });
-    }
+    readonly isFormValid = toSignal(this.form.statusChanges.pipe(map(() => this.form.valid)), {
+        initialValue: this.form.valid,
+    });
 }

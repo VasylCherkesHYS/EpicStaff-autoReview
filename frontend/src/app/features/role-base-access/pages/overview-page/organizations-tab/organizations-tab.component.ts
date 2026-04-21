@@ -29,7 +29,6 @@ const MOCK_ORGS: TableRow[] = [
     {
         id: 1,
         name: 'EpicStaff',
-        adminInitials: 'IB',
         adminName: 'Ivan Bohun',
         adminRole: 'Super Admin',
         members: 34,
@@ -39,7 +38,6 @@ const MOCK_ORGS: TableRow[] = [
     {
         id: 2,
         name: 'EpicFlow',
-        adminInitials: 'IB',
         adminName: 'Ivan Bohun',
         adminRole: 'Super Admin',
         members: 34,
@@ -49,7 +47,6 @@ const MOCK_ORGS: TableRow[] = [
     {
         id: 3,
         name: 'MYM',
-        adminInitials: 'IB',
         adminName: 'Ivan Bohun',
         adminRole: 'Super Admin',
         members: 34,

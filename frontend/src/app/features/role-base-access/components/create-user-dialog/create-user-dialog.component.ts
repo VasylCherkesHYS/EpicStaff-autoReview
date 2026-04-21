@@ -1,9 +1,10 @@
 import { DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppSvgIconComponent, ButtonComponent, StepConfig, StepperComponent } from '@shared/components';
-import { OrganizationService, UserService } from '@shared/services';
-import { of } from 'rxjs';
+import { CreateUserRequest, UserRole } from '@shared/models';
+import { UserService } from '@shared/services';
+import { catchError, map, of, tap } from 'rxjs';
 
 import { CreateUserStep } from '../../enums/create-user-steps.enum';
 import { StepAssignToOrgComponent } from './steps/assign-to-org/step-assign-to-org.component';
@@ -25,30 +26,64 @@ import { StepUserDetailsComponent } from './steps/user-details/step-user-details
 export class CreateUserDialogComponent {
     private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
-    private organizationService = inject(OrganizationService);
     private userService = inject(UserService);
 
-    currentStepIndex = signal(0);
+    private readonly userDetailsStep = viewChild(StepUserDetailsComponent);
+    private readonly assignToOrgStep = viewChild(StepAssignToOrgComponent);
 
-    currentStep = computed(() => this.steps()[this.currentStepIndex()]);
-    nextDisabled = computed(() => !this.currentStep().canProceed());
-    nextText = computed(() => this.currentStep().proceedLabel);
-    stepLabels = computed(() => this.steps().map((s) => s.label));
+    readonly createdUserId = signal<number | null>(null);
+    readonly currentStepIndex = signal(0);
 
-    steps = computed<StepConfig[]>(() => [
+    readonly currentStep = computed(() => this.steps()[this.currentStepIndex()]);
+    readonly nextDisabled = computed(() => !this.currentStep().canProceed());
+    readonly nextText = computed(() => this.currentStep().proceedLabel);
+    readonly stepLabels = computed(() => this.steps().map((s) => s.label));
+
+    readonly steps = computed<StepConfig[]>(() => [
         {
             id: CreateUserStep.USER_DETAILS,
             label: 'User details',
             proceedLabel: 'Next',
-            onProceed: () => of(true),
-            canProceed: () => true,
+            canProceed: () => this.userDetailsStep()?.isFormValid() ?? false,
+            onProceed: () => {
+                const form = this.userDetailsStep()!.form;
+                const { full_name, email, password, superadmin } = form.getRawValue();
+
+                const request: CreateUserRequest = {
+                    name: full_name!,
+                    email: email!,
+                    password: password!,
+                    superadmin: superadmin ?? false,
+                };
+
+                return this.userService.createUser(request).pipe(
+                    tap((user) => this.createdUserId.set(user.id)),
+                    map(() => true as boolean),
+                    catchError(() => of(false))
+                );
+            },
         },
         {
             id: CreateUserStep.ASSIGN_TO_ORG,
             label: 'Assign to Org',
             proceedLabel: 'Create',
-            onProceed: () => of(true),
             canProceed: () => true,
+            onProceed: () => {
+                const selections = this.assignToOrgStep()?.selectedOrganizations() ?? [];
+
+                if (!selections.length) {
+                    return of(true);
+                }
+
+                // TODO: call assignment API once endpoint is available
+                // const assignments = selections.map((row) => ({
+                //     id: row['id'] as number,
+                //     roles: (row['roles'] as UserRole[]) ?? [],
+                // }));
+                // return this.organizationService.assignUserToOrganizations(this.createdUserId()!, assignments);
+                void UserRole; // keep import alive until TODO is implemented
+                return of(true);
+            },
         },
     ]);
 
@@ -77,7 +112,7 @@ export class CreateUserDialogComponent {
             });
     }
 
-    onClose() {
+    onClose(): void {
         this.dialogRef.close();
     }
 

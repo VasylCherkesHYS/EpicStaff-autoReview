@@ -1,21 +1,21 @@
 import { SelectItem } from '@shared/components';
-import { UserOrganizationRole } from '@shared/models';
+import { UserRole } from '@shared/models';
 
 export const USER_ROLES: SelectItem[] = [
     {
         name: 'Super Admin',
-        value: UserOrganizationRole.SUPER_ADMIN,
+        value: UserRole.SUPER_ADMIN,
     },
     {
         name: 'Admin',
-        value: UserOrganizationRole.ADMIN,
+        value: UserRole.ADMIN,
     },
     {
         name: 'Flow Designer',
-        value: UserOrganizationRole.FLOW_DESIGNER,
+        value: UserRole.FLOW_DESIGNER,
     },
     {
         name: 'RAG Engineer',
-        value: UserOrganizationRole.RAG_ENGINEER,
+        value: UserRole.RAG_ENGINEER,
     },
 ];

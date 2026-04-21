@@ -1,4 +1,4 @@
-export enum UserOrganizationRole {
+export enum UserRole {
     SUPER_ADMIN = 'super_admin',
     ADMIN = 'admin',
     FLOW_DESIGNER = 'flow_designer',
@@ -10,29 +10,22 @@ export interface CreateUserRequest {
     email: string;
     password: string;
     superadmin: boolean;
-    organization: {
+    organizations?: {
         id: number;
-        roles: UserOrganizationRole[];
+        roles: UserRole[]; // roles of user in the organization
     };
 }
 
 export interface GetUserResponse {
     id: number;
     name: string;
-    role: UserOrganizationRole;
-    initials: string;
-    organizations: UserOrganization[];
+    email: string;
+    organizations: UserOrgData[];
 }
 
-export interface UserOrganization {
+export interface UserOrgData {
     id: number;
     name: string;
     active: boolean;
-}
-
-export interface GetUsersResponse {
-    id: number;
-    name: string;
-    email: string;
-    roles: UserOrganizationRole[];
+    roles: UserRole[];
 }

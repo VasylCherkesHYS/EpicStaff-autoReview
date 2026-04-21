@@ -1,8 +1,8 @@
 import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, input } from '@angular/core';
 import { AppSvgIconComponent, ButtonComponent } from '@shared/components';
+import { GetOrganizationsResponse } from '@shared/models';
 
-import { GetOrganizationsResponse } from '../../../../shared/models/role-based-access/organization.model';
 import { OrgAvatarComponent } from '../org-avatar/org-avatar.component';
 import { OrganizationDetailsDialogComponent } from '../organization-details-dialog/organization-details-dialog.component';
 

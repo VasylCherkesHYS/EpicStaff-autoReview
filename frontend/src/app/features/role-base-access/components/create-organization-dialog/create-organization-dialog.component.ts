@@ -15,7 +15,7 @@ import {
     TableRow,
     ValidationErrorsComponent,
 } from '@shared/components';
-import { CreateOrganizationRequest, UserOrganizationRole } from '@shared/models';
+import { CreateOrganizationRequest, UserRole } from '@shared/models';
 import { OrganizationService, UserService } from '@shared/services';
 import { map } from 'rxjs/operators';
 
@@ -78,7 +78,7 @@ export class CreateOrganizationDialogComponent implements OnInit {
                     users.map((user) => ({
                         id: user.id,
                         name: user.name,
-                        roles: user.roles,
+                        roles: [],
                         email: user.email,
                     }))
                 )
@@ -110,7 +110,7 @@ export class CreateOrganizationDialogComponent implements OnInit {
             name: this.orgNameControl.value!,
             users: this.selectedUsers().map((row) => ({
                 id: row['id'] as number,
-                roles: (row['roles'] as UserOrganizationRole[]) ?? [],
+                roles: (row['roles'] as UserRole[]) ?? [],
             })),
         };
 

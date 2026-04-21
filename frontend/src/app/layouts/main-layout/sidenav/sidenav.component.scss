@@ -134,23 +134,7 @@
 }
 
 .user-avatar-btn {
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 50%;
-    background-color: var(--transparent-white-8);
-    color: var(--text-secondary-60);
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: none;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.2s;
-
-    &:hover {
-        opacity: 0.85;
-    }
 }
 
 .epic-chat-host {

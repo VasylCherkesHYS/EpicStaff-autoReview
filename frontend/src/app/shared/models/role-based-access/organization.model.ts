@@ -1,4 +1,4 @@
-import { UserOrganizationRole } from '../index';
+import { UserRole } from '../index';
 
 export interface CreateOrganizationRequest {
     name: string;
@@ -7,7 +7,7 @@ export interface CreateOrganizationRequest {
 
 interface CreateOrgUser {
     id: number;
-    roles: UserOrganizationRole[];
+    roles: UserRole[];
 }
 
 export interface GetOrganizationsResponse {

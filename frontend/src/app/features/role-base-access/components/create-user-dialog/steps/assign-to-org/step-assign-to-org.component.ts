@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     AppTableCellDirective,
@@ -35,15 +35,17 @@ export class StepAssignToOrgComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private organizationService = inject(OrganizationService);
 
-    usersTableData = signal<TableRow[]>([]);
+    userId = input.required<number>();
+
+    organizationsTableData = signal<TableRow[]>([]);
     searchTerm = signal('');
     isOrgsLoading = signal<boolean>(true);
     selectedOrganizations = signal<TableRow[]>([]);
 
     filteredOrganizations = computed(() => {
         const term = this.searchTerm().toLowerCase().trim();
-        if (!term) return this.usersTableData();
-        return this.usersTableData().filter(
+        if (!term) return this.organizationsTableData();
+        return this.organizationsTableData().filter(
             (row) =>
                 (row['name'] as string)?.toLowerCase().includes(term) ||
                 (row['email'] as string)?.toLowerCase().includes(term)
@@ -57,7 +59,7 @@ export class StepAssignToOrgComponent implements OnInit {
 
     ngOnInit() {
         this.organizationService
-            .getOrganizationsByUserId(1)
+            .getOrganizationsByUserId(this.userId())
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
                 map((orgs) =>
@@ -68,8 +70,8 @@ export class StepAssignToOrgComponent implements OnInit {
                 )
             )
             .subscribe({
-                next: (users) => {
-                    this.usersTableData.set(users);
+                next: (orgs) => {
+                    this.organizationsTableData.set(orgs.map((org) => ({ ...org, roles: [] })));
                     this.isOrgsLoading.set(false);
                 },
                 error: () => this.isOrgsLoading.set(false),

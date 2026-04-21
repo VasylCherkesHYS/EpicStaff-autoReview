@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
 import { ConfigService } from '../../../services/config';
-import { GetUserResponse, GetUsersResponse, UserOrganizationRole } from '../../models';
+import { CreateUserRequest, GetUserResponse, UserRole } from '../../models';
 
 @Injectable({
     providedIn: 'root',
@@ -20,57 +20,113 @@ export class UserService {
         return this.configService.apiUrl + 'user/';
     }
 
-    getCurrentUser(): Observable<GetUserResponse> {
+    createUser(data: CreateUserRequest): Observable<GetUserResponse> {
         return of({
-            id: 1,
-            name: 'Ivan Bohun',
-            role: UserOrganizationRole.SUPER_ADMIN,
-            initials: 'IB',
+            id: 2,
+            name: data.name,
+            email: data.email,
             organizations: [
                 {
                     id: 1,
                     name: 'EpicStaff',
-                    initial: 'E',
                     active: true,
+                    roles: [UserRole.SUPER_ADMIN],
                 },
                 {
                     id: 2,
                     name: 'EpicFlow',
-                    initial: 'E',
                     active: false,
+                    roles: [UserRole.SUPER_ADMIN],
                 },
                 {
                     id: 3,
                     name: 'MYM',
-                    initial: 'M',
                     active: false,
+                    roles: [UserRole.SUPER_ADMIN],
                 },
             ],
         });
     }
 
-    getUsers(): Observable<GetUsersResponse[]> {
+    getCurrentUser(): Observable<GetUserResponse> {
+        return of({
+            id: 1,
+            name: 'Ivan Bohun',
+            email: 'ivan.bohun@mail.com',
+            organizations: [
+                {
+                    id: 1,
+                    name: 'EpicStaff',
+                    active: true,
+                    roles: [UserRole.SUPER_ADMIN],
+                },
+                {
+                    id: 2,
+                    name: 'EpicFlow',
+                    active: false,
+                    roles: [UserRole.SUPER_ADMIN],
+                },
+                {
+                    id: 3,
+                    name: 'MYM',
+                    active: false,
+                    roles: [UserRole.SUPER_ADMIN],
+                },
+            ],
+        });
+    }
+
+    getUsers(): Observable<GetUserResponse[]> {
         return of([
             {
                 id: 1,
-                initials: 'IB',
                 name: 'Ivan Bohun',
-                email: 'ivan_bohun@gmail.com',
-                roles: [UserOrganizationRole.SUPER_ADMIN],
+                email: 'ivan.bohun@mail.com',
+                organizations: [
+                    {
+                        id: 1,
+                        name: 'EpicStaff',
+                        active: true,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                    {
+                        id: 2,
+                        name: 'EpicFlow',
+                        active: false,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                    {
+                        id: 3,
+                        name: 'MYM',
+                        active: false,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                ],
             },
             {
-                id: 2,
-                initials: 'IV',
-                name: 'Ivan Vyhovskyi',
-                email: 'ivan_vyhovskyi@gmail.com',
-                roles: [UserOrganizationRole.SUPER_ADMIN],
-            },
-            {
-                id: 3,
-                initials: 'BK',
-                name: 'Bohdan Khmelnytsky',
-                email: 'bohdan_khmelnytsky@gmail.com',
-                roles: [UserOrganizationRole.SUPER_ADMIN],
+                id: 1,
+                name: 'Ivan Bohun',
+                email: 'ivan.bohun@mail.com',
+                organizations: [
+                    {
+                        id: 1,
+                        name: 'EpicStaff',
+                        active: true,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                    {
+                        id: 2,
+                        name: 'EpicFlow',
+                        active: false,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                    {
+                        id: 3,
+                        name: 'MYM',
+                        active: false,
+                        roles: [UserRole.SUPER_ADMIN],
+                    },
+                ],
             },
         ]);
     }

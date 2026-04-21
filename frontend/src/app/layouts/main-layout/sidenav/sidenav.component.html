@@ -66,9 +66,9 @@
         @if (user(); as user) {
             <li class="sidenav-nav-item user-menu-item">
                 <div class="tooltip-wrapper user-avatar-wrapper">
-                    <button class="user-avatar-btn" (click)="toggleUserMenu($event)">
-                        {{ user.initials }}
-                    </button>
+                    <div class="user-avatar-btn" (click)="toggleUserMenu($event)">
+                        <app-user-avatar [name]="user.name" />
+                    </div>
                     @if (isUserMenuOpen()) {
                         <app-user-menu [user]="user" />
                     }

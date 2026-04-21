@@ -22,6 +22,7 @@ import { environment } from 'src/environments/environment';
 
 import { ConfigureModelsDialogService } from '../../../features/configure-models/services/configure-models-dialog.service';
 import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
+import { UserAvatarComponent } from '../../../features/role-base-access/components/user-avatar/user-avatar.component';
 import { UserMenuComponent } from '../../../features/role-base-access/components/user-sidebar-menu/user-menu.component';
 import { ConfigService } from '../../../services/config/config.service';
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
@@ -49,6 +50,7 @@ interface NavItem {
         PortalModule,
         UserMenuComponent,
         AppSvgIconComponent,
+        UserAvatarComponent,
     ],
     templateUrl: './sidenav.component.html',
     styleUrls: ['./sidenav.component.scss'],

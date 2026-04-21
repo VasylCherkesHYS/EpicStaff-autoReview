@@ -21,22 +21,6 @@
     padding: 8px 16px;
 }
 
-.user-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background-color: var(--transparent-white-8);
-    color: var(--text-secondary-60);
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
 .user-info {
     display: flex;
     flex-direction: column;
@@ -99,28 +83,7 @@
             color: var(--accent-color);
             font-weight: 500;
         }
-
-        .org-avatar {
-            background-color: color-mix(in srgb, var(--accent-color) 20%, transparent);
-            color: var(--accent-color);
-        }
     }
-}
-
-.org-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    background-color: var(--transparent-white-8);
-    color: var(--text-secondary-60);
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition:
-        background-color 0.15s ease,
-        color 0.15s ease;
 }
 
 .org-name {
