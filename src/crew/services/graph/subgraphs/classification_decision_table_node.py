@@ -49,6 +49,32 @@ def extract_first_json_object(text: str) -> Any:
     return text
 
 
+def _build_response_format(
+    prompt_output_schema: dict | str | None,
+    fallback: dict | None,
+) -> dict | None:
+    """Wrap a per-prompt JSON schema as litellm's response_format.
+    Falls back to the LLM-wide response_format when per-prompt schema is empty/invalid."""
+    schema = prompt_output_schema
+    if isinstance(schema, str):
+        s = schema.strip()
+        if not s:
+            return fallback
+        try:
+            schema = json.loads(s)
+        except json.JSONDecodeError as e:
+            logger.warning(
+                f"CDT output_schema string is not valid JSON, falling back: {e}"
+            )
+            return fallback
+    if not schema or not isinstance(schema, dict):
+        return fallback
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "cdt_output", "schema": schema, "strict": True},
+    }
+
+
 class ClassificationDecisionTableNodeError(Exception):
     """Custom exception for errors related to ClassificationDecisionTableNode."""
 
@@ -342,11 +368,17 @@ def main(**kwargs) -> dict:
         state["variables"].update(variables)
 
     async def _run_json_llm(
-        self, prompt: str, llm: LLMData
+        self,
+        prompt: str,
+        llm: LLMData,
+        output_schema: dict | str | None = None,
     ) -> tuple[Any, dict[str, int]]:
         """Call LLM via litellm and parse JSON response."""
         llm_config = llm.config
         litellm.drop_params = True
+        response_format = _build_response_format(
+            output_schema, fallback=llm_config.response_format
+        )
         params = {
             "model": f"{llm.provider}/{llm_config.model}",
             "timeout": llm_config.timeout,
@@ -357,7 +389,7 @@ def main(**kwargs) -> dict:
             "presence_penalty": llm_config.presence_penalty,
             "frequency_penalty": llm_config.frequency_penalty,
             "logit_bias": llm_config.logit_bias,
-            "response_format": llm_config.response_format,
+            "response_format": response_format,
             "seed": llm_config.seed,
             "base_url": llm_config.base_url,
             "api_version": llm_config.api_version,
@@ -423,7 +455,9 @@ def main(**kwargs) -> dict:
 
         try:
             result, usage = await self._run_json_llm(
-                prompt=rendered_prompt, llm=llm_data
+                prompt=rendered_prompt,
+                llm=llm_data,
+                output_schema=prompt_config.output_schema,
             )
         except Exception as e:
             error_msg = (
