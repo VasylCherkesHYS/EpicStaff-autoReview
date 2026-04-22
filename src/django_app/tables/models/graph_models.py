@@ -622,7 +622,7 @@ class ClassificationDecisionTablePrompt(TimestampMixin, models.Model):
         blank=True,
         related_name="cdt_prompts",
     )
-    output_schema = models.JSONField(default=dict, blank=True)
+    output_schema = models.JSONField(default=dict, blank=True, null=True)
     result_variable = models.CharField(max_length=255, default="prompt_result")
     variable_mappings = models.JSONField(default=dict, blank=True)
 
