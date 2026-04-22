@@ -18,7 +18,6 @@ import { debounceTime } from 'rxjs/operators';
 
 import { CustomInputComponent } from '../../../../shared/components/form-input/form-input.component';
 import { LlmModelSelectorComponent } from '../../../../shared/components/llm-model-selector/llm-model-selector.component';
-import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { FullLLMConfig, FullLLMConfigService } from '../../../../shared/services/llms/full-llm-config.service';
 import { CodeEditorComponent } from '../../../../user-settings-page/tools/custom-tool-editor/code-editor/code-editor.component';
 import { NodeType } from '../../../core/enums/node-type';
@@ -46,7 +45,6 @@ type TabType = 'table' | 'precomputation' | 'postcomputation' | 'prompts';
         CommonModule,
         ClassificationDecisionTableGridComponent,
         LlmModelSelectorComponent,
-        TabButtonComponent,
         InputMapComponent,
         CodeEditorComponent,
     ],
