@@ -23,6 +23,7 @@ import {
     EFMarkerType,
     EFResizeHandleType,
     EFZoomDirection,
+    F_CONNECTION_BUILDERS,
     FCanvasComponent,
     FCreateConnectionEvent,
     FCreateNodeEvent,
@@ -78,7 +79,15 @@ import { ClipboardService } from '../services/clipboard.service';
 import { FlowService } from '../services/flow.service';
 import { NodeFactoryService } from '../services/node-factory.service';
 import { SidePanelService } from '../services/side-panel.service';
+import { BackwardConnectionBuilder } from '../core/connection-builders/backward-connection.builder';
 import { UndoRedoService } from '../services/undo-redo.service';
+import {
+    generatePortsForClassificationDecisionTableNode,
+} from '../core/helpers/helpers';
+
+const connectionBuilders = {
+    ['backward']: new BackwardConnectionBuilder(),
+};
 
 @Component({
     selector: 'app-flow-graph',
@@ -259,6 +268,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                 if (node.ports.length !== expectedPortCount) {
                     node.ports = generatePortsForDecisionTableNode(node.id, conditionGroups);
                 }
+            } else if (node.type === NodeType.CLASSIFICATION_TABLE) {
+                (node as any).ports = generatePortsForClassificationDecisionTableNode(
+                    node.id,
+                    (node as any)?.data?.table?.condition_groups ?? [],
+                    true,
+                    true
+                );
             }
             return node;
         });
