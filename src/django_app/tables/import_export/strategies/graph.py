@@ -210,6 +210,31 @@ class GraphStrategy(EntityImportExportStrategy):
                         group.next_node_id = new_id
                         group.save(update_fields=["next_node_id"])
 
+        def _remap_char_node_ref(old_value):
+            if not old_value:
+                return None
+            new_id = id_mapper.get_or_none(NODE_MAPPING_KEY, int(old_value))
+            return str(new_id) if new_id else None
+
+        for cdt_node in graph.classification_decision_table_node_list.all():
+            updated = False
+            new_default = _remap_char_node_ref(cdt_node.default_next_node)
+            if new_default:
+                cdt_node.default_next_node = new_default
+                updated = True
+            new_error = _remap_char_node_ref(cdt_node.next_error_node)
+            if new_error:
+                cdt_node.next_error_node = new_error
+                updated = True
+            if updated:
+                cdt_node.save(update_fields=["default_next_node", "next_error_node"])
+            for group in cdt_node.condition_groups.all():
+                if group.next_node_id:
+                    new_id = id_mapper.get_or_none(NODE_MAPPING_KEY, group.next_node_id)
+                    if new_id:
+                        group.next_node_id = new_id
+                        group.save(update_fields=["next_node_id"])
+
     def _update_metadata_node_ids(self, graph: Graph, id_mapper: IDMapper):
         metadata = graph.metadata
         if not metadata:
