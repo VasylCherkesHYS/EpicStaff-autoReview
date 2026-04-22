@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
+    AvatarUploadComponent,
     CustomInputComponent,
     HelpTooltipComponent,
     ToggleSwitchComponent,
@@ -20,6 +21,7 @@ import { map } from 'rxjs';
         ValidationErrorsComponent,
         ToggleSwitchComponent,
         HelpTooltipComponent,
+        AvatarUploadComponent,
     ],
 })
 export class StepUserDetailsComponent {
@@ -30,6 +32,7 @@ export class StepUserDetailsComponent {
         email: ['', [Validators.required, Validators.email]],
         password: ['', [Validators.required, Validators.minLength(8)]],
         superadmin: [false],
+        picture: [null as File | null],
     });
 
     readonly isFormValid = toSignal(this.form.statusChanges.pipe(map(() => this.form.valid)), {

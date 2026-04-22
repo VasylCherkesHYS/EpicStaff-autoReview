@@ -21,11 +21,20 @@
             padding-top: 8px;
 
             .label {
-                width: 120px;
+                width: 110px;
+                flex-shrink: 0;
                 display: flex;
                 justify-content: flex-end;
                 white-space: nowrap;
                 gap: 8px;
+            }
+
+            &.top {
+                align-items: flex-start;
+
+                .label {
+                    padding-top: 10px;
+                }
             }
         }
 

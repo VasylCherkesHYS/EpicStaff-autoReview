@@ -27,6 +27,13 @@
             <app-custom-input type="password" placeholder="Enter user password..." formControlName="password" />
         </div>
         <app-validation-errors [control]="form.get('password')!" />
+        <div class="control top">
+            <label class="label">
+                Picture
+                <app-help-tooltip [text]="''" position="right"></app-help-tooltip>
+            </label>
+            <app-avatar-upload (imageChange)="form.patchValue({ picture: $event })" />
+        </div>
     </div>
     <div class="secondary">
         <label class="label">
