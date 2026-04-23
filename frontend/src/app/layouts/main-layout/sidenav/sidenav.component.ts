@@ -24,6 +24,7 @@ import { ConfigureModelsDialogService } from '../../../features/configure-models
 import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
 import { UserAvatarComponent } from '../../../features/role-base-access/components/user-avatar/user-avatar.component';
 import { UserMenuComponent } from '../../../features/role-base-access/components/user-sidebar-menu/user-menu.component';
+import { AuthService } from '../../../services/auth/auth.service';
 import { ConfigService } from '../../../services/config/config.service';
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GetUserResponse } from '../../../shared/models';
@@ -62,6 +63,7 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
     public bottomNavItems: NavItem[];
     public isEpicChatEnabled: boolean;
     public apiBaseUrl: string;
+    public accessToken: string;
     public showLogoTooltip = false;
     public readonly epicChatThemeConfig = {
         semantic: {
@@ -132,6 +134,8 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         public epicChatService: EpicChatService,
         private configService: ConfigService,
         private configureModelsDialogService: ConfigureModelsDialogService,
+        private authService: AuthService,
+        private configureModelsDialogService: ConfigureModelsDialogService,
         private userService: UserService,
         private destroyRef: DestroyRef
     ) {
@@ -144,6 +148,7 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         // Bad approach to use window.location because ui and backend can be on different domains
         // fixed localhost vs 127.0.0.1 problem in widget code
         this.apiBaseUrl = environment.apiUrl;
+        this.accessToken = this.authService.getAccessToken() ?? '';
         this.topNavItems = [
             {
                 id: 'projects',
