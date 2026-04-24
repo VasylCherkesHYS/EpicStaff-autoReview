@@ -33,7 +33,7 @@ export class UserMenuComponent {
     }
 
     public onProfileClick(): void {
-        console.log('My Profile clicked');
+        this.router.navigate(['/profile']);
         this.isUserMenuOpen.set(false);
     }
 

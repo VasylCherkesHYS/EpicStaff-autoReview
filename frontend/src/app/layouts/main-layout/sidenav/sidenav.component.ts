@@ -135,7 +135,6 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         private configService: ConfigService,
         private configureModelsDialogService: ConfigureModelsDialogService,
         private authService: AuthService,
-        private configureModelsDialogService: ConfigureModelsDialogService,
         private userService: UserService,
         private destroyRef: DestroyRef
     ) {
