@@ -2,12 +2,14 @@
 Simple reverse proxy for LLM API calls.
 
 Env vars:
-  PROXY_TARGET_HOST  — where to forward (e.g. https://api.openai.com)
-  PROXY_HEADERS      — JSON dict; null value = remove header, string = add/replace
-  PROXY_PORT         — listen port (default 8080)
-  PROXY_SSL_VERIFY   — set to "false" to skip SSL verification upstream
-  PROXY_LOG_BODY     — set to "true" to log request/response bodies
+  PROXY_TARGET_HOST        — where to forward (e.g. https://api.openai.com)
+  PROXY_HEADERS            — JSON dict; null value = remove header, string = add/replace
+  PROXY_PORT               — listen port (default 8080)
+  PROXY_SSL_VERIFY         — set to "false" to skip SSL verification upstream
+  PROXY_LOG_BODY           — set to "true" to log request/response bodies
+  PROXY_STRIP_RESPONSE_FMT — set to "true" to remove response_format from request body
 """
+
 import json
 import logging
 import os
@@ -29,7 +31,6 @@ logging.basicConfig(
 )
 log = logging.getLogger("proxy")
 
-# Suppress httpx/httpcore noise unless you really want it
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
@@ -38,12 +39,15 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 app = FastAPI()
 
 TARGET_HOST: str = os.environ.get("PROXY_TARGET_HOST", "").rstrip("/")
-LOG_BODY: bool   = os.environ.get("PROXY_LOG_BODY", "false").lower() == "true"
+LOG_BODY: bool = os.environ.get("PROXY_LOG_BODY", "false").lower() == "true"
+STRIP_RESPONSE_FMT: bool = (
+    os.environ.get("PROXY_STRIP_RESPONSE_FMT", "true").lower() == "true"
+)
 
-_SKIP_REQ  = {"host", "content-length", "transfer-encoding", "connection"}
+_SKIP_REQ = {"host", "content-length", "transfer-encoding", "connection"}
 _SKIP_RESP = {"content-encoding", "content-length", "transfer-encoding", "connection"}
 
-_SENSITIVE = {"authorization", "x-api-key", "api-key"}  # masked in logs
+_SENSITIVE = {"authorization", "x-api-key", "api-key"}
 
 
 def _header_mods() -> dict:
@@ -58,10 +62,7 @@ def _header_mods() -> dict:
 
 
 def _mask_headers(headers: dict) -> dict:
-    return {
-        k: ("***" if k.lower() in _SENSITIVE else v)
-        for k, v in headers.items()
-    }
+    return {k: ("***" if k.lower() in _SENSITIVE else v) for k, v in headers.items()}
 
 
 def _fmt_body(body: bytes) -> str:
@@ -69,21 +70,39 @@ def _fmt_body(body: bytes) -> str:
         return "<empty>"
     try:
         parsed = json.loads(body)
-        # Truncate long string values (e.g. base64 images)
+
         def _trunc(obj, depth=0):
             if depth > 4:
                 return "..."
             if isinstance(obj, dict):
                 return {k: _trunc(v, depth + 1) for k, v in obj.items()}
             if isinstance(obj, list):
-                return [_trunc(i, depth + 1) for i in obj[:5]] + (["..."] if len(obj) > 5 else [])
+                return [_trunc(i, depth + 1) for i in obj[:5]] + (
+                    ["..."] if len(obj) > 5 else []
+                )
             if isinstance(obj, str) and len(obj) > 200:
                 return obj[:200] + f"…[{len(obj)} chars]"
             return obj
+
         return json.dumps(_trunc(parsed), ensure_ascii=False, indent=2)
     except Exception:
         text = body.decode(errors="replace")
         return text[:500] + (f"…[{len(body)} bytes]" if len(body) > 500 else "")
+
+
+def _strip_response_format(body: bytes, req_id: str) -> bytes:
+    """Remove response_format key from JSON body if present."""
+    if not body:
+        return body
+    try:
+        parsed = json.loads(body)
+        if "response_format" in parsed:
+            del parsed["response_format"]
+            log.debug("[%s]   stripped response_format from request body", req_id)
+            return json.dumps(parsed).encode()
+    except Exception as exc:
+        log.warning("[%s]   failed to strip response_format: %s", req_id, exc)
+    return body
 
 
 @app.api_route(
@@ -94,13 +113,13 @@ async def proxy(request: Request, path: str):
     req_id = uuid.uuid4().hex[:8]
     t0 = time.perf_counter()
 
-    qs  = f"?{request.url.query}" if request.url.query else ""
+    log.debug("[%s] RECEIVED RAW HEADERS: %s", req_id, dict(request.headers))
+
+    qs = f"?{request.url.query}" if request.url.query else ""
     url = f"{TARGET_HOST}/{path}{qs}"
 
-    # Forward headers, drop hop-by-hop
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _SKIP_REQ}
 
-    # Apply modifications: null → remove, string → add/replace
     mods = _header_mods()
     removed, added = [], []
     for k, v in mods.items():
@@ -115,14 +134,15 @@ async def proxy(request: Request, path: str):
 
     body = await request.body()
 
-    # --- Request log ---
-    log.info(
-        "[%s] ▶ %s %s  body=%d bytes",
-        req_id, request.method, url, len(body),
-    )
+    # --- Strip response_format from body if enabled ---
+    if STRIP_RESPONSE_FMT:
+        body = _strip_response_format(body, req_id)
+
+    log.info("[%s] ▶ %s %s  body=%d bytes", req_id, request.method, url, len(body))
     log.debug(
         "[%s]   headers → %s",
-        req_id, json.dumps(_mask_headers(headers), ensure_ascii=False),
+        req_id,
+        json.dumps(_mask_headers(headers), ensure_ascii=False),
     )
     if removed:
         log.debug("[%s]   removed headers: %s", req_id, removed)
@@ -131,15 +151,17 @@ async def proxy(request: Request, path: str):
     if LOG_BODY and body:
         log.debug("[%s]   request body:\n%s", req_id, _fmt_body(body))
 
-    # Full raw request dump
     raw_headers = "\r\n".join(
-        f"{k}: {'***' if k.lower() in _SENSITIVE else v}"
-        for k, v in headers.items()
+        f"{k}: {'***' if k.lower() in _SENSITIVE else v}" for k, v in headers.items()
     )
     raw_body = body.decode(errors="replace") if body else ""
     log.debug(
         "[%s]   raw request:\n%s %s HTTP/1.1\r\n%s\r\n\r\n%s",
-        req_id, request.method, url, raw_headers, raw_body,
+        req_id,
+        request.method,
+        url,
+        raw_headers,
+        raw_body,
     )
 
     ssl_verify = os.environ.get("PROXY_SSL_VERIFY", "true").lower() != "false"
@@ -182,15 +204,15 @@ async def proxy(request: Request, path: str):
     }
 
     chunks_count = 0
-    total_bytes  = 0
+    total_bytes = 0
 
     async def generate():
         nonlocal chunks_count, total_bytes
         resp_body_buf = b""
         try:
-            async for chunk in upstream_resp.aiter_raw():
+            async for chunk in upstream_resp.aiter_bytes():
                 chunks_count += 1
-                total_bytes  += len(chunk)
+                total_bytes += len(chunk)
                 if LOG_BODY:
                     resp_body_buf += chunk
                 yield chunk
@@ -198,7 +220,10 @@ async def proxy(request: Request, path: str):
             elapsed_total = (time.perf_counter() - t0) * 1000
             log.info(
                 "[%s] ✓ done  %.0fms total  %d chunks  %d bytes",
-                req_id, elapsed_total, chunks_count, total_bytes,
+                req_id,
+                elapsed_total,
+                chunks_count,
+                total_bytes,
             )
             if LOG_BODY and resp_body_buf:
                 log.debug("[%s]   response body:\n%s", req_id, _fmt_body(resp_body_buf))
@@ -216,7 +241,13 @@ if __name__ == "__main__":
     if not TARGET_HOST:
         raise RuntimeError("PROXY_TARGET_HOST is not set")
     port = int(os.environ.get("PROXY_PORT", 8080))
-    log.info("Proxying → %s  (port %d)  log_body=%s", TARGET_HOST, port, LOG_BODY)
+    log.info(
+        "Proxying → %s  (port %d)  log_body=%s  strip_response_fmt=%s",
+        TARGET_HOST,
+        port,
+        LOG_BODY,
+        STRIP_RESPONSE_FMT,
+    )
     mods = _header_mods()
     if mods:
         log.info("Header mods: %s", json.dumps(_mask_headers(mods)))
