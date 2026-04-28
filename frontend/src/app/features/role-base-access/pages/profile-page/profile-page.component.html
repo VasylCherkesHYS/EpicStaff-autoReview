@@ -4,7 +4,10 @@
             <h1 class="header-title">My Profile</h1>
             <p class="subtitle">Update your profile, review your organization memberships and assigned roles.</p>
         </div>
-        <app-button type="outline-primary">
+        <app-button
+            type="outline-primary"
+            (click)="onSignOut()"
+        >
             <app-svg-icon
                 icon="sign-out"
                 size="16px"
@@ -30,12 +33,14 @@
                     <app-button
                         type="outline-primary"
                         leftIcon="lock"
+                        (click)="onPasswordChange()"
                     >
                         Change Password
                     </app-button>
                     <app-button
                         type="primary"
                         leftIcon="edit"
+                        (click)="onProfileEdit()"
                     >
                         Edit
                     </app-button>

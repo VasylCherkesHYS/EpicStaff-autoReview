@@ -1,3 +1,4 @@
+import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -12,6 +13,8 @@ import { GetUserResponse, UserRole } from '@shared/models';
 import { UserService } from '@shared/services';
 
 import { OrgAvatarComponent } from '../../components/org-avatar/org-avatar.component';
+import { PasswordChangeDialogComponent } from '../../components/password-change-dialog/password-change-dialog.component';
+import { ProfileEditDialogComponent } from '../../components/profile-edit-dialog/profile-edit-dialog.component';
 import { UserAvatarComponent } from '../../components/user-avatar/user-avatar.component';
 import { ROLE_LABELS } from '../../constants/role-labels.constant';
 
@@ -36,8 +39,9 @@ const MOCK_UPDATED = new Date('2026-03-12');
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfilePageComponent implements OnInit {
-    private readonly userService = inject(UserService);
-    private readonly destroyRef = inject(DestroyRef);
+    private dialog = inject(Dialog);
+    private userService = inject(UserService);
+    private destroyRef = inject(DestroyRef);
 
     readonly user = signal<GetUserResponse | null>(null);
     readonly isLoading = signal(true);
@@ -79,5 +83,19 @@ export class ProfilePageComponent implements OnInit {
 
     roleLabel(role: UserRole): string {
         return ROLE_LABELS[role] ?? role;
+    }
+
+    onPasswordChange(): void {
+        this.dialog.open(PasswordChangeDialogComponent, {
+            width: '560px',
+        });
+    }
+
+    onSignOut(): void {}
+
+    onProfileEdit(): void {
+        this.dialog.open(ProfileEditDialogComponent, {
+            width: '560px',
+        });
     }
 }
