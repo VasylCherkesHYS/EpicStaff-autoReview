@@ -29,14 +29,21 @@ export const authGuard: CanActivateFn = (route, state) => {
                     void router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
                     return false;
                 }),
-                catchError(() => redirectToLogin())
+                catchError(redirectToLogin)
             );
         }),
         catchError(() => {
             if (authService.isAuthenticated()) {
                 return of(true);
             }
-            return redirectToLogin();
+            return authService.refreshToken().pipe(
+                map((accessToken) => {
+                    if (accessToken) return true;
+                    void router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+                    return false;
+                }),
+                catchError(redirectToLogin)
+            );
         })
     );
 };
