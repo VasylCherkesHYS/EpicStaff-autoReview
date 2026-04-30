@@ -192,6 +192,13 @@ export class LeftSidebarComponent implements AfterViewInit {
 
         this.bottomNavItems = [];
         this.bottomNavItems.push({
+            id: 'reports',
+            routeLink: '/reports',
+            icon: 'reports',
+            label: 'Reports',
+            showTooltip: false,
+        });
+        this.bottomNavItems.push({
             id: 'settings',
             icon: 'settings',
             label: 'Settings',

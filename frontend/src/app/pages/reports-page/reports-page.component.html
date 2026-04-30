@@ -1,0 +1,263 @@
+<div class="reports-page">
+    <div class="page-header">
+        <div class="page-title">
+            <app-svg-icon
+                icon="reports"
+                size="22px"
+            />
+            <span>Reports</span>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <app-spinner *ngIf="isLoading" />
+
+        <div
+            *ngIf="hasError && !isLoading"
+            class="error-state"
+        >
+            Failed to load reports data.
+        </div>
+
+        <ng-container *ngIf="data && !isLoading">
+            <!-- KPI Cards -->
+            <section class="kpi-grid">
+                <div
+                    class="kpi-card kpi-card--link"
+                    routerLink="/flows"
+                >
+                    <div class="kpi-value">{{ data.totalFlows }}</div>
+                    <div class="kpi-label">Total Flows</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">{{ data.flowsWithSubflows }}</div>
+                    <div class="kpi-label">Flows with Subflows</div>
+                </div>
+                <div
+                    class="kpi-card kpi-card--link"
+                    routerLink="/staff"
+                >
+                    <div class="kpi-value">{{ data.totalAgents }}</div>
+                    <div class="kpi-label">Total Agents</div>
+                </div>
+                <div
+                    class="kpi-card kpi-card--link"
+                    routerLink="/tools"
+                >
+                    <div class="kpi-value">{{ data.totalTools }}</div>
+                    <div class="kpi-label">Total Tools</div>
+                </div>
+                <div
+                    class="kpi-card kpi-card--link"
+                    routerLink="/sessions"
+                >
+                    <div class="kpi-value">{{ data.totalSessions }}</div>
+                    <div class="kpi-label">Total Sessions</div>
+                </div>
+                <div
+                    class="kpi-card kpi-card--link"
+                    routerLink="/sessions"
+                >
+                    <div class="kpi-value">{{ data.sessionsToday }}</div>
+                    <div class="kpi-label">Sessions Today</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value accent">{{ data.successRate }}%</div>
+                    <div class="kpi-label">Success Rate</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">{{ formatTokens(data.totalTokens) }}</div>
+                    <div class="kpi-label">Tokens Used</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value accent">{{ formatCost(data.totalCost) }}</div>
+                    <div class="kpi-label">Est. Total Cost</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">{{ formatDuration(data.avgSessionDurationMs) }}</div>
+                    <div class="kpi-label">Avg Session Duration</div>
+                </div>
+            </section>
+
+            <!-- Charts Row -->
+            <section class="charts-row">
+                <!-- Session Status Donut Chart -->
+                <div class="chart-card donut-card">
+                    <div class="chart-title">Session Status Distribution</div>
+                    <div class="donut-content">
+                        <div class="donut-wrap">
+                            <svg
+                                viewBox="0 0 100 100"
+                                class="donut-svg"
+                            >
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="40"
+                                    fill="none"
+                                    stroke="var(--color-divider-subtle)"
+                                    stroke-width="16"
+                                />
+                                <ng-container *ngFor="let slice of donutSlices">
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        fill="none"
+                                        [attr.stroke]="slice.color"
+                                        stroke-width="16"
+                                        [attr.stroke-dasharray]="
+                                            slice.percent * donutCircumference + ' ' + donutCircumference
+                                        "
+                                        [attr.stroke-dashoffset]="slice.offset"
+                                        stroke-linecap="butt"
+                                        transform="rotate(-90 50 50)"
+                                    />
+                                </ng-container>
+                                <text
+                                    x="50"
+                                    y="46"
+                                    text-anchor="middle"
+                                    class="donut-center-value"
+                                >
+                                    {{ donutTotal }}
+                                </text>
+                                <text
+                                    x="50"
+                                    y="58"
+                                    text-anchor="middle"
+                                    class="donut-center-label"
+                                >
+                                    sessions
+                                </text>
+                            </svg>
+                        </div>
+                        <div class="donut-legend">
+                            <div
+                                *ngFor="let slice of donutSlices"
+                                class="legend-item"
+                            >
+                                <span
+                                    class="legend-dot"
+                                    [style.background]="slice.color"
+                                ></span>
+                                <span class="legend-label">{{ slice.label }}</span>
+                                <span class="legend-count">{{ slice.count }}</span>
+                            </div>
+                            <div
+                                *ngIf="donutSlices.length === 0"
+                                class="legend-empty"
+                            >
+                                No sessions yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Flows Table -->
+                <div class="chart-card bar-card">
+                    <div class="chart-title">Top Flows by Runs</div>
+                    <div
+                        *ngIf="data.topFlows.length === 0"
+                        class="chart-empty"
+                    >
+                        No sessions yet
+                    </div>
+                    <table
+                        *ngIf="data.topFlows.length > 0"
+                        class="sessions-table top-flows-table"
+                    >
+                        <thead>
+                            <tr>
+                                <th>Flow</th>
+                                <th>Model</th>
+                                <th>Runs</th>
+                                <th class="col-bar"></th>
+                                <th class="col-tokens">Tokens</th>
+                                <th class="col-cost">~Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                *ngFor="let flow of data.topFlows"
+                                class="clickable-row"
+                                (click)="navigateToFlow(flow.graphId)"
+                            >
+                                <td
+                                    class="session-flow"
+                                    [title]="flow.name"
+                                >
+                                    {{ flow.name }}
+                                </td>
+                                <td class="flow-model">{{ flow.modelName }}</td>
+                                <td class="flow-runs">{{ flow.count }}</td>
+                                <td class="col-bar">
+                                    <div class="bar-track">
+                                        <div
+                                            class="bar-fill"
+                                            [style.width.%]="(flow.count / barMaxCount) * 100"
+                                        ></div>
+                                    </div>
+                                </td>
+                                <td class="col-tokens flow-tokens">{{ formatTokens(flow.tokens) }}</td>
+                                <td class="col-cost flow-cost">{{ formatCost(flow.cost) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <!-- Active Sessions Table -->
+            <section class="chart-card active-sessions-card">
+                <div class="chart-title">
+                    Active Sessions
+                    <span
+                        class="active-sessions-count"
+                        *ngIf="data.activeSessions.length > 0"
+                    >
+                        {{ data.activeSessions.length }}
+                    </span>
+                </div>
+                <div
+                    *ngIf="data.activeSessions.length === 0"
+                    class="chart-empty"
+                >
+                    No active sessions
+                </div>
+                <table
+                    *ngIf="data.activeSessions.length > 0"
+                    class="sessions-table"
+                >
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Flow</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            *ngFor="let s of data.activeSessions"
+                            class="clickable-row"
+                            (click)="navigateToFlow(s.graphId)"
+                        >
+                            <td class="session-id">{{ s.id }}</td>
+                            <td class="session-flow">{{ s.flowName }}</td>
+                            <td class="session-status">
+                                <span
+                                    class="status-badge"
+                                    [style.background]="getStatusColor(s.status) + '22'"
+                                    [style.color]="getStatusColor(s.status)"
+                                    [style.border-color]="getStatusColor(s.status) + '55'"
+                                >
+                                    {{ getStatusLabel(s.status) }}
+                                </span>
+                            </td>
+                            <td class="session-date">{{ s.createdAt | date: 'dd MMM, HH:mm' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </ng-container>
+    </div>
+</div>

@@ -212,6 +212,11 @@ export const routes: Routes = [
                             import('./pages/chats-page/chats-page.component').then((m) => m.ChatsPageComponent),
                     },
                     {
+                        path: 'reports',
+                        loadComponent: () =>
+                            import('./pages/reports-page/reports-page.component').then((m) => m.ReportsPageComponent),
+                    },
+                    {
                         path: 'sessions',
                         loadComponent: () =>
                             import('./features/flows/pages/global-sessions-list/global-sessions-list.component').then(

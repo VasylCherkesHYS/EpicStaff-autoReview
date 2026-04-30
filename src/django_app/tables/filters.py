@@ -66,10 +66,11 @@ class SessionFilter(filters.FilterSet):
     )
     graph_name = filters.CharFilter(field_name="graph__name", lookup_expr="iexact")
     is_error_cause = filters.BooleanFilter(method="filter_by_error_cause")
+    created_after = filters.DateTimeFilter(field_name="created_at", lookup_expr="gte")
 
     class Meta:
         model = Session
-        fields = ["graph_id", "graph_name", "status", "node_name"]
+        fields = ["graph_id", "graph_name", "status", "node_name", "created_after"]
 
     def filter_by_error_cause(self, queryset, name, value):
         """Returns sessions that finished with error on specific node"""
