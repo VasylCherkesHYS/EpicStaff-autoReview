@@ -19,9 +19,9 @@
                 <app-custom-input
                     label="Email"
                     placeholder="example@gmail.com"
-                    formControlName="username"
+                    formControlName="email"
                 />
-                <app-validation-errors [control]="form.get('username')!" />
+                <app-validation-errors [control]="form.get('email')!" />
             </div>
 
             <div>
@@ -37,24 +37,24 @@
             <div class="remember-row">
                 <app-checkbox formControlName="rememberMe" />
                 <span class="remember-label">Remember me</span>
-                <span
-                    class="forgot-label"
-                    (click)="navToForgotPassword()"
-                    >Forgot?</span
-                >
+                <span class="forgot-label">Forgot?</span>
             </div>
         </form>
 
-        @if (serverError()) {
+        @if (serverError() || throttleSecondsLeft() > 0) {
             <div class="server-error">
-                {{ serverError() }}
+                @if (throttleSecondsLeft() > 0) {
+                    Too many login attempts. Please try again in {{ throttleSecondsLeft() }}s.
+                } @else {
+                    {{ serverError() }}
+                }
             </div>
         }
 
         <app-button
             class="btn"
             (click)="onSubmit()"
-            [disabled]="loading || form.invalid"
+            [disabled]="loading || form.invalid || throttleSecondsLeft() > 0"
         >
             Login
         </app-button>

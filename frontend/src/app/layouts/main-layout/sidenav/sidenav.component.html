@@ -92,10 +92,17 @@
         }
 
         @if (user(); as user) {
-            <li class="sidenav-nav-item user-menu-item">
+            <li
+                class="sidenav-nav-item user-menu-item"
+                appClickOutside
+                (appClickOutside)="closeUserMenu()"
+            >
                 <div class="tooltip-wrapper user-avatar-wrapper">
-                    <div class="user-avatar-btn" (click)="toggleUserMenu($event)">
-                        <app-user-avatar [name]="user.name" />
+                    <div
+                        class="user-avatar-btn"
+                        (click)="toggleUserMenu($event)"
+                    >
+                        <app-user-avatar [name]="user.display_name || user.email" />
                     </div>
                     @if (isUserMenuOpen()) {
                         <app-user-menu [user]="user" />

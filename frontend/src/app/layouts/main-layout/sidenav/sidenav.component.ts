@@ -1,6 +1,5 @@
 import { OverlayModule } from '@angular/cdk/overlay';
 import { PortalModule } from '@angular/cdk/portal';
-import { HttpErrorResponse } from '@angular/common/http';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -8,14 +7,14 @@ import {
     CUSTOM_ELEMENTS_SCHEMA,
     DestroyRef,
     ElementRef,
-    HostListener,
     OnInit,
     signal,
     ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { UserService } from '@shared/services';
+import { ClickOutsideDirective } from '@shared/directives';
+import { GetMeResponse } from '@shared/models';
 import { EMPTY } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
@@ -27,7 +26,6 @@ import { UserMenuComponent } from '../../../features/role-base-access/components
 import { AuthService } from '../../../services/auth/auth.service';
 import { ConfigService } from '../../../services/config/config.service';
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
-import { GetUserResponse } from '../../../shared/models';
 import { TooltipComponent } from './tooltip/tooltip.component';
 
 interface NavItem {
@@ -52,6 +50,7 @@ interface NavItem {
         UserMenuComponent,
         AppSvgIconComponent,
         UserAvatarComponent,
+        ClickOutsideDirective,
     ],
     templateUrl: './sidenav.component.html',
     styleUrls: ['./sidenav.component.scss'],
@@ -124,7 +123,7 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         },
     };
 
-    public user = signal<GetUserResponse | null>(null);
+    public user = signal<GetMeResponse | null>(null);
     public isUserMenuOpen = signal<boolean>(false);
 
     @ViewChild('epicChat', { static: false })
@@ -135,7 +134,6 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         private configService: ConfigService,
         private configureModelsDialogService: ConfigureModelsDialogService,
         private authService: AuthService,
-        private userService: UserService,
         private destroyRef: DestroyRef
     ) {
         this.isEpicChatEnabled = this.configService.isEpicChatEnabled;
@@ -178,10 +176,10 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
                 showTooltip: false,
             },
             {
-                id: 'knowledge-sources',
-                routeLink: 'knowledge-sources',
+                id: 'files',
+                routeLink: 'files',
                 icon: 'sources',
-                label: 'Knowledge Sources',
+                label: 'Files',
                 showTooltip: false,
             },
             {
@@ -205,14 +203,11 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
     }
 
     public ngOnInit() {
-        this.userService
+        this.authService
             .getCurrentUser()
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
-                catchError((error: HttpErrorResponse) => {
-                    console.log('Error fetching current user:', error);
-                    return EMPTY;
-                })
+                catchError(() => EMPTY)
             )
             .subscribe((user) => this.user.set(user));
     }
@@ -234,12 +229,8 @@ export class LeftSidebarComponent implements OnInit, AfterViewInit {
         this.epicChatService.toggleChat(this.epicChat?.nativeElement);
     }
 
-    @HostListener('document:click', ['$event'])
-    public onDocumentClick(event: MouseEvent): void {
-        const target = event.target as HTMLElement;
-        if (!target.closest('.user-avatar-btn')) {
-            this.isUserMenuOpen.set(false);
-        }
+    public closeUserMenu(): void {
+        this.isUserMenuOpen.set(false);
     }
 
     public toggleUserMenu(event: MouseEvent): void {

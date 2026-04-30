@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -10,10 +10,12 @@ import {
     PasswordStrengthComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
+import { notNumericOnlyValidator, strictEmailValidator } from '@shared/form-validators';
+import { ApiErrorItem } from '@shared/models';
 import { forkJoin, timer } from 'rxjs';
 
 import { AuthService } from '../../../../services/auth/auth.service';
-import { SetupService } from '../../../../services/auth/setup.service';
+import { ToastService } from '../../../../services/notifications';
 
 type PageState = 'form' | 'loading' | 'success';
 
@@ -31,40 +33,46 @@ type PageState = 'form' | 'loading' | 'success';
     ],
     templateUrl: './sign-up-page.component.html',
     styleUrls: ['../login-page/login-page.component.scss', './sign-up-page.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SignUpPageComponent {
-    private readonly setupService = inject(SetupService);
     private readonly authService = inject(AuthService);
     private readonly router = inject(Router);
+    private readonly toast = inject(ToastService);
 
     termsControl = new FormControl(false);
 
     form = new FormGroup({
-        username: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
+        email: new FormControl('', { nonNullable: true, validators: [Validators.required, strictEmailValidator()] }),
         password: new FormControl('', {
             nonNullable: true,
-            validators: [Validators.required, Validators.minLength(8)],
+            validators: [
+                Validators.required,
+                Validators.minLength(8),
+                Validators.maxLength(40),
+                notNumericOnlyValidator(),
+            ],
         }),
-        email: new FormControl('', { nonNullable: true }),
     });
 
-    apiKey: string | null = null;
     state = signal<PageState>('form');
-    serverError = signal<string | null>(null);
+    fieldErrors = signal<Record<string, string>>({});
 
     get password(): string {
         return this.form.get('password')!.value;
     }
 
     onSubmit(): void {
+        this.fieldErrors.set({});
         this.form.markAllAsTouched();
         if (this.form.invalid) return;
 
-        this.serverError.set(null);
         this.state.set('loading');
 
-        const payload = this.form.getRawValue();
-        forkJoin([this.setupService.runSetup(payload), timer(1000)]).subscribe({
+        const email = this.form.getRawValue().email.toString();
+        const password = this.form.getRawValue().password.toString();
+
+        forkJoin([this.authService.runSetup({ email, password }), timer(1000)]).subscribe({
             next: ([resp]) => {
                 this.authService.storeTokens({ access: resp.access, refresh: resp.refresh });
                 sessionStorage.setItem('needs_onboarding', 'true');
@@ -75,11 +83,19 @@ export class SignUpPageComponent {
             },
             error: (err) => {
                 this.state.set('form');
-                this.serverError.set(
-                    err?.error?.detail || err?.error?.message || 'Registration failed. Please try again.'
-                );
+                if (err.error.status_code === 409) {
+                    this.toast.error(err.error.message);
+                    return;
+                }
+
+                const errors: ApiErrorItem[] = err?.error?.errors ?? [];
+                this.setApiErrors(errors);
             },
         });
+    }
+
+    private setApiErrors(errors: ApiErrorItem[]): void {
+        this.fieldErrors.set(Object.fromEntries(errors.map(({ field, reason }) => [field, reason])));
     }
 
     navToLogin(): void {

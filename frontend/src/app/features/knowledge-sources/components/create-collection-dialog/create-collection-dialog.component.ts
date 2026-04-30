@@ -28,8 +28,8 @@ import { RagStrategyFactory } from './factory/rag-creation.factory';
         StepperComponent,
         StepUploadFilesComponent,
         StepSelectRagComponent,
-        NgComponentOutlet,
         AppSvgIconComponent,
+        NgComponentOutlet,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -49,16 +49,31 @@
                                 </span>
                             }
                         </span>
-                        <app-checkbox mod="multiselect" [checked]="isChecked(item.value)" />
+                        <app-checkbox
+                            mod="multiselect"
+                            [checked]="isChecked(item.value)"
+                        />
                     </div>
                 }
             }
         </div>
 
         <div class="multi-select__footer">
-            <app-button mod="default" type="outline-primary" (click)="cancel()"> Cancel </app-button>
+            <app-button
+                mod="default"
+                type="outline-primary"
+                (click)="cancel()"
+            >
+                Cancel
+            </app-button>
 
-            <app-button mod="default" type="primary" (click)="save()"> Save Selection </app-button>
+            <app-button
+                mod="default"
+                type="primary"
+                (click)="save()"
+            >
+                Save Selection
+            </app-button>
         </div>
     </div>
 </ng-template>

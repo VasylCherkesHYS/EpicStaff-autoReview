@@ -2,8 +2,11 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, model } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppSvgIconComponent } from '@shared/components';
-import { GetUserResponse, UserOrgData } from '@shared/models';
+import { GetMeResponse, Membership } from '@shared/models';
+import { EMPTY } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
+import { AuthService } from '../../../../services/auth/auth.service';
 import { OrgAvatarComponent } from '../org-avatar/org-avatar.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
@@ -15,10 +18,11 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserMenuComponent {
+    private authService = inject(AuthService);
     private router = inject(Router);
 
-    public user = input.required<GetUserResponse>();
-    public organizations = computed<UserOrgData[]>(() => this.user().organizations);
+    public user = input.required<GetMeResponse>();
+    public organizations = computed<Membership[]>(() => this.user().memberships);
 
     isUserMenuOpen = model<boolean>(false);
 
@@ -38,7 +42,15 @@ export class UserMenuComponent {
     }
 
     public onSignOutClick(): void {
-        console.log('Sign out clicked');
         this.isUserMenuOpen.set(false);
+        this.authService
+            .logout()
+            .pipe(
+                catchError(() => {
+                    this.authService.removeTokensAndNavToLogin();
+                    return EMPTY;
+                })
+            )
+            .subscribe();
     }
 }
