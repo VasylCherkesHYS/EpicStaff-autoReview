@@ -378,6 +378,7 @@ class SessionManagerService(metaclass=SingletonMeta):
             conditional_edge_list=conditional_edge_data_list,
             decision_table_node_list=decision_table_node_data_list,
             subgraph_node_list=subgraph_node_data_list,
+            webhook_trigger_node_data_list=webhook_trigger_node_data_list,
             entrypoint=entrypoint,
             end_node=end_node_data,
         )
