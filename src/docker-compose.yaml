@@ -24,7 +24,7 @@ services:
     command: ./entrypoint.sh
     environment:
       <<: *common_env
-      DEBUG: ${DEBUG:-True}
+      DEBUG: ${DEBUG:-False}
       SECRET_KEY: ${SECRET_KEY:-unsafe-dev-key}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DB_USER: ${DB_USER:-postgres}
@@ -39,6 +39,7 @@ services:
       DJANGO_HOST: ${DJANGO_HOST:-localhost}
       DJANGO_PORT: ${DJANGO_PORT:-8000}
       LOAD_DEBUG_ENV: ${LOAD_DEBUG_ENV}
+      MALLOC_ARENA_MAX: 2
     volumes:
       - media_data:/app/src/django_app/media
     networks:
