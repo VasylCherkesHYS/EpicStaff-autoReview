@@ -13,18 +13,21 @@
 
             <form
                 [formGroup]="form"
+                [appServerErrors]="form"
+                #serverErrors="serverErrors"
                 class="form"
             >
+                @for (msg of serverErrors.formLevelErrors(); track msg) {
+                    <p class="form-level-error">{{ msg }}</p>
+                }
+
                 <div>
                     <app-custom-input
                         label="Email"
                         placeholder="example@email.com"
                         formControlName="email"
                     />
-                    <app-validation-errors
-                        [control]="form.get('email')!"
-                        [serverError]="fieldErrors()['email']"
-                    />
+                    <app-validation-errors [control]="form.get('email')!" />
                 </div>
 
                 <div>
@@ -34,10 +37,7 @@
                         placeholder="Enter password"
                         formControlName="password"
                     />
-                    <app-validation-errors
-                        [control]="form.get('password')!"
-                        [serverError]="fieldErrors()['password']"
-                    />
+                    <app-validation-errors [control]="form.get('password')!" />
                     <app-password-strength [password]="password" />
                 </div>
             </form>
@@ -51,10 +51,9 @@
                     <span class="terms-link">Privacy Policy</span>
                 </p>
             </div>
-
+            <!-- [disabled]="form.invalid || !termsControl.value" -->
             <app-button
                 class="btn"
-                [disabled]="form.invalid || !termsControl.value"
                 (click)="onSubmit()"
             >
                 Create account
