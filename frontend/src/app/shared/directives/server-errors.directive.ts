@@ -1,7 +1,40 @@
-import { DestroyRef, Directive, effect, EventEmitter, inject, Injector, input, OnInit, signal } from '@angular/core';
+import {
+    DestroyRef,
+    Directive,
+    effect,
+    EventEmitter,
+    inject,
+    Injector,
+    input,
+    OnInit,
+    signal,
+    untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControlStatus, FormGroup, ValidatorFn } from '@angular/forms';
 import { ApiErrorItem } from '@shared/models';
+
+/**
+ * A lightweight mediator between a component and {@link ServerErrorsDirective}.
+ *
+ * The component creates and holds a `ServerErrorsRef`, passes it to the directive
+ * via the `[errorsRef]` input, and calls `setErrors()` / `clear()` at any time —
+ * even when the directive doesn't exist yet (e.g. hidden behind `@if`).
+ *
+ * When the directive (re-)initialises it picks up the latest value automatically.
+ */
+export class ServerErrorsRef {
+    private readonly _errors = signal<ApiErrorItem[] | null>(null);
+    readonly errors = this._errors.asReadonly();
+
+    setErrors(items: ApiErrorItem[]): void {
+        this._errors.set(items);
+    }
+
+    clear(): void {
+        this._errors.set([]);
+    }
+}
 
 /**
  * Binds a FormGroup to a server-error source. Server errors become validators,
@@ -28,6 +61,9 @@ export class ServerErrorsDirective implements OnInit {
 
     /** Optional: map backend field names → form control names (default: identity). */
     fieldMap = input<Record<string, string>>({});
+
+    /** Optional: a {@link ServerErrorsRef} that buffers errors across `@if` boundaries. */
+    errorsRef = input<ServerErrorsRef>();
 
     private readonly fieldErrors = signal<Record<string, string[]>>({});
     private readonly formErrors = signal<string[]>([]);
@@ -77,6 +113,25 @@ export class ServerErrorsDirective implements OnInit {
                     });
                 }
             });
+        }
+
+        // 4. If an errorsRef is provided, sync with it.
+        const ref = this.errorsRef();
+        if (ref) {
+            effect(
+                () => {
+                    const errors = ref.errors();
+                    if (errors === null) return;
+                    untracked(() => {
+                        if (errors.length) {
+                            this.setErrors(errors);
+                        } else {
+                            this.clear();
+                        }
+                    });
+                },
+                { injector: this.injector }
+            );
         }
     }
 

@@ -1,16 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-    ChangeDetectionStrategy,
-    Component,
-    DestroyRef,
-    effect,
-    EffectRef,
-    inject,
-    Injector,
-    signal,
-    viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -21,9 +11,9 @@ import {
     CustomInputComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
-import { ServerErrorsDirective } from '@shared/directives';
+import { ServerErrorsDirective, ServerErrorsRef } from '@shared/directives';
 import { strictEmailValidator } from '@shared/form-validators';
-import { ApiErrorItem } from '@shared/models';
+import { HttpStatus } from '@shared/models';
 import { interval, take } from 'rxjs';
 
 import { AuthService } from '../../../../services/auth/auth.service';
@@ -45,13 +35,12 @@ import { AuthService } from '../../../../services/auth/auth.service';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginPageComponent {
-    private serverErrors = viewChild<ServerErrorsDirective>('serverErrors');
-
     private readonly authService = inject(AuthService);
     private readonly router = inject(Router);
     private readonly route = inject(ActivatedRoute);
     private readonly destroyRef = inject(DestroyRef);
-    private readonly injector = inject(Injector);
+
+    readonly serverErrorsRef = new ServerErrorsRef();
 
     readonly form = new FormGroup({
         email: new FormControl('', { nonNullable: true, validators: [Validators.required, strictEmailValidator()] }),
@@ -65,26 +54,12 @@ export class LoginPageComponent {
     readonly loading = signal(false);
     readonly throttleSecondsLeft = signal(0);
 
-    private applyServerErrorsWhenReady(errors: ApiErrorItem[]): void {
-        const ref: { current: EffectRef | null } = { current: null };
-        ref.current = effect(
-            () => {
-                const dir = this.serverErrors();
-                if (dir) {
-                    dir.setErrors(errors);
-                    ref.current?.destroy();
-                }
-            },
-            { injector: this.injector }
-        );
-    }
-
     onSubmit(): void {
         this.form.markAllAsTouched();
         // if (this.form.invalid) return;
 
         this.loading.set(true);
-        this.serverErrors()?.clear();
+        this.serverErrorsRef.clear();
 
         const { email, password, rememberMe } = this.form.getRawValue();
 
@@ -98,16 +73,16 @@ export class LoginPageComponent {
                 },
                 error: (err: HttpErrorResponse) => {
                     this.loading.set(false);
-                    if (err.status === 429) {
+                    if (err.status === HttpStatus.TooManyRequests) {
                         this.handleThrottleError(err.error?.message);
                         return;
                     }
                     if (err.validationErrors?.length) {
-                        this.applyServerErrorsWhenReady(err.validationErrors);
+                        this.serverErrorsRef.setErrors(err.validationErrors);
                         return;
                     }
                     // Login failure on bad credentials — show as form-level error.
-                    this.applyServerErrorsWhenReady([
+                    this.serverErrorsRef.setErrors([
                         { field: '', value: '', reason: err.error?.message ?? 'Login failed. Please try again.' },
                     ]);
                 },

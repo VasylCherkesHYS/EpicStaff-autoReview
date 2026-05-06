@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
-import { ApiErrorItem } from '@shared/models';
+import { ApiErrorItem, HttpStatus } from '@shared/models';
 import { catchError, throwError } from 'rxjs';
 
 declare module '@angular/common/http' {
@@ -8,8 +8,7 @@ declare module '@angular/common/http' {
     }
 }
 
-//I think its time to make constants/enum for errors codes, eg err.status === 400 || err.status === 422
-const VALIDATION_ERROR_CODES = [400, 422];
+const VALIDATION_ERROR_CODES: number[] = [HttpStatus.BadRequest, HttpStatus.UnprocessableEntity];
 
 export const validationErrorsInterceptor: HttpInterceptorFn = (req, next) =>
     next(req).pipe(

@@ -13,14 +13,11 @@
         <form
             [formGroup]="form"
             [appServerErrors]="form"
+            [errorsRef]="serverErrorsRef"
             #serverErrors="serverErrors"
             class="form"
             (keydown.enter)="onSubmit()"
         >
-            @for (msg of serverErrors.formLevelErrors(); track msg) {
-                <p class="form-level-error">{{ msg }}</p>
-            }
-
             <div>
                 <app-custom-input
                     label="Email"
@@ -47,13 +44,22 @@
             </div>
         </form>
 
-        @if (throttleSecondsLeft() > 0) {
-            <div class="server-error">Too many login attempts. Please try again in {{ throttleSecondsLeft() }}s.</div>
+        @if (serverErrors.formLevelErrors().length > 0 || throttleSecondsLeft() > 0) {
+            <div class="server-error">
+                @if (throttleSecondsLeft() > 0) {
+                    Too many login attempts. Please try again in {{ throttleSecondsLeft() }}s.
+                } @else {
+                    @for (msg of serverErrors.formLevelErrors(); track msg) {
+                        {{ msg }}
+                    }
+                }
+            </div>
         }
-        <!-- [disabled]="loading() || form.invalid || throttleSecondsLeft() > 0" -->
+
         <app-button
             class="btn"
             (click)="onSubmit()"
+            [disabled]="loading() || form.invalid || throttleSecondsLeft() > 0"
         >
             Login
         </app-button>

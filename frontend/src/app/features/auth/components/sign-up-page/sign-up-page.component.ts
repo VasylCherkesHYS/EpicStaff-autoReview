@@ -1,15 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-    ChangeDetectionStrategy,
-    Component,
-    effect,
-    EffectRef,
-    inject,
-    Injector,
-    signal,
-    viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -20,9 +11,9 @@ import {
     PasswordStrengthComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
-import { ServerErrorsDirective } from '@shared/directives';
+import { ServerErrorsDirective, ServerErrorsRef } from '@shared/directives';
 import { notNumericOnlyValidator, strictEmailValidator } from '@shared/form-validators';
-import { ApiErrorItem } from '@shared/models';
+import { HttpStatus } from '@shared/models';
 import { forkJoin, timer } from 'rxjs';
 
 import { AuthService } from '../../../../services/auth/auth.service';
@@ -48,12 +39,11 @@ type PageState = 'form' | 'loading' | 'success';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SignUpPageComponent {
-    private serverErrors = viewChild<ServerErrorsDirective>('serverErrors');
-
     private readonly authService = inject(AuthService);
     private readonly router = inject(Router);
     private readonly toast = inject(ToastService);
-    private readonly injector = inject(Injector);
+
+    readonly serverErrorsRef = new ServerErrorsRef();
 
     readonly termsControl = new FormControl(false);
 
@@ -76,22 +66,8 @@ export class SignUpPageComponent {
         return this.form.get('password')!.value;
     }
 
-    private applyServerErrorsWhenReady(errors: ApiErrorItem[]): void {
-        const ref: { current: EffectRef | null } = { current: null };
-        ref.current = effect(
-            () => {
-                const dir = this.serverErrors();
-                if (dir) {
-                    dir.setErrors(errors);
-                    ref.current?.destroy();
-                }
-            },
-            { injector: this.injector }
-        );
-    }
-
     onSubmit(): void {
-        this.serverErrors()?.clear();
+        this.serverErrorsRef.clear();
         this.form.markAllAsTouched();
         // if (this.form.invalid) return;
 
@@ -111,10 +87,10 @@ export class SignUpPageComponent {
             error: (err: HttpErrorResponse) => {
                 this.state.set('form');
                 if (err.validationErrors?.length) {
-                    this.applyServerErrorsWhenReady(err.validationErrors);
+                    this.serverErrorsRef.setErrors(err.validationErrors);
                     return;
                 }
-                if (err.status === 409) {
+                if (err.status === HttpStatus.Conflict) {
                     this.toast.error(err.error?.message ?? 'Conflict');
                     return;
                 }

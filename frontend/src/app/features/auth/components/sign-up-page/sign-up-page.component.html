@@ -14,13 +14,11 @@
             <form
                 [formGroup]="form"
                 [appServerErrors]="form"
+                [errorsRef]="serverErrorsRef"
                 #serverErrors="serverErrors"
                 class="form"
+                (keydown.enter)="onSubmit()"
             >
-                @for (msg of serverErrors.formLevelErrors(); track msg) {
-                    <p class="form-level-error">{{ msg }}</p>
-                }
-
                 <div>
                     <app-custom-input
                         label="Email"
@@ -51,9 +49,18 @@
                     <span class="terms-link">Privacy Policy</span>
                 </p>
             </div>
-            <!-- [disabled]="form.invalid || !termsControl.value" -->
+
+            @if (serverErrors.formLevelErrors().length > 0) {
+                <div class="server-error">
+                    @for (msg of serverErrors.formLevelErrors(); track msg) {
+                        {{ msg }}
+                    }
+                </div>
+            }
+
             <app-button
                 class="btn"
+                [disabled]="form.invalid || !termsControl.value"
                 (click)="onSubmit()"
             >
                 Create account
