@@ -38,7 +38,7 @@ from rest_framework import filters
 from tables.services.config_service import YamlConfigService
 from tables.services.session_manager_service import SessionManagerService
 from tables.services.converter_service import ConverterService
-from tables.services.redis_service import RedisService
+from tables.services.redis_service import REQUIRED_LISTENERS, RedisService
 from tables.services.run_python_code_service import RunPythonCodeService
 from tables.services.quickstart_service import QuickstartService
 from tables.services.knowledge_services.indexing_service import IndexingService
@@ -429,16 +429,31 @@ class StopSession(APIView):
         if session_id is None:
             return Response("Session id is missing", status=status.HTTP_404_NOT_FOUND)
         try:
-            required_listeners = 2  # manager and crew
-            received_n = session_manager_service.stop_session(session_id=session_id)
-            if received_n < required_listeners:
-                logger.error(f"Stop session ({session_id}) was sent but not received.")
+            result = session_manager_service.stop_session(session_id=session_id)
+
+            if result.received_n < REQUIRED_LISTENERS:
+                logger.error(
+                    "sessions:stop publish under-delivered for session {}: attempts={} required={}",
+                    session_id,
+                    result.attempts,
+                    REQUIRED_LISTENERS,
+                )
                 session = Session.objects.get(pk=session_id)
                 session.status = Session.SessionStatus.ERROR
                 session.status_data = {
-                    "reason": f"Data was sent and received by ({received_n}) listeners, but ({required_listeners}) required."
+                    "reason": (
+                        f"Only {result.received_n}/{REQUIRED_LISTENERS} services received the stop signal. "
+                        f"Waited {result.waited_s:.2f}s, per-attempt publish counts: {result.attempts}."
+                    )
                 }
                 session.save()
+
+            elif result.received_n > REQUIRED_LISTENERS:
+                logger.warning(
+                    "sessions:stop has {} subscribers (expected {}) — possible duplicate crew/manager",
+                    result.received_n,
+                    REQUIRED_LISTENERS,
+                )
 
         except Session.DoesNotExist:
             return Response("Session not found", status=status.HTTP_404_NOT_FOUND)

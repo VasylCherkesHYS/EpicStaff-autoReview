@@ -2,8 +2,10 @@ import asyncio
 import contextlib
 import os
 import json
+import time
 import redis
 import redis.asyncio as async_redis
+from dataclasses import dataclass, field
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from threading import Lock
@@ -24,6 +26,17 @@ from src.shared.models import (
 )
 from utils.singleton_meta import SingletonMeta
 from utils.logger import logger
+
+REQUIRED_LISTENERS = int(os.getenv("SESSION_SCHEMA_REQUIRED_LISTENERS", "2"))
+RUN_WAIT_TIMEOUT_S = float(os.getenv("SESSION_SCHEMA_WAIT_TIMEOUT_S", "5.0"))
+STOP_WAIT_TIMEOUT_S = float(os.getenv("STOP_SESSION_WAIT_TIMEOUT_S", "2.0"))
+
+
+@dataclass
+class PublishResult:
+    received_n: int
+    waited_s: float
+    attempts: list[int] = field(default_factory=list)
 
 
 class RedisService(metaclass=SingletonMeta):
@@ -79,9 +92,36 @@ class RedisService(metaclass=SingletonMeta):
             self._initialize_async()
         return self._async_redis_client
 
-    def publish_session_data(self, session_data: SessionData) -> int:
-        return self.redis_client.publish(
-            "sessions:schema", session_data.model_dump_json()
+    def publish_session_data(
+        self,
+        session_data: SessionData,
+        *,
+        required_listeners: int = REQUIRED_LISTENERS,
+        wait_timeout_s: float = RUN_WAIT_TIMEOUT_S,
+        poll_interval_s: float = 0.25,
+    ) -> PublishResult:
+        start = time.monotonic()
+        deadline = start + wait_timeout_s
+
+        while time.monotonic() < deadline:
+            numsub = self.redis_client.pubsub_numsub("sessions:schema")
+            count = numsub[0][1] if numsub else 0
+
+            if count >= required_listeners:
+                break
+
+            time.sleep(poll_interval_s)
+
+        waited = time.monotonic() - start
+        payload = session_data.model_dump_json()
+        attempts: list[int] = [self.redis_client.publish("sessions:schema", payload)]
+
+        if attempts[-1] < required_listeners:
+            time.sleep(0.15)  # bridge tiny race between NUMSUB check and PUBLISH
+            attempts.append(self.redis_client.publish("sessions:schema", payload))
+
+        return PublishResult(
+            received_n=attempts[-1], waited_s=waited, attempts=attempts
         )
 
     def send_user_input(
@@ -264,8 +304,34 @@ class RedisService(metaclass=SingletonMeta):
                 await pubsub.unsubscribe(response_channel)
                 await pubsub.close()
 
-    def publish_stop_session(self, session_id) -> int:
-        message = StopSessionMessage(session_id=session_id)
-        return self.redis_client.publish(
-            STOP_SESSION_CHANNEL, json.dumps(message.model_dump())
+    def publish_stop_session(
+        self,
+        session_id,
+        *,
+        required_listeners: int = REQUIRED_LISTENERS,
+        wait_timeout_s: float = STOP_WAIT_TIMEOUT_S,
+        poll_interval_s: float = 0.25,
+    ) -> PublishResult:
+        start = time.monotonic()
+        deadline = start + wait_timeout_s
+
+        while time.monotonic() < deadline:
+            numsub = self.redis_client.pubsub_numsub(STOP_SESSION_CHANNEL)
+            count = numsub[0][1] if numsub else 0
+
+            if count >= required_listeners:
+                break
+
+            time.sleep(poll_interval_s)
+
+        waited = time.monotonic() - start
+        payload = json.dumps(StopSessionMessage(session_id=session_id).model_dump())
+        attempts: list[int] = [self.redis_client.publish(STOP_SESSION_CHANNEL, payload)]
+
+        if attempts[-1] < required_listeners:
+            time.sleep(0.15)  # bridge tiny race between NUMSUB check and PUBLISH
+            attempts.append(self.redis_client.publish(STOP_SESSION_CHANNEL, payload))
+
+        return PublishResult(
+            received_n=attempts[-1], waited_s=waited, attempts=attempts
         )

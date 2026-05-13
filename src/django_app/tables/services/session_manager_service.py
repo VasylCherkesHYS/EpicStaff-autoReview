@@ -50,7 +50,11 @@ from tables.models import (
 )
 from tables.constants.variables_constants import DOMAIN_VARIABLES_KEY
 from tables.services.converter_service import ConverterService
-from tables.services.redis_service import RedisService
+from tables.services.redis_service import (
+    REQUIRED_LISTENERS,
+    PublishResult,
+    RedisService,
+)
 from tables.validators.end_node_validator import EndNodeValidator
 from tables.validators.file_node_validator import FileNodeValidator
 from tables.validators.subgraph_validator import SubGraphValidator
@@ -74,7 +78,7 @@ class SessionManagerService(metaclass=SingletonMeta):
     def get_session(self, session_id: int) -> Session:
         return Session.objects.get(id=session_id)
 
-    def stop_session(self, session_id: int) -> int:
+    def stop_session(self, session_id: int) -> PublishResult:
         return self.redis_service.publish_stop_session(session_id=session_id)
 
     def get_session_status(self, session_id: int) -> Session.SessionStatus:
@@ -153,16 +157,29 @@ class SessionManagerService(metaclass=SingletonMeta):
             # TODO: add ping or waiting for crew to accept connections
 
             session.graph_schema = session_data.graph.model_dump(mode="json")
-            received_n = self.redis_service.publish_session_data(
-                session_data=session_data,
-            )
-            required_listeners = 2
-            if received_n != required_listeners:
-                logger.error("Data was sent but not received.")
+            result = self.redis_service.publish_session_data(session_data=session_data)
+
+            if result.received_n < REQUIRED_LISTENERS:
+                logger.error(
+                    "sessions:schema publish under-delivered: attempts={} required={}",
+                    result.attempts,
+                    REQUIRED_LISTENERS,
+                )
                 session.status = Session.SessionStatus.ERROR
                 session.status_data = {
-                    "reason": f"Data was sent and received by ({received_n}) listeners, but ({required_listeners}) required."
+                    "reason": (
+                        f"Only {result.received_n}/{REQUIRED_LISTENERS} services received the run signal. "
+                        f"Waited {result.waited_s:.2f}s, per-attempt publish counts: {result.attempts}."
+                    )
                 }
+
+            elif result.received_n > REQUIRED_LISTENERS:
+                logger.warning(
+                    "sessions:schema has {} subscribers (expected {}) — possible duplicate crew/manager",
+                    result.received_n,
+                    REQUIRED_LISTENERS,
+                )
+
             logger.info(
                 f"Session data published in Redis for session ID: {session.pk}."
             )
