@@ -18,6 +18,6 @@ export class NotFoundPageComponent {
     }
 
     openWorkspace(): void {
-        this.router.navigate(['/projects/my']);
+        this.router.navigate(['/templates']);
     }
 }

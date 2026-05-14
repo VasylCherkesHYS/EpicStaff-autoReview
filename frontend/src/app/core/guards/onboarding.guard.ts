@@ -14,7 +14,7 @@ export const onboardingGuard: CanActivateFn = () => {
     }
 
     if (sessionStorage.getItem('needs_onboarding') !== 'true') {
-        void router.navigate(['/projects']);
+        void router.navigate(['/templates']);
         return false;
     }
 

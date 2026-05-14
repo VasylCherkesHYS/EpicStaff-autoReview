@@ -1,5 +1,5 @@
-import { DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ErrorStateMatcher } from '@angular/material/core';
 import { Subscription } from 'rxjs';
@@ -50,6 +50,10 @@ export class CreateProjectComponent implements OnInit, OnDestroy {
     public isSubmitting = signal(false);
     public ProjectProcess = ProjectProcess;
     private keydownSubscription?: Subscription;
+
+    private readonly data = inject<{ isTemplate?: boolean } | null>(DIALOG_DATA, { optional: true });
+    public readonly isTemplate = this.data?.isTemplate ?? false;
+    public readonly entityLabel = this.isTemplate ? 'Template' : 'Project';
 
     constructor(
         private fb: FormBuilder,
@@ -142,6 +146,7 @@ export class CreateProjectComponent implements OnInit, OnDestroy {
             max_rpm: formData.max_rpm,
             search_limit: formData.search_limit,
             similarity_threshold: formData.similarity_threshold.toString(),
+            is_template: this.isTemplate,
         };
 
         // Call the actual service

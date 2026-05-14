@@ -2,7 +2,7 @@ import { ConnectedPosition } from '@angular/cdk/overlay';
 
 export const CONTEXT_MENU_TAB = {
     FLOW_CORE: 'flow-core',
-    PROJECTS: 'projects',
+    TEMPLATES: 'templates',
     FLOWS: 'flows',
 } as const;
 
@@ -45,6 +45,6 @@ export const FLOW_GRAPH_CONTEXT_MENU_POSITIONS = [
 
 export const FLOW_GRAPH_CONTEXT_MENU_ITEMS = [
     { label: 'Core', type: CONTEXT_MENU_TAB.FLOW_CORE },
-    { label: 'Projects', type: CONTEXT_MENU_TAB.PROJECTS },
+    { label: 'Templates', type: CONTEXT_MENU_TAB.TEMPLATES },
     { label: 'Flows', type: CONTEXT_MENU_TAB.FLOWS },
 ] as const satisfies readonly { label: string; type: ContextMenuTab }[];

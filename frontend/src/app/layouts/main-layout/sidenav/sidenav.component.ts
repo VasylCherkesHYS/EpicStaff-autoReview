@@ -147,10 +147,10 @@ export class LeftSidebarComponent implements AfterViewInit {
         this.accessToken = this.authService.getAccessToken() ?? '';
         this.topNavItems = [
             {
-                id: 'projects',
-                routeLink: 'projects',
+                id: 'templates',
+                routeLink: 'templates',
                 icon: 'project',
-                label: 'Projects',
+                label: 'Templates',
                 showTooltip: false,
             },
             {

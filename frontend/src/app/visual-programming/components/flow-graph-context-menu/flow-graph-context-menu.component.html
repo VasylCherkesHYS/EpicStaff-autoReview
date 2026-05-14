@@ -29,11 +29,12 @@
                         (nodeSelected)="onNodeSelected({ type: $event })"
                     ></app-flow-graph-core-menu>
                 }
-                @case (menuTab.PROJECTS) {
-                    <app-flow-projects-context-menu
+                @case (menuTab.TEMPLATES) {
+                    <app-flow-templates-context-menu
                         [searchTerm]="searchTerm()"
                         (nodeSelected)="onNodeSelected($event)"
-                    ></app-flow-projects-context-menu>
+                        (createNewProject)="onCreateNewProject()"
+                    ></app-flow-templates-context-menu>
                 }
                 @case (menuTab.FLOWS) {
                     <app-flows-menu

@@ -168,11 +168,11 @@ export class OpenProjectPageComponent implements OnInit, OnDestroy, CanComponent
             this.projectId = String(this.inputProjectId);
             this.loadData();
         } else {
-            this.projectId = this.route.snapshot.paramMap.get('projectId')!;
+            this.projectId = this.route.snapshot.paramMap.get('templateId')!;
 
             if (!this.projectId) {
-                console.error('No projectId found in route params or input!');
-                this.toastService.error('Project ID not found');
+                console.error('No templateId found in route params or input!');
+                this.toastService.error('Template ID not found');
                 this.isLoading.set(false);
                 return;
             }

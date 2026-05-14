@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
 import { AppSvgIconComponent } from '../../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 
@@ -19,7 +19,7 @@ import { AppSvgIconComponent } from '../../../../../../../shared/components/app-
                         size="2.5rem"
                     />
                 </div>
-                <div class="title">Create New Project</div>
+                <div class="title">{{ label }}</div>
             </div>
         </div>
     `,
@@ -85,5 +85,6 @@ import { AppSvgIconComponent } from '../../../../../../../shared/components/app-
     ],
 })
 export class AddProjectCardComponent {
+    @Input() public label: string = 'Create New Template';
     @Output() public createClick = new EventEmitter();
 }

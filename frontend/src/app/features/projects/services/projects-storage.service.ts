@@ -15,16 +15,13 @@ export class ProjectsStorageService {
     // --- State Signals ---
     private projectsSignal = signal<GetProjectRequest[]>([]);
     private projectsLoaded = signal<boolean>(false);
-    private templatesSignal = signal<GetProjectRequest[]>([]);
-    private templatesLoaded = signal<boolean>(false);
     private filterSignal = signal<SearchFilterChange | null>(null);
 
     // --- Public State Accessors (Readonly Signals and Computed Values) ---
     public readonly projects = this.projectsSignal.asReadonly();
     public readonly isProjectsLoaded = this.projectsLoaded.asReadonly();
 
-    public readonly templates = this.templatesSignal.asReadonly();
-    public readonly isTemplatesLoaded = this.templatesLoaded.asReadonly();
+    public readonly templates = computed(() => this.projectsSignal().filter((p) => p.is_template));
 
     public readonly filteredProjects = computed(() => {
         const projects = this.projectsSignal();
@@ -45,26 +42,24 @@ export class ProjectsStorageService {
     });
 
     public readonly filteredTemplates = computed(() => {
-        const templates = this.templatesSignal();
+        const templates = this.projectsSignal().filter((p) => p.is_template);
         const filter = this.filterSignal();
-        if (!filter) return templates;
         let filtered = templates;
-        if (filter.searchTerm) {
-            filtered = filtered.filter((t) => t.name.toLowerCase().includes(filter.searchTerm.toLowerCase()));
+        if (filter) {
+            if (filter.searchTerm) {
+                filtered = filtered.filter((t) => t.name.toLowerCase().includes(filter.searchTerm.toLowerCase()));
+            }
+            if (filter.selectedTagIds && filter.selectedTagIds.length > 0) {
+                filtered = filtered.filter((p) => filter.selectedTagIds!.some((tagId) => p.tags.includes(tagId)));
+            }
         }
-        // Add more filter/sort logic here as needed
-        return filtered;
+        return filtered.slice().sort((a, b) => b.id - a.id);
     });
 
     // --- State Mutators ---
     setProjects(projects: GetProjectRequest[]) {
         this.projectsSignal.set(projects);
         this.projectsLoaded.set(true);
-    }
-
-    setTemplates(templates: GetProjectRequest[]) {
-        this.templatesSignal.set(templates);
-        this.templatesLoaded.set(true);
     }
 
     public setFilter(filter: SearchFilterChange | null) {
@@ -117,28 +112,6 @@ export class ProjectsStorageService {
                 this.projectsLoaded.set(false);
                 return of([]);
             })
-        );
-    }
-
-    getTemplates(forceRefresh = false): Observable<GetProjectRequest[]> {
-        if (this.templatesLoaded() && !forceRefresh) {
-            return of(this.templatesSignal());
-        }
-        return of([]).pipe(
-            delay(500),
-            map((templates) =>
-                templates.map(
-                    (template: GetProjectRequest) =>
-                        ({
-                            ...template,
-                            tags: template.tags ? [] : [], // Convert string[] to number[] (empty for templates)
-                        }) as GetProjectRequest
-                )
-            ),
-            tap((templates) => {
-                this.setTemplates(templates);
-            }),
-            shareReplay(1)
         );
     }
 
@@ -212,6 +185,18 @@ export class ProjectsStorageService {
         );
     }
 
+    public saveAsProject(id: number): Observable<GetProjectRequest> {
+        return this.projectsApiService.saveAsProject(id).pipe(
+            map((newProject) => ({
+                ...newProject,
+                is_template: false,
+            })),
+            tap((newProject: GetProjectRequest) => {
+                this.addProjectToCache(newProject);
+            })
+        );
+    }
+
     public addProjectToCache(newProject: GetProjectRequest) {
         const currentProjects = this.projectsSignal();
         if (!currentProjects.some((p) => p.id === newProject.id)) {
@@ -239,10 +224,5 @@ export class ProjectsStorageService {
     public refreshProjects(): Observable<GetProjectRequest[]> {
         this.projectsLoaded.set(false);
         return this.getProjects(true);
-    }
-
-    public refreshTemplates(): Observable<GetProjectRequest[]> {
-        this.templatesLoaded.set(false);
-        return this.getTemplates(true);
     }
 }

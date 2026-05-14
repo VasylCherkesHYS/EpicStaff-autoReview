@@ -57,40 +57,18 @@ export const routes: Routes = [
                 children: [
                     {
                         path: '',
-                        canActivate: [
-                            () => {
-                                const last = inject(LastVisitedTabService).get('/projects');
-                                return inject(Router).parseUrl(last ?? '/projects/my');
-                            },
-                        ],
-                        children: [],
+                        pathMatch: 'full',
+                        redirectTo: 'templates',
                     },
                     {
-                        path: 'projects',
+                        path: 'templates',
                         loadComponent: () =>
                             import('./features/projects/pages/projects-list-page/projects-list-page.component').then(
                                 (m) => m.ProjectsListPageComponent
                             ),
-                        children: [
-                            { path: '', redirectTo: 'my', pathMatch: 'full' },
-                            {
-                                path: 'my',
-                                loadComponent: () =>
-                                    import('./features/projects/pages/projects-list-page/components/my-projects/my-projects.component').then(
-                                        (m) => m.MyProjectsComponent
-                                    ),
-                            },
-                            {
-                                path: 'templates',
-                                loadComponent: () =>
-                                    import('./features/projects/pages/projects-list-page/components/templates/project-templates.component').then(
-                                        (m) => m.ProjectTemplatesComponent
-                                    ),
-                            },
-                        ],
                     },
                     {
-                        path: 'projects/:projectId',
+                        path: 'templates/:templateId',
                         loadComponent: () =>
                             import('./open-project-page/open-project-page.component').then(
                                 (m) => m.OpenProjectPageComponent

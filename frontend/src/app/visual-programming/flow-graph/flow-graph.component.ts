@@ -41,6 +41,8 @@ import {
 } from '@foblex/flow';
 import { Subject } from 'rxjs';
 
+import { CreateProjectComponent } from '../../features/projects/components/create-project-form-dialog/create-project.component';
+import { GetProjectRequest } from '../../features/projects/models/project.model';
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ToggleSwitchComponent } from '../../shared/components/form-controls/toggle-switch/toggle-switch.component';
@@ -513,6 +515,28 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         );
         const newNode = this.nodeFactory.createNode(event.type, { ...event.overrides, position });
         this.flowService.addNode(newNode);
+    }
+
+    public onCreateNewProject(): void {
+        this.showContextMenu.set(false);
+
+        const dialogRef = this.dialog.open<GetProjectRequest | undefined>(CreateProjectComponent, {
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            autoFocus: true,
+            data: { isTemplate: false },
+        });
+
+        dialogRef.closed.subscribe((newProject) => {
+            if (!newProject) {
+                return;
+            }
+
+            this.onAddNodeFromContextMenu({
+                type: NodeType.PROJECT,
+                overrides: { data: newProject },
+            });
+        });
     }
 
     public onOpenNodePanel(node: NodeModel): void {

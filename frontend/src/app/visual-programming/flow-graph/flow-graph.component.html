@@ -321,6 +321,7 @@
             [position]="contextMenuPosition()"
             [currentFlowId]="currentFlowId"
             (nodeSelected)="onAddNodeFromContextMenu($event)"
+            (createNewProject)="onCreateNewProject()"
         >
         </app-flow-graph-context-menu>
     }

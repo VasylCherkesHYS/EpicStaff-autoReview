@@ -1,17 +1,17 @@
 import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
-import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { HideInlineSubtitleOnOverflowDirective } from '../../../../shared/directives/hide-inline-subtitle-on-overflow.directive';
 import { CreateProjectComponent } from '../../components/create-project-form-dialog/create-project.component';
 import { GetProjectRequest } from '../../models/project.model';
 import { ProjectsStorageService } from '../../services/projects-storage.service';
+import { TemplatesListComponent } from './components/templates-list/templates-list.component';
 
 @Component({
     selector: 'app-projects-list-page',
@@ -20,22 +20,14 @@ import { ProjectsStorageService } from '../../services/projects-storage.service'
     templateUrl: './projects-list-page.component.html',
     styleUrls: ['./projects-list-page.component.scss'],
     imports: [
-        RouterOutlet,
-        RouterLink,
-        RouterLinkActive,
         ButtonComponent,
-        TabButtonComponent,
         FormsModule,
         AppSvgIconComponent,
         HideInlineSubtitleOnOverflowDirective,
+        TemplatesListComponent,
     ],
 })
 export class ProjectsListPageComponent implements OnDestroy {
-    public tabs = [
-        { label: 'My projects', link: 'my' },
-        { label: 'Templates', link: 'templates' },
-    ];
-
     public searchTerm: string = '';
 
     private searchTerms = new Subject<string>();
@@ -56,16 +48,8 @@ export class ProjectsListPageComponent implements OnDestroy {
             this.subscription.unsubscribe();
         }
 
-        // Reset search filter when component is destroyed
         this.searchTerm = '';
         this.projectsService.setFilter(null);
-    }
-
-    get isMyProjectsActive(): boolean {
-        return this.router.url.includes('/projects/my');
-    }
-    get isTemplatesActive(): boolean {
-        return this.router.url.includes('/projects/templates');
     }
 
     public onSearchTermChange(term: string): void {
@@ -85,23 +69,16 @@ export class ProjectsListPageComponent implements OnDestroy {
         this.projectsService.setFilter(filter);
     }
 
-    // public onProjectTagsChange(event: ProjectTagsFilterChange): void {
-    //     const filter = {
-    //         searchTerm: this.searchTerm,
-    //         selectedTagIds: event.selectedTagIds,
-    //     };
-    //     this.projectsService.setFilter(filter);
-    // }
-
-    public openCreateProjectDialog(): void {
+    public openCreateTemplateDialog(): void {
         const dialogRef = this.dialog.open<GetProjectRequest | undefined>(CreateProjectComponent, {
             maxWidth: '95vw',
             maxHeight: '90vh',
             autoFocus: true,
+            data: { isTemplate: true },
         });
         dialogRef.closed.subscribe((result: GetProjectRequest | undefined) => {
             if (result) {
-                this.router.navigate(['/projects', result.id]);
+                this.router.navigate(['/templates', result.id]);
             }
         });
     }

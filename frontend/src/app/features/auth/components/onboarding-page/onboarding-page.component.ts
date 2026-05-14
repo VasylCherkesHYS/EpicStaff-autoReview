@@ -26,11 +26,11 @@ export class OnboardingPageComponent {
 
     onStartWorking(): void {
         sessionStorage.removeItem('needs_onboarding');
-        void this.router.navigate(['/projects']);
+        void this.router.navigate(['/templates']);
     }
 
     onSetupOrganizations(): void {
         sessionStorage.removeItem('needs_onboarding');
-        void this.router.navigate(['/projects']);
+        void this.router.navigate(['/templates']);
     }
 }

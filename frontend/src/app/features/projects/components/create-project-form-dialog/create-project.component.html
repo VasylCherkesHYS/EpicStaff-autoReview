@@ -1,6 +1,6 @@
 <div class="create-project">
     <div class="create-project__header">
-        <h2 class="create-project__title">Create New Project</h2>
+        <h2 class="create-project__title">Create New {{ entityLabel }}</h2>
         <button
             mat-icon-button
             class="create-project__close-button"
@@ -24,15 +24,15 @@
                     appearance="outline"
                     class="create-project__field create-project__field--full-width"
                 >
-                    <mat-label>Project Name</mat-label>
+                    <mat-label>{{ entityLabel }} Name</mat-label>
                     <input
                         matInput
                         formControlName="name"
-                        placeholder="Enter project name"
+                        placeholder="Enter {{ entityLabel.toLowerCase() }} name"
                         required
                     />
                     @if (nameField.hasError('required')) {
-                        <mat-error> Project name is required </mat-error>
+                        <mat-error> {{ entityLabel }} name is required </mat-error>
                     }
                 </mat-form-field>
 
@@ -44,7 +44,7 @@
                     <textarea
                         matInput
                         formControlName="description"
-                        placeholder="Enter project description (optional)"
+                        placeholder="Enter {{ entityLabel.toLowerCase() }} description (optional)"
                         rows="4"
                     ></textarea>
                 </mat-form-field>
@@ -204,7 +204,7 @@
             @if (isSubmitting()) {
                 <mat-spinner diameter="16"></mat-spinner>
             } @else {
-                Create Project
+                Create {{ entityLabel }}
             }
         </button>
     </div>

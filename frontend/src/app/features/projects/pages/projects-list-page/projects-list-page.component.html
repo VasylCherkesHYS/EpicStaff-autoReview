@@ -6,8 +6,10 @@
                 appHideInlineSubtitleOnOverflow
             >
                 <h1 class="title">
-                    Projects
-                    <span class="subtitle-inline">A project is a workspace to organize your AI agents and tasks.</span>
+                    Templates
+                    <span class="subtitle-inline"
+                        >A template is a reusable workspace blueprint for AI agents and tasks.</span
+                    >
                 </h1>
             </div>
             <div class="header-actions">
@@ -15,29 +17,14 @@
                     type="primary"
                     class="btn-primary create-btn"
                     [leftIcon]="'plus'"
-                    (click)="openCreateProjectDialog()"
+                    (click)="openCreateTemplateDialog()"
                 >
-                    Create project
+                    Create template
                 </app-button>
             </div>
         </header>
         <nav class="tabs">
-            <div class="tabs-left">
-                @for (tab of tabs; track tab.link) {
-                    <app-tab-button
-                        routerLink="{{ tab.link }}"
-                        routerLinkActive="active"
-                        #rla="routerLinkActive"
-                        [active]="rla.isActive"
-                    >
-                        {{ tab.label }}
-                    </app-tab-button>
-                }
-            </div>
             <div class="tabs-right">
-                <!-- <app-project-tags-filter (change)="onProjectTagsChange($event)">
-                </app-project-tags-filter> -->
-
                 <div class="search-container">
                     <app-svg-icon
                         icon="search"
@@ -47,7 +34,7 @@
                     <input
                         type="text"
                         class="search-input"
-                        placeholder="Search projects..."
+                        placeholder="Search templates..."
                         [(ngModel)]="searchTerm"
                         (ngModelChange)="onSearchTermChange($event)"
                     />
@@ -69,6 +56,6 @@
         </nav>
     </div>
     <section class="body">
-        <router-outlet></router-outlet>
+        <app-templates-list></app-templates-list>
     </section>
 </div>

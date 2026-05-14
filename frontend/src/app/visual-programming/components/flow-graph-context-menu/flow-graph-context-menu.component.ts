@@ -26,7 +26,7 @@ import {
 import { CreateNodeRequest } from '../../core/models/node-creation.types';
 import { FlowGraphCoreMenuComponent } from './flow-graph-core-menu/flow-graph-core-menu.component';
 import { FlowsMenuComponent } from './flows-menu/flows-menu.component';
-import { FlowProjectsContextMenuComponent } from './section-projects/section-projects.component';
+import { FlowTemplatesContextMenuComponent } from './section-templates/section-templates.component';
 
 export type { ContextMenuTab };
 
@@ -36,12 +36,13 @@ export type { ContextMenuTab };
     templateUrl: './flow-graph-context-menu.component.html',
     styleUrls: ['./flow-graph-context-menu.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FlowGraphCoreMenuComponent, FlowProjectsContextMenuComponent, FlowsMenuComponent],
+    imports: [FlowGraphCoreMenuComponent, FlowTemplatesContextMenuComponent, FlowsMenuComponent],
 })
 export class FlowGraphContextMenuComponent implements AfterViewInit {
     public readonly position = input.required<IPoint>();
     public readonly currentFlowId = input<number | null>(null);
     public readonly nodeSelected = output<CreateNodeRequest>();
+    public readonly createNewProject = output<void>();
 
     @ViewChild('menuTemplate', { static: true })
     private menuTemplate!: TemplateRef<unknown>;
@@ -79,6 +80,10 @@ export class FlowGraphContextMenuComponent implements AfterViewInit {
 
     public onNodeSelected(event: CreateNodeRequest): void {
         this.nodeSelected.emit(event);
+    }
+
+    public onCreateNewProject(): void {
+        this.createNewProject.emit();
     }
 
     private createOverlay(): void {
