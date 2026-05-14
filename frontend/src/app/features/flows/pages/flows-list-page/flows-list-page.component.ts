@@ -1,4 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
+import { OverlayModule } from '@angular/cdk/overlay';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -7,31 +8,48 @@ import {
     DestroyRef,
     inject,
     OnDestroy,
+    OnInit,
     signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { forkJoin, Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
 
 import { ImportExportService } from '../../../../core/services/import-export.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
-import { SearchFilterChange } from '../../../../shared/components/filters-list/filters-list.component';
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { HideInlineSubtitleOnOverflowDirective } from '../../../../shared/directives/hide-inline-subtitle-on-overflow.directive';
 import { CreateFlowDialogComponent } from '../../components/create-flow-dialog/create-flow-dialog.component';
+import {
+    CustomFilterDialogData,
+    CustomFilterDialogResult,
+    FlowsCustomFilterDialogComponent,
+} from '../../components/filter/flows-custom-filter-dialog/flows-custom-filter-dialog.component';
+import {
+    FlowsFilterMenuAction,
+    FlowsFilterMenuComponent,
+} from '../../components/filter/flows-filter-menu/flows-filter-menu.component';
+import {
+    FlowsIncludeExcludeDialogComponent,
+    IncludeExcludeDialogData,
+    IncludeExcludeDialogResult,
+    IncludeExcludeTab,
+} from '../../components/filter/flows-include-exclude-dialog/flows-include-exclude-dialog.component';
 import {
     ImportFlowOptions,
     ImportFlowOptionsDialogComponent,
 } from '../../components/import-flow-options-dialog/import-flow-options-dialog.component';
 import { ImportResultDialogComponent } from '../../components/import-result-dialog/import-result-dialog.component';
+import { EMPTY_FLOWS_FILTER, FlowsFilterState } from '../../models/flow-filter.model';
 import { GraphDto } from '../../models/graph.model';
 import { EntityTypeResult, ImportResult, ImportResultItem } from '../../models/import-result.model';
 import { FlowsStorageService } from '../../services/flows-storage.service';
 import { LabelsStorageService } from '../../services/labels-storage.service';
+import { parseFilterFromParams, serializeFilterToParams } from '../../utils/flow-filter-url.utils';
 import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flows-label-sidebar.component';
 
 @Component({
@@ -48,10 +66,12 @@ import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flo
         AppSvgIconComponent,
         FlowsLabelSidebarComponent,
         HideInlineSubtitleOnOverflowDirective,
+        OverlayModule,
+        FlowsFilterMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlowsListPageComponent implements OnDestroy {
+export class FlowsListPageComponent implements OnInit, OnDestroy {
     public tabs = [
         { label: 'My Flows', link: 'my' },
         { label: 'Templates', link: 'templates' },
@@ -63,6 +83,7 @@ export class FlowsListPageComponent implements OnDestroy {
     private dialog = inject(Dialog);
     private flowStorageService = inject(FlowsStorageService);
     private router = inject(Router);
+    private activatedRoute = inject(ActivatedRoute);
     private cdr = inject(ChangeDetectorRef);
     private importExportService = inject(ImportExportService);
     private toastService = inject(ToastService);
@@ -71,8 +92,20 @@ export class FlowsListPageComponent implements OnDestroy {
 
     public selectMode = this.flowStorageService.selectMode;
     public selectedFlowIds = this.flowStorageService.selectedFlowIds;
+    public readonly filterState = this.flowStorageService.filter;
+
+    public readonly hasActiveFilter = computed(() => {
+        const f = this.filterState();
+        return (
+            f.sortOrder !== 'default' ||
+            f.includedFlowIds !== null ||
+            f.includedLabelIds !== null ||
+            f.customFilter !== null
+        );
+    });
 
     public showSidebar = signal<boolean>(true);
+    public filterMenuOpen = signal<boolean>(false);
 
     public readonly activeLabelFilterDisplay = computed(() => {
         const filter = this.labelsStorage.activeLabelFilter();
@@ -98,9 +131,59 @@ export class FlowsListPageComponent implements OnDestroy {
             });
     }
 
+    ngOnInit(): void {
+        this.activatedRoute.queryParamMap.pipe(take(1)).subscribe((paramMap) => {
+            const params: Record<string, string> = {};
+            for (const key of paramMap.keys) {
+                const value = paramMap.get(key);
+                if (value !== null) params[key] = value;
+            }
+            const initial = parseFilterFromParams(params);
+            this.searchTerm = initial.searchTerm;
+            this.flowStorageService.setFilter(initial);
+            this.cdr.markForCheck();
+
+            const hasIdsToValidate = initial.includedFlowIds !== null || initial.includedLabelIds !== null;
+            if (!hasIdsToValidate) return;
+
+            forkJoin({
+                flows: this.flowStorageService.getFlows(),
+                labels: this.labelsStorage.loadLabels(),
+            }).subscribe(({ flows, labels }) => {
+                const knownFlowIds = new Set(flows.map((f) => f.id));
+                const knownLabelIds = new Set(labels.map((l) => l.id));
+
+                const validatedFlowIds =
+                    initial.includedFlowIds === null
+                        ? null
+                        : initial.includedFlowIds.filter((id) => knownFlowIds.has(id));
+                const validatedLabelIds =
+                    initial.includedLabelIds === null
+                        ? null
+                        : initial.includedLabelIds.filter((id) => knownLabelIds.has(id));
+
+                const flowsChanged =
+                    validatedFlowIds !== null &&
+                    initial.includedFlowIds !== null &&
+                    validatedFlowIds.length !== initial.includedFlowIds.length;
+                const labelsChanged =
+                    validatedLabelIds !== null &&
+                    initial.includedLabelIds !== null &&
+                    validatedLabelIds.length !== initial.includedLabelIds.length;
+
+                if (!flowsChanged && !labelsChanged) return;
+
+                this.applyFilterPatch({
+                    includedFlowIds: validatedFlowIds && validatedFlowIds.length > 0 ? validatedFlowIds : null,
+                    includedLabelIds: validatedLabelIds && validatedLabelIds.length > 0 ? validatedLabelIds : null,
+                });
+            });
+        });
+    }
+
     ngOnDestroy(): void {
         this.searchTerm = '';
-        this.flowStorageService.setFilter(null);
+        this.flowStorageService.resetFilter();
         this.flowStorageService.setSelectMode(false);
     }
 
@@ -114,11 +197,99 @@ export class FlowsListPageComponent implements OnDestroy {
     }
 
     private updateSearch(searchTerm: string): void {
-        const filter: SearchFilterChange = {
-            searchTerm,
-        };
-        this.flowStorageService.setFilter(filter);
+        this.applyFilterPatch({ searchTerm });
+    }
+
+    private applyFilterPatch(patch: Partial<FlowsFilterState>): void {
+        const next: FlowsFilterState = { ...this.flowStorageService.getCurrentFilter(), ...patch };
+        this.flowStorageService.setFilter(next);
+        this.syncFilterToUrl(next);
         this.cdr.markForCheck();
+    }
+
+    private syncFilterToUrl(state: FlowsFilterState): void {
+        const queryParams = serializeFilterToParams(state);
+        this.router.navigate([], {
+            relativeTo: this.activatedRoute,
+            queryParams,
+            queryParamsHandling: 'merge',
+            replaceUrl: true,
+        });
+    }
+
+    public toggleFilterMenu(): void {
+        this.filterMenuOpen.update((open) => !open);
+    }
+
+    public closeFilterMenu(): void {
+        this.filterMenuOpen.set(false);
+    }
+
+    public onFilterMenuAction(action: FlowsFilterMenuAction): void {
+        this.closeFilterMenu();
+        switch (action) {
+            case 'sort_asc':
+                this.applyFilterPatch({ sortOrder: 'name_asc' });
+                return;
+            case 'sort_desc':
+                this.applyFilterPatch({ sortOrder: 'name_desc' });
+                return;
+            case 'include_exclude':
+                this.openIncludeExcludeDialog('flows');
+                return;
+            case 'custom_filter':
+                this.openCustomFilterDialog();
+                return;
+        }
+    }
+
+    public clearAllFilters(): void {
+        const reset: FlowsFilterState = {
+            ...EMPTY_FLOWS_FILTER,
+            searchTerm: this.flowStorageService.getCurrentFilter().searchTerm,
+        };
+        this.flowStorageService.setFilter(reset);
+        this.syncFilterToUrl(reset);
+        this.cdr.markForCheck();
+    }
+
+    private openIncludeExcludeDialog(initialTab: IncludeExcludeTab): void {
+        this.labelsStorage.loadLabels().subscribe(() => {
+            const current = this.flowStorageService.getCurrentFilter();
+            const data: IncludeExcludeDialogData = {
+                initialTab,
+                flows: this.flowStorageService.flows(),
+                selectedFlowIds: current.includedFlowIds,
+                selectedLabelIds: current.includedLabelIds,
+            };
+            const ref = this.dialog.open<IncludeExcludeDialogResult | undefined>(FlowsIncludeExcludeDialogComponent, {
+                data,
+                panelClass: 'flows-filter-dialog-panel',
+                hasBackdrop: true,
+            });
+            ref.closed.subscribe((result) => {
+                if (!result) return;
+                this.applyFilterPatch({
+                    includedFlowIds: result.includedFlowIds,
+                    includedLabelIds: result.includedLabelIds,
+                });
+            });
+        });
+    }
+
+    private openCustomFilterDialog(): void {
+        const data: CustomFilterDialogData = {
+            initialCondition: this.flowStorageService.getCurrentFilter().customFilter,
+        };
+        const ref = this.dialog.open<CustomFilterDialogResult | undefined>(FlowsCustomFilterDialogComponent, {
+            data,
+            panelClass: 'flows-filter-dialog-panel',
+            hasBackdrop: true,
+        });
+        ref.closed.subscribe((result) => {
+            if (!result) return;
+            this.applyFilterPatch({ customFilter: result.condition });
+        });
     }
 
     public openCreateFlowDialog(): void {

@@ -17,6 +17,7 @@ import { FormsModule } from '@angular/forms';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../shared/components/buttons/button/button.component';
+import { CheckboxComponent } from '../../../../shared/components/checkbox/checkbox.component';
 import { LabelColor } from '../../models/label.model';
 import { LabelsStorageService, LabelTreeNode } from '../../services/labels-storage.service';
 import { LabelColorPickerComponent } from '../label-color-picker/label-color-picker.component';
@@ -28,7 +29,14 @@ interface FlatLabelNode {
 
 @Component({
     selector: 'app-label-dropdown',
-    imports: [CommonModule, FormsModule, AppSvgIconComponent, ButtonComponent, LabelColorPickerComponent],
+    imports: [
+        CommonModule,
+        FormsModule,
+        AppSvgIconComponent,
+        ButtonComponent,
+        LabelColorPickerComponent,
+        CheckboxComponent,
+    ],
     templateUrl: './label-dropdown.component.html',
     styleUrls: ['./label-dropdown.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

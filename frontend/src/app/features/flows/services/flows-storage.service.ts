@@ -2,8 +2,9 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, delay, shareReplay, switchMap, tap } from 'rxjs/operators';
 
-import { SearchFilterChange } from '../../../shared/components/filters-list/filters-list.component';
+import { EMPTY_FLOWS_FILTER, FlowsFilterState } from '../models/flow-filter.model';
 import { CreateGraphDtoRequest, GetGraphLightRequest, GraphDto, UpdateGraphDtoRequest } from '../models/graph.model';
+import { compareFlowsByName, evaluateCustomFilter } from '../utils/flow-filter.utils';
 import { FlowsApiService } from './flows-api.service';
 import { LabelsStorageService } from './labels-storage.service';
 
@@ -21,12 +22,13 @@ export class FlowsStorageService {
     private flowsLoaded = signal<boolean>(false);
     private templatesSignal = signal<GraphDto[]>([]);
     private templatesLoaded = signal<boolean>(false);
-    private filterSignal = signal<SearchFilterChange | null>(null);
+    private filterSignal = signal<FlowsFilterState>(EMPTY_FLOWS_FILTER);
 
     // --- Public State Accessors ---
     public readonly isFlowsLoaded = this.flowsLoaded.asReadonly();
     public readonly isTemplatesLoaded = this.templatesLoaded.asReadonly();
     public readonly flows = this.flowsSignal.asReadonly();
+    public readonly filter = this.filterSignal.asReadonly();
 
     public selectMode = signal<boolean>(false);
     public selectedFlowIds = signal<number[]>([]);
@@ -34,10 +36,11 @@ export class FlowsStorageService {
     public readonly filteredFlows = computed(() => {
         const flows = this.flowsSignal();
         const filter = this.filterSignal();
+        const labels = this.labelsStorage.labels();
         let filtered = flows;
-        if (filter?.searchTerm) {
+
+        if (filter.searchTerm) {
             const term = filter.searchTerm.toLowerCase();
-            const labels = this.labelsStorage.labels();
             filtered = filtered.filter((f) => {
                 if (f.name.toLowerCase().includes(term)) return true;
                 return (f.label_ids || []).some((id) => {
@@ -49,18 +52,31 @@ export class FlowsStorageService {
                 });
             });
         }
-        return filtered.slice().sort((a, b) => b.id - a.id);
+
+        if (filter.includedFlowIds !== null) {
+            const ids = new Set(filter.includedFlowIds);
+            filtered = filtered.filter((f) => ids.has(f.id));
+        }
+
+        if (filter.includedLabelIds !== null) {
+            const ids = new Set(filter.includedLabelIds);
+            filtered = filtered.filter((f) => (f.label_ids ?? []).some((id) => ids.has(id)));
+        }
+
+        if (filter.customFilter) {
+            const condition = filter.customFilter;
+            filtered = filtered.filter((f) => evaluateCustomFilter(condition, f, labels));
+        }
+
+        return filtered.slice().sort(compareFlowsByName(filter.sortOrder));
     });
 
     public readonly filteredTemplates = computed(() => {
         const templates = this.templatesSignal();
         const filter = this.filterSignal();
-        if (!filter) return templates;
-        let filtered = templates;
-        if (filter.searchTerm) {
-            filtered = filtered.filter((t) => t.name.toLowerCase().includes(filter.searchTerm.toLowerCase()));
-        }
-        return filtered;
+        if (!filter.searchTerm) return templates;
+        const term = filter.searchTerm.toLowerCase();
+        return templates.filter((t) => t.name.toLowerCase().includes(term));
     });
 
     // --- State Mutators ---
@@ -74,32 +90,29 @@ export class FlowsStorageService {
         this.templatesLoaded.set(true);
     }
 
-    public setFilter(filter: SearchFilterChange | null) {
-        // Only update filter if it's different from current filter
-        const currentFilter = this.filterSignal();
-
-        // Check if filter is the same as current filter
-        if (currentFilter === null && filter === null) {
+    public setFilter(filter: FlowsFilterState): void {
+        const current = this.filterSignal();
+        if (
+            current.searchTerm === filter.searchTerm &&
+            current.sortOrder === filter.sortOrder &&
+            current.includedFlowIds === filter.includedFlowIds &&
+            current.includedLabelIds === filter.includedLabelIds &&
+            current.customFilter === filter.customFilter
+        ) {
             return;
         }
-
-        // If either is null but not both, they're different
-        if (currentFilter === null || filter === null) {
-            this.filterSignal.set(filter);
-            return;
-        }
-
-        // Compare searchTerm
-        const searchTermChanged = currentFilter.searchTerm !== filter.searchTerm;
-
-        // Only update if there's a change
-        if (searchTermChanged) {
-            this.filterSignal.set(filter);
-        }
+        this.filterSignal.set(filter);
     }
 
-    // Get the current filter value
-    public getCurrentFilter(): SearchFilterChange | null {
+    public patchFilter(patch: Partial<FlowsFilterState>): void {
+        this.setFilter({ ...this.filterSignal(), ...patch });
+    }
+
+    public resetFilter(): void {
+        this.setFilter(EMPTY_FLOWS_FILTER);
+    }
+
+    public getCurrentFilter(): FlowsFilterState {
         return this.filterSignal();
     }
 
