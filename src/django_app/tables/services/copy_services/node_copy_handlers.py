@@ -26,6 +26,7 @@ from tables.models.graph_models import (
     CodeAgentNode,
     WebhookTriggerNode,
 )
+from tables.services.copy_services.crew_copy_service import CrewCopyService
 from tables.services.copy_services.helpers import copy_python_code, get_base_node_fields
 from tables.services.persistent_variables_service import PersistentVariablesService
 
@@ -99,9 +100,10 @@ def copy_llm_node(graph: Graph, node: LLMNode) -> LLMNode:
 
 
 def copy_crew_node(graph: Graph, node: CrewNode) -> CrewNode:
+    new_crew = CrewCopyService().copy(node.crew)
     return CrewNode.objects.create(
         graph=graph,
-        crew=node.crew,
+        crew=new_crew,
         **get_base_node_fields(node),
     )
 

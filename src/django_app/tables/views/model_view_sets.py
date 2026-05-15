@@ -524,6 +524,7 @@ class CrewReadWriteViewSet(CopyActionMixin, ModelViewSet):
         "full_output",
         "planning",
         "planning_llm_config",
+        "is_template",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -545,6 +546,24 @@ class CrewReadWriteViewSet(CopyActionMixin, ModelViewSet):
             file_serializer.validated_data["file"]
         )
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="save_as_project")
+    def save_as_project(self, request, pk=None):
+        """
+        Custom action to save a template as a project.
+        """
+        crew = self.get_object()
+        if not crew.is_template:
+            return Response(
+                "Project is not a template", status=status.HTTP_400_BAD_REQUEST
+            )
+
+        created_project = self.perform_copy(crew)
+        created_project.is_template = False
+        created_project.save()
+
+        serializer = self.get_serializer(created_project)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TaskReadWriteViewSet(ModelViewSet):

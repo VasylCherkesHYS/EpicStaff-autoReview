@@ -88,7 +88,9 @@ class CrewNode(BaseNode):
     graph = models.ForeignKey(
         "Graph", on_delete=models.CASCADE, related_name="crew_node_list"
     )
-    crew = models.ForeignKey("Crew", on_delete=models.CASCADE)
+    crew = models.OneToOneField(
+        "Crew", on_delete=models.CASCADE, related_name="crew_node"
+    )
     stream_config = models.JSONField(default=dict, blank=True)
 
 
