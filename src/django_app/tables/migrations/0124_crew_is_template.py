@@ -2,10 +2,9 @@
 from copy import copy
 from django.db import migrations, models
 from django.db import transaction
-from tables.utils.helpers import generate_new_unique_name
 
 
-def create_crew_copy(apps, crew, crew_names):
+def create_crew_copy(apps, crew):
     """Create a copy of the given crew along with its tasks and task contexts."""
     TaskContext = apps.get_model("tables", "TaskContext")
 
@@ -16,7 +15,7 @@ def create_crew_copy(apps, crew, crew_names):
     new_crew = copy(crew)
     new_crew.pk = None
     new_crew.id = None
-    new_crew.name = generate_new_unique_name(crew.name, crew_names)
+    new_crew.name = crew.name
     new_crew.is_template = False
     new_crew.save()
 
@@ -83,11 +82,9 @@ def make_all_crews_as_templates(apps, schema_editor):
         Graph = apps.get_model("tables", "Graph")
 
         nodes = CrewNode.objects.all().select_related("crew")
-        crew_names = set(Crew.objects.values_list("name", flat=True))
-
         for node in nodes:
             old_crew = node.crew
-            new_crew = create_crew_copy(apps, old_crew, crew_names)
+            new_crew = create_crew_copy(apps, old_crew)
             node.crew_id = new_crew.id
             node.save()
 
