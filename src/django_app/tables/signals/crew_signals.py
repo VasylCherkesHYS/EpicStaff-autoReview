@@ -30,9 +30,7 @@ def handle_crew_agents_change(sender, instance, action, pk_set, **kwargs):
 
 
 @receiver(post_delete, sender=CrewNode)
-def delete_related_crew(sender, instance, **kwargs):
-    """
-    When CrewNode is deleted, also delete the associated Crew.
-    """
-    if instance.crew:
-        instance.crew.delete()
+def delete_crew_with_node(sender, instance, origin, **kwargs):
+    if isinstance(origin, Crew):
+        return
+    Crew.objects.filter(pk=instance.crew_id).delete()
