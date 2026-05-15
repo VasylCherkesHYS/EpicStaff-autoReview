@@ -201,6 +201,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     private readonly scrollBottomThreshold = 80;
     public unseenMessageCount = 0;
     private seenMessageCount = 0;
+    private lastScrollTop = 0;
 
     constructor(
         public sseService: RunSessionSSEService,
@@ -282,25 +283,49 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
 
-        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        const scrollTop = el.scrollTop;
+        const distanceFromBottom = el.scrollHeight - scrollTop - el.clientHeight;
         const isAtBottom = distanceFromBottom <= this.scrollBottomThreshold;
+        const scrolledUp = scrollTop < this.lastScrollTop;
+        this.lastScrollTop = scrollTop;
+
+        if (scrolledUp && this.autoScrollEnabled) {
+            this.autoScrollEnabled = false;
+            this.seenMessageCount = this.messages.length;
+        }
 
         if (!this.autoScrollEnabled && isAtBottom) {
             this.autoScrollEnabled = true;
             this.unseenMessageCount = 0;
+        } else if (!this.autoScrollEnabled) {
+            this.updateSeenFromScrollPosition();
         }
 
         this.updateScrollButtonsVisibility();
-
         this.cdr.markForCheck();
     }
 
-    public onMessagesWheel(event: WheelEvent): void {
-        if (event.deltaY < 0 && this.autoScrollEnabled) {
-            this.autoScrollEnabled = false;
-            this.seenMessageCount = this.messages.length;
-            this.updateScrollButtonsVisibility();
-            this.cdr.markForCheck();
+    private updateSeenFromScrollPosition(): void {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+
+        const viewportBottom = el.getBoundingClientRect().bottom;
+        const messageElements = el.querySelectorAll<HTMLElement>('.messages-list > .message');
+
+        let visibleCount = 0;
+        for (let i = 0; i < messageElements.length; i++) {
+            const rect = messageElements[i].getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (midpoint <= viewportBottom) {
+                visibleCount = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        if (visibleCount > this.seenMessageCount) {
+            this.seenMessageCount = visibleCount;
+            this.unseenMessageCount = Math.max(0, this.messages.length - this.seenMessageCount);
         }
     }
 
@@ -326,7 +351,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        this.showScrollToTop = el.scrollTop > 150 && this.autoScrollEnabled;
+        this.showScrollToTop = el.scrollTop > 150;
         this.showScrollToBottom = !this.autoScrollEnabled && distanceFromBottom > this.scrollBottomThreshold;
     }
 
@@ -367,6 +392,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.showUserInputWithDelay = false;
             this.warningMessages = null;
             this.autoScrollEnabled = true;
+            this.lastScrollTop = 0;
             this.messages = [];
             this.visibleMessageEntries = [];
             this.drillPaths.clear();
