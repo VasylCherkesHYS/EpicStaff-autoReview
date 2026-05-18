@@ -1577,6 +1577,42 @@ def test_get_node_crew_includes_crew_summary(graph, db):
     assert tasks[0]["name"] == "data_ingestion"
 
 
+# ── system_prompt build smoke test ───────────────────────────────────────────
+
+
+def test_build_system_prompt_file_load_and_substitution():
+    """Smoke test for the file-based system_prompt build path.
+
+    Verifies that:
+    (a) build_system_prompt returns a non-empty string,
+    (b) the substituted flow name appears in the output,
+    (c) the rich-format marker 'ef_tables' appears (proves rich_format.md loaded),
+    (d) no literal '${' remains (proves all Template placeholders were substituted).
+    """
+    from tables.services.flow_assistant.system_prompt import (
+        SystemPromptInputs,
+        build_system_prompt,
+    )
+
+    inputs = SystemPromptInputs(
+        flow_name="Smoke Test Flow",
+        flow_description="A flow used in automated tests.",
+        today_iso="2026-05-18",
+        yesterday_iso="2026-05-17",
+        tomorrow_iso="2026-05-19",
+        node_summary="  - crew: 1\n  - end: 1",
+        nodes_section="Nodes in this flow:\n  - id=1 type=crew name=\"intake\"",
+        subflow_summary="  (none)",
+    )
+
+    result = build_system_prompt(inputs)
+
+    assert isinstance(result, str) and len(result) > 0
+    assert "Smoke Test Flow" in result, "substituted flow_name must appear in output"
+    assert "ef_tables" in result, "rich_format.md marker 'ef_tables' must be present"
+    assert "${" not in result, "all Template placeholders must be substituted"
+
+
 # ── Phase F (Fix 16): python_code_summary in get_node ────────────────────────
 
 
