@@ -16,6 +16,8 @@ from typing import AsyncIterator
 
 from asgiref.sync import sync_to_async
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from utils.logger import logger
@@ -196,6 +198,28 @@ class FlowAssistantService:
         title = _derive_title(message)
         conversation.title = title
         conversation.save(update_fields=["title"])
+
+    def append_user_message(
+        self, conversation: FlowAssistantConversation, content: str
+    ) -> FlowAssistantMessage:
+        """Append a user message to the conversation as a new FlowAssistantMessage row.
+
+        Owns the transaction: creates the row at the next message_index AND bumps
+        last_message_at in a single atomic block. Returns the created row.
+        """
+        with transaction.atomic():
+            next_idx_result = conversation.message_rows.aggregate(m=Max("message_index"))
+            next_idx = next_idx_result["m"]
+            next_idx = 0 if next_idx is None else next_idx + 1
+            row = FlowAssistantMessage.objects.create(
+                conversation=conversation,
+                message_index=next_idx,
+                role="user",
+                content=content,
+            )
+            conversation.last_message_at = timezone.now()
+            conversation.save(update_fields=["last_message_at"])
+        return row
 
     async def stream_reply(
         self,

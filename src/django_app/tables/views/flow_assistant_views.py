@@ -7,11 +7,8 @@ Non-streaming endpoints: DRF APIView.
 Streaming endpoint: SSEMixin (Django View) with ticket auth.
 """
 
-from typing import Any, Awaitable, Callable
-
 from asgiref.sync import async_to_sync, sync_to_async
-from django.db import transaction
-from django.db.models import Count, Max
+from django.db.models import Count
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import LimitOffsetPagination
@@ -21,7 +18,7 @@ from rest_framework.views import APIView
 
 from utils.logger import logger
 
-from tables.models.flow_assistant_models import FlowAssistantConversation, FlowAssistantMessage
+from tables.models.flow_assistant_models import FlowAssistantConversation
 from tables.serializers.flow_assistant_serializers import (
     AuditConversationSerializer,
     FlowAssistantConversationSerializer,
@@ -35,11 +32,9 @@ from tables.services.flow_assistant import (
     LLMConfigInvalidError,
     LLMConfigMissingError,
     build_node_index,
-    resolve_node_display_name,
-    resolve_subgraph_display_name,
 )
 from tables.services.flow_assistant.helpers import request_cancel
-from tables.services.llm_clients.base import StructuredEvent
+from tables.services.flow_assistant.stream_serializer import serialize_stream_event
 from tables.services.rbac.organization_resolution import resolve_organization_user
 from tables.services.rbac.permissions import IsSuperadmin
 from tables.services.rbac.sse_ticket_service import SseTicketService
@@ -90,121 +85,6 @@ def _get_conversation_or_404(
             raise Http404(f"Conversation {conversation_id} not found.")
 
     return conv
-
-
-# ── Per-event SSE handlers ────────────────────────────────────────────────────
-#
-# Each handler has the uniform signature:
-#
-#   async def _handle_<kind>(event, *, graph_id, node_index) -> tuple[dict, bool]
-#
-# Return value: (sse_event_dict, should_terminate).
-# Only _handle_done returns True for should_terminate.
-
-
-async def _handle_token(
-    event: Any,
-    *,
-    graph_id: int,
-    node_index: dict | None,
-) -> tuple[dict, bool]:
-    return ({"event": "token", "data": {"type": "token", "content": event.content}}, False)
-
-
-async def _handle_tool_call(
-    event: Any,
-    *,
-    graph_id: int,
-    node_index: dict | None,
-) -> tuple[dict, bool]:
-    payload: dict = {
-        "type": "tool_call",
-        "id": event.id,
-        "name": event.name,
-        "arguments": event.args,
-    }
-    # Enrich with display-name hints for node / subgraph lookups.
-    if event.name in ("get_node", "get_edges_from", "get_edges_to"):
-        node_id_raw = event.args.get("node_id")
-        if node_id_raw is not None:
-            try:
-                hint = await sync_to_async(resolve_node_display_name)(
-                    graph_id, int(node_id_raw), node_index
-                )
-                payload["node_name_hint"] = hint
-            except (ValueError, TypeError):
-                payload["node_name_hint"] = None
-    elif event.name == "get_subflow":
-        subgraph_node_id_raw = event.args.get("subgraph_node_id")
-        if subgraph_node_id_raw is not None:
-            try:
-                hint = await sync_to_async(resolve_subgraph_display_name)(
-                    graph_id, int(subgraph_node_id_raw)
-                )
-                payload["subgraph_name_hint"] = hint
-            except (ValueError, TypeError):
-                payload["subgraph_name_hint"] = None
-    return ({"event": "tool_call", "data": payload}, False)
-
-
-async def _handle_tool_result(
-    event: Any,
-    *,
-    graph_id: int,
-    node_index: dict | None,
-) -> tuple[dict, bool]:
-    return (
-        {
-            "event": "tool_result",
-            "data": {
-                "type": "tool_result",
-                "id": event.id,
-                "name": event.name,
-                "content": event.content,
-            },
-        },
-        False,
-    )
-
-
-async def _handle_structured(
-    event: Any,
-    *,
-    graph_id: int,
-    node_index: dict | None,
-) -> tuple[dict, bool]:
-    return (
-        {
-            "event": "structured",
-            "data": {
-                "type": "structured",
-                "message": event.message,
-                "ef_tables": event.ef_tables,
-                "action_message": event.action_message,
-            },
-        },
-        False,
-    )
-
-
-async def _handle_done(
-    event: Any,
-    *,
-    graph_id: int,
-    node_index: dict | None,
-) -> tuple[dict, bool]:
-    payload: dict = {"type": "done"}
-    if getattr(event, "interrupted", False):
-        payload["interrupted"] = True
-    return ({"event": "done", "data": payload}, True)
-
-
-_STREAM_EVENT_HANDLERS: dict[str, Callable[..., Awaitable[tuple[dict, bool]]]] = {
-    "token": _handle_token,
-    "tool_call": _handle_tool_call,
-    "tool_result": _handle_tool_result,
-    "done": _handle_done,
-}
 
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
@@ -331,32 +211,15 @@ class FlowAssistantSendMessageView(APIView):
         serializer.is_valid(raise_exception=True)
         message = serializer.validated_data["message"]
 
-        # Append user message as a new FlowAssistantMessage row.
-        with transaction.atomic():
-            next_idx_result = conversation.message_rows.aggregate(m=Max("message_index"))
-            next_idx = next_idx_result["m"]
-            next_idx = 0 if next_idx is None else next_idx + 1
-            FlowAssistantMessage.objects.create(
-                conversation=conversation,
-                message_index=next_idx,
-                role="user",
-                content=message,
-            )
-            conversation.last_message_at = timezone.now()
-            conversation.save(update_fields=["last_message_at"])
-
-        # Auto-derive title from the first user message
         service = FlowAssistantService()
+        service.append_user_message(conversation, message)
         service.apply_title_if_missing(conversation, message)
 
-        # Issue a short-lived SSE ticket
         ticket, _ttl = SseTicketService().issue(request.user)
-
         stream_url = (
             f"/api/flow-assistants/{graph_id}/conversations/{conversation_id}/stream/"
             f"?ticket={ticket}"
         )
-
         return Response({"stream_url": stream_url}, status=status.HTTP_200_OK)
 
 
@@ -440,21 +303,16 @@ class FlowAssistantStreamView(SSEMixin):
 
         try:
             async for event in service.stream_reply(conversation, last_user_message):
-                if isinstance(event, StructuredEvent):
-                    sse_event, terminate = await _handle_structured(
-                        event, graph_id=graph_id, node_index=node_index
+                result = await serialize_stream_event(
+                    event, graph_id=graph_id, node_index=node_index
+                )
+                if result is None:
+                    logger.warning(
+                        "FlowAssistant stream: unknown event type {!r}, skipping",
+                        getattr(event, "type", None),
                     )
-                else:
-                    handler = _STREAM_EVENT_HANDLERS.get(event.type)
-                    if handler is None:
-                        logger.warning(
-                            "FlowAssistant stream: unknown event type {!r}, skipping",
-                            getattr(event, "type", None),
-                        )
-                        continue
-                    sse_event, terminate = await handler(
-                        event, graph_id=graph_id, node_index=node_index
-                    )
+                    continue
+                sse_event, terminate = result
                 yield sse_event
                 if terminate:
                     return
