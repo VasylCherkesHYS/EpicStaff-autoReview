@@ -7,6 +7,8 @@ Non-streaming endpoints: DRF APIView.
 Streaming endpoint: SSEMixin (Django View) with ticket auth.
 """
 
+from typing import Any, Awaitable, Callable
+
 from asgiref.sync import async_to_sync, sync_to_async
 from django.db.models import F, Func, IntegerField
 from django.utils import timezone
@@ -31,6 +33,9 @@ from tables.services.flow_assistant import (
     FlowAssistantService,
     LLMConfigInvalidError,
     LLMConfigMissingError,
+    _build_node_index,
+    resolve_node_display_name,
+    resolve_subgraph_display_name,
 )
 from tables.services.flow_assistant.helpers import _request_cancel
 from tables.services.llm_clients.base import StructuredEvent
@@ -84,6 +89,121 @@ def _get_conversation_or_404(
             raise Http404(f"Conversation {conversation_id} not found.")
 
     return conv
+
+
+# ── Per-event SSE handlers ────────────────────────────────────────────────────
+#
+# Each handler has the uniform signature:
+#
+#   async def _handle_<kind>(event, *, graph_id, node_index) -> tuple[dict, bool]
+#
+# Return value: (sse_event_dict, should_terminate).
+# Only _handle_done returns True for should_terminate.
+
+
+async def _handle_token(
+    event: Any,
+    *,
+    graph_id: int,
+    node_index: dict | None,
+) -> tuple[dict, bool]:
+    return ({"event": "token", "data": {"type": "token", "content": event.content}}, False)
+
+
+async def _handle_tool_call(
+    event: Any,
+    *,
+    graph_id: int,
+    node_index: dict | None,
+) -> tuple[dict, bool]:
+    payload: dict = {
+        "type": "tool_call",
+        "id": event.id,
+        "name": event.name,
+        "arguments": event.args,
+    }
+    # Enrich with display-name hints for node / subgraph lookups.
+    if event.name in ("get_node", "get_edges_from", "get_edges_to"):
+        node_id_raw = event.args.get("node_id")
+        if node_id_raw is not None:
+            try:
+                hint = await sync_to_async(resolve_node_display_name)(
+                    graph_id, int(node_id_raw), node_index
+                )
+                payload["node_name_hint"] = hint
+            except (ValueError, TypeError):
+                payload["node_name_hint"] = None
+    elif event.name == "get_subflow":
+        subgraph_node_id_raw = event.args.get("subgraph_node_id")
+        if subgraph_node_id_raw is not None:
+            try:
+                hint = await sync_to_async(resolve_subgraph_display_name)(
+                    graph_id, int(subgraph_node_id_raw)
+                )
+                payload["subgraph_name_hint"] = hint
+            except (ValueError, TypeError):
+                payload["subgraph_name_hint"] = None
+    return ({"event": "tool_call", "data": payload}, False)
+
+
+async def _handle_tool_result(
+    event: Any,
+    *,
+    graph_id: int,
+    node_index: dict | None,
+) -> tuple[dict, bool]:
+    return (
+        {
+            "event": "tool_result",
+            "data": {
+                "type": "tool_result",
+                "id": event.id,
+                "name": event.name,
+                "content": event.content,
+            },
+        },
+        False,
+    )
+
+
+async def _handle_structured(
+    event: Any,
+    *,
+    graph_id: int,
+    node_index: dict | None,
+) -> tuple[dict, bool]:
+    return (
+        {
+            "event": "structured",
+            "data": {
+                "type": "structured",
+                "message": event.message,
+                "ef_tables": event.ef_tables,
+                "action_message": event.action_message,
+            },
+        },
+        False,
+    )
+
+
+async def _handle_done(
+    event: Any,
+    *,
+    graph_id: int,
+    node_index: dict | None,
+) -> tuple[dict, bool]:
+    payload: dict = {"type": "done"}
+    if getattr(event, "interrupted", False):
+        payload["interrupted"] = True
+    return ({"event": "done", "data": payload}, True)
+
+
+_STREAM_EVENT_HANDLERS: dict[str, Callable[..., Awaitable[tuple[dict, bool]]]] = {
+    "token": _handle_token,
+    "tool_call": _handle_tool_call,
+    "tool_result": _handle_tool_result,
+    "done": _handle_done,
+}
 
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
@@ -259,12 +379,6 @@ class FlowAssistantStreamView(SSEMixin):
         Iterates FlowAssistantService.stream_reply and yields SSE events.
         The pubsub parameter is ignored (we use an in-process async iterator).
         """
-        from tables.services.flow_assistant import (
-            _build_node_index,
-            resolve_node_display_name,
-            resolve_subgraph_display_name,
-        )
-
         graph_id = self.kwargs["graph_id"]
         conversation_id = self.kwargs["conversation_id"]
         user = self.user  # set by SSEMixin.get() after ticket validation
@@ -323,67 +437,23 @@ class FlowAssistantStreamView(SSEMixin):
 
         try:
             async for event in service.stream_reply(conversation, last_user_message):
-                if event.type == "token":
-                    yield {
-                        "event": "token",
-                        "data": {"type": "token", "content": event.content},
-                    }
-                elif event.type == "tool_call":
-                    payload: dict = {
-                        "type": "tool_call",
-                        "id": event.id,
-                        "name": event.name,
-                        "arguments": event.args,
-                    }
-                    # Enrich with display-name hints for node / subgraph lookups.
-                    if event.name in ("get_node", "get_edges_from", "get_edges_to"):
-                        node_id_raw = event.args.get("node_id")
-                        if node_id_raw is not None:
-                            try:
-                                hint = await sync_to_async(resolve_node_display_name)(
-                                    graph_id, int(node_id_raw), node_index
-                                )
-                                payload["node_name_hint"] = hint
-                            except (ValueError, TypeError):
-                                payload["node_name_hint"] = None
-                    elif event.name == "get_subflow":
-                        subgraph_node_id_raw = event.args.get("subgraph_node_id")
-                        if subgraph_node_id_raw is not None:
-                            try:
-                                hint = await sync_to_async(
-                                    resolve_subgraph_display_name
-                                )(graph_id, int(subgraph_node_id_raw))
-                                payload["subgraph_name_hint"] = hint
-                            except (ValueError, TypeError):
-                                payload["subgraph_name_hint"] = None
-
-                    yield {"event": "tool_call", "data": payload}
-
-                elif event.type == "tool_result":
-                    yield {
-                        "event": "tool_result",
-                        "data": {
-                            "type": "tool_result",
-                            "id": event.id,
-                            "name": event.name,
-                            "content": event.content,
-                        },
-                    }
-                elif isinstance(event, StructuredEvent):
-                    yield {
-                        "event": "structured",
-                        "data": {
-                            "type": "structured",
-                            "message": event.message,
-                            "ef_tables": event.ef_tables,
-                            "action_message": event.action_message,
-                        },
-                    }
-                elif event.type == "done":
-                    payload = {"type": "done"}
-                    if getattr(event, "interrupted", False):
-                        payload["interrupted"] = True
-                    yield {"event": "done", "data": payload}
+                if isinstance(event, StructuredEvent):
+                    sse_event, terminate = await _handle_structured(
+                        event, graph_id=graph_id, node_index=node_index
+                    )
+                else:
+                    handler = _STREAM_EVENT_HANDLERS.get(event.type)
+                    if handler is None:
+                        logger.warning(
+                            "FlowAssistant stream: unknown event type {!r}, skipping",
+                            getattr(event, "type", None),
+                        )
+                        continue
+                    sse_event, terminate = await handler(
+                        event, graph_id=graph_id, node_index=node_index
+                    )
+                yield sse_event
+                if terminate:
                     return
 
         except LLMConfigMissingError as exc:
