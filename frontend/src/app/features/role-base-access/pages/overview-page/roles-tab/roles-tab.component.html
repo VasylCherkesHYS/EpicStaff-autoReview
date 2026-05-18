@@ -1,0 +1,111 @@
+<div class="toolbar">
+    <app-search
+        placeholder="Search..."
+        [width]="'240px'"
+        [(searchTerm)]="searchTerm"
+    />
+    <span class="count-label">{{ filteredRoles().length }} of {{ rolesService.roles().length }} roles</span>
+    <div class="toolbar-actions">
+        <app-button
+            type="primary"
+            leftIcon="plus"
+            (click)="onCreateRole()"
+        >
+            Create Role
+        </app-button>
+        <!--        <button-->
+        <!--            class="settings-btn"-->
+        <!--            type="button"-->
+        <!--        >-->
+        <!--            <app-svg-icon-->
+        <!--                icon="settings"-->
+        <!--                size="18px"-->
+        <!--            />-->
+        <!--        </button>-->
+    </div>
+</div>
+
+<app-table
+    [columns]="columns"
+    [data]="filteredRoles()"
+    [selectable]="false"
+    rowId="id"
+>
+    <!-- ROLE NAME -->
+    <ng-template
+        appTableCell="name"
+        let-row
+    >
+        <span class="role-name">{{ row['name'] }}</span>
+    </ng-template>
+
+    <!-- DESCRIPTION -->
+    <ng-template
+        appTableCell="description"
+        let-row
+    >
+        <span class="description-text">{{ row['description'] }}</span>
+    </ng-template>
+
+    <!-- MEMBERS -->
+    <ng-template
+        appTableCell="members"
+        let-row
+    >
+        <span class="cell-text">{{ row['members'] }}</span>
+    </ng-template>
+
+    <!-- LAST MODIFIED -->
+    <ng-template
+        appTableCell="lastModified"
+        let-row
+    >
+        <div class="date-cell">
+            <span class="date">{{ formatDate(row['lastModified']) }}</span>
+            <span class="relative">{{ getRelativeTime(row['lastModified']) }}</span>
+        </div>
+    </ng-template>
+
+    <!-- ACTIONS -->
+    <ng-template
+        appTableCell="actions"
+        let-row
+    >
+        <div class="actions-cell">
+            <button
+                class="action-btn"
+                type="button"
+                title="View"
+            >
+                <app-svg-icon
+                    icon="eye"
+                    size="16px"
+                />
+            </button>
+            @if (!row['isBuiltIn']) {
+                <button
+                    class="action-btn"
+                    type="button"
+                    title="Edit"
+                    (click)="onEditRole(row)"
+                >
+                    <app-svg-icon
+                        icon="edit"
+                        size="16px"
+                    />
+                </button>
+                <button
+                    class="action-btn danger"
+                    type="button"
+                    title="Delete"
+                    (click)="onDeleteRole(row)"
+                >
+                    <app-svg-icon
+                        icon="trash"
+                        size="16px"
+                    />
+                </button>
+            }
+        </div>
+    </ng-template>
+</app-table>
