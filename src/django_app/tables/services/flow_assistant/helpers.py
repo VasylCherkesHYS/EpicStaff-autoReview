@@ -187,7 +187,7 @@ def _persist_messages(conversation_id: int, messages: list[dict]) -> None:
         )
 
 
-async def _request_cancel(conv_id: int) -> None:
+async def request_cancel(conv_id: int) -> None:
     """Set the cancel flag for a conversation (TTL: 300 s)."""
     redis_service = RedisService()
     key = _CANCEL_KEY.format(conv_id=conv_id)

@@ -289,7 +289,7 @@ def get_node(graph_id: int, node_id: str) -> dict:
     # One query per table maximum, covering the whole graph.  For a single
     # node lookup this still pays the full index-build cost, but it replaces
     # up to 13 sequential try/get probes with a fixed 13-query batch.
-    node_index = _build_node_index(graph_id)
+    node_index = build_node_index(graph_id)
     identity = node_index.get(pk)
     if identity is None:
         return {"error": f"Node with id={node_id} not found in graph {graph_id}."}
@@ -414,7 +414,7 @@ def get_edges_from(graph_id: int, node_id: str) -> list[dict]:
     # Build the index once for the whole graph — O(13) queries regardless of
     # how many edges are returned.  Each _resolve_node_identity call is then
     # an O(1) dict lookup.
-    node_index = _build_node_index(graph_id)
+    node_index = build_node_index(graph_id)
     result = []
     for edge in edges:
         target_info = _resolve_node_identity(edge.end_node_id, node_index)
@@ -443,7 +443,7 @@ def get_edges_to(graph_id: int, node_id: str) -> list[dict]:
     # Build the index once for the whole graph — O(13) queries regardless of
     # how many edges are returned.  Each _resolve_node_identity call is then
     # an O(1) dict lookup.
-    node_index = _build_node_index(graph_id)
+    node_index = build_node_index(graph_id)
     result = []
     for edge in edges:
         source_info = _resolve_node_identity(edge.start_node_id, node_index)
@@ -1021,7 +1021,7 @@ def _resolve_python_code_summary(python_code_id: int | None) -> dict | None:
 # ── internal helpers ──────────────────────────────────────────────────────────
 
 
-def _build_node_index(graph_id: int) -> dict[int, dict]:
+def build_node_index(graph_id: int) -> dict[int, dict]:
     """Build a {node_pk: {type, name}} mapping for every node in the graph.
 
     Issues exactly one query per node table (up to 13), fetching only the
@@ -1047,7 +1047,7 @@ def _resolve_node_identity(node_pk: int, node_index: dict[int, dict]) -> dict:
     """Look up {type, name} for a node PK using a pre-built index.
 
     O(1) — no database queries.  node_index must have been produced by
-    _build_node_index() for the same graph_id.
+    build_node_index() for the same graph_id.
     """
     return node_index.get(node_pk, {"type": "unknown", "name": ""})
 
@@ -1067,7 +1067,7 @@ def resolve_node_display_name(
     internally (up to 13 ORM queries).
     """
     try:
-        index = node_index if node_index is not None else _build_node_index(graph_id)
+        index = node_index if node_index is not None else build_node_index(graph_id)
         entry = index.get(int(node_id))
         if entry is None:
             return None

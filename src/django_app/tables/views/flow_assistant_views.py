@@ -34,11 +34,11 @@ from tables.services.flow_assistant import (
     FlowAssistantService,
     LLMConfigInvalidError,
     LLMConfigMissingError,
-    _build_node_index,
+    build_node_index,
     resolve_node_display_name,
     resolve_subgraph_display_name,
 )
-from tables.services.flow_assistant.helpers import _request_cancel
+from tables.services.flow_assistant.helpers import request_cancel
 from tables.services.llm_clients.base import StructuredEvent
 from tables.services.rbac.organization_resolution import resolve_organization_user
 from tables.services.rbac.permissions import IsSuperadmin
@@ -434,7 +434,7 @@ class FlowAssistantStreamView(SSEMixin):
             return
 
         # Build node index once for enriching tool_call SSE events.
-        node_index = await sync_to_async(_build_node_index)(graph_id)
+        node_index = await sync_to_async(build_node_index)(graph_id)
 
         service = FlowAssistantService()
 
@@ -579,5 +579,5 @@ class FlowAssistantCancelView(APIView):
         ).first()
         if conv is None:
             return Response({"detail": "Conversation not found."}, status=404)
-        async_to_sync(_request_cancel)(conv.id)
+        async_to_sync(request_cancel)(conv.id)
         return Response({"cancelled": True}, status=status.HTTP_202_ACCEPTED)

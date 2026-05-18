@@ -1025,7 +1025,7 @@ def test_tool_call_enrichment_helpers(graph, db):
     """resolve_node_display_name returns the node name; returns None for unknown nodes."""
     from tables.models.graph_models import CodeAgentNode
     from tables.services.flow_assistant import (
-        _build_node_index,
+        build_node_index,
         resolve_node_display_name,
         resolve_subgraph_display_name,
     )
@@ -1042,7 +1042,7 @@ def test_tool_call_enrichment_helpers(graph, db):
     assert name == "my_agent_node"
 
     # With pre-built index
-    index = _build_node_index(graph.pk)
+    index = build_node_index(graph.pk)
     name2 = resolve_node_display_name(graph.pk, node.pk, node_index=index)
     assert name2 == "my_agent_node"
 

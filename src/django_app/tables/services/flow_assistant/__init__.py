@@ -10,7 +10,7 @@ from .tools import (
     get_recent_sessions,
     get_session_detail,
     list_node_types,
-    _build_node_index,
+    build_node_index,
     resolve_node_display_name,
     resolve_subgraph_display_name,
 )
@@ -18,7 +18,7 @@ from .helpers import (
     _derive_title,
     _messages_for_llm,
     _persist_messages,
-    _request_cancel,
+    request_cancel,
     _clear_cancel_flag,
     _is_cancel_requested,
     _strip_markdown_tables,
