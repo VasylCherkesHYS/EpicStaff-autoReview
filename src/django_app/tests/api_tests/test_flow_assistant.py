@@ -26,7 +26,11 @@ from tables.models import (
     Provider,
     Role,
 )
-from tables.models.flow_assistant_models import FlowAssistant, FlowAssistantConversation
+from tables.models.flow_assistant_models import (
+    FlowAssistant,
+    FlowAssistantConversation,
+    FlowAssistantMessage,
+)
 from tables.services.flow_assistant import FlowAssistantService
 from tables.services.llm_clients.base import (
     DoneEvent,
@@ -172,10 +176,10 @@ def flow_assistant(graph, llm_config):
 
 @pytest.fixture
 def conversation_a(flow_assistant, org_user_a):
-    return FlowAssistantConversation.objects.create(
-        flow_assistant=flow_assistant,
-        organization_user=org_user_a,
-        messages=[{"role": "system", "content": "You are the test flow."}],
+    return _make_conversation_with_messages(
+        flow_assistant,
+        org_user_a,
+        [{"role": "system", "content": "You are the test flow."}],
     )
 
 
@@ -187,6 +191,37 @@ def _make_async_stream(*events):
             yield event
 
     return _gen
+
+
+def _make_conversation_with_messages(flow_assistant, organization_user, messages, **extra):
+    """Create a conversation and bulk-create its message rows from a list of dicts.
+
+    Drop-in replacement for FlowAssistantConversation.objects.create(..., messages=[...]).
+    """
+    conv = FlowAssistantConversation.objects.create(
+        flow_assistant=flow_assistant,
+        organization_user=organization_user,
+        **extra,
+    )
+    rows = []
+    for idx, msg in enumerate(messages):
+        rows.append(
+            FlowAssistantMessage(
+                conversation=conv,
+                message_index=idx,
+                role=msg["role"],
+                content=msg.get("content", ""),
+                tool_calls=msg.get("tool_calls"),
+                tool_call_id=msg.get("tool_call_id") or None,
+                name=msg.get("name") or None,
+                ef_tables=msg.get("ef_tables"),
+                action_message=msg.get("action_message"),
+                interrupted=bool(msg.get("interrupted", False)),
+            )
+        )
+    if rows:
+        FlowAssistantMessage.objects.bulk_create(rows)
+    return conv
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -562,10 +597,10 @@ async def test_stream_yields_tokens_and_done(
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -614,10 +649,10 @@ async def test_tool_call_roundtrip(graph, llm_config, user_a, org_a, default_rol
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -670,7 +705,8 @@ async def test_tool_call_roundtrip(graph, llm_config, user_a, org_a, default_rol
 
     # Conversation must be persisted with tool messages
     await sync_to_async(conversation.refresh_from_db)()
-    roles = [m["role"] for m in conversation.messages]
+    messages_snapshot = await sync_to_async(lambda: list(conversation.messages))()
+    roles = [m["role"] for m in messages_snapshot]
     assert "tool" in roles
     assert "assistant" in roles
 
@@ -700,10 +736,10 @@ async def test_structured_output_event_emitted(
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -813,10 +849,10 @@ async def test_action_message_persisted(
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -847,7 +883,8 @@ async def test_action_message_persisted(
 
     # Verify the assistant message was persisted with action_message field.
     await sync_to_async(conversation.refresh_from_db)()
-    assistant_msgs = [m for m in conversation.messages if m.get("role") == "assistant"]
+    messages_snapshot = await sync_to_async(lambda: list(conversation.messages))()
+    assistant_msgs = [m for m in messages_snapshot if m.get("role") == "assistant"]
     assert len(assistant_msgs) == 1
     persisted = assistant_msgs[0]
     assert persisted["content"] == "Here is a suggestion."
@@ -2319,10 +2356,10 @@ async def test_stream_reply_bails_on_cancel_flag(
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -2368,7 +2405,8 @@ async def test_stream_reply_bails_on_cancel_flag(
 
     # The conversation must be persisted with a partial assistant entry.
     await sync_to_async(conversation.refresh_from_db)()
-    assistant_msgs = [m for m in conversation.messages if m.get("role") == "assistant"]
+    messages_snapshot = await sync_to_async(lambda: list(conversation.messages))()
+    assistant_msgs = [m for m in messages_snapshot if m.get("role") == "assistant"]
     assert len(assistant_msgs) >= 1
     partial = assistant_msgs[-1]
     assert partial.get("interrupted") is True
@@ -2396,10 +2434,10 @@ async def test_stream_reply_disconnect_persists_partial(
     assistant = await sync_to_async(FlowAssistant.objects.create)(
         graph=graph, llm_config=llm_config
     )
-    conversation = await sync_to_async(FlowAssistantConversation.objects.create)(
-        flow_assistant=assistant,
-        organization_user=org_user,
-        messages=[
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": user_message},
         ],
@@ -2433,7 +2471,8 @@ async def test_stream_reply_disconnect_persists_partial(
 
     # Despite the exception, the finally block must have persisted the partial.
     await sync_to_async(conversation.refresh_from_db)()
-    assistant_msgs = [m for m in conversation.messages if m.get("role") == "assistant"]
+    messages_snapshot = await sync_to_async(lambda: list(conversation.messages))()
+    assistant_msgs = [m for m in messages_snapshot if m.get("role") == "assistant"]
     assert len(assistant_msgs) >= 1, "No assistant message persisted on disconnect"
     partial = assistant_msgs[-1]
     assert partial.get("interrupted") is True

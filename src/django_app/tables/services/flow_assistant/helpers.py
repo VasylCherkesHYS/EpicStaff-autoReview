@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from utils.logger import logger
 
-from tables.models.flow_assistant_models import FlowAssistantConversation
+from tables.models.flow_assistant_models import FlowAssistantConversation, FlowAssistantMessage
 from tables.services.redis_service import RedisService
 from .constants import (
     _CANCEL_KEY,
@@ -108,12 +108,81 @@ def _messages_for_llm(messages: list[dict]) -> list[dict]:
     return result
 
 
+def _dict_to_message_row(conversation_id: int, idx: int, msg: dict) -> FlowAssistantMessage:
+    """Map a legacy message dict to a FlowAssistantMessage instance (unsaved)."""
+    role = msg.get("role", "user")
+    content = msg.get("content", "") or ""
+    row = FlowAssistantMessage(
+        conversation_id=conversation_id,
+        message_index=idx,
+        role=role,
+        content=content,
+    )
+    if role == "assistant":
+        row.tool_calls = msg.get("tool_calls")
+        row.ef_tables = msg.get("ef_tables")
+        row.action_message = msg.get("action_message")
+        row.interrupted = bool(msg.get("interrupted", False))
+    elif role == "tool":
+        row.tool_call_id = msg.get("tool_call_id") or None
+        row.name = msg.get("name") or None
+    elif role in ("system", "user"):
+        row.tool_calls = msg.get("tool_calls")
+    return row
+
+
+def _load_message_dicts(conversation_id: int) -> list[dict]:
+    """Load message history as a list of dicts from FlowAssistantMessage rows.
+
+    Used by stream_reply to build its local working copy of the conversation.
+    Falls back to the legacy JSONField column when no rows exist (transition window).
+    """
+    rows = list(
+        FlowAssistantMessage.objects.filter(
+            conversation_id=conversation_id
+        ).order_by("message_index")
+    )
+    if not rows:
+        # Transition fallback: no rows yet — read from legacy column.
+        conv = FlowAssistantConversation.objects.get(pk=conversation_id)
+        return list(conv._messages_legacy or [])
+
+    result = []
+    for row in rows:
+        msg: dict = {"role": row.role, "content": row.content}
+        if row.role == "assistant":
+            if row.tool_calls is not None:
+                msg["tool_calls"] = row.tool_calls
+            if row.ef_tables is not None:
+                msg["ef_tables"] = row.ef_tables
+            if row.action_message is not None:
+                msg["action_message"] = row.action_message
+            if row.interrupted:
+                msg["interrupted"] = True
+        elif row.role == "tool":
+            if row.tool_call_id is not None:
+                msg["tool_call_id"] = row.tool_call_id
+            if row.name is not None:
+                msg["name"] = row.name
+        elif row.role in ("system", "user"):
+            if row.tool_calls is not None:
+                msg["tool_calls"] = row.tool_calls
+        result.append(msg)
+    return result
+
+
 @sync_to_async
 def _persist_messages(conversation_id: int, messages: list[dict]) -> None:
-    """Atomically overwrite the conversation's message history."""
+    """Atomically rewrite the conversation's message history as rows."""
     with transaction.atomic():
+        FlowAssistantMessage.objects.filter(conversation_id=conversation_id).delete()
+        rows = [
+            _dict_to_message_row(conversation_id, idx, msg)
+            for idx, msg in enumerate(messages)
+        ]
+        if rows:
+            FlowAssistantMessage.objects.bulk_create(rows)
         FlowAssistantConversation.objects.filter(pk=conversation_id).update(
-            messages=messages,
             last_message_at=timezone.now(),
         )
 

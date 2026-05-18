@@ -20,7 +20,11 @@ from django.utils import timezone
 
 from utils.logger import logger
 
-from tables.models.flow_assistant_models import FlowAssistant, FlowAssistantConversation
+from tables.models.flow_assistant_models import (
+    FlowAssistant,
+    FlowAssistantConversation,
+    FlowAssistantMessage,
+)
 from tables.services.llm_clients import (
     DoneEvent,
     StreamEvent,
@@ -38,6 +42,7 @@ from .helpers import (
     _clear_cancel_flag,
     _derive_title,
     _is_cancel_requested,
+    _load_message_dicts,
     _messages_for_llm,
     _persist_messages,
     _strip_markdown_tables,
@@ -180,7 +185,12 @@ class FlowAssistantService:
         conversation = FlowAssistantConversation.objects.create(
             flow_assistant=flow_assistant,
             organization_user=organization_user,
-            messages=[{"role": "system", "content": system_prompt}],
+        )
+        FlowAssistantMessage.objects.create(
+            conversation=conversation,
+            message_index=0,
+            role="system",
+            content=system_prompt,
         )
         logger.info(
             "Started FlowAssistantConversation {} for graph {}",
@@ -240,11 +250,12 @@ class FlowAssistantService:
 
         graph_id = flow_assistant.graph_id
 
-        # Build a local working copy — conversation.messages is NOT touched until
-        # the final atomic persist at the very end of this method.
-        # The user message is already present in conversation.messages (appended
-        # and saved by SendMessageView before the SSE ticket was issued).
-        working_messages: list[dict] = list(conversation.messages)
+        # Build a local working copy from FlowAssistantMessage rows.
+        # The user message is already present as a row (written by SendMessageView
+        # before the SSE ticket was issued).
+        working_messages: list[dict] = await sync_to_async(_load_message_dicts)(
+            conversation.pk
+        )
 
         assistant_content_parts: list[str] = []
 

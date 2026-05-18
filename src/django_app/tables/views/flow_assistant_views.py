@@ -10,7 +10,8 @@ Streaming endpoint: SSEMixin (Django View) with ticket auth.
 from typing import Any, Awaitable, Callable
 
 from asgiref.sync import async_to_sync, sync_to_async
-from django.db.models import F, Func, IntegerField
+from django.db import transaction
+from django.db.models import Count, Max
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.pagination import LimitOffsetPagination
@@ -20,7 +21,7 @@ from rest_framework.views import APIView
 
 from utils.logger import logger
 
-from tables.models.flow_assistant_models import FlowAssistantConversation
+from tables.models.flow_assistant_models import FlowAssistantConversation, FlowAssistantMessage
 from tables.serializers.flow_assistant_serializers import (
     AuditConversationSerializer,
     FlowAssistantConversationSerializer,
@@ -73,7 +74,7 @@ def _get_conversation_or_404(
         conv = FlowAssistantConversation.objects.select_related(
             "flow_assistant__graph",
             "flow_assistant__llm_config__model__llm_provider",
-        ).get(
+        ).prefetch_related("message_rows").get(
             pk=conversation_id,
             flow_assistant__graph_id=graph_id,
         )
@@ -257,14 +258,7 @@ class FlowAssistantConversationsView(APIView):
                 organization_user=organization_user,
                 deleted_at__isnull=True,
             )
-            .annotate(
-                message_count=Func(
-                    F("messages"),
-                    function="jsonb_array_length",
-                    output_field=IntegerField(),
-                )
-            )
-            .defer("messages")
+            .annotate(message_count=Count("message_rows"))
             .order_by("-last_message_at")
         )
 
@@ -337,12 +331,19 @@ class FlowAssistantSendMessageView(APIView):
         serializer.is_valid(raise_exception=True)
         message = serializer.validated_data["message"]
 
-        # Append user message to conversation so the stream view can access it
-        messages = list(conversation.messages)
-        messages.append({"role": "user", "content": message})
-        conversation.messages = messages
-        conversation.last_message_at = timezone.now()
-        conversation.save(update_fields=["messages", "last_message_at"])
+        # Append user message as a new FlowAssistantMessage row.
+        with transaction.atomic():
+            next_idx_result = conversation.message_rows.aggregate(m=Max("message_index"))
+            next_idx = next_idx_result["m"]
+            next_idx = 0 if next_idx is None else next_idx + 1
+            FlowAssistantMessage.objects.create(
+                conversation=conversation,
+                message_index=next_idx,
+                role="user",
+                content=message,
+            )
+            conversation.last_message_at = timezone.now()
+            conversation.save(update_fields=["last_message_at"])
 
         # Auto-derive title from the first user message
         service = FlowAssistantService()
@@ -418,11 +419,12 @@ class FlowAssistantStreamView(SSEMixin):
             return
 
         # Find the last user message to use as the prompt for this turn.
-        last_user_message = ""
-        for msg in reversed(conversation.messages):
-            if msg.get("role") == "user":
-                last_user_message = msg.get("content", "")
-                break
+        last_user_row = await sync_to_async(
+            lambda: conversation.message_rows.filter(role="user")
+            .order_by("-message_index")
+            .first()
+        )()
+        last_user_message = last_user_row.content if last_user_row else ""
 
         if not last_user_message:
             yield {
@@ -514,14 +516,7 @@ class FlowAssistantAuditView(APIView):
                 "organization_user__org",
                 "flow_assistant",
             )
-            .annotate(
-                message_count=Func(
-                    F("messages"),
-                    function="jsonb_array_length",
-                    output_field=IntegerField(),
-                )
-            )
-            .defer("messages")
+            .annotate(message_count=Count("message_rows"))
             .order_by("-last_message_at")
         )
 

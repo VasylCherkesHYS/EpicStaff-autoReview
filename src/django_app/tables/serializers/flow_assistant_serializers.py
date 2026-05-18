@@ -27,6 +27,8 @@ class FlowAssistantSerializer(serializers.ModelSerializer):
 class FlowAssistantConversationSerializer(serializers.ModelSerializer):
     """Read serializer for FlowAssistantConversation (full history)."""
 
+    messages = serializers.SerializerMethodField()
+
     class Meta:
         model = FlowAssistantConversation
         fields = [
@@ -46,6 +48,36 @@ class FlowAssistantConversationSerializer(serializers.ModelSerializer):
             "started_at",
             "last_message_at",
         ]
+
+    def get_messages(self, instance: FlowAssistantConversation) -> list[dict]:
+        """Synthesize the message list from FlowAssistantMessage rows.
+
+        Builds dicts matching the legacy shape so the frontend wire format is
+        unchanged. Only includes keys that are truthy — matches the original
+        JSONField behaviour where absent keys simply weren't stored.
+        """
+        result = []
+        for row in instance.message_rows.all():
+            msg: dict = {"role": row.role, "content": row.content}
+            if row.role == "assistant":
+                if row.tool_calls is not None:
+                    msg["tool_calls"] = row.tool_calls
+                if row.ef_tables is not None:
+                    msg["ef_tables"] = row.ef_tables
+                if row.action_message is not None:
+                    msg["action_message"] = row.action_message
+                if row.interrupted:
+                    msg["interrupted"] = True
+            elif row.role == "tool":
+                if row.tool_call_id is not None:
+                    msg["tool_call_id"] = row.tool_call_id
+                if row.name is not None:
+                    msg["name"] = row.name
+            elif row.role in ("system", "user"):
+                if row.tool_calls is not None:
+                    msg["tool_calls"] = row.tool_calls
+            result.append(msg)
+        return result
 
 
 class SessionSummarySerializer(serializers.ModelSerializer):
