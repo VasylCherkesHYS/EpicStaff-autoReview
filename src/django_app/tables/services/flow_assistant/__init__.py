@@ -1,8 +1,5 @@
-from .service import (
-    FlowAssistantService,
-    LLMConfigInvalidError,
-    LLMConfigMissingError,
-)
+from .service import FlowAssistantService
+from tables.exceptions import LLMConfigInvalidError, LLMConfigMissingError
 from .tools import TOOL_SPECS
 from .output_schema import FLOW_ASSISTANT_OUTPUT_SCHEMA
 from .partial_json import extract_message_field, try_parse_full

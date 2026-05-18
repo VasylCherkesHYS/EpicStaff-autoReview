@@ -15,37 +15,12 @@ Priority order:
 Always selects related 'org' and 'user' on the returned row.
 """
 
-from tables.exceptions import CustomAPIExeption
 from tables.models.rbac_models.organization_user import OrganizationUser
-
-
-# ── Domain exceptions ─────────────────────────────────────────────────────────
-
-
-class OrganizationMembershipNotFound(CustomAPIExeption):
-    """Raised when the X-Organization-Id header names an org the user is not a member of."""
-
-    status_code = 403
-    default_detail = "You are not a member of the specified organization."
-    default_code = "organization_membership_not_found"
-
-
-class UserHasNoOrganizationMembership(CustomAPIExeption):
-    """Raised when the user belongs to no organization at all."""
-
-    status_code = 400
-    default_detail = "Your account is not a member of any organization."
-    default_code = "no_organization_membership"
-
-
-class OrganizationContextAmbiguous(CustomAPIExeption):
-    """Raised when the user belongs to multiple orgs and no X-Organization-Id header is set."""
-
-    status_code = 400
-    default_detail = (
-        "Multiple organization memberships; please specify X-Organization-Id header."
-    )
-    default_code = "organization_context_ambiguous"
+from .rbac_exceptions import (
+    OrganizationMembershipNotFound,
+    UserHasNoOrganizationMembership,
+    OrganizationContextAmbiguous,
+)
 
 
 # ── Public helper ─────────────────────────────────────────────────────────────

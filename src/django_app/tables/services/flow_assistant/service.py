@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from utils.logger import logger
 
+from tables.exceptions import LLMConfigMissingError, LLMConfigInvalidError, ToolExecutionError
 from tables.models.flow_assistant_models import (
     FlowAssistant,
     FlowAssistantConversation,
@@ -49,22 +50,6 @@ from .helpers import (
 )
 from .node_registry import NODE_RELATED_NAMES
 from .system_prompt import SystemPromptInputs, build_system_prompt
-
-
-# ── Domain exceptions ─────────────────────────────────────────────────────────
-
-
-class LLMConfigMissingError(Exception):
-    """Raised when a FlowAssistant has no llm_config set."""
-
-
-class LLMConfigInvalidError(Exception):
-    """Raised when the llm_config is misconfigured (e.g. unsupported provider)."""
-
-
-class ToolExecutionError(Exception):
-    """Raised when a tool function raises an unexpected exception."""
-
 
 
 # ── Service ───────────────────────────────────────────────────────────────────

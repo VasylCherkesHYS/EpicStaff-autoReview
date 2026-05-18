@@ -467,8 +467,7 @@ class FlowAssistantStreamView(SSEMixin):
                 "event": "error",
                 "data": {
                     "type": "error",
-                    "detail": "No LLM config is set for this flow assistant. "
-                    "Please configure one in the settings panel.",
+                    "detail": str(exc),
                 },
             }
         except LLMConfigInvalidError as exc:
@@ -477,7 +476,7 @@ class FlowAssistantStreamView(SSEMixin):
             )
             yield {
                 "event": "error",
-                "data": {"type": "error", "detail": f"LLM configuration error: {exc}"},
+                "data": {"type": "error", "detail": str(exc)},
             }
         except Exception as exc:
             logger.exception("Unexpected error in FlowAssistantStreamView: {}", exc)
