@@ -2256,7 +2256,7 @@ def test_cancel_endpoint_sets_redis_flag(
     fake_redis = fakeredis.FakeRedis(decode_responses=False)
 
     with patch(
-        "tables.services.flow_assistant.service.RedisService",
+        "tables.services.flow_assistant.helpers.RedisService",
     ) as MockRedisService:
         mock_instance = MagicMock()
         mock_instance.redis_client = fake_redis
@@ -2342,7 +2342,7 @@ async def test_stream_reply_bails_on_cancel_flag(
     with patch(
         "tables.services.flow_assistant.service.get_llm_client"
     ) as mock_get_client, patch(
-        "tables.services.flow_assistant.service.RedisService",
+        "tables.services.flow_assistant.helpers.RedisService",
     ) as MockRedisService:
         mock_client = MagicMock()
         mock_client.stream_completion = fake_stream
@@ -2415,7 +2415,7 @@ async def test_stream_reply_disconnect_persists_partial(
     with patch(
         "tables.services.flow_assistant.service.get_llm_client"
     ) as mock_get_client, patch(
-        "tables.services.flow_assistant.service.RedisService",
+        "tables.services.flow_assistant.helpers.RedisService",
     ) as MockRedisService:
         mock_client = MagicMock()
         mock_client.stream_completion = fake_stream_then_cancel
