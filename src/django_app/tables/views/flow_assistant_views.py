@@ -341,6 +341,7 @@ class FlowAssistantSendMessageView(APIView):
         messages = list(conversation.messages)
         messages.append({"role": "user", "content": message})
         conversation.messages = messages
+        conversation.last_message_at = timezone.now()
         conversation.save(update_fields=["messages", "last_message_at"])
 
         # Auto-derive title from the first user message

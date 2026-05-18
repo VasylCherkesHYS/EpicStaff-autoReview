@@ -37,7 +37,7 @@ class FlowAssistantConversation(models.Model):
     title = models.CharField(max_length=200, blank=True, default="")
     messages = models.JSONField(default=list)
     started_at = models.DateTimeField(auto_now_add=True)
-    last_message_at = models.DateTimeField(auto_now=True)
+    last_message_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
