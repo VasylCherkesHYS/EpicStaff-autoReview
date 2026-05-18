@@ -39,10 +39,11 @@ import {
     FZoomDirective,
     ICurrentSelection,
 } from '@foblex/flow';
-import { Subject } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 
 import { CreateProjectComponent } from '../../features/projects/components/create-project-form-dialog/create-project.component';
 import { GetProjectRequest } from '../../features/projects/models/project.model';
+import { ProjectsStorageService } from '../../features/projects/services/projects-storage.service';
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ToggleSwitchComponent } from '../../shared/components/form-controls/toggle-switch/toggle-switch.component';
@@ -222,6 +223,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly dialog = inject(Dialog);
     private readonly toastService = inject(ToastService);
     private readonly injector = inject(Injector);
+    private readonly projectsStorageService = inject(ProjectsStorageService);
+
+    private readonly pendingProjectCopies = new Map<string, Subscription>();
 
     constructor() {}
 
@@ -244,6 +248,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public ngOnDestroy(): void {
         this.destroy$.next();
         this.destroy$.complete();
+        for (const subscription of this.pendingProjectCopies.values()) {
+            subscription.unsubscribe();
+        }
+        this.pendingProjectCopies.clear();
     }
 
     public onInitialized(): void {
@@ -389,12 +397,58 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             placedNodes.push(updatedNode);
         }
 
+        for (const node of placedNodes) {
+            if (node.type === NodeType.PROJECT) {
+                this.dispatchProjectCopy(node as ProjectNodeModel);
+            }
+        }
+
         const newNodeIds = newNodes.map((node) => node.id);
         const newConnectionIds = newConnections.map((conn) => conn.id);
 
         setTimeout(() => {
             this.fFlowComponent.select(newNodeIds, newConnectionIds);
         }, 0);
+    }
+
+    private dispatchProjectCopy(node: ProjectNodeModel): void {
+        const originalCrewId = node.data.id;
+        const originalName = node.node_name;
+
+        const subscription = this.projectsStorageService.copyProject(originalCrewId).subscribe({
+            next: (newProject: GetProjectRequest) => {
+                this.pendingProjectCopies.delete(node.id);
+                const stillExists = this.flowService.nodes().some((n) => n.id === node.id);
+                if (!stillExists) {
+                    return;
+                }
+                this.flowService.updateNode({ ...node, data: newProject });
+            },
+            error: () => {
+                this.rollbackProjectPaste(node.id, originalName);
+            },
+        });
+
+        this.pendingProjectCopies.set(node.id, subscription);
+    }
+
+    private rollbackProjectPaste(nodeId: string, originalName: string): void {
+        this.pendingProjectCopies.delete(nodeId);
+
+        const stillExists = this.flowService.nodes().some((n) => n.id === nodeId);
+        if (stillExists) {
+            const orphanConnectionIds = this.flowService
+                .connections()
+                .filter((conn) => conn.sourceNodeId === nodeId || conn.targetNodeId === nodeId)
+                .map((conn) => conn.id);
+
+            this.flowService.deleteSelections({
+                fNodeIds: [nodeId],
+                fConnectionIds: orphanConnectionIds,
+            });
+        }
+
+        this.toastService.error(`Failed to copy project "${originalName}". Pasted node was removed.`);
     }
 
     public onUndo(): void {
@@ -650,6 +704,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public emitSave(): void {
+        if (this.pendingProjectCopies.size > 0) {
+            this.toastService.error('Please wait — project copies are still in progress');
+            return;
+        }
         this.commitSidePanelToFlow();
         this.save.emit(this.flowService.getFlowState());
     }
