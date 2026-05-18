@@ -1,42 +1,43 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { CreateRoleRequest, GetRoleResponse, UpdateRoleRequest } from '@shared/models';
+import { CreateRoleRequest, GetRoleResponse, UpdateRoleRequest, UserRole } from '@shared/models';
 import { Observable, of } from 'rxjs';
 
 import { ConfigService } from '../../../../services/config';
+import { BUILT_IN_ROLE_PERMISSIONS } from '../../constants/built-in-role-permissions.constant';
 
 const BUILT_IN_ROLES: GetRoleResponse[] = [
     {
-        id: 1,
+        id: UserRole.SUPER_ADMIN,
         name: 'Super Admin',
         description: 'Full system access with all permissions',
-        permissions: [],
+        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.SUPER_ADMIN],
         member_count: 0,
         updated_at: '2026-03-12T10:00:00Z',
         is_built_in: true,
     },
     {
-        id: 2,
+        id: UserRole.ORG_ADMIN,
         name: 'Organization Admin',
         description: 'Manage users and content within an organization',
-        permissions: [],
+        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.ORG_ADMIN],
         member_count: 0,
         updated_at: '2026-03-12T10:00:00Z',
         is_built_in: true,
     },
     {
-        id: 3,
+        id: UserRole.MEMBER,
         name: 'Member',
         description: 'Standard access to workspace resources',
-        permissions: [],
+        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.MEMBER],
         member_count: 0,
         updated_at: '2026-03-12T10:00:00Z',
         is_built_in: true,
     },
     {
-        id: 4,
+        id: UserRole.VIEWER,
         name: 'Viewer',
         description: 'Read-only access to workspace resources',
-        permissions: [],
+        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.VIEWER],
         member_count: 0,
         updated_at: '2026-03-12T10:00:00Z',
         is_built_in: true,

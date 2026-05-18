@@ -19,6 +19,7 @@ import {
     CreateRoleDialogComponent,
     CreateRoleDialogData,
 } from '../../../components/create-role-dialog/create-role-dialog.component';
+import { RoleInfoDialogComponent } from '../../../components/role-info-dialog/role-info-dialog.component';
 import { RolesService } from '../../../services/admin/roles.service';
 
 @Component({
@@ -68,6 +69,16 @@ export class RolesTabComponent {
 
     onCreateRole(): void {
         this.openDialog();
+    }
+
+    onViewRole(row: TableRow): void {
+        const role = this.rolesService.roles().find((r) => r.id === row['id']);
+        if (!role) return;
+        this.dialog.open(RoleInfoDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            data: role,
+        });
     }
 
     onEditRole(row: TableRow): void {
