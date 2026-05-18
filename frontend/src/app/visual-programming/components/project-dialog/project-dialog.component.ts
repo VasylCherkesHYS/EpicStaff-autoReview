@@ -61,6 +61,7 @@ import { UnsavedIndicatorComponent } from '../../../shared/components/unsaved-in
                 <app-open-project-page
                     [showHeader]="true"
                     [inputProjectId]="data.projectId"
+                    [entityNoun]="'project'"
                 >
                 </app-open-project-page>
             </div>

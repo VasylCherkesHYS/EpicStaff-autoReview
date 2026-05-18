@@ -6,7 +6,7 @@
     >
         <textarea
             [(ngModel)]="internalDescription"
-            placeholder="Enter template description..."
+            [placeholder]="'Enter ' + entityNoun + ' description...'"
             #descriptionTextarea
             [rows]="getTextareaRows(internalDescription)"
             (focus)="onFocusDescription()"

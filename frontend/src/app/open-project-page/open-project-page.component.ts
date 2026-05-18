@@ -118,6 +118,7 @@ function asTaskPendingPayloadRecord(payload: unknown): Record<string, unknown> {
 export class OpenProjectPageComponent implements OnInit, OnDestroy, CanComponentDeactivate {
     @Input() showHeader: boolean = true;
     @Input() inputProjectId?: string | number;
+    @Input() entityNoun: string = 'template';
     @ViewChild(TasksSectionComponent) private tasksSection?: TasksSectionComponent;
 
     public projectId!: string;

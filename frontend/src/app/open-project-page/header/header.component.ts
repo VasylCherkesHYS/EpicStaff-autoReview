@@ -56,6 +56,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
     @Input() public hasUnsavedChanges = false;
     @Input() public isSaving = false;
+    @Input() public entityNoun: string = 'template';
     @Output() public save = new EventEmitter<void>();
 
     constructor(

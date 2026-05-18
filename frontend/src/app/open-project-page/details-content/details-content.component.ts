@@ -28,6 +28,7 @@ export class DetailsContentComponent implements OnInit, OnChanges {
     @Input() public description!: string;
     @Input() public tags: string[] = [];
     @Input() public projectId!: number;
+    @Input() public entityNoun: string = 'template';
     @Output() public tagsUpdated: EventEmitter<string[]> = new EventEmitter<string[]>();
     @Output() public dirtyChange = new EventEmitter<boolean>();
     @Output() public detailsChange = new EventEmitter<{ description: string; tags: string[] }>();

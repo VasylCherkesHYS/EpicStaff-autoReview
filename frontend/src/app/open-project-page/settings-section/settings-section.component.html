@@ -3,7 +3,7 @@
     <div class="settings-group">
         <div class="group-header">
             <h3>Basic Configuration</h3>
-            <p>Configure general settings for your template</p>
+            <p>Configure general settings for your {{ entityNoun }}</p>
         </div>
 
         <div class="settings-grid">
@@ -13,10 +13,14 @@
                     <div class="setting-title">
                         Memory
                         <app-help-tooltip
-                            text="Enable memory to allow agents to remember previous interactions and context throughout the template execution."
+                            [text]="
+                                'Enable memory to allow agents to remember previous interactions and context throughout the ' +
+                                entityNoun +
+                                ' execution.'
+                            "
                         ></app-help-tooltip>
                     </div>
-                    <div class="setting-description">Enable or disable memory for this template</div>
+                    <div class="setting-description">Enable or disable memory for this {{ entityNoun }}</div>
                 </div>
                 <div class="setting-value">
                     <div class="toggle-wrapper">
@@ -47,7 +51,7 @@
                             text="Enable cache to store and reuse results from previous API calls."
                         ></app-help-tooltip>
                     </div>
-                    <div class="setting-description">Enable or disable cache for this template</div>
+                    <div class="setting-description">Enable or disable cache for this {{ entityNoun }}</div>
                 </div>
                 <div class="setting-value">
                     <div class="toggle-wrapper">
@@ -185,7 +189,7 @@
     >
         <div class="group-header">
             <h3>Memory Configuration</h3>
-            <p>Configure memory settings for your template</p>
+            <p>Configure memory settings for your {{ entityNoun }}</p>
         </div>
 
         <div class="settings-grid">
@@ -223,7 +227,11 @@
                     <div class="setting-title">
                         Memory Embedding Configuration
                         <app-help-tooltip
-                            text="Choose the embedding model to be used for memory operations, semantic search, and context understanding within your template's memory system."
+                            [text]="
+                                'Choose the embedding model to be used for memory operations, semantic search, and context understanding within your ' +
+                                entityNoun +
+                                '\'s memory system.'
+                            "
                         ></app-help-tooltip>
                     </div>
                     <div class="setting-description">Select the embedding model for memory</div>

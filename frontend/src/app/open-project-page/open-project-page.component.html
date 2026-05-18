@@ -2,7 +2,7 @@
     @if (isLoading()) {
         <div class="loading-container">
             <app-spinner
-                [text]="'Loading template...'"
+                [text]="'Loading ' + entityNoun + '...'"
                 [accentColor]="'#685fff'"
                 [isOverlay]="false"
             ></app-spinner>
@@ -12,6 +12,7 @@
             <app-header
                 [hasUnsavedChanges]="hasUnsavedChanges"
                 [isSaving]="isSaving"
+                [entityNoun]="entityNoun"
                 (save)="onSaveAll()"
             ></app-header>
         }
@@ -82,6 +83,7 @@
                                 @if (section.id === 'settings') {
                                     <app-settings-section
                                         [project]="project"
+                                        [entityNoun]="entityNoun"
                                         (settingsChange)="onSettingsChanged($event)"
                                     >
                                     </app-settings-section>
@@ -90,6 +92,7 @@
                                         [projectId]="project.id"
                                         [description]="project.description ?? ''"
                                         [tags]="detailsTagsAsStrings"
+                                        [entityNoun]="entityNoun"
                                         (detailsChange)="onDetailsChanged($event)"
                                         (dirtyChange)="onDetailsDirtyChange($event)"
                                     ></app-details-content>

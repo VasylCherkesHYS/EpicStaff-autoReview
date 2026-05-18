@@ -74,6 +74,7 @@ export const routes: Routes = [
                                 (m) => m.OpenProjectPageComponent
                             ),
                         canDeactivate: [UnsavedChangesGuard],
+                        data: { entityNoun: 'template' },
                     },
                     {
                         path: 'staff',

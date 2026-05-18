@@ -47,6 +47,7 @@ import { GetProjectRequest } from '../../features/projects/models/project.model'
 })
 export class SettingsSectionComponent implements OnInit, OnChanges {
     @Input() public project!: GetProjectRequest;
+    @Input() public entityNoun: string = 'template';
     @Output() public settingsChange = new EventEmitter<Partial<GetProjectRequest>>();
 
     // Project settings as signals
