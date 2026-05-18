@@ -1,5 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     AppSvgIconComponent,
@@ -11,16 +11,21 @@ import {
     SearchComponent,
     TableRow,
 } from '@shared/components';
-import { GetRoleResponse } from '@shared/models';
+import { GetRoleResponse, UserRole } from '@shared/models';
 import { getRelativeTime } from '@shared/utils';
 
+import { ProfileService } from '../../../../../services/auth/profile.service';
 import { ToastService } from '../../../../../services/notifications';
 import {
     CreateRoleDialogComponent,
     CreateRoleDialogData,
 } from '../../../components/create-role-dialog/create-role-dialog.component';
 import { RoleInfoDialogComponent } from '../../../components/role-info-dialog/role-info-dialog.component';
+import { AdminUserService } from '../../../services/admin/admin-user.service';
 import { RolesService } from '../../../services/admin/roles.service';
+import { UserService } from '../../../services/users/user.service';
+import { NormalizedUser } from '../../../strategies/users/user-fetch.strategy';
+import { createUserFetchStrategy } from '../../../strategies/users/user-fetch-strategy.factory';
 
 @Component({
     selector: 'app-roles-tab',
@@ -29,14 +34,38 @@ import { RolesService } from '../../../services/admin/roles.service';
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [AppTableComponent, AppTableCellDirective, AppSvgIconComponent, ButtonComponent, SearchComponent],
 })
-export class RolesTabComponent {
+export class RolesTabComponent implements OnInit {
     private dialog = inject(Dialog);
     private destroyRef = inject(DestroyRef);
     private toast = inject(ToastService);
     private confirmation = inject(ConfirmationDialogService);
+    private profileService = inject(ProfileService);
+    private adminUserService = inject(AdminUserService);
+    private userService = inject(UserService);
     protected rolesService = inject(RolesService);
 
     readonly searchTerm = signal('');
+    private readonly normalizedUsers = signal<NormalizedUser[]>([]);
+
+    private readonly roleMemberCounts = computed<Map<number, number>>(() => {
+        const users = this.normalizedUsers();
+        return new Map([
+            [UserRole.SUPER_ADMIN, users.filter((u) => u.isSuperadmin).length],
+            [
+                UserRole.ORG_ADMIN,
+                users.filter((u) => u.memberships.some((m) => m.role.id === UserRole.ORG_ADMIN)).length,
+            ],
+            [UserRole.MEMBER, users.filter((u) => u.memberships.some((m) => m.role.id === UserRole.MEMBER)).length],
+            [UserRole.VIEWER, users.filter((u) => u.memberships.some((m) => m.role.id === UserRole.VIEWER)).length],
+        ]);
+    });
+
+    ngOnInit(): void {
+        createUserFetchStrategy(this.profileService, this.adminUserService, this.userService)
+            .fetchUsers()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((users) => this.normalizedUsers.set(users));
+    }
 
     readonly columns: AppTableColumnDef[] = [
         { key: 'name', label: 'ROLE NAME', width: '2fr' },
@@ -46,16 +75,17 @@ export class RolesTabComponent {
         { key: 'actions', label: 'ACTIONS', width: '1fr', align: 'center' },
     ];
 
-    readonly tableData = computed<TableRow[]>(() =>
-        this.rolesService.roles().map((role) => ({
+    readonly tableData = computed<TableRow[]>(() => {
+        const counts = this.roleMemberCounts();
+        return this.rolesService.roles().map((role) => ({
             id: role.id,
             name: role.name,
             description: role.description,
-            members: role.member_count,
+            members: role.is_built_in ? (counts.get(role.id) ?? 0) : role.member_count,
             lastModified: new Date(role.updated_at),
             isBuiltIn: role.is_built_in,
-        }))
-    );
+        }));
+    });
 
     readonly filteredRoles = computed<TableRow[]>(() => {
         const term = this.searchTerm().toLowerCase().trim();
