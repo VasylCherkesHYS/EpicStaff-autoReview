@@ -21,12 +21,14 @@ export interface GetPythonCodeToolRequest {
     description: string;
     args_schema: ArgsSchema;
     built_in: boolean;
+    use_storage?: boolean;
 }
 export interface CreatePythonCodeToolRequest {
     python_code: CreatePythonCodeRequest;
     name: string;
     description: string;
     args_schema: ArgsSchema;
+    use_storage?: boolean;
 }
 
 export interface UpdatePythonCodeToolRequest {
@@ -35,4 +37,5 @@ export interface UpdatePythonCodeToolRequest {
     name: string; // Required, minLength: 1
     description: string;
     args_schema: ArgsSchema; // Now an object rather than a JSON string
+    use_storage?: boolean;
 }
