@@ -11,6 +11,7 @@ import { StatCardComponent } from '../../../components/stat-card/stat-card.compo
 import { StatCardData } from '../../../components/stat-card/stat-card.interface';
 import { AdminUserService } from '../../../services/admin/admin-user.service';
 import { OrganizationsStorageService } from '../../../services/admin/organizations-storage.service';
+import { RolesService } from '../../../services/admin/roles.service';
 
 @Component({
     selector: 'app-workspace-main',
@@ -24,6 +25,7 @@ export class MainTabComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private organizationStorage = inject(OrganizationsStorageService);
     private adminUserService = inject(AdminUserService);
+    private rolesService = inject(RolesService);
     private toast = inject(ToastService);
 
     organizations = this.organizationStorage.organizations;
@@ -41,6 +43,11 @@ export class MainTabComponent implements OnInit {
             label: 'TOTAL USERS',
             icon: 'profile',
             value: this.usersCount(),
+        },
+        {
+            label: 'ROLES',
+            icon: 'briefcase',
+            value: this.rolesService.roles().length,
         },
     ]);
 

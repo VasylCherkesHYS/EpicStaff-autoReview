@@ -57,7 +57,7 @@
         >
             @if (row['roles']?.length) {
                 <div
-                    class="role-badges"
+                    class="badges-cell"
                     appOverflowItems
                     #roleOverflow="overflowItems"
                 >
@@ -93,7 +93,7 @@
         >
             @if (row['organizationDetails']?.length) {
                 <div
-                    class="org-badges"
+                    class="badges-cell"
                     appOverflowItems
                     #orgOverflow="overflowItems"
                 >
@@ -121,7 +121,7 @@
             let-row
         >
             @if (row['lastActive']) {
-                <div class="last-active">
+                <div class="date-cell">
                     <span class="date">{{ formatDate(row['lastActive']) }}</span>
                     <span class="relative">{{ getRelativeTime(row['lastActive']) }}</span>
                 </div>
