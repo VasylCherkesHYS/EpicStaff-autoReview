@@ -426,6 +426,10 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.warningMessages = null;
             this.autoScrollEnabled = true;
             this.lastScrollTop = 0;
+            this.showScrollToTop = false;
+            this.showScrollToBottom = false;
+            this.unseenMessageCount = 0;
+            this.seenMessageCount = 0;
             this.messages = [];
             this.visibleMessageEntries = [];
             this.drillPaths.clear();
