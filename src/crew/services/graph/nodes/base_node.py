@@ -1,4 +1,3 @@
-import copy
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 from langgraph.types import StreamWriter
@@ -226,20 +225,21 @@ class BaseNode(ABC):
         the state at the time of execution.
         """
 
-        state_history = state["state_history"]
+        # TODO: remove completely if nothing breaks
+        # variables = state["variables"]
+        # state_history = state["state_history"]
+        # state_history.append(
+        #     {
+        #         "type": type,
+        #         "name": name,
+        #         "additional_data": copy.deepcopy(kwargs),
+        #         "input": copy.deepcopy(input),
+        #         "variables": variables.deep_dump(),
+        #         "output": copy.deepcopy(output),
+        #     }
+        # )
 
-        state_history.append(
-            {
-                "type": type,
-                "name": name,
-                "additional_data": copy.deepcopy(kwargs),
-                "input": copy.deepcopy(input),
-                "variables": state["variables"].deep_dump(),
-                "output": copy.deepcopy(output),
-            }
-        )
-
-        counts = state.setdefault("execution_counts", {})
-        counts[name] = counts.get(name, 0) + 1
+        # counts = state.setdefault("execution_counts", {})
+        # counts[name] = counts.get(name, 0) + 1
 
     async def post_init(self, *args, **kwargs): ...
