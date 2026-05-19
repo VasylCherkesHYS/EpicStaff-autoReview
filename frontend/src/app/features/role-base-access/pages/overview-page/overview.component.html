@@ -54,6 +54,20 @@
                     Users
                 </a>
             }
+            @if (currentUserService.canManageRoles()) {
+                <span class="tab-divider">/</span>
+                <a
+                    routerLink="roles"
+                    routerLinkActive="active"
+                    class="overview-tab"
+                >
+                    <app-svg-icon
+                        size="18px"
+                        icon="briefcase"
+                    />
+                    Roles
+                </a>
+            }
         </nav>
     </div>
     <div class="overview-content">
