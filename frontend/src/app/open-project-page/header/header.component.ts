@@ -14,12 +14,14 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { Subject } from 'rxjs';
+import { of, switchMap } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { v4 as uuidv4 } from 'uuid';
 
 import { FlowsApiService } from '../../features/flows/services/flows-api.service';
 import { RunGraphService } from '../../features/flows/services/run-graph-session.service';
 import { GetProjectRequest, ProjectProcess } from '../../features/projects/models/project.model';
+import { ProjectsStorageService } from '../../features/projects/services/projects-storage.service';
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../shared/components/buttons/button/button.component';
@@ -67,7 +69,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
         private toastService: ToastService,
         private cdr: ChangeDetectorRef,
         private flowsApiService: FlowsApiService,
-        private confirmationDialog: ConfirmationDialogService
+        private confirmationDialog: ConfirmationDialogService,
+        private projectsStorageService: ProjectsStorageService
     ) {}
 
     ngOnInit(): void {
@@ -156,6 +159,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
 
     onCreateFlowWithProject() {
+        const template = this.project!;
         this.confirmationDialog
             .confirm({
                 title: 'Create Flow',
@@ -164,44 +168,45 @@ export class HeaderComponent implements OnInit, OnDestroy {
                 confirmText: 'Create Flow',
                 type: 'info',
             })
-            .subscribe((result) => {
-                // Only proceed if result is exactly true (user clicked confirm)
-                if (result === true) {
-                    const project = this.project;
-                    const nodeId = uuidv4();
-                    const node = {
-                        id: nodeId,
-                        backendId: null,
-                        position: { x: 200, y: 200 },
-                        ports: null,
-                        parentId: null,
-                        type: NodeType.PROJECT,
-                        node_name: `${project!.name} (#1)`,
-                        data: project,
-                        color: NODE_COLORS[NodeType.PROJECT],
-                        icon: NODE_ICONS[NodeType.PROJECT],
-                        input_map: {},
-                        output_variable_path: null,
-                        size: { width: 330, height: 60 },
-                    };
-                    const metadata = {
-                        nodes: [node],
-                        connections: [],
-                        groups: [],
-                    };
-                    this.flowsApiService
-                        .createGraph({
-                            name: `${project!.name} Flow`,
-                            description: '',
-                            metadata,
-                            tags: [],
-                        })
-                        .subscribe((response: { id: string | number }) => {
-                            this.router.navigate(['/flows', response.id]);
-                        });
-                }
-                // If result is false or 'close', the action is cancelled (do nothing)
+            .pipe(
+                switchMap((result) => {
+                    if (result !== true) return of(null);
+                    const project$ = template.is_template
+                        ? this.projectsStorageService.saveAsProject(template.id)
+                        : of(template);
+                    return project$.pipe(switchMap((project) => this.buildAndCreateFlow(project)));
+                })
+            )
+            .subscribe({
+                error: () => this.toastService.error('Failed to create flow'),
             });
+    }
+
+    private buildAndCreateFlow(project: GetProjectRequest) {
+        const nodeId = uuidv4();
+        const node = {
+            id: nodeId,
+            backendId: null,
+            position: { x: 200, y: 200 },
+            ports: null,
+            parentId: null,
+            type: NodeType.PROJECT,
+            node_name: `${project.name} (#1)`,
+            data: project,
+            color: NODE_COLORS[NodeType.PROJECT],
+            icon: NODE_ICONS[NodeType.PROJECT],
+            input_map: {},
+            output_variable_path: null,
+            size: { width: 330, height: 60 },
+        };
+        return this.flowsApiService
+            .createGraph({
+                name: `${project.name} Flow`,
+                description: '',
+                metadata: { nodes: [node], connections: [], groups: [] },
+                tags: [],
+            })
+            .pipe(switchMap((response: { id: string | number }) => this.router.navigate(['/flows', response.id])));
     }
 
     public onDirtyChange(isDirty: boolean) {
