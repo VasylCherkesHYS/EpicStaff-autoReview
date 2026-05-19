@@ -5,8 +5,11 @@ import os
 import sys
 from loguru import logger
 
+
 def main():
     """Run administrative tasks."""
+    src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    sys.path.append(src_path)
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_app.settings")
     try:
         from django.core.management import execute_from_command_line
@@ -20,6 +23,7 @@ def main():
         execute_from_command_line(sys.argv)
     except Exception as e:
         logger.exception(e)
+
 
 if __name__ == "__main__":
     main()
