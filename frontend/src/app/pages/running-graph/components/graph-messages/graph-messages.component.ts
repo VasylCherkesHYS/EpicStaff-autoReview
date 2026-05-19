@@ -748,12 +748,16 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 this.closingRootKeys.delete(rootKey);
                 this.updateDrilldownView();
                 this.cdr.markForCheck();
+                // Drilldown removed → content height shrank. The container
+                // doesn't fire a scroll event on shrink, so recompute manually.
+                this.refreshScrollButtonsAfterRender();
             }, this.drilldownCloseDelayMs);
         } else {
             this.closingRootKeys.delete(rootKey);
             this.drillPaths.set(rootKey, nextPath);
         }
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
     }
 
     public onBreadcrumbClick(rootKey: string, index: number): void {
@@ -761,6 +765,14 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         if (!currentPath) return;
         this.drillPaths.set(rootKey, currentPath.slice(0, index + 1));
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
+    }
+
+    private refreshScrollButtonsAfterRender(): void {
+        requestAnimationFrame(() => {
+            this.updateScrollButtonsVisibility();
+            this.cdr.markForCheck();
+        });
     }
 
     public isDrilldownRoot(message: GraphMessage): boolean {
