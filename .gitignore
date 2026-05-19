@@ -273,3 +273,6 @@ CLAUDE.local.md
 /personal_files
 /docs/superpowers/
 pyrightconfig.json
+
+# django settings
+src/django_app/settings/local.py
