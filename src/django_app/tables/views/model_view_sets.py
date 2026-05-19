@@ -558,9 +558,13 @@ class CrewReadWriteViewSet(CopyActionMixin, ModelViewSet):
                 "Project is not a template", status=status.HTTP_400_BAD_REQUEST
             )
 
-        created_project = self.perform_copy(crew)
-        created_project.is_template = False
-        created_project.save()
+        try:
+            with transaction.atomic():
+                created_project = self.copy_service_class().copy(crew)
+                created_project.is_template = False
+                created_project.save()
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(created_project)
         return Response(serializer.data, status=status.HTTP_200_OK)
