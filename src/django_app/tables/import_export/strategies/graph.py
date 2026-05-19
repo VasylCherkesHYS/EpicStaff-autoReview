@@ -2,12 +2,14 @@ import uuid
 from copy import deepcopy
 
 from tables.models import Graph, Crew
-from tables.models.graph_models import ClassificationConditionGroup
+from tables.models.graph_models import (
+    ClassificationConditionGroup,
+    ClassificationDecisionTablePrompt,
+)
 from tables.serializers.model_serializers import (
     CrewSerializer,
     GraphOrganization,
     Organization,
-    ClassificationDecisionTablePrompt,
 )
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.import_export.strategies.base import EntityImportExportStrategy

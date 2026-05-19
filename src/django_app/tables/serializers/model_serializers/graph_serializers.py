@@ -5,6 +5,7 @@ from tables.serializers.model_serializers.node_serializers.flow_control_serializ
     DecisionTableNodeSerializer,
     EndNodeSerializer,
     StartNodeSerializer,
+    ClassificationDecisionTableNodeSerializer,
 )
 from tables.serializers.model_serializers.node_serializers.basic_node_serializers import (
     AudioTranscriptionNodeSerializer,
@@ -148,6 +149,9 @@ class GraphSerializer(serializers.ModelSerializer):
     webhook_trigger_node_list = WebhookTriggerNodeSerializer(many=True, read_only=True)
     start_node_list = StartNodeSerializer(many=True, read_only=True)
     decision_table_node_list = DecisionTableNodeSerializer(many=True, read_only=True)
+    classification_decision_table_node_list = ClassificationDecisionTableNodeSerializer(
+        many=True, read_only=True
+    )
     subgraph_node_list = SubGraphNodeSerializer(many=True, read_only=True)
     code_agent_node_list = CodeAgentNodeSerializer(many=True, read_only=True)
     end_node_list = EndNodeSerializer(many=True, read_only=True, source="end_node")
@@ -176,6 +180,7 @@ class GraphSerializer(serializers.ModelSerializer):
             "llm_node_list",
             "webhook_trigger_node_list",
             "decision_table_node_list",
+            "classification_decision_table_node_list",
             "subgraph_node_list",
             "code_agent_node_list",
             "start_node_list",

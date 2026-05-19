@@ -1,3 +1,4 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OverlayModule } from '@angular/cdk/overlay';
 import { PortalModule } from '@angular/cdk/portal';
 import {
@@ -9,6 +10,7 @@ import {
     inject,
     signal,
     ViewChild,
+    DestroyRef,
 } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { ClickOutsideDirective } from '@shared/directives';
@@ -55,6 +57,7 @@ interface NavItem {
 })
 export class LeftSidebarComponent implements AfterViewInit {
     private currentUserService = inject(ProfileService);
+    private destroyRef = inject(DestroyRef);
 
     public topNavItems: NavItem[];
     public bottomNavItems: NavItem[];
