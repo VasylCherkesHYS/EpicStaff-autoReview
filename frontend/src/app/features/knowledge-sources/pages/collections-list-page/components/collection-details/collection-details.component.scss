@@ -84,14 +84,17 @@
     }
 
     &__main-wrapper {
-        min-width: 60%;
+        flex: 0 0 60%;
+        min-width: 0;
+        overflow: hidden;
     }
 
     &__main-content {
         display: flex;
-        width: 100%;
-        min-width: 0;
         flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
         margin: 1.5rem 3rem;
         row-gap: 1.875rem;
     }
@@ -100,10 +103,15 @@
     &__section {
         display: flex;
         flex-direction: column;
+        flex-shrink: 0;
         row-gap: 0.875rem;
     }
 
     &__section-files {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
         overflow: hidden;
     }
 
@@ -125,8 +133,9 @@
     }
 
     &__files-wrap {
-        overflow: auto;
-        margin-bottom: 2rem;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     &__files {

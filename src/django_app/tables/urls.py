@@ -50,7 +50,6 @@ from tables.views.model_view_sets import (
     RealtimeModelViewSet,
     RealtimeAgentViewSet,
     RealtimeAgentChatViewSet,
-    OrganizationUserViewSet,
     GraphOrganizationViewSet,
     GraphOrganizationUserViewSet,
     VoiceSettingsView,
@@ -133,6 +132,10 @@ from tables.views.flow_assistant_views import (
 )
 
 from tables.views.organization_admin_views import OrganizationAdminViewSet
+from tables.views.user_management_views import (
+    OrganizationMembershipAdminViewSet,
+    UserAdminViewSet,
+)
 
 router = DefaultRouter()
 router.register(r"template-agents", TemplateAgentReadWriteViewSet)
@@ -194,7 +197,6 @@ router.register(
 
 router.register(r"sessions", SessionViewSet, basename="session")
 router.register(r"mcp-tools", McpToolViewSet)
-router.register(r"organization-users", OrganizationUserViewSet)
 router.register(r"graph-organizations", GraphOrganizationViewSet)
 router.register(r"graph-organization-users", GraphOrganizationUserViewSet)
 router.register(r"naive-rag-document-chunks", NaiveRagChunkViewSet)
@@ -214,12 +216,30 @@ admin_router = DefaultRouter()
 admin_router.register(
     r"organizations", OrganizationAdminViewSet, basename="admin-organization"
 )
+admin_router.register(r"users", UserAdminViewSet, basename="admin-user")
 
 urlpatterns = [
     path(
         "documents/bulk-delete/",
         DocumentManagementViewSet.as_view({"post": "bulk_delete"}),
         name="document-bulk-delete",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/users/",
+        OrganizationMembershipAdminViewSet.as_view({"get": "list", "post": "create"}),
+        name="admin-org-users-list",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/users/<int:user_id>/",
+        OrganizationMembershipAdminViewSet.as_view(
+            {"patch": "partial_update", "delete": "destroy"}
+        ),
+        name="admin-org-users-detail",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/assign-users/",
+        OrganizationMembershipAdminViewSet.as_view({"post": "assign_users"}),
+        name="admin-org-users-assign",
     ),
     path("admin/", include(admin_router.urls)),
     path("", include(router.urls)),
