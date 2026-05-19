@@ -1587,7 +1587,9 @@ def test_build_system_prompt_file_load_and_substitution():
     (a) build_system_prompt returns a non-empty string,
     (b) the substituted flow name appears in the output,
     (c) the rich-format marker 'ef_tables' appears (proves rich_format.md loaded),
-    (d) no literal '${' remains (proves all Template placeholders were substituted).
+    (d) no literal '${' remains (proves all Template placeholders were substituted),
+    (e) 'particular kind of being' appears (proves personality.md loaded),
+    (f) '## Operational rules' appears (proves instructions.md loaded with new header).
     """
     from tables.services.flow_assistant.system_prompt import (
         SystemPromptInputs,
@@ -1611,6 +1613,8 @@ def test_build_system_prompt_file_load_and_substitution():
     assert "Smoke Test Flow" in result, "substituted flow_name must appear in output"
     assert "ef_tables" in result, "rich_format.md marker 'ef_tables' must be present"
     assert "${" not in result, "all Template placeholders must be substituted"
+    assert "particular kind of being" in result, "personality.md must be loaded"
+    assert "## Operational rules" in result, "instructions.md must be loaded with new section header"
 
 
 # ── Phase F (Fix 16): python_code_summary in get_node ────────────────────────

@@ -6,16 +6,24 @@ from string import Template
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-_persona_template: Template | None = None
+_personality: str | None = None
+_instructions_template: Template | None = None
 _rich_format: str | None = None
 
 
-def _load_persona_template() -> Template:
-    global _persona_template
-    if _persona_template is None:
-        text = (_PROMPTS_DIR / "persona.md").read_text(encoding="utf-8")
-        _persona_template = Template(text)
-    return _persona_template
+def _load_personality() -> str:
+    global _personality
+    if _personality is None:
+        _personality = (_PROMPTS_DIR / "personality.md").read_text(encoding="utf-8")
+    return _personality
+
+
+def _load_instructions_template() -> Template:
+    global _instructions_template
+    if _instructions_template is None:
+        text = (_PROMPTS_DIR / "instructions.md").read_text(encoding="utf-8")
+        _instructions_template = Template(text)
+    return _instructions_template
 
 
 def _load_rich_format() -> str:
@@ -39,7 +47,8 @@ class SystemPromptInputs:
 
 def build_system_prompt(inputs: SystemPromptInputs) -> str:
     """Assemble the Flow Assistant persona system prompt from pre-computed inputs."""
-    persona = _load_persona_template().substitute(
+    personality = _load_personality()
+    instructions = _load_instructions_template().substitute(
         flow_name=inputs.flow_name,
         flow_description=inputs.flow_description,
         today_iso=inputs.today_iso,
@@ -49,4 +58,4 @@ def build_system_prompt(inputs: SystemPromptInputs) -> str:
         nodes_section=inputs.nodes_section,
         subflow_summary=inputs.subflow_summary,
     )
-    return f"{persona}\n\n{_load_rich_format()}"
+    return f"{personality}\n\n{instructions}\n\n{_load_rich_format()}"
