@@ -17,25 +17,31 @@ from utils.variables import DJANGO_URL, rhost, DJANGO_ADMIN_EMAIL, DJANGO_ADMIN_
 MAX_WAIT_SSE_SECONDS = 180
 
 _auth_token: str | None = None
+_auth_token_obtained_at: float = 0
+_AUTH_TOKEN_MAX_AGE = 900  # re-login after 15 minutes to avoid JWT expiry
 
 
 def get_auth_token() -> str:
-    global _auth_token
-    if _auth_token:
+    global _auth_token, _auth_token_obtained_at
+    if _auth_token and (time.time() - _auth_token_obtained_at) < _AUTH_TOKEN_MAX_AGE:
         return _auth_token
-    setup_check = requests.get(f"{DJANGO_URL}/auth/first-setup/")
+    host_header = {"Host": rhost}
+    setup_check = requests.get(f"{DJANGO_URL}/auth/first-setup/", headers=host_header)
     if setup_check.ok and setup_check.json().get("needs_setup"):
         response = requests.post(
             f"{DJANGO_URL}/auth/first-setup/",
             json={"email": DJANGO_ADMIN_EMAIL, "password": DJANGO_ADMIN_PASSWORD},
+            headers=host_header,
         )
     else:
         response = requests.post(
             f"{DJANGO_URL}/auth/login/",
             json={"email": DJANGO_ADMIN_EMAIL, "password": DJANGO_ADMIN_PASSWORD},
+            headers=host_header,
         )
     response.raise_for_status()
     _auth_token = response.json()["access"]
+    _auth_token_obtained_at = time.time()
     return _auth_token
 
 
@@ -150,7 +156,7 @@ def wait_for_results_sse(session_id: int):
 
     logger.info(f"Subscribing to SSE for session {session_id}...")
 
-    client = SSEClient(url)
+    client = SSEClient(url, headers={"Host": rhost})
     end_node_result = None
 
     for event in client:
@@ -221,6 +227,29 @@ def check_containers():
         if not running:
             logger.error(f'Container "{name}" not running')
             assert False, f'Container "{name}" not running'
+
+
+def ensure_services_ready(timeout: int = 60, interval: float = 2.0):
+    """Wait until all containers are running and django_app responds to HTTP."""
+    check_containers()
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            response = requests.get(
+                f"{DJANGO_URL}/auth/first-setup/",
+                headers={"Host": rhost},
+                timeout=5,
+            )
+            if response.status_code < 500:
+                logger.info("Services are ready.")
+                return
+        except requests.exceptions.RequestException:
+            pass
+        logger.debug("Waiting for django_app to be ready...")
+        time.sleep(interval)
+
+    raise TimeoutError(f"django_app did not become ready within {timeout}s")
 
 
 def get_graph_session_messages(session_id: int) -> list:

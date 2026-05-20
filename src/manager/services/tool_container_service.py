@@ -143,7 +143,17 @@ class ToolContainerService:
             detach=True,
             name=container_name,
             labels={"com.docker.compose.project": "epicstaff-tools"},
-            environment={"SAVE_FILE_PATH": "/home/user/root/app/savefiles"},
+            environment={
+                "SAVE_FILE_PATH": "/home/user/root/app/savefiles",
+                **{
+                    k: os.environ[k]
+                    for k in (
+                        "OPENAI_API_KEY",
+                        "OPENAI_KEY",
+                    )
+                    if k in os.environ
+                },
+            },
             mounts=[
                 Mount(
                     # TODO: remove, crew_config is deprecated

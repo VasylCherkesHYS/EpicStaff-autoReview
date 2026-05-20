@@ -1,4 +1,5 @@
 import os
+import threading
 
 import docker.errors
 
@@ -13,9 +14,17 @@ from docker.client import DockerClient
 
 class ToolImageService:
     client: DockerClient = docker.client.from_env()
+    _build_locks: dict[str, threading.Lock] = {}
+    _build_locks_meta = threading.Lock()
 
     def __init__(self, import_tool_data_repository: ImportToolDataRepository):
         self.import_tool_data_repository = import_tool_data_repository
+
+    def _get_build_lock(self, image_name: str) -> threading.Lock:
+        with self._build_locks_meta:
+            if image_name not in self._build_locks:
+                self._build_locks[image_name] = threading.Lock()
+            return self._build_locks[image_name]
 
     def build_image(self, image_name: str) -> Image:
         import_tool_data = self.import_tool_data_repository.get_import_class_data(
@@ -57,12 +66,15 @@ class ToolImageService:
         image_name = self.import_tool_data_repository.find_image_name_by_tool_alias(
             tool_alias=tool_alias
         )
-        image_list = [
-            img
-            for img in self.client.images.list()
-            if f"{image_name}:latest" in img.tags
-        ]
 
+        def find_local():
+            return [
+                img
+                for img in self.client.images.list()
+                if f"{image_name}:latest" in img.tags
+            ]
+
+        image_list = find_local()
         if image_list:
             logger.info(f"Image found locally for alias {tool_alias}: {image_name}")
             return image_list[0]
@@ -81,5 +93,13 @@ class ToolImageService:
 
             logger.info(f"Image for alias {tool_alias} not found on DockerHub.")
 
-        logger.info("Building new image.")
-        return self.build_image(image_name=image_name)
+        build_lock = self._get_build_lock(image_name)
+        with build_lock:
+            image_list = find_local()
+            if image_list:
+                logger.info(
+                    f"Image found locally for alias {tool_alias} after lock acquire: {image_name}"
+                )
+                return image_list[0]
+            logger.info("Building new image.")
+            return self.build_image(image_name=image_name)

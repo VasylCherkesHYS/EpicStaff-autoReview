@@ -39,10 +39,10 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/ht/"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://${DJANGO_HOST:-localhost}:${DJANGO_PORT:-8000}/ht/')\""]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 12
 
   realtime:
     container_name: realtime
@@ -98,7 +98,6 @@ services:
       - DB_PORT=5432
       - DB_MANAGER_USER=manager_user_integ
       - DB_MANAGER_PASSWORD=manager_password_integ
-      - CREW_SAVEFILES_PATH=/home/root/integration_test/savefiles
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
