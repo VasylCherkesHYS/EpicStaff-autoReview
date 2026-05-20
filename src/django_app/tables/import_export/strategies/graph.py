@@ -2,12 +2,14 @@ import uuid
 from copy import deepcopy
 
 from tables.models import Graph, Crew
-from tables.models.graph_models import ClassificationConditionGroup
+from tables.models.graph_models import (
+    ClassificationConditionGroup,
+    ClassificationDecisionTablePrompt,
+)
 from tables.serializers.model_serializers import (
     CrewSerializer,
     GraphOrganization,
     Organization,
-    ClassificationDecisionTablePrompt,
 )
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.import_export.strategies.base import EntityImportExportStrategy
@@ -42,9 +44,14 @@ class GraphStrategy(EntityImportExportStrategy):
             instance.crew_node_list.values_list("crew_id", flat=True)
         )
         deps[EntityType.WEBHOOK_TRIGGER] = list(
-            instance.webhook_trigger_node_list.values_list(
-                "webhook_trigger_id", flat=True
-            )
+            {
+                *instance.webhook_trigger_node_list.values_list(
+                    "webhook_trigger_id", flat=True
+                ),
+                *instance.telegram_trigger_node_list.values_list(
+                    "webhook_trigger_id", flat=True
+                ),
+            }
         )
         deps[EntityType.GRAPH] = set(
             instance.subgraph_node_list.values_list("subgraph_id", flat=True)
@@ -100,6 +107,25 @@ class GraphStrategy(EntityImportExportStrategy):
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.get_or_create(graph=graph, organization=organization)
 
+        self.recreate_graph_children(
+            graph,
+            {
+                "nodes": nodes_data,
+                "edge_list": edges_data,
+                "conditional_edge_list": conditional_edges_data,
+            },
+            id_mapper,
+        )
+
+        return graph
+
+    def recreate_graph_children(
+        self, graph: Graph, data: dict, id_mapper: IDMapper
+    ) -> IDMapper:
+        nodes_data = data.get("nodes", [])
+        edges_data = data.get("edge_list", [])
+        conditional_edges_data = data.get("conditional_edge_list", [])
+
         node_mapper = IDMapper()
 
         # Pass 1: create all nodes and build the old→new node ID mapping
@@ -113,7 +139,8 @@ class GraphStrategy(EntityImportExportStrategy):
         self._remap_classification_decision_table_references(graph, node_mapper)
         self._update_metadata_node_ids(graph, node_mapper)
 
-        return graph
+        # need only for versioning system
+        return node_mapper
 
     def _export_nodes(self, instance: Graph) -> list:
         nodes = []
