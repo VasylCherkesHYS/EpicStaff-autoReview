@@ -9,5 +9,13 @@
                 <app-svg-icon [icon]="action.icon"></app-svg-icon>
             </button>
         }
+        <button
+            class="action-button"
+            title="Auto arrange"
+            [disabled]="!canAutoArrange()"
+            (click)="autoArrangeRequested.emit()"
+        >
+            <app-svg-icon icon="auto-arrange"></app-svg-icon>
+        </button>
     </div>
 </div>
