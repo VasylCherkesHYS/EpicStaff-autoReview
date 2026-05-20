@@ -1,4 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
+import { OverlayModule } from '@angular/cdk/overlay';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -23,14 +24,12 @@ import { SearchFilterChange } from '../../../../shared/components/filters-list/f
 import { TabButtonComponent } from '../../../../shared/components/tab-button/tab-button.component';
 import { HideInlineSubtitleOnOverflowDirective } from '../../../../shared/directives/hide-inline-subtitle-on-overflow.directive';
 import { CreateFlowDialogComponent } from '../../components/create-flow-dialog/create-flow-dialog.component';
-import {
-    ImportFlowOptions,
-    ImportFlowOptionsDialogComponent,
-} from '../../components/import-flow-options-dialog/import-flow-options-dialog.component';
+import { ImportFlowOptionsPopoverComponent } from '../../components/import-flow-options-popover/import-flow-options-popover.component';
 import { ImportResultDialogComponent } from '../../components/import-result-dialog/import-result-dialog.component';
 import { GraphDto } from '../../models/graph.model';
 import { EntityTypeResult, ImportResult, ImportResultItem } from '../../models/import-result.model';
 import { FlowsStorageService } from '../../services/flows-storage.service';
+import { ImportFlowSettingsService } from '../../services/import-flow-settings.service';
 import { LabelsStorageService } from '../../services/labels-storage.service';
 import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flows-label-sidebar.component';
 
@@ -48,6 +47,8 @@ import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flo
         AppSvgIconComponent,
         FlowsLabelSidebarComponent,
         HideInlineSubtitleOnOverflowDirective,
+        ImportFlowOptionsPopoverComponent,
+        OverlayModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -67,7 +68,10 @@ export class FlowsListPageComponent implements OnDestroy {
     private importExportService = inject(ImportExportService);
     private toastService = inject(ToastService);
     private labelsStorage = inject(LabelsStorageService);
+    private importFlowSettings = inject(ImportFlowSettingsService);
     private destroyRef = inject(DestroyRef);
+
+    public importOptionsOpen = signal(false);
 
     public selectMode = this.flowStorageService.selectMode;
     public selectedFlowIds = this.flowStorageService.selectedFlowIds;
@@ -145,50 +149,52 @@ export class FlowsListPageComponent implements OnDestroy {
         RealtimeConfig: ['custom_name'],
     };
 
+    public toggleImportOptions(): void {
+        this.importOptionsOpen.update((v) => !v);
+    }
+
+    public closeImportOptions(): void {
+        this.importOptionsOpen.set(false);
+    }
+
     public onImportClick(): void {
-        const dialogRef = this.dialog.open<ImportFlowOptions | undefined>(ImportFlowOptionsDialogComponent, {
-            width: '400px',
-        });
+        const settings = this.importFlowSettings.settings();
 
-        dialogRef.closed.subscribe((options) => {
-            if (!options) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (event: Event) => {
+            const file = (event.target as HTMLInputElement).files?.[0];
+            if (!file) return;
 
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = (event: Event) => {
-                const file = (event.target as HTMLInputElement).files?.[0];
-                if (!file) return;
+            file.text().then((text: string) => {
+                let fileData: Record<string, Record<string, unknown>[]> = {};
+                try {
+                    fileData = JSON.parse(text);
+                } catch {}
 
-                file.text().then((text: string) => {
-                    let fileData: Record<string, Record<string, unknown>[]> = {};
-                    try {
-                        fileData = JSON.parse(text);
-                    } catch {}
+                this.importExportService.importFlow(file, settings).subscribe({
+                    next: (result) => {
+                        const enriched = this._enrichImportResult(result as ImportResult, fileData);
 
-                    this.importExportService.importFlow(file, options.preserveUuids).subscribe({
-                        next: (result) => {
-                            const enriched = this._enrichImportResult(result as ImportResult, fileData);
+                        this.dialog.open(ImportResultDialogComponent, {
+                            width: '80vw',
+                            data: { importResult: enriched },
+                        });
 
-                            this.dialog.open(ImportResultDialogComponent, {
-                                width: '80vw',
-                                data: { importResult: enriched },
-                            });
-
-                            this.flowStorageService.getFlows(true).subscribe(() => {});
-                        },
-                        error: (error) => {
-                            const message =
-                                error?.error?.detail ||
-                                error?.error?.message ||
-                                'Failed to import flow. Please check the file and try again.';
-                            this.toastService.error(message);
-                        },
-                    });
+                        this.flowStorageService.getFlows(true).subscribe(() => {});
+                    },
+                    error: (error) => {
+                        const message =
+                            error?.error?.detail ||
+                            error?.error?.message ||
+                            'Failed to import flow. Please check the file and try again.';
+                        this.toastService.error(message);
+                    },
                 });
-            };
-            input.click();
-        });
+            });
+        };
+        input.click();
     }
 
     // Per entity type: which field in the file serves as the display name

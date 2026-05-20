@@ -41,13 +41,41 @@
                     >
                         All sessions
                     </app-button>
-                    <app-button
-                        type="ghost"
-                        [leftIcon]="'download'"
-                        (click)="onImportClick()"
+                    <div
+                        class="import-group"
+                        #importOriginEl="cdkOverlayOrigin"
+                        cdkOverlayOrigin
                     >
-                        Import
-                    </app-button>
+                        <button
+                            type="button"
+                            class="import-group__main"
+                            (click)="onImportClick()"
+                        >
+                            <app-svg-icon
+                                icon="download"
+                                size="1.1rem"
+                            />
+                            <span>Import</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="import-group__cog"
+                            aria-label="Import options"
+                            [class.is-open]="importOptionsOpen()"
+                            (click)="toggleImportOptions()"
+                        >
+                            <app-svg-icon
+                                icon="settings-filled"
+                                size="1rem"
+                            />
+                        </button>
+                    </div>
+                    <app-import-flow-options-popover
+                        [origin]="importOriginEl"
+                        [open]="importOptionsOpen()"
+                        (closed)="closeImportOptions()"
+                    />
+
                     <app-button
                         type="ghost"
                         [leftIcon]="'upload'"

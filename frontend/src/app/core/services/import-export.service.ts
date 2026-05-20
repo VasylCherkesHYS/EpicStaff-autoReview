@@ -6,6 +6,12 @@ import { ConfigService } from '../../services/config/config.service';
 
 export type ExportFormat = 'json' | 'csv';
 
+export interface ImportFlowRequestOptions {
+    preserveUuids: boolean;
+    replaceExisting: boolean;
+    importLabels: boolean;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -23,10 +29,12 @@ export class ImportExportService {
         return this.configService.apiUrl + 'sessions/';
     }
 
-    importFlow(file: File, preserveUuids: boolean = false): Observable<Record<string, unknown>> {
+    importFlow(file: File, settings: ImportFlowRequestOptions): Observable<Record<string, unknown>> {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('preserve_uuids', String(preserveUuids));
+        formData.append('preserve_uuids', String(settings.preserveUuids));
+        formData.append('replace_existing', String(settings.replaceExisting));
+        formData.append('import_labels', String(settings.importLabels));
 
         return this.http.post<Record<string, unknown>>(`${this.apiUrl}import/`, formData);
     }
