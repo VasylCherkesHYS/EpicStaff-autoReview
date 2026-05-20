@@ -216,7 +216,7 @@ class FlowAssistantSendMessageView(APIView):
         service.apply_title_if_missing(conversation, message)
 
         ticket, _ttl = SseTicketService().issue(request.user)
-        stream_url = (
+        stream_url = request.build_absolute_uri(
             f"/api/flow-assistants/{graph_id}/conversations/{conversation_id}/stream/"
             f"?ticket={ticket}"
         )
