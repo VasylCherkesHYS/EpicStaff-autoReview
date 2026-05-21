@@ -93,6 +93,7 @@ export interface StreamToolResultEvent {
 export interface StreamDoneEvent {
     type: 'done';
     interrupted?: boolean;
+    reasoning_observed?: boolean;
 }
 
 export interface StreamStructuredEvent {
