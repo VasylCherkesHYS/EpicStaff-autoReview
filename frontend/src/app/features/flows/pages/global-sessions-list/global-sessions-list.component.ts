@@ -13,7 +13,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
 import { AppSvgIconComponent, PaginationControlsComponent } from '@shared/components';
-import { Subject, takeUntil } from 'rxjs';
+import { catchError, EMPTY, interval, Subject, switchMap, takeUntil } from 'rxjs';
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { FlowNameFilterDropdownComponent } from '../../components/flow-sessions-dialog/flow-name-filter-dropdown.component';
@@ -204,6 +204,8 @@ export class GlobalSessionsListComponent {
     public previewSession = signal<GraphSessionLight | null>(null);
     private reloadTrigger = signal(0);
     private cancelLoad$ = new Subject<void>();
+    private cancelPolling$ = new Subject<void>();
+    private static readonly POLL_INTERVAL_MS = 5000;
     private destroyRef = inject(DestroyRef);
 
     constructor(
@@ -363,6 +365,7 @@ export class GlobalSessionsListComponent {
         isErrorCause?: boolean
     ): void {
         this.cancelLoad$.next();
+        this.cancelPolling$.next();
         this.isLoaded.set(false);
         const ordering = sort === 'asc' ? 'created_at' : '-created_at';
         this.graphSessionService
@@ -373,6 +376,7 @@ export class GlobalSessionsListComponent {
                     this.sessions.set(response.results);
                     this.totalCount.set(response.count);
                     this.isLoaded.set(true);
+                    this.startBackgroundRefresh();
                 },
                 error: () => {
                     this.totalCount.set(0);
@@ -381,6 +385,31 @@ export class GlobalSessionsListComponent {
                     this.pageSize.set(10);
                     this.currentPage.set(1);
                 },
+            });
+    }
+
+    private startBackgroundRefresh(): void {
+        interval(GlobalSessionsListComponent.POLL_INTERVAL_MS)
+            .pipe(
+                switchMap(() => {
+                    const ordering = this.sortOrder() === 'asc' ? 'created_at' : '-created_at';
+                    return this.graphSessionService
+                        .getGlobalSessions(
+                            this.pageSize(),
+                            (this.currentPage() - 1) * this.pageSize(),
+                            this.statusFilter(),
+                            ordering,
+                            this.flowFilter(),
+                            this.isErrorCauseFilter()
+                        )
+                        .pipe(catchError(() => EMPTY));
+                }),
+                takeUntil(this.cancelPolling$),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe((response) => {
+                this.sessions.set(response.results);
+                this.totalCount.set(response.count);
             });
     }
 }
