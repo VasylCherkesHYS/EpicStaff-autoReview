@@ -34,6 +34,8 @@ from utils.logger import logger
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
+    OpenApiParameter,
+    OpenApiResponse,
 )
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef

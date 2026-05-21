@@ -2,7 +2,6 @@ from drf_spectacular.utils import OpenApiResponse, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 from tables.serializers.rbac_serializers import (
     ApiKeyValidateResponseSerializer,
-    AuthMeResponseSerializer,
     FirstSetupStatusSerializer,
     FirstSetupRequestSerializer,
     FirstSetupResponseSerializer,
@@ -259,32 +258,6 @@ LOGOUT_POST = dict(
             ],
         ),
         401: UNAUTHORIZED_401_RESPONSE,
-    },
-)
-
-AUTH_ME_GET = dict(
-    summary="Get current user",
-    description=(
-        "Returns the authenticated user's profile and list of org memberships "
-        "(each with the assigned role and join date). Accepts both JWT and API "
-        "key authentication, but API keys seeded without an owner (`created_by` "
-        "is null) resolve to AnonymousUser and are rejected with 403."
-    ),
-    responses={
-        200: AuthMeResponseSerializer,
-        401: UNAUTHORIZED_401_RESPONSE,
-        403: OpenApiResponse(
-            response=OpenApiTypes.STR,
-            description="Caller authenticated via an API key that has no owning user.",
-            examples=[
-                OpenApiExample(
-                    "No user context",
-                    value={"detail": "This endpoint requires a user context."},
-                    response_only=True,
-                    status_codes=["403"],
-                ),
-            ],
-        ),
     },
 )
 
