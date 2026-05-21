@@ -41,13 +41,25 @@
                 }
             </div>
 
+            <div class="unit-row">
+                @for (u of units; track u.value) {
+                    <button
+                        class="unit-btn"
+                        [class.unit-btn--active]="selectedUnit === u.value"
+                        (click)="selectUnit(u.value)"
+                    >
+                        {{ u.label }}
+                    </button>
+                }
+            </div>
+
             <div class="input-row">
                 <input
                     class="dur-input"
                     type="number"
                     min="0"
                     step="1"
-                    placeholder="sec"
+                    [placeholder]="selectedUnit"
                     [(ngModel)]="val1"
                     (keydown.enter)="apply()"
                 />
@@ -58,7 +70,7 @@
                         type="number"
                         min="0"
                         step="1"
-                        placeholder="sec"
+                        [placeholder]="selectedUnit"
                         [(ngModel)]="val2"
                         (keydown.enter)="apply()"
                     />

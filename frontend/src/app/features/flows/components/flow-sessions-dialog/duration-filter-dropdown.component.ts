@@ -28,9 +28,16 @@ export class DurationFilterDropdownComponent implements OnChanges {
     @Output() valueChange = new EventEmitter<DurationFilter | null>();
 
     public selectedOperator: DurationOperator = 'lessThan';
+    public selectedUnit: 's' | 'min' | 'h' = 'min';
     public open = false;
     public val1: number | null = null;
     public val2: number | null = null;
+
+    public readonly units: { value: 's' | 'min' | 'h'; label: string }[] = [
+        { value: 's', label: 's' },
+        { value: 'min', label: 'min' },
+        { value: 'h', label: 'h' },
+    ];
 
     public readonly operators: { value: DurationOperator; label: string }[] = [
         { value: 'lessThan', label: '< Less' },
@@ -60,8 +67,10 @@ export class DurationFilterDropdownComponent implements OnChanges {
     public ngOnChanges(changes: SimpleChanges): void {
         if (changes['value'] && this.value) {
             this.selectedOperator = this.value.operator;
-            this.val1 = this.value.value;
-            this.val2 = this.value.value2 ?? null;
+            const { unit, val } = this.detectUnit(this.value.value);
+            this.selectedUnit = unit;
+            this.val1 = val;
+            this.val2 = this.value.value2 != null ? this.toUnit(this.value.value2, unit) : null;
         }
     }
 
@@ -81,14 +90,22 @@ export class DurationFilterDropdownComponent implements OnChanges {
         this.cdr.markForCheck();
     }
 
+    public selectUnit(unit: 's' | 'min' | 'h'): void {
+        this.selectedUnit = unit;
+        this.cdr.markForCheck();
+    }
+
     public apply(): void {
         if (this.val1 === null) return;
         if (this.selectedOperator === 'between' && this.val2 === null) return;
 
+        const factor = this.unitFactor();
         const filter: DurationFilter = {
             operator: this.selectedOperator,
-            value: Math.floor(this.val1),
-            ...(this.selectedOperator === 'between' && this.val2 !== null ? { value2: Math.floor(this.val2) } : {}),
+            value: Math.floor(this.val1 * factor),
+            ...(this.selectedOperator === 'between' && this.val2 !== null
+                ? { value2: Math.floor(this.val2 * factor) }
+                : {}),
         };
         this.valueChange.emit(filter);
         this.close();
@@ -98,8 +115,27 @@ export class DurationFilterDropdownComponent implements OnChanges {
         this.val1 = null;
         this.val2 = null;
         this.selectedOperator = 'lessThan';
+        this.selectedUnit = 'min';
         this.valueChange.emit(null);
         this.close();
+    }
+
+    private unitFactor(): number {
+        if (this.selectedUnit === 'min') return 60;
+        if (this.selectedUnit === 'h') return 3600;
+        return 1;
+    }
+
+    private detectUnit(seconds: number): { unit: 's' | 'min' | 'h'; val: number } {
+        if (seconds >= 3600 && seconds % 3600 === 0) return { unit: 'h', val: seconds / 3600 };
+        if (seconds >= 60 && seconds % 60 === 0) return { unit: 'min', val: seconds / 60 };
+        return { unit: 's', val: seconds };
+    }
+
+    private toUnit(seconds: number, unit: 's' | 'min' | 'h'): number {
+        if (unit === 'min') return seconds / 60;
+        if (unit === 'h') return seconds / 3600;
+        return seconds;
     }
 
     private formatDuration(seconds: number): string {
