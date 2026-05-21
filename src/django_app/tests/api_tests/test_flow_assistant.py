@@ -2518,3 +2518,67 @@ async def test_stream_reply_disconnect_persists_partial(
     assert partial.get("interrupted") is True
     # The partial content should contain whatever tokens were streamed.
     assert "hello" in partial.get("content", "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_empty_and_no_tool_injects_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Reasoning model exhausted budget on reasoning, no final content → hint emitted and NOT persisted."""
+    from tables.services.flow_assistant import FlowAssistantService
+    from tables.models.flow_assistant_models import (
+        FlowAssistant,
+        FlowAssistantConversation,
+    )
+    from asgiref.sync import sync_to_async
+
+    user_message = "summarize this flow"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    async def fake_stream(messages, tools):
+        # Model only reasoned: no content tokens, no tool calls.
+        yield DoneEvent(reasoning_observed=True)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    # Hint must appear in the streamed token output.
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert any(hint_substring in c for c in token_contents), (
+        f"Expected hint substring in streamed tokens, got: {token_contents}"
+    )
+
+    # Hint must NOT be persisted to conversation history.
+    refreshed = await sync_to_async(FlowAssistantConversation.objects.get)(
+        pk=conversation.pk
+    )
+    persisted_messages = await sync_to_async(lambda: list(refreshed.messages))()
+    for msg in persisted_messages:
+        assert hint_substring not in (msg.get("content") or ""), (
+            f"Hint leaked into persisted history: {msg}"
+        )
