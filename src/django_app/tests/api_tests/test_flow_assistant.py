@@ -1613,7 +1613,7 @@ def test_build_system_prompt_file_load_and_substitution():
     assert "Smoke Test Flow" in result, "substituted flow_name must appear in output"
     assert "ef_tables" in result, "rich_format.md marker 'ef_tables' must be present"
     assert "${" not in result, "all Template placeholders must be substituted"
-    assert "particular kind of being" in result, "personality.md must be loaded"
+    assert "flow is your job description" in result, "personality.md must be loaded"
     assert "## Operational rules" in result, "instructions.md must be loaded with new section header"
 
 
