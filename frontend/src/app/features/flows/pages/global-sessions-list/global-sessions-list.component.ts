@@ -335,6 +335,12 @@ export class GlobalSessionsListComponent {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: () => {
+                    const previewedSession = this.previewSession();
+                    if (previewedSession && ids.includes(previewedSession.id)) {
+                        this.previewSession.set(null);
+                        this.isPanelOpen.set(false);
+                    }
+
                     const remaining = this.sessions().filter((s) => !ids.includes(s.id));
                     if (remaining.length === 0 && this.currentPage() > 1) {
                         this.currentPage.set(this.currentPage() - 1);
