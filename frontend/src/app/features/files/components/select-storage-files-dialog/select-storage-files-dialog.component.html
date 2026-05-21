@@ -1,0 +1,155 @@
+<div class="files-dialog">
+    <div class="files-dialog__header">
+        <h2 class="files-dialog__title">Select Files From Storage</h2>
+        <div class="files-dialog__header-actions">
+            <button
+                class="files-dialog__icon-btn files-dialog__icon-btn--cancel"
+                aria-label="Cancel"
+                (click)="onCancel()"
+            >
+                <app-svg-icon
+                    icon="x-fill"
+                    size="16px"
+                ></app-svg-icon>
+            </button>
+            <button
+                class="files-dialog__icon-btn files-dialog__icon-btn--confirm"
+                aria-label="Save changes"
+                [disabled]="isSaving()"
+                (click)="onConfirm()"
+            >
+                @if (isSaving()) {
+                    <app-spinner2 [size]="20" />
+                } @else {
+                    <app-svg-icon
+                        icon="check-fill"
+                        size="16px"
+                    ></app-svg-icon>
+                }
+            </button>
+        </div>
+    </div>
+
+    <div class="files-dialog__toolbar">
+        <div class="files-dialog__selected-info">
+            <span class="files-dialog__selected-label">Selected Files:</span>
+            <span class="files-dialog__selected-count">({{ selectedSizeLabel() }})</span>
+        </div>
+        <div class="files-dialog__toolbar-right">
+            <div class="files-dialog__search">
+                <app-svg-icon
+                    icon="search"
+                    size="0.875rem"
+                    class="files-dialog__search-icon"
+                ></app-svg-icon>
+                <input
+                    class="files-dialog__search-input"
+                    type="text"
+                    placeholder="Search folders, files..."
+                    [ngModel]="searchQuery()"
+                    (ngModelChange)="searchQuery.set($event)"
+                />
+            </div>
+            <button
+                class="files-dialog__add-btn"
+                (click)="onAddFilesToStorage()"
+            >
+                + Add Files to Storage
+            </button>
+        </div>
+    </div>
+
+    <div class="files-dialog__body">
+        <div class="files-dialog__file-list">
+            @if (isLoadingRoot()) {
+                <div class="files-dialog__state">Loading files...</div>
+            } @else if (visibleNodes().length === 0) {
+                <div class="files-dialog__state">No files found</div>
+            } @else {
+                @for (node of visibleNodes(); track node.path) {
+                    <div
+                        class="files-dialog__item"
+                        [class.files-dialog__item--checked]="isChecked(node)"
+                        [style.padding-left.px]="20 + node.level * 20"
+                        (click)="toggleCheck(node)"
+                    >
+                        @if (node.type === 'folder' && (node.hasChildren || node.isExpanded)) {
+                            <button
+                                class="files-dialog__chevron"
+                                [class.files-dialog__chevron--open]="node.isExpanded"
+                                (click)="toggleExpand($event, node)"
+                            >
+                                <app-svg-icon
+                                    icon="expand"
+                                    size="0.5rem"
+                                ></app-svg-icon>
+                            </button>
+                        } @else {
+                            <span class="files-dialog__chevron-gap"></span>
+                        }
+
+                        <div
+                            class="files-dialog__checkbox"
+                            [class.files-dialog__checkbox--checked]="isChecked(node)"
+                            [class.files-dialog__checkbox--indeterminate]="isIndeterminate(node)"
+                        >
+                            @if (isChecked(node)) {
+                                <svg
+                                    class="files-dialog__checkbox-tick"
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M11.8331 6.11886L7.26171 10.6903C7.20863 10.7435 7.14558 10.7857 7.07615 10.8145C7.00673 10.8433 6.93231 10.8582 6.85714 10.8582C6.78198 10.8582 6.70756 10.8433 6.63813 10.8145C6.56871 10.7857 6.50565 10.7435 6.45257 10.6903L4.16686 8.40457C4.05956 8.29727 3.99928 8.15174 3.99928 8C3.99928 7.84826 4.05956 7.70273 4.16686 7.59543C4.27416 7.48813 4.41968 7.42785 4.57143 7.42785C4.72317 7.42785 4.8687 7.48813 4.976 7.59543L6.85714 9.47771L11.024 5.30971C11.1313 5.20242 11.2768 5.14214 11.4286 5.14214C11.5803 5.14214 11.7258 5.20242 11.8331 5.30971C11.9404 5.41701 12.0007 5.56254 12.0007 5.71429C12.0007 5.86603 11.9404 6.01156 11.8331 6.11886Z"
+                                        fill="#212325"
+                                    />
+                                </svg>
+                            } @else if (isIndeterminate(node)) {
+                                <svg
+                                    class="files-dialog__checkbox-dash"
+                                    width="9"
+                                    height="2"
+                                    viewBox="0 0 9 2"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M0.599609 0.600006H7.59961"
+                                        stroke="#212325"
+                                        stroke-width="1.2"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+                            }
+                        </div>
+
+                        <app-svg-icon
+                            class="files-dialog__file-icon"
+                            [icon]="getFileIcon(node)"
+                            size="12px"
+                        ></app-svg-icon>
+
+                        <span
+                            class="files-dialog__item-name"
+                            [title]="node.name"
+                            >{{ node.name }}</span
+                        >
+
+                        @if (node.isLoading) {
+                            <span class="files-dialog__node-spinner">...</span>
+                        }
+
+                        @if (node.type === 'file' && node.size != null) {
+                            <span class="files-dialog__item-size">({{ formatSize(node.size) }})</span>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
