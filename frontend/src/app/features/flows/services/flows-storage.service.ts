@@ -251,6 +251,15 @@ export class FlowsStorageService {
                 if (currentSelected.includes(id)) {
                     this.selectedFlowIds.set(currentSelected.filter((selectedId) => selectedId !== id));
                 }
+                // Remove deleted flow from active include/exclude filter
+                const currentFilter = this.filterSignal();
+                if (currentFilter.includedFlowIds !== null && currentFilter.includedFlowIds.includes(id)) {
+                    const remaining = currentFilter.includedFlowIds.filter((fid) => fid !== id);
+                    this.setFilter({
+                        ...currentFilter,
+                        includedFlowIds: remaining.length > 0 ? remaining : null,
+                    });
+                }
             })
         );
     }

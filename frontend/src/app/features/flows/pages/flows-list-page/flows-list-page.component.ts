@@ -6,6 +6,7 @@ import {
     Component,
     computed,
     DestroyRef,
+    effect,
     inject,
     OnDestroy,
     OnInit,
@@ -129,6 +130,11 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
             .subscribe((term) => {
                 this.updateSearch(term);
             });
+
+        effect(() => {
+            const state = this.filterState();
+            this.syncFilterToUrl(state);
+        });
     }
 
     ngOnInit(): void {
