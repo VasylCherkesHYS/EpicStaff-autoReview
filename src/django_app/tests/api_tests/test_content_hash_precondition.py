@@ -30,9 +30,9 @@ def start_node(graph):
 
 @pytest.mark.django_db
 class TestContentHashPreconditionViewSet:
-    def test_patch_with_correct_hash_succeeds(self, api_client, crew_node):
+    def test_patch_with_correct_hash_succeeds(self, auth_client, crew_node):
         url = reverse("crewnode-detail", args=[crew_node.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {"node_name": "updated_name", "content_hash": crew_node.content_hash},
             format="json",
@@ -40,9 +40,9 @@ class TestContentHashPreconditionViewSet:
 
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_patch_with_stale_hash_returns_409(self, api_client, crew_node):
+    def test_patch_with_stale_hash_returns_409(self, auth_client, crew_node):
         url = reverse("crewnode-detail", args=[crew_node.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {"node_name": "updated_name", "content_hash": "stale_or_wrong_hash"},
             format="json",
@@ -51,10 +51,10 @@ class TestContentHashPreconditionViewSet:
         assert response.status_code == status.HTTP_409_CONFLICT, response.content
         assert response.data["code"] == "content_hash_conflict"
 
-    def test_patch_without_hash_succeeds(self, api_client, crew_node):
+    def test_patch_without_hash_succeeds(self, auth_client, crew_node):
         """Omitting content_hash skips validation — backward compatible."""
         url = reverse("crewnode-detail", args=[crew_node.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {"node_name": "updated_name"},
             format="json",
@@ -62,9 +62,9 @@ class TestContentHashPreconditionViewSet:
 
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_put_with_correct_hash_succeeds(self, api_client, crew_node):
+    def test_put_with_correct_hash_succeeds(self, auth_client, crew_node):
         url = reverse("crewnode-detail", args=[crew_node.id])
-        response = api_client.put(
+        response = auth_client.put(
             url,
             {
                 "node_name": "replaced_name",
@@ -78,9 +78,9 @@ class TestContentHashPreconditionViewSet:
 
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_put_with_stale_hash_returns_409(self, api_client, crew_node):
+    def test_put_with_stale_hash_returns_409(self, auth_client, crew_node):
         url = reverse("crewnode-detail", args=[crew_node.id])
-        response = api_client.put(
+        response = auth_client.put(
             url,
             {
                 "node_name": "replaced_name",
@@ -94,13 +94,13 @@ class TestContentHashPreconditionViewSet:
 
         assert response.status_code == status.HTTP_409_CONFLICT, response.content
 
-    def test_second_concurrent_update_is_rejected(self, api_client, crew_node):
+    def test_second_concurrent_update_is_rejected(self, auth_client, crew_node):
         """Simulate two users: first save wins, second is rejected with stale hash."""
         original_hash = crew_node.content_hash
         url = reverse("crewnode-detail", args=[crew_node.id])
 
         # User A saves successfully
-        response_a = api_client.patch(
+        response_a = auth_client.patch(
             url,
             {"node_name": "user_a_name", "content_hash": original_hash},
             format="json",
@@ -108,7 +108,7 @@ class TestContentHashPreconditionViewSet:
         assert response_a.status_code == status.HTTP_200_OK
 
         # User B still holds the original hash — their save is rejected
-        response_b = api_client.patch(
+        response_b = auth_client.patch(
             url,
             {"node_name": "user_b_name", "content_hash": original_hash},
             format="json",
@@ -123,9 +123,9 @@ class TestContentHashPreconditionViewSet:
 
 @pytest.mark.django_db
 class TestContentHashStartNode:
-    def test_patch_with_correct_hash_succeeds(self, api_client, start_node):
+    def test_patch_with_correct_hash_succeeds(self, auth_client, start_node):
         url = reverse("startnode-detail", args=[start_node.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {"variables": {"key": "value"}, "content_hash": start_node.content_hash},
             format="json",
@@ -133,9 +133,9 @@ class TestContentHashStartNode:
 
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_patch_with_stale_hash_returns_409(self, api_client, start_node):
+    def test_patch_with_stale_hash_returns_409(self, auth_client, start_node):
         url = reverse("startnode-detail", args=[start_node.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {"variables": {"key": "value"}, "content_hash": "wrong_hash"},
             format="json",
@@ -202,7 +202,7 @@ def python_code():
     return PythonCode.objects.create(
         code="def main(): return 1",
         entrypoint="main",
-        libraries="",
+        libraries=[],
         global_kwargs={},
     )
 
@@ -238,10 +238,10 @@ def ngrok_config():
 
 @pytest.mark.django_db
 class TestWebhookNodeNestedHashValidation:
-    def test_stale_python_code_hash_returns_409(self, api_client, webhook_node):
+    def test_stale_python_code_hash_returns_409(self, auth_client, webhook_node):
         """Sending a stale python_code.content_hash must be rejected with 409."""
         url = reverse("webhooktriggernode-detail", args=[webhook_node.id])
-        response = api_client.put(
+        response = auth_client.put(
             url,
             {
                 "node_name": webhook_node.node_name,
@@ -249,7 +249,7 @@ class TestWebhookNodeNestedHashValidation:
                 "python_code": {
                     "code": "def main(): return 99",
                     "entrypoint": "main",
-                    "libraries": "",
+                    "libraries": [],
                     "global_kwargs": {},
                     "content_hash": "stale_python_code_hash",
                 },
@@ -261,10 +261,10 @@ class TestWebhookNodeNestedHashValidation:
 
         assert response.status_code == status.HTTP_409_CONFLICT, response.content
 
-    def test_correct_python_code_hash_succeeds(self, api_client, webhook_node):
+    def test_correct_python_code_hash_succeeds(self, auth_client, webhook_node):
         """Sending the current python_code.content_hash succeeds."""
         url = reverse("webhooktriggernode-detail", args=[webhook_node.id])
-        response = api_client.put(
+        response = auth_client.put(
             url,
             {
                 "node_name": webhook_node.node_name,
@@ -272,7 +272,7 @@ class TestWebhookNodeNestedHashValidation:
                 "python_code": {
                     "code": "def main(): return 99",
                     "entrypoint": "main",
-                    "libraries": "",
+                    "libraries": [],
                     "global_kwargs": {},
                     "content_hash": webhook_node.python_code.content_hash,
                 },
@@ -284,11 +284,11 @@ class TestWebhookNodeNestedHashValidation:
 
         assert response.status_code == status.HTTP_200_OK, response.content
 
-    def test_node_hash_changes_after_python_code_edit(self, api_client, webhook_node):
+    def test_node_hash_changes_after_python_code_edit(self, auth_client, webhook_node):
         """Editing python_code must change the node's content_hash too."""
         original_node_hash = webhook_node.content_hash
         url = reverse("webhooktriggernode-detail", args=[webhook_node.id])
-        api_client.put(
+        auth_client.put(
             url,
             {
                 "node_name": webhook_node.node_name,
@@ -296,7 +296,7 @@ class TestWebhookNodeNestedHashValidation:
                 "python_code": {
                     "code": "def main(): return 999",
                     "entrypoint": "main",
-                    "libraries": "",
+                    "libraries": [],
                     "global_kwargs": {},
                 },
                 "webhook_trigger": None,
@@ -310,7 +310,7 @@ class TestWebhookNodeNestedHashValidation:
         assert webhook_node.content_hash != original_node_hash
 
     def test_hash_changes_when_ngrok_config_set(
-        self, api_client, webhook_node, ngrok_config
+        self, auth_client, webhook_node, ngrok_config
     ):
         """Changing webhook_trigger.ngrok_webhook_config must change the node hash."""
         # Create initial trigger with no ngrok
@@ -322,7 +322,7 @@ class TestWebhookNodeNestedHashValidation:
         hash_before = webhook_node.content_hash
 
         url = reverse("webhooktriggernode-detail", args=[webhook_node.id])
-        api_client.patch(
+        auth_client.patch(
             url,
             {
                 "webhook_trigger": {
@@ -345,19 +345,19 @@ class TestWebhookNodeNestedHashValidation:
 @pytest.mark.django_db
 class TestConditionalEdgeHashPropagation:
     def test_node_hash_changes_after_python_code_edit(
-        self, api_client, conditional_edge
+        self, auth_client, conditional_edge
     ):
         """Editing python_code on a conditional edge must change the edge hash."""
         original_edge_hash = conditional_edge.content_hash
         url = reverse("conditionaledge-detail", args=[conditional_edge.id])
 
-        api_client.patch(
+        auth_client.patch(
             url,
             {
                 "python_code": {
                     "code": "def main(): return 'changed'",
                     "entrypoint": "main",
-                    "libraries": "",
+                    "libraries": [],
                     "global_kwargs": {},
                 },
             },
@@ -368,16 +368,16 @@ class TestConditionalEdgeHashPropagation:
         conditional_edge.refresh_from_db()
         assert conditional_edge.content_hash != original_edge_hash
 
-    def test_stale_python_code_hash_returns_409(self, api_client, conditional_edge):
+    def test_stale_python_code_hash_returns_409(self, auth_client, conditional_edge):
         """Sending a stale python_code.content_hash must be rejected with 409."""
         url = reverse("conditionaledge-detail", args=[conditional_edge.id])
-        response = api_client.patch(
+        response = auth_client.patch(
             url,
             {
                 "python_code": {
                     "code": "def main(): return 'changed'",
                     "entrypoint": "main",
-                    "libraries": "",
+                    "libraries": [],
                     "global_kwargs": {},
                     "content_hash": "stale_hash",
                 },
