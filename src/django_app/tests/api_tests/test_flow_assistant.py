@@ -2643,3 +2643,69 @@ async def test_reasoning_with_content_does_not_inject_hint(
     assert not any(hint_substring in c for c in token_contents), (
         f"Hint should have been suppressed when content was produced: {token_contents}"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_with_tool_call_does_not_inject_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Model reasoned then called a tool → tool call IS the productive output → no hint."""
+    import fakeredis
+    from asgiref.sync import sync_to_async
+
+    user_message = "what nodes are in this flow?"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    call_count = {"n": 0}
+
+    async def fake_stream(messages, tools):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            # First iteration: model reasoned and called a tool.
+            yield ToolCallEvent(id="call_1", name="get_flow_overview", args={})
+            yield DoneEvent(reasoning_observed=True)
+        else:
+            # Second iteration: model produces final answer using tool result.
+            yield TokenEvent(content="Flow has 0 nodes.")
+            yield DoneEvent(reasoning_observed=False)
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert not any(hint_substring in c for c in token_contents), (
+        f"Hint should have been suppressed when a tool was called: {token_contents}"
+    )
