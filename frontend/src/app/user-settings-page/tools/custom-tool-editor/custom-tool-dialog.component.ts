@@ -26,10 +26,8 @@ import {
     ButtonComponent,
     ConfirmationDialogData,
     ConfirmationDialogService,
-    DynamicTableComponent,
     HelpTooltipComponent,
     JsonEditorComponent,
-    TableColumnDef,
 } from '@shared/components';
 
 import {
@@ -41,6 +39,8 @@ import {
 import { CustomToolsService } from '../../../features/tools/services/custom-tools/custom-tools.service';
 import { ToastService } from '../../../services/notifications';
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { DynamicTableComponent } from '../../../shared/components/dynamic-table/dynamic-table.component';
+import { TableColumnDef } from '../../../shared/components/dynamic-table/dynamic-table.models';
 import { CodeEditorComponent } from './code-editor/code-editor.component';
 import { ToolLibrariesComponent } from './tool-libraries/tool-libraries.component';
 
