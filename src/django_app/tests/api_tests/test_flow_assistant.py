@@ -2586,3 +2586,60 @@ async def test_reasoning_empty_and_no_tool_injects_hint(
         assert hint_substring not in (msg.get("content") or ""), (
             f"Hint leaked into persisted history: {msg}"
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_with_content_does_not_inject_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Model reasoned AND produced final content → hint must NOT appear."""
+    import fakeredis
+    from asgiref.sync import sync_to_async
+
+    user_message = "hi"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    async def fake_stream(messages, tools):
+        yield TokenEvent(content="hello")
+        yield DoneEvent(reasoning_observed=True)
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert not any(hint_substring in c for c in token_contents), (
+        f"Hint should have been suppressed when content was produced: {token_contents}"
+    )
