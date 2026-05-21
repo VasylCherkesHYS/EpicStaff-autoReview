@@ -273,3 +273,5 @@ CLAUDE.local.md
 /personal_files
 /docs/superpowers/
 pyrightconfig.json
+/scripts/python-notices-partial.md
+/scripts/.tmp_notices_venv/
