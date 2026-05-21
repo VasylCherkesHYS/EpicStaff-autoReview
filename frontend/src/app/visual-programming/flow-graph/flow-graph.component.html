@@ -313,9 +313,10 @@
                 ></app-toggle-switch>
             </div>
             <button
+                #arrangeBtnRef
                 class="arrange-btn"
                 title="Auto arrange"
-                [disabled]="!(flowService.nodes().length >= 2 && hasUnarrangedChanges())"
+                [disabled]="isArranging() || !(flowService.nodes().length >= 2 && hasUnarrangedChanges())"
                 (click)="onAutoArrange()"
             >
                 <app-svg-icon

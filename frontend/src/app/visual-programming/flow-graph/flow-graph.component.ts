@@ -5,6 +5,7 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
+    ElementRef,
     EventEmitter,
     inject,
     Injector,
@@ -151,6 +152,8 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     @ViewChild('nodePanelShell', { static: false })
     private nodePanelShell?: NodePanelShellComponent;
 
+    @ViewChild('arrangeBtnRef') private arrangeBtnRef?: ElementRef<HTMLButtonElement>;
+
     readonly GRID_CELL_SIZE = GRID_CELL_SIZE;
     protected readonly getMinimapClassForNode = getMinimapClassForNode;
     protected readonly eMarkerType = EFMarkerType;
@@ -162,8 +165,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     protected contextMenuPosition = signal<IPoint>({ x: 0, y: 0 });
     protected isLoaded = signal(false);
     private arrangeAnimationId: number | null = null;
+    private _arrangingLock = false;
     protected showContextMenu = signal(false);
     protected readonly hasUnarrangedChanges = signal(true);
+    protected readonly isArranging = signal<boolean>(false);
     protected showVariables = signal(false);
     public smartRoutingEnabled = signal<boolean>(false);
 
@@ -875,18 +880,39 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onAutoArrange(): void {
-        if (this.arrangeAnimationId !== null) {
-            cancelAnimationFrame(this.arrangeAnimationId);
-            this.arrangeAnimationId = null;
+        if (this._arrangingLock) return;
+        this._arrangingLock = true;
+        this.isArranging.set(true);
+        if (this.arrangeBtnRef) {
+            this.arrangeBtnRef.nativeElement.disabled = true;
         }
 
         const nodes = this.flowService.nodes();
-        if (nodes.length === 0) return;
-
-        this.undoRedoService.stateChanged();
+        if (nodes.length === 0) {
+            this._arrangingLock = false;
+            this.isArranging.set(false);
+            if (this.arrangeBtnRef) {
+                this.arrangeBtnRef.nativeElement.disabled = false;
+            }
+            return;
+        }
 
         const connections = this.flowService.connections();
         const newPositions = computeAutoArrangePositions(nodes, connections);
+
+        const alreadyArranged = nodes.every((n) => {
+            const target = newPositions.get(n.id);
+            return !target || (n.position.x === target.x && n.position.y === target.y);
+        });
+        if (alreadyArranged) {
+            this.hasUnarrangedChanges.set(false);
+            this._arrangingLock = false;
+            this.isArranging.set(false);
+            return;
+        }
+
+        this.undoRedoService.stateChanged();
+
         const startPositions = new Map(nodes.map((n) => [n.id, { ...n.position }]));
 
         // Pre-identify non-user-adjusted backward connections for per-frame arc updates.
@@ -982,6 +1008,11 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                     this.cd.detectChanges();
                     this.fFlowComponent?.redraw();
                     this.hasUnarrangedChanges.set(false);
+                    this._arrangingLock = false;
+                    this.isArranging.set(false);
+                    if (this.arrangeBtnRef) {
+                        this.arrangeBtnRef.nativeElement.disabled = false;
+                    }
                 }, 0);
             }
         };
