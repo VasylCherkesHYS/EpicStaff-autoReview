@@ -2526,11 +2526,7 @@ async def test_reasoning_empty_and_no_tool_injects_hint(
     graph, llm_config, user_a, org_a, default_role, db
 ):
     """Reasoning model exhausted budget on reasoning, no final content → hint emitted and NOT persisted."""
-    from tables.services.flow_assistant import FlowAssistantService
-    from tables.models.flow_assistant_models import (
-        FlowAssistant,
-        FlowAssistantConversation,
-    )
+    import fakeredis
     from asgiref.sync import sync_to_async
 
     user_message = "summarize this flow"
@@ -2550,16 +2546,24 @@ async def test_reasoning_empty_and_no_tool_injects_hint(
         ],
     )
 
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
     async def fake_stream(messages, tools):
         # Model only reasoned: no content tokens, no tool calls.
         yield DoneEvent(reasoning_observed=True)
 
     with patch(
         "tables.services.flow_assistant.service.get_llm_client"
-    ) as mock_get_client:
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
         mock_client = MagicMock()
         mock_client.stream_completion = fake_stream
         mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
 
         service = FlowAssistantService()
         events = []
