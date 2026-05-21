@@ -76,6 +76,19 @@
                                     [data]="message.content"
                                     [inline]="false"
                                 />
+                            } @else if (
+                                isLastStreamingAssistant(message, $index) &&
+                                !message.ef_tables &&
+                                !message.action_message?.length
+                            ) {
+                                <span
+                                    class="typing-indicator"
+                                    aria-label="Model is thinking"
+                                >
+                                    <span class="typing-indicator__dot"></span>
+                                    <span class="typing-indicator__dot"></span>
+                                    <span class="typing-indicator__dot"></span>
+                                </span>
                             }
                             @if (message.ef_tables) {
                                 @for (table of message.ef_tables; track $index) {
