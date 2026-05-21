@@ -61,18 +61,54 @@ const DEFAULT_VALUE_ERROR_MESSAGES = {
     invalidBoolean: 'Default value must be "true" or "false".',
 };
 
-export const getCellExtraValidators = (row: TableRow, colKey: string): ValidatorFn[] => {
-    if (colKey !== 'default_value') return [];
-    const type = row.data['type'];
-    switch (type) {
-        case 'number':
-            return [numberValueValidator];
-        case 'boolean':
-            return [booleanValueValidator];
-        default:
-            return [];
-    }
+const USER_INPUT_VALUE_ERROR_MESSAGES = {
+    ...DEFAULT_VALUE_ERROR_MESSAGES,
+    required: 'Value is required.',
+    objectChildrenRequired: 'Object must have at least one valid nested field.',
 };
+
+const objectChildrenRequiredValidator: ValidatorFn = () => ({ objectChildrenRequired: true });
+
+function hasValidChild(children: ToolVariable[]): boolean {
+    return children.some((c) => {
+        if (!isVariableShallowValid(c)) return false;
+        if (c.type === 'object') return hasValidChild(c.children ?? []);
+        return true;
+    });
+}
+
+export function createCellExtraValidators(
+    inputType: VariableInputType
+): (row: TableRow, colKey: string) => ValidatorFn[] {
+    return (row: TableRow, colKey: string): ValidatorFn[] => {
+        if (colKey !== 'default_value') return [];
+        const type = row.data['type'];
+
+        if (inputType === 'user_input') {
+            if (type === 'object') {
+                const children = (row.data['children'] as ToolVariable[]) ?? [];
+                return hasValidChild(children) ? [] : [objectChildrenRequiredValidator];
+            }
+            switch (type) {
+                case 'number':
+                    return [Validators.required, numberValueValidator];
+                case 'boolean':
+                    return [Validators.required, booleanValueValidator];
+                default:
+                    return [Validators.required];
+            }
+        }
+
+        switch (type) {
+            case 'number':
+                return [numberValueValidator];
+            case 'boolean':
+                return [booleanValueValidator];
+            default:
+                return [];
+        }
+    };
+}
 
 const NAME_COLUMN: TableColumnDef = {
     key: 'name',
@@ -115,7 +151,8 @@ export const USER_INPUT_COLUMN_DEFS = [
         type: 'input',
         width: '260px',
         placeholder: '',
-        errorMessages: DEFAULT_VALUE_ERROR_MESSAGES,
+        required: true,
+        errorMessages: USER_INPUT_VALUE_ERROR_MESSAGES,
     },
     DESCRIPTION_COLUMN,
 ] satisfies TableColumnDef[];
@@ -178,7 +215,10 @@ export function variableToRowData(v: ToolVariable): Record<string, unknown> {
         name: v.name,
         type: v.type,
         description: v.description,
-        default_value: v.default_value === null || v.default_value === undefined ? '' : String(v.default_value),
+        default_value:
+            v.type === 'object' || v.default_value === null || v.default_value === undefined
+                ? ''
+                : String(v.default_value),
         required: v.required,
         children: Array.isArray(v.children) ? v.children : [],
     };
@@ -289,6 +329,20 @@ function childrenToProperties(children: ToolVariable[]): {
     return { properties, required_properties };
 }
 
+function buildObjectDefaultValue(children: ToolVariable[]): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const child of children) {
+        const name = child.name?.trim();
+        if (!name) continue;
+        if (child.type === 'object') {
+            result[name] = buildObjectDefaultValue(child.children ?? []);
+        } else {
+            result[name] = child.default_value ?? null;
+        }
+    }
+    return result;
+}
+
 export function serializeVariables(vars: ToolVariable[]): BackendToolVariable[] {
     return vars.map((v) => {
         const out: BackendToolVariable = {
@@ -301,6 +355,7 @@ export function serializeVariables(vars: ToolVariable[]): BackendToolVariable[] 
         };
 
         if (v.type === 'object') {
+            out.default_value = buildObjectDefaultValue(v.children ?? []);
             const nested = childrenToProperties(v.children ?? []);
             out.properties = nested.properties;
             out.required_properties = nested.required_properties;
@@ -397,6 +452,14 @@ function isVariableShallowValid(v: ToolVariable): boolean {
     if (typeof v.description === 'string' && v.description.length > DESCRIPTION_MAX_LENGTH) {
         return false;
     }
+
+    if (v.input_type === 'user_input' && v.type !== 'object') {
+        // allow 0 or false
+        if (v.default_value === null || v.default_value === undefined || v.default_value === '') {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -408,8 +471,14 @@ export function validateVariablesTree(vars: ToolVariable[]): boolean {
     for (const v of vars) {
         if (!isVariableShallowValid(v)) return false;
         names.push(v.name.trim());
-        if (v.type === 'object' && Array.isArray(v.children) && !validateVariablesTree(v.children)) {
-            return false;
+        if (v.type === 'object') {
+            const children = Array.isArray(v.children) ? v.children : [];
+            if (v.input_type === 'user_input' && !hasValidChild(children)) {
+                return false;
+            }
+            if (children.length > 0 && !validateVariablesTree(children)) {
+                return false;
+            }
         }
     }
     if (new Set(names).size !== names.length) return false;

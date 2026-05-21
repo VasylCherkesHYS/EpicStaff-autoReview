@@ -1,10 +1,10 @@
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, effect, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, viewChild } from '@angular/core';
 
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { DynamicTableComponent } from '../../../../../../shared/components/dynamic-table/dynamic-table.component';
 import { TableRow } from '../../../../../../shared/components/dynamic-table/dynamic-table.models';
-import { getCellExtraValidators, VariableInputType, VariableSectionConfig } from '../parameters-table.config';
+import { createCellExtraValidators, VariableInputType, VariableSectionConfig } from '../parameters-table.config';
 
 @Component({
     selector: 'app-variable-section',
@@ -30,7 +30,7 @@ export class VariableSectionComponent {
     private tableRef = viewChild<DynamicTableComponent>('table');
     readonly rows = signal<Record<string, unknown>[]>([]);
 
-    readonly getCellExtraValidators = getCellExtraValidators;
+    readonly cellExtraValidators = computed(() => createCellExtraValidators(this.config().inputType));
 
     readonly isObjectRow = (row: TableRow): boolean => row.data['type'] === 'object';
 

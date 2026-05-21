@@ -166,14 +166,28 @@
                                     <div class="dt__td-inner">
                                         @switch (col.type) {
                                             @case ('input') {
-                                                <input
-                                                    class="dt__cell-input"
-                                                    type="text"
-                                                    [placeholder]="col.placeholder ?? ''"
-                                                    [ngModel]="getCellValue(row._id, col.key)"
-                                                    (ngModelChange)="onCellChange(row._id, col.key, $event)"
-                                                    [disabled]="!!isCellDisabled()?.(row, col.key)"
-                                                />
+                                                @if (navigateCellKey() === col.key && rowNavigable()?.(row)) {
+                                                    <button
+                                                        type="button"
+                                                        class="dt__navigate-btn dt__navigate-btn--cell"
+                                                        (click)="navigateRow.emit({ row, rowIndex })"
+                                                        title="Open nested properties"
+                                                    >
+                                                        <app-svg-icon
+                                                            icon="go-to-arrow"
+                                                            size="14px"
+                                                        />
+                                                    </button>
+                                                } @else {
+                                                    <input
+                                                        class="dt__cell-input"
+                                                        type="text"
+                                                        [placeholder]="col.placeholder ?? ''"
+                                                        [ngModel]="getCellValue(row._id, col.key)"
+                                                        (ngModelChange)="onCellChange(row._id, col.key, $event)"
+                                                        [disabled]="!!isCellDisabled()?.(row, col.key)"
+                                                    />
+                                                }
                                             }
                                             @case ('select') {
                                                 <select
@@ -218,7 +232,7 @@
                                 [style.min-width.px]="actionColWidth()"
                             >
                                 <div class="dt__action-cell">
-                                    @if (rowNavigable()?.(row)) {
+                                    @if (rowNavigable()?.(row) && !navigateCellKey()) {
                                         <button
                                             type="button"
                                             class="dt__navigate-btn"

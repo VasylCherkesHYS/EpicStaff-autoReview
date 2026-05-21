@@ -328,6 +328,10 @@
         &:hover {
             background-color: rgba(104, 95, 255, 0.12);
         }
+
+        &--cell {
+            margin: 0 auto 0 0;
+        }
     }
 
     &__remove-btn {

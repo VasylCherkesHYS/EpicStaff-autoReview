@@ -51,6 +51,9 @@ export class DynamicTableComponent implements OnInit {
     // Navigate-into-row (e.g. for object-type rows)
     rowNavigable = input<((row: TableRow) => boolean) | null>(null);
 
+    // When set, navigable rows show the navigate button inside this cell instead of the action column.
+    navigateCellKey = input<string | null>(null);
+
     // Optionally disable a cell input based on row and column key
     isCellDisabled = input<((row: TableRow, colKey: string) => boolean) | null>(null);
 
@@ -102,7 +105,7 @@ export class DynamicTableComponent implements OnInit {
 
     // Column resize
     colWidths = signal<Record<string, number>>({});
-    actionColWidth = computed(() => (this.rowNavigable() !== null ? 68 : 36));
+    actionColWidth = computed(() => (this.rowNavigable() !== null && !this.navigateCellKey() ? 68 : 36));
     tableMinWidth = computed(() => {
         const spacers = (this.allowRowDrag() ? 36 : 0) + this.actionColWidth();
         return this.columns().reduce((sum, col) => sum + this.getColWidth(col.key), spacers);
@@ -323,7 +326,6 @@ export class DynamicTableComponent implements OnInit {
         // Per-cell validator errors (only if touched)
         for (const row of this.rows()) {
             for (const col of cols) {
-                if (!col.validators?.length) continue;
                 const control = this.cellControls.get(`${row._id}_${col.key}`);
                 if (control && control.invalid && control.touched) {
                     pushError(this.getErrorMessage(col, control));
