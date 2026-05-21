@@ -47,6 +47,7 @@ class ToolResultEvent:
 @dataclass
 class DoneEvent:
     interrupted: bool = False
+    reasoning_observed: bool = False
     type: str = field(default="done", init=False)
 
 
