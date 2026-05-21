@@ -95,8 +95,8 @@ import {
                         (previewSession)="onPreviewSession($event)"
                     ></app-flow-sessions-table>
                 </div>
-                @if (isLoaded() && totalCount() > pageSize()) {
-                    <div class="pagination-container">
+                <div class="pagination-container">
+                    @if (isLoaded() && totalCount() > pageSize()) {
                         <app-pagination-controls
                             [pageSize]="pageSize()"
                             [totalCount]="totalCount()"
@@ -104,8 +104,19 @@ import {
                             [maxPagesToShow]="5"
                             (pageChange)="onPageChange($event)"
                         ></app-pagination-controls>
-                    </div>
-                }
+                    }
+                    <label class="page-size-selector">
+                        <span>Sessions per page</span>
+                        <select
+                            [value]="pageSize()"
+                            (change)="onPageSizeChange(+$any($event.target).value)"
+                        >
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </label>
+                </div>
             </div>
 
             <div
@@ -256,6 +267,11 @@ export class GlobalSessionsListComponent {
 
     public onPageChange(page: number): void {
         this.currentPage.set(page);
+    }
+
+    public onPageSizeChange(size: number): void {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
     }
 
     public onViewSession(sessionId: number): void {

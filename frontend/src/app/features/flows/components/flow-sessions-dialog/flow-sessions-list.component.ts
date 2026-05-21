@@ -248,6 +248,11 @@ export class FlowSessionsListComponent implements OnInit {
         this.currentPage.set(page);
     }
 
+    onPageSizeChange(size: number) {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
+    }
+
     onStatusFilterChange(values: string[]) {
         this.currentPage.set(1);
         this.statusFilter.set(values);
