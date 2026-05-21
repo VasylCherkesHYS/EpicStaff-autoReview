@@ -303,7 +303,15 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     }
 
     toggleSelectAll(checked: boolean) {
-        this.selectedIds.set(checked ? new Set(this.sessions.map((s) => s.id)) : new Set());
+        this.selectedIds.update((set) => {
+            const s = new Set(set);
+            if (checked) {
+                this.sessions.forEach((session) => s.add(session.id));
+            } else {
+                this.sessions.forEach((session) => s.delete(session.id));
+            }
+            return s;
+        });
         this.selectedIdsChange.emit(this.selectedIds());
         this.cdr.markForCheck();
     }
