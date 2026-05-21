@@ -41,7 +41,6 @@ interface TreeNode {
 
 @Component({
     selector: 'app-select-storage-files-dialog',
-    standalone: true,
     imports: [FormsModule, AppSvgIconComponent, Spinner2Component],
     templateUrl: './select-storage-files-dialog.component.html',
     styleUrls: ['./select-storage-files-dialog.component.scss'],

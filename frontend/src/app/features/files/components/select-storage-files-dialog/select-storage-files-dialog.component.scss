@@ -252,13 +252,8 @@
         &--indeterminate {
             background-color: rgba(217, 217, 222, 1);
             border-color: rgba(217, 217, 222, 1);
+            color: var(--color-background-body);
         }
-    }
-
-    &__checkbox-tick,
-    &__checkbox-dash {
-        display: block;
-        flex-shrink: 0;
     }
 
     &__file-icon {

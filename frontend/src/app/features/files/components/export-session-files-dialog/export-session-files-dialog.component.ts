@@ -29,7 +29,6 @@ interface TreeNode {
 
 @Component({
     selector: 'app-export-session-files-dialog',
-    standalone: true,
     imports: [FormsModule, AppSvgIconComponent, Spinner2Component],
     templateUrl: './export-session-files-dialog.component.html',
     styleUrls: ['./export-session-files-dialog.component.scss'],
