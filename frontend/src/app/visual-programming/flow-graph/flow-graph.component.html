@@ -312,13 +312,20 @@
                     (checkedChange)="onSmartRoutingToggle($event)"
                 ></app-toggle-switch>
             </div>
+            <button
+                class="arrange-btn"
+                title="Auto arrange"
+                [disabled]="!(flowService.nodes().length >= 2 && hasUnarrangedChanges())"
+                (click)="onAutoArrange()"
+            >
+                <app-svg-icon
+                    icon="auto-arrange"
+                    size="38px"
+                ></app-svg-icon>
+            </button>
         </div>
     </div>
-    <app-flow-action-panel
-        [canAutoArrange]="flowService.nodes().length >= 2 && hasUnarrangedChanges()"
-        (autoArrangeRequested)="onAutoArrange()"
-        (undoRedoPerformed)="hasUnarrangedChanges.set(true)"
-    ></app-flow-action-panel>
+    <app-flow-action-panel (undoRedoPerformed)="hasUnarrangedChanges.set(true)"></app-flow-action-panel>
 
     @if (showContextMenu()) {
         <app-flow-graph-context-menu

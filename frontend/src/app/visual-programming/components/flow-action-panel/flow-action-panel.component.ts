@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, input, output } from '@angular/core';
+import { Component, output } from '@angular/core';
 
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { UndoRedoService } from '../../services/undo-redo.service';
@@ -12,9 +12,7 @@ import { UndoRedoService } from '../../services/undo-redo.service';
     styleUrls: ['./flow-action-panel.component.scss'],
 })
 export class FlowActionPanelComponent {
-    readonly autoArrangeRequested = output<void>();
     readonly undoRedoPerformed = output<void>();
-    readonly canAutoArrange = input<boolean>(true);
 
     readonly actionIcons = [
         { icon: 'arrow-back-up', tooltip: 'Undo', action: 'undo' },
