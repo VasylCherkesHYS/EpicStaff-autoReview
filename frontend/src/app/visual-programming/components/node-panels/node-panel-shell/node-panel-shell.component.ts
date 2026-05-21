@@ -1,9 +1,21 @@
 import { NgComponentOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, viewChild } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    input,
+    output,
+    Signal,
+    signal,
+    viewChild,
+} from '@angular/core';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ShortcutListenerDirective } from '../../../core/directives/shortcut-listener.directive';
 import { PANEL_COMPONENT_MAP } from '../../../core/enums/node-panel.map';
+import { NodeType } from '../../../core/enums/node-type';
 import { NodeModel } from '../../../core/models/node.model';
 import { NodePanel } from '../../../core/models/node-panel.interface';
 import { SidePanelService } from '../../../services/side-panel.service';
@@ -11,7 +23,7 @@ import { SidePanelService } from '../../../services/side-panel.service';
 @Component({
     standalone: true,
     selector: 'app-node-panel-shell',
-    imports: [NgComponentOutlet, AppSvgIconComponent],
+    imports: [NgComponentOutlet, AppSvgIconComponent, MatTooltipModule],
     hostDirectives: [
         {
             directive: ShortcutListenerDirective,
@@ -38,6 +50,23 @@ import { SidePanelService } from '../../../services/side-panel.service';
                         <span class="title">{{ nodeNameToDisplay() }}</span>
                     </div>
                     <div class="header-actions">
+                        @if (showSaveButton()) {
+                            <button
+                                class="save-btn"
+                                [class.save-btn--icon-only]="!isExpanded()"
+                                type="button"
+                                matTooltip="Save local node changes"
+                                matTooltipPosition="below"
+                                [disabled]="panelInstanceSig()?.form?.invalid || panelInstanceSig()?.isSaving?.()"
+                                (click)="onHeaderSaveClick()"
+                            >
+                                <app-svg-icon
+                                    icon="floppy"
+                                    size="1.25rem"
+                                ></app-svg-icon>
+                                <span class="btn-label">Save</span>
+                            </button>
+                        }
                         @if (shouldShowExpandButton()) {
                             <button
                                 class="expand-btn"
@@ -99,7 +128,7 @@ export class NodePanelShellComponent {
 
     public readonly shouldShowExpandButton = computed(() => {
         const node = this.node();
-        return node && node.type !== 'table';
+        return node && node.type !== 'table' && node.type !== NodeType.SCHEDULE_TRIGGER;
     });
 
     protected readonly outlet = viewChild(NgComponentOutlet);
@@ -117,6 +146,13 @@ export class NodePanelShellComponent {
     protected readonly isShaking = signal(false);
     protected readonly isExpanded = signal(false);
     private panelInstance: (NodePanel & { onSaveSilently?: () => NodeModel | null }) | null = null;
+    protected readonly panelInstanceSig = signal<{
+        isDirty?: Signal<boolean>;
+        isSaving?: Signal<boolean>;
+        form?: { invalid: boolean };
+        onSaveClick?: () => void;
+    } | null>(null);
+    protected readonly showSaveButton = computed(() => this.panelInstanceSig()?.isDirty?.() ?? false);
     private previousNodeId: string | null = null;
     private isUpdatingNode = false;
     private isAutosaving = false;
@@ -137,6 +173,10 @@ export class NodePanelShellComponent {
         effect(() => {
             const node = this.node();
             if (node) {
+                if (this.previousNodeId !== node.id) {
+                    this.isExpanded.set(false);
+                }
+
                 // Auto-expand for decision table nodes
                 if (node.type === 'table') {
                     this.isExpanded.set(true);
@@ -159,6 +199,14 @@ export class NodePanelShellComponent {
                         this.panelInstance = outletRef.componentInstance as NodePanel & {
                             onSaveSilently?: () => NodeModel | null;
                         };
+                        this.panelInstanceSig.set(
+                            outletRef.componentInstance as {
+                                isDirty?: Signal<boolean>;
+                                isSaving?: Signal<boolean>;
+                                form?: { invalid: boolean };
+                                onSaveClick?: () => void;
+                            }
+                        );
                         this.previousNodeId = node.id;
                         this.isUpdatingNode = false;
                     }
@@ -166,6 +214,7 @@ export class NodePanelShellComponent {
             } else {
                 // Reset when no node is selected
                 this.panelInstance = null;
+                this.panelInstanceSig.set(null);
                 this.previousNodeId = null;
                 this.isUpdatingNode = false;
                 this.isAutosaving = false;
@@ -179,6 +228,10 @@ export class NodePanelShellComponent {
                 this.sidePanelService.clearExpandRequest();
             }
         });
+    }
+
+    protected onHeaderSaveClick(): void {
+        this.panelInstanceSig()?.onSaveClick?.();
     }
 
     protected onCloseClick(): void {
@@ -205,6 +258,7 @@ export class NodePanelShellComponent {
     }
 
     public expandPanel(): void {
+        if (!this.shouldShowExpandButton()) return;
         this.isExpanded.set(true);
     }
 
@@ -213,8 +267,10 @@ export class NodePanelShellComponent {
             const updatedNode = this.panelInstance.onSave();
             if (updatedNode) {
                 this.save.emit(updatedNode);
+                return;
             }
         }
+        this.sidePanelService.clearSelection();
     }
 
     private performAutosave(): void {
@@ -244,5 +300,9 @@ export class NodePanelShellComponent {
             console.error('Failed to capture node panel state via onSave', error);
             return null;
         }
+    }
+
+    public hasPanelInstance(): boolean {
+        return this.panelInstance !== null;
     }
 }
