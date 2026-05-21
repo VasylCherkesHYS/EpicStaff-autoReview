@@ -159,12 +159,23 @@ class LiteLLMClient(BaseLLMClient):
             lambda: {"id": "", "name": "", "args": ""}
         )
 
+        # Track whether the model emitted any `delta.reasoning_content`
+        # during this turn. Reasoning models (gpt-oss, o1, claude-thinking,
+        # DeepSeek-R1) populate this; non-reasoning models leave it absent.
+        reasoning_observed = False
+
         response = await litellm.acompletion(**kwargs)
 
         async for chunk in response:
             delta = chunk.choices[0].delta if chunk.choices else None
             if delta is None:
                 continue
+
+            # Silently consume reasoning tokens — never forwarded as TokenEvent
+            # (FE shows "status only" per design). Just record the fact;
+            # surfaced via DoneEvent at end-of-stream for the service gate.
+            if getattr(delta, "reasoning_content", None):
+                reasoning_observed = True
 
             # Text token
             if delta.content:
@@ -197,4 +208,4 @@ class LiteLLMClient(BaseLLMClient):
                     args = {"_raw": acc["args"]}
                 yield ToolCallEvent(id=acc["id"], name=acc["name"], args=args)
 
-        yield DoneEvent()
+        yield DoneEvent(reasoning_observed=reasoning_observed)
