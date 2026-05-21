@@ -237,12 +237,15 @@ export class GraphSessionService {
     }
 
     private applyDurationParams(params: HttpParams, filter: DurationFilter): HttpParams {
-        if (filter.operator === 'lessThan') return params.set('duration_lessThan', filter.value.toString());
-        if (filter.operator === 'greaterThan') return params.set('duration_greaterThan', filter.value.toString());
-        if (filter.operator === 'equal') return params.set('duration_equal', filter.value.toString());
+        if (filter.operator === 'lessThan') return params.set('duration_lt', filter.value.toString());
+        if (filter.operator === 'greaterThan') return params.set('duration_gt', filter.value.toString());
+        if (filter.operator === 'equal') {
+            params = params.set('duration_gte', filter.value.toString());
+            params = params.set('duration_lte', filter.value.toString());
+        }
         if (filter.operator === 'between') {
-            params = params.set('duration_greaterThan', filter.value.toString());
-            if (filter.value2 != null) params = params.set('duration_lessThan', filter.value2.toString());
+            params = params.set('duration_gte', filter.value.toString());
+            if (filter.value2 != null) params = params.set('duration_lte', filter.value2.toString());
         }
         return params;
     }

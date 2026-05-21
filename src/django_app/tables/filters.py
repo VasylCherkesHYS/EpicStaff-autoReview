@@ -1,6 +1,7 @@
-from datetime import timedelta
+# from datetime import timedelta
 
-from django.db.models import OuterRef, Exists, F, DurationField, ExpressionWrapper
+from django.db.models import OuterRef, Exists, F, IntegerField
+from django.db.models.functions import Extract, Cast
 from django_filters import rest_framework as filters
 from tables.models import GraphSessionMessage
 from rest_framework.filters import BaseFilterBackend
@@ -70,34 +71,42 @@ class SessionFilter(filters.FilterSet):
     is_error_cause = filters.BooleanFilter(method="filter_by_error_cause")
 
     # duration filters
-    duration_lessThan = filters.NumberFilter(method="filter_duration_lt")
-    duration_greaterThan = filters.NumberFilter(method="filter_duration_gt")
-    duration_equal = filters.NumberFilter(method="filter_duration_equal")
+    duration_lt = filters.NumberFilter(method="filter_duration_lt")
+    duration_gt = filters.NumberFilter(method="filter_duration_gt")
+    duration_lte = filters.NumberFilter(method="filter_duration_lte")
+    duration_gte = filters.NumberFilter(method="filter_duration_gte")
 
     class Meta:
         model = Session
         fields = ["graph_id", "graph_name", "status", "node_name"]
 
     def _annotate_duration(self, queryset):
+        """Calculate duration and cast it to integer type"""
         return queryset.annotate(
-            duration=ExpressionWrapper(
-                F("finished_at") - F("created_at"), output_field=DurationField()
+            duration=Cast(
+                Extract(F("finished_at") - F("created_at"), "epoch"),
+                output_field=IntegerField(),
             )
         )
 
     def filter_duration_lt(self, queryset, name, value):
         return self._annotate_duration(queryset).filter(
-            finished_at__isnull=False, duration__lt=timedelta(seconds=int(value))
+            finished_at__isnull=False, duration__lt=value
         )
 
     def filter_duration_gt(self, queryset, name, value):
         return self._annotate_duration(queryset).filter(
-            finished_at__isnull=False, duration__gt=timedelta(seconds=int(value))
+            finished_at__isnull=False, duration__gt=value
         )
 
-    def filter_duration_equal(self, queryset, name, value):
+    def filter_duration_lte(self, queryset, name, value):
         return self._annotate_duration(queryset).filter(
-            finished_at__isnull=False, duration=timedelta(seconds=int(value))
+            finished_at__isnull=False, duration__lte=value
+        )
+
+    def filter_duration_gte(self, queryset, name, value):
+        return self._annotate_duration(queryset).filter(
+            finished_at__isnull=False, duration__gte=value
         )
 
     def filter_by_error_cause(self, queryset, name, value):
