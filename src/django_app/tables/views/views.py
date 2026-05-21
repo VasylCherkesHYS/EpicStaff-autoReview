@@ -27,10 +27,7 @@ from utils.logger import logger
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
-    OpenApiResponse,
-    inline_serializer,
 )
-from rest_framework import serializers as drf_serializers
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef
 from django.conf import settings
@@ -99,6 +96,18 @@ from tables.models.default_models import DefaultModels
 from tables.filters import SessionFilter  # CollectionFilter,
 
 from tables.swagger_schemas.crews_schema import CREW_DELETE
+from tables.swagger_schemas.default_config_schemas import (
+    DEFAULT_EMBEDDING_CONFIG_GET,
+    DEFAULT_EMBEDDING_CONFIG_PUT,
+    DEFAULT_LLM_CONFIG_GET,
+    DEFAULT_LLM_CONFIG_PUT,
+    ENVIRONMENT_CONFIG_GET,
+    ENVIRONMENT_CONFIG_POST,
+    ENVIRONMENT_CONFIG_DELETE,
+    QUICKSTART_GET,
+    QUICKSTART_POST,
+    QUICKSTART_APPLY_POST,
+)
 from tables.swagger_schemas.knowledge_schemas.naive_rag_schemas import (
     PROCESS_RAG_INDEXING_POST,
 )
@@ -121,6 +130,7 @@ from tables.swagger_schemas.telegram_schemas import (
     REGISTER_TELEGRAM_TRIGGER_POST,
 )
 from tables.swagger_schemas.webhook_schemas import REGISTER_WEBHOOKS_POST
+from tables.swagger_schemas.python_code_schemas import RUN_PYTHON_CODE_POST
 from .default_config import *
 
 
@@ -429,24 +439,14 @@ class StopSession(APIView):
 
 
 class EnvironmentConfig(APIView):
-    @extend_schema(
-        responses={
-            200: OpenApiResponse(description="Config retrieved successfully"),
-        },
-    )
+    @extend_schema(**ENVIRONMENT_CONFIG_GET)
     def get(self, request, format=None):
         config_dict: dict = config_service.get_all()
         logger.info("Configuration retrieved successfully.")
 
         return Response(status=status.HTTP_200_OK, data={"data": config_dict})
 
-    @extend_schema(
-        request=EnvironmentConfigSerializer,
-        responses={
-            201: OpenApiResponse(description="Config updated successfully"),
-            400: OpenApiResponse(description="Invalid config data provided"),
-        },
-    )
+    @extend_schema(**ENVIRONMENT_CONFIG_POST)
     def post(self, request, *args, **kwargs):
         serializer = EnvironmentConfigSerializer(data=request.data)
         if not serializer.is_valid():
@@ -461,13 +461,7 @@ class EnvironmentConfig(APIView):
         return Response(data={"data": updated_config}, status=status.HTTP_201_CREATED)
 
 
-@extend_schema(
-    responses={
-        204: OpenApiResponse(description="Config deleted successfully"),
-        400: OpenApiResponse(description="No key provided"),
-        404: OpenApiResponse(description="Key not found"),
-    },
-)
+@extend_schema(**ENVIRONMENT_CONFIG_DELETE)
 @api_view(["DELETE"])
 def delete_environment_config(request, *args, **kwargs):
     key: str | None = kwargs.get("key", None)
@@ -579,28 +573,14 @@ class CrewDeleteAPIView(APIView):
 
 
 class DefaultLLMConfigAPIView(APIView):
-    @extend_schema(
-        summary="Get llm config defaults",
-        responses={
-            200: DefaultLLMConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-        },
-    )
+    @extend_schema(**DEFAULT_LLM_CONFIG_GET)
     def get(self, request, *args, **kwargs):
         obj = DefaultLLMConfig.objects.first()
         serializer = DefaultLLMConfigSerializer(obj, many=False)
 
         return Response(serializer.data)
 
-    @extend_schema(
-        summary="Update llm config defaults",
-        request=DefaultLLMConfigSerializer,
-        responses={
-            200: DefaultLLMConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-            400: OpenApiResponse(description="Validation Error"),
-        },
-    )
+    @extend_schema(**DEFAULT_LLM_CONFIG_PUT)
     def put(self, request, *args, **kwargs):
         try:
             obj = DefaultLLMConfig.objects.get(pk=1)
@@ -617,28 +597,14 @@ class DefaultLLMConfigAPIView(APIView):
 
 
 class DefaultEmbeddingConfigAPIView(APIView):
-    @extend_schema(
-        summary="Get embedding config defaults",
-        responses={
-            200: DefaultEmbeddingConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-        },
-    )
+    @extend_schema(**DEFAULT_EMBEDDING_CONFIG_GET)
     def get(self, request, *args, **kwargs):
         obj = DefaultEmbeddingConfig.objects.first()
         serializer = DefaultEmbeddingConfigSerializer(obj, many=False)
 
         return Response(serializer.data)
 
-    @extend_schema(
-        summary="Update embedding config defaults",
-        request=DefaultEmbeddingConfigSerializer,
-        responses={
-            200: DefaultEmbeddingConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-            400: OpenApiResponse(description="Validation Error"),
-        },
-    )
+    @extend_schema(**DEFAULT_EMBEDDING_CONFIG_PUT)
     def put(self, request, *args, **kwargs):
         try:
             obj = DefaultEmbeddingConfig.objects.get(pk=1)
@@ -662,19 +628,7 @@ class ToolListRetrieveUpdateGenericViewSet(
 
 
 class RunPythonCodeAPIView(APIView):
-    @extend_schema(
-        summary="Run Python Code",
-        request=RunPythonCodeSerializer,
-        responses={
-            200: inline_serializer(
-                name="RunPythonCodeResponse",
-                fields={
-                    "execution_id": drf_serializers.IntegerField(),
-                },
-            ),
-            400: OpenApiResponse(description="Bad Request"),
-        },
-    )
+    @extend_schema(**RUN_PYTHON_CODE_POST)
     def post(self, request):
         serializer = RunPythonCodeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -724,10 +678,7 @@ class QuickstartView(APIView):
     API endpoint for managing quickstart configurations
     """
 
-    @extend_schema(
-        description="Get list of supported providers",
-        responses={200: OpenApiResponse(description="List of supported providers")},
-    )
+    @extend_schema(**QUICKSTART_GET)
     def get(self, request):
         try:
             supported_providers = list(quickstart_service.get_supported_providers())
@@ -752,10 +703,7 @@ class QuickstartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(
-        request=QuickstartSerializer,
-        responses={202: OpenApiResponse(description="Chunking operation accepted")},
-    )
+    @extend_schema(**QUICKSTART_POST)
     def post(self, request):
         serializer = QuickstartSerializer(data=request.data)
         if serializer.is_valid():
@@ -799,9 +747,7 @@ class QuickstartApplyView(APIView):
     If config_name is omitted, the most recently created quickstart config is used.
     """
 
-    @extend_schema(
-        responses={200: DefaultModelsSerializer},
-    )
+    @extend_schema(**QUICKSTART_APPLY_POST)
     def post(self, request):
         last = quickstart_service.get_last_quickstart()
         if not last:
