@@ -16,6 +16,7 @@ TAG_MAP = [
     ("api/twilio", "Twilio"),
     # Agents
     ("api/template-agents", "Template Agents"),
+    ("api/agent-definitions", "Agent Definitions"),
     ("api/agent-tags", "Agent Tags"),
     ("api/code-agent-nodes", "Code Agent Nodes"),
     ("api/agents", "Agents"),
