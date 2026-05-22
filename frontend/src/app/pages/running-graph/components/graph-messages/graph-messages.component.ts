@@ -69,6 +69,26 @@ interface MessageContext {
     isSubgraphFinish: boolean;
 }
 
+// Message types that actually render a card in the template @switch.
+// Anything else (update_session_status, graph_end, future stream types like
+// python_stream, etc.) creates an empty .message div and breaks the unread
+// counter, so we keep it out of visibleMessageEntries.
+const RENDERABLE_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+    MessageType.START,
+    MessageType.USER,
+    MessageType.AGENT,
+    MessageType.AGENT_FINISH,
+    MessageType.PYTHON,
+    MessageType.LLM,
+    MessageType.EXTRACTED_CHUNKS,
+    MessageType.ERROR,
+    MessageType.TASK,
+    MessageType.FINISH,
+    MessageType.CODE_AGENT_STREAM,
+    MessageType.SUBGRAPH_START,
+    MessageType.SUBGRAPH_FINISH,
+]);
+
 interface MessageViewEntry {
     key: string;
     message: GraphMessage;
@@ -215,6 +235,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     private readonly scrollBottomThreshold = 80;
     public unseenMessageCount = 0;
     private seenMessageCount = 0;
+    private lastScrollTop = 0;
 
     constructor(
         public sseService: RunSessionSSEService,
@@ -296,12 +317,22 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
 
-        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        const scrollTop = el.scrollTop;
+        const distanceFromBottom = el.scrollHeight - scrollTop - el.clientHeight;
         const isAtBottom = distanceFromBottom <= this.scrollBottomThreshold;
+        const scrolledUp = scrollTop < this.lastScrollTop;
+        this.lastScrollTop = scrollTop;
+
+        if (scrolledUp && this.autoScrollEnabled) {
+            this.autoScrollEnabled = false;
+            this.seenMessageCount = this.visibleMessageEntries.length;
+        }
 
         if (!this.autoScrollEnabled && isAtBottom) {
             this.autoScrollEnabled = true;
             this.unseenMessageCount = 0;
+        } else if (!this.autoScrollEnabled) {
+            this.updateSeenFromScrollPosition();
         }
 
         if (distanceFromBottom < 200 && this.hasMore && !this.isLoadingMore) {
@@ -309,15 +340,44 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         }
 
         this.updateScrollButtonsVisibility();
+
         this.cdr.markForCheck();
     }
 
-    public onMessagesWheel(event: WheelEvent): void {
-        if (event.deltaY < 0 && this.autoScrollEnabled) {
-            this.autoScrollEnabled = false;
-            this.seenMessageCount = this.messages.length;
-            this.updateScrollButtonsVisibility();
-            this.cdr.markForCheck();
+    private updateSeenFromScrollPosition(): void {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+
+        const viewportBottom = el.getBoundingClientRect().bottom;
+        const messageElements = el.querySelectorAll<HTMLElement>('.messages-list > .message');
+
+        let visibleCount = 0;
+        for (let i = 0; i < messageElements.length; i++) {
+            const rect = messageElements[i].getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (midpoint <= viewportBottom) {
+                visibleCount = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        if (visibleCount > this.seenMessageCount) {
+            const prevSeen = this.seenMessageCount;
+            const prevUnseen = this.unseenMessageCount;
+            const newlySeenEntries = this.visibleMessageEntries.slice(prevSeen, visibleCount);
+            this.seenMessageCount = visibleCount;
+            this.unseenMessageCount = Math.max(0, this.visibleMessageEntries.length - this.seenMessageCount);
+            const delta = prevUnseen - this.unseenMessageCount;
+            console.log(
+                `[unread] -${delta} (${prevUnseen} → ${this.unseenMessageCount}); read ${newlySeenEntries.length} message(s):`,
+                newlySeenEntries.map((entry) => ({
+                    index: entry.index,
+                    type: entry.message.message_data?.message_type,
+                    name: entry.message.name,
+                    key: entry.key,
+                }))
+            );
         }
     }
 
@@ -326,7 +386,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         if (!el) return;
         if (this.autoScrollEnabled) {
             this.autoScrollEnabled = false;
-            this.seenMessageCount = this.messages.length;
+            this.seenMessageCount = this.visibleMessageEntries.length;
         }
         this.updateScrollButtonsVisibility();
         this.cdr.markForCheck();
@@ -343,7 +403,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        this.showScrollToTop = el.scrollTop > 150 && this.autoScrollEnabled;
+        this.showScrollToTop = el.scrollTop > 150;
         this.showScrollToBottom = !this.autoScrollEnabled && distanceFromBottom > this.scrollBottomThreshold;
     }
 
@@ -385,6 +445,11 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.showUserInputWithDelay = false;
             this.warningMessages = null;
             this.autoScrollEnabled = true;
+            this.lastScrollTop = 0;
+            this.showScrollToTop = false;
+            this.showScrollToBottom = false;
+            this.unseenMessageCount = 0;
+            this.seenMessageCount = 0;
             this.messages = [];
             this.visibleMessageEntries = [];
             this.seenKeys = new Set<string>();
@@ -723,12 +788,16 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 this.closingRootKeys.delete(rootKey);
                 this.updateDrilldownView();
                 this.cdr.markForCheck();
+                // Drilldown removed → content height shrank. The container
+                // doesn't fire a scroll event on shrink, so recompute manually.
+                this.refreshScrollButtonsAfterRender();
             }, this.drilldownCloseDelayMs);
         } else {
             this.closingRootKeys.delete(rootKey);
             this.drillPaths.set(rootKey, nextPath);
         }
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
     }
 
     public onBreadcrumbClick(rootKey: string, index: number): void {
@@ -736,6 +805,14 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         if (!currentPath) return;
         this.drillPaths.set(rootKey, currentPath.slice(0, index + 1));
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
+    }
+
+    private refreshScrollButtonsAfterRender(): void {
+        requestAnimationFrame(() => {
+            this.updateScrollButtonsVisibility();
+            this.cdr.markForCheck();
+        });
     }
 
     public isDrilldownRoot(message: GraphMessage): boolean {
@@ -1089,7 +1166,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             .filter((context) => context.path.length === 0)
             .filter((context) => {
                 const msg = this.messages[context.index];
-                if (msg?.message_data?.message_type !== 'code_agent_stream') return true;
+                const type = msg?.message_data?.message_type;
+                if (!type || !RENDERABLE_MESSAGE_TYPES.has(type)) return false;
+                if (type !== MessageType.CODE_AGENT_STREAM) return true;
                 return caShowSet.has(context.index);
             })
             .map((context) => this.buildMessageEntry(this.messages[context.index], context));

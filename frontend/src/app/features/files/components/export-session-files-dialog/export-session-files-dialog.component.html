@@ -1,0 +1,134 @@
+<div class="files-dialog">
+    <div class="files-dialog__header">
+        <h2 class="files-dialog__title">Export Files from Session</h2>
+        <div class="files-dialog__header-actions">
+            <button
+                class="files-dialog__icon-btn files-dialog__icon-btn--cancel"
+                aria-label="Cancel"
+                (click)="onCancel()"
+            >
+                <app-svg-icon
+                    icon="x-fill"
+                    size="16px"
+                ></app-svg-icon>
+            </button>
+            <button
+                class="files-dialog__icon-btn files-dialog__icon-btn--confirm"
+                aria-label="Download files"
+                [disabled]="isDownloading() || allFilePaths().length === 0"
+                (click)="onConfirm()"
+            >
+                @if (isDownloading()) {
+                    <app-spinner2 [size]="20" />
+                } @else {
+                    <app-svg-icon
+                        icon="check-fill"
+                        size="16px"
+                    ></app-svg-icon>
+                }
+            </button>
+        </div>
+    </div>
+
+    <div class="files-dialog__toolbar">
+        <div class="files-dialog__selected-info">
+            <span class="files-dialog__selected-label">Selected Files:</span>
+            <span class="files-dialog__selected-count">({{ selectedCount() }})</span>
+        </div>
+        <div class="files-dialog__toolbar-right">
+            <div class="files-dialog__search">
+                <app-svg-icon
+                    icon="search"
+                    size="0.875rem"
+                    class="files-dialog__search-icon"
+                ></app-svg-icon>
+                <input
+                    class="files-dialog__search-input"
+                    type="text"
+                    placeholder="Search folders, files..."
+                    [ngModel]="searchQuery()"
+                    (ngModelChange)="searchQuery.set($event)"
+                />
+            </div>
+        </div>
+    </div>
+
+    <div class="files-dialog__body">
+        <div class="files-dialog__file-list">
+            @if (visibleNodes().length === 0) {
+                <div class="files-dialog__state">No files found</div>
+            } @else {
+                @for (node of visibleNodes(); track node.path) {
+                    <div
+                        class="files-dialog__item"
+                        [class.files-dialog__item--checked]="isChecked(node)"
+                        [style.padding-left.px]="20 + node.level * 20"
+                        (click)="toggleCheck(node)"
+                    >
+                        @if (node.type === 'folder' && node.hasChildren) {
+                            <button
+                                class="files-dialog__chevron"
+                                [class.files-dialog__chevron--open]="node.isExpanded"
+                                (click)="toggleExpand($event, node)"
+                            >
+                                <app-svg-icon
+                                    icon="expand"
+                                    size="0.5rem"
+                                ></app-svg-icon>
+                            </button>
+                        } @else {
+                            <span class="files-dialog__chevron-gap"></span>
+                        }
+
+                        <div
+                            class="files-dialog__checkbox"
+                            [class.files-dialog__checkbox--checked]="isChecked(node)"
+                            [class.files-dialog__checkbox--indeterminate]="isIndeterminate(node)"
+                        >
+                            @if (isChecked(node)) {
+                                <app-svg-icon
+                                    class="files-dialog__checkbox-tick"
+                                    icon="checkbox-tick"
+                                    size="16px"
+                                ></app-svg-icon>
+                            } @else if (isIndeterminate(node)) {
+                                <app-svg-icon
+                                    class="files-dialog__checkbox-dash"
+                                    icon="checkbox-dash"
+                                    size="9px"
+                                ></app-svg-icon>
+                            }
+                        </div>
+
+                        <app-svg-icon
+                            class="files-dialog__file-icon"
+                            [icon]="getFileIcon(node)"
+                            size="12px"
+                        ></app-svg-icon>
+
+                        <span
+                            class="files-dialog__item-name"
+                            [title]="node.name"
+                            >{{ node.name }}</span
+                        >
+
+                        @if (node.type === 'file' && node.size != null) {
+                            <span class="files-dialog__item-size">({{ formatSize(node.size) }})</span>
+                        }
+
+                        <button
+                            class="files-dialog__link-btn"
+                            (click)="onDeepLink($event, node)"
+                            title="Open in storage"
+                        >
+                            <app-svg-icon
+                                icon="external-link"
+                                size="12px"
+                            ></app-svg-icon>
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
