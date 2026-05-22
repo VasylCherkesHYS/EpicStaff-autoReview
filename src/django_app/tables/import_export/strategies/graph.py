@@ -2,7 +2,6 @@ import uuid
 from copy import deepcopy
 
 from tables.models import Graph, Crew, Organization, GraphOrganization
-from tables.models.label_models import Label
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.serializers.model_serializers import (
     CrewSerializer,
@@ -19,11 +18,13 @@ from tables.import_export.id_mapper import IDMapper
 from tables.import_export.constants import NODE_MAPPING_KEY
 from tables.import_export.utils import ensure_unique_identifier
 from tables.import_export.strategies.node_handlers import NODE_HANDLERS
+from tables.import_export.strategies.label import LabelStrategy
 
 
 class GraphStrategy(EntityImportExportStrategy):
     entity_type = EntityType.GRAPH
     serializer_class = GraphImportSerializer
+    label_strategy = LabelStrategy()
 
     def get_instance(self, entity_id: int) -> Graph:
         return Graph.objects.filter(id=entity_id).first()
@@ -59,7 +60,7 @@ class GraphStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: Graph) -> dict:
         data = self.serializer_class(instance).data
         data["nodes"] = self._export_nodes(instance)
-        data["labels"] = [label.full_path for label in instance.labels.all()]
+        data["labels"] = self.label_strategy.export(instance)
         return data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
@@ -109,31 +110,9 @@ class GraphStrategy(EntityImportExportStrategy):
         )
 
         if import_labels and labels_data:
-            self._attach_labels(graph, labels_data)
+            self.label_strategy.import_labels(graph, labels_data)
 
         return graph
-
-    def _attach_labels(self, graph: Graph, label_paths: list) -> None:
-        labels = []
-        for path in label_paths:
-            label = self._resolve_label_path(path)
-            if label:
-                labels.append(label)
-        if labels:
-            graph.labels.add(*labels)
-
-    def _resolve_label_path(self, path: str):
-        """
-        Find or create a label by its full_path string (e.g. 'category/subcategory').
-        Walks the hierarchy level by level, creating missing nodes as needed.
-        """
-        parts = path.split("/")
-        parent = None
-        label = None
-        for part in parts:
-            label, _ = Label.objects.get_or_create(name=part, parent=parent)
-            parent = label
-        return label
 
     def recreate_graph_children(
         self, graph: Graph, data: dict, id_mapper: IDMapper
