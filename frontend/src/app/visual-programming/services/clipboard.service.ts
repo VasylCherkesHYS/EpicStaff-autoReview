@@ -6,7 +6,7 @@ import { NodeType } from '../core/enums/node-type';
 import { generateMultipleNodeDisplayNames } from '../core/helpers/generate-node-display-name.util';
 import { generatePortsForNode, parsePortId } from '../core/helpers/helpers';
 import { ConnectionModel } from '../core/models/connection.model';
-import { NodeModel } from '../core/models/node.model';
+import { DecisionTableNodeModel, NodeModel } from '../core/models/node.model';
 import { CustomPortId, ViewPort } from '../core/models/port.model';
 import { FlowService } from './flow.service';
 
@@ -186,18 +186,10 @@ export class ClipboardService {
         return { newNodes: returnedNodes, newConnections };
     }
 
-    private clearDecisionTableNextNodeRefs(type: NodeType, data: unknown): void {
+    private clearDecisionTableNextNodeRefs(type: NodeType, data: NodeModel['data'] | null): void {
         if (type !== NodeType.TABLE || !data) return;
 
-        const table = (
-            data as {
-                table?: {
-                    default_next_node: string | null;
-                    next_error_node: string | null;
-                    condition_groups: { next_node: string | null }[];
-                };
-            }
-        ).table;
+        const table = (data as DecisionTableNodeModel['data']).table;
         if (!table) return;
 
         table.default_next_node = null;
