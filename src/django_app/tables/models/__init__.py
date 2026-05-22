@@ -25,3 +25,4 @@ from .rbac_models import (
     ApiKey,
 )
 from .default_models import DefaultModels
+from .agent_models import AgentDefinition, DefaultAgentDefinitionConfig
