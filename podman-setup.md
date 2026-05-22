@@ -52,7 +52,6 @@ podman network create frontend-network
 podman network create mcp-network
 
 podman volume create sandbox_venvs
-podman volume create sandbox_executions
 podman volume create crew_pgdata
 podman volume create crew_config
 ```
@@ -135,7 +134,7 @@ podman run -d   --name crew   --network backend-network   --network mcp-network 
 ### Sandbox
 
 ```bash
-podman run -d   --name sandbox   --network backend-network   -v sandbox_venvs:${BASE_VENV_PATH}   -v sandbox_executions:${OUTPUT_PATH}   -v ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}   --env-file .env   -t   -i   sandbox
+podman run -d   --name sandbox   --network backend-network   -v sandbox_venvs:${BASE_VENV_PATH}   -v ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}   --env-file .env   -t   -i   sandbox
 ```
 
 ---
