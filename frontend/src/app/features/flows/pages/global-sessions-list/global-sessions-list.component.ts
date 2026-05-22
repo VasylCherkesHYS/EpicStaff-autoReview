@@ -1,5 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    DestroyRef,
+    effect,
+    ElementRef,
+    HostListener,
+    inject,
+    signal,
+    ViewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
 import {
@@ -9,15 +19,20 @@ import {
     PaginationControlsComponent,
 } from '@shared/components';
 import { finalize, Observable, Subject, takeUntil } from 'rxjs';
+import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
 import { downloadBlob } from '../../../../shared/utils/download-blob.util';
-import { FlowNameFilterDropdownComponent } from '../../components/flow-sessions-dialog/flow-name-filter-dropdown.component';
 import { FlowSessionsTableComponent } from '../../components/flow-sessions-dialog/flow-sessions-table.component';
 import { GetGraphLightRequest } from '../../models/graph.model';
 import { FlowsApiService } from '../../services/flows-api.service';
-import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../../services/flows-sessions.service';
+import {
+    DurationFilter,
+    GraphSessionLight,
+    GraphSessionService,
+    GraphSessionStatus,
+} from '../../services/flows-sessions.service';
 
 @Component({
     selector: 'app-global-sessions-list',
@@ -25,13 +40,13 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
     imports: [
         CommonModule,
         FlowSessionsTableComponent,
-        FlowNameFilterDropdownComponent,
         PaginationControlsComponent,
         AppSvgIconComponent,
         RouterModule,
+        GraphMessagesComponent,
         ActionDropdownButtonComponent,
     ],
-    template: ` <div class="global-sessions-wrapper">
+    template: `<div class="global-sessions-wrapper">
         <div class="global-sessions-header">
             <div class="flows-prefix">
                 <app-svg-icon
@@ -43,23 +58,9 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                 <span class="slash">/All sessions</span>
             </div>
         </div>
-        <div class="global-sessions-content">
+        <div class="global-sessions-content" #contentRef>
+        <div class="left-panel">
             <div class="filter-controls">
-                <app-flow-name-filter-dropdown
-                    [flows]="availableFlows()"
-                    [value]="flowFilter()"
-                    (valueChange)="onFlowFilterChange($event)"
-                ></app-flow-name-filter-dropdown>
-                <label class="error-cause-filter">
-                    <span>Show first failed</span>
-                    <div
-                        class="toggle-switch"
-                        [class.active]="isErrorCauseFilter()"
-                        (click)="onIsErrorCauseChange()"
-                    >
-                        <div class="toggle-thumb"></div>
-                    </div>
-                </label>
                 <div class="right-actions">
                     <button
                         class="delete-btn"
@@ -69,12 +70,18 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                         Delete Selected ({{ selectedIds().size }})
                     </button>
                     <app-action-dropdown-button
-                        [label]="'Export (' + (selectedIds().size === 0 ? totalCount() : selectedIds().size) + ')'"
-                        [items]="exportItems"
-                        [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)"
-                        (mainClick)="onExport('json')"
-                        (itemClick)="onExportItemSelected($event)"
-                    />
+                            [label]="'Export (' + (selectedIds().size === 0 ? totalCount() : selectedIds().size) + ')'"
+                            [items]="exportItems"
+                            [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)"
+                            (mainClick)="onExport('json')"
+                            (itemClick)="onExportItemSelected($event)"
+                        />
+                    <span
+                        [class.invisible]="selectedIds().size > 0"
+                        class="results-length"
+                    >
+                        {{ totalCount() }} Results
+                    </span>
                 </div>
             </div>
             <div class="table-container">
@@ -85,35 +92,119 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                     [sortable]="true"
                     [sortOrder]="sortOrder()"
                     [statusFilter]="statusFilter()"
+                    [flows]="availableFlows()"
+                    [flowNameFilter]="flowFilter()"
+                    (flowNameFilterChange)="onFlowFilterChange($event)"
+                    [durationFilter]="durationFilter()"
+                    (durationFilterChange)="onDurationFilterChange($event)"
                     [isLoading]="!isLoaded()"
                     [showEmptyState]="isLoaded() && sessions().length === 0"
+                    [externalPreview]="true"
                     [selectedIds]="selectedIds()"
                     (deleteSelected)="onDeleteSelected($event)"
                     (viewSession)="onViewSession($event)"
                     (stopSession)="onStopSession($event)"
                     (sortChange)="onSortChange($event)"
                     (statusFilterChange)="onStatusFilterChange($event)"
+                    (previewSession)="onPreviewSession($event)"
                     (selectedIdsChange)="selectedIds.set($event)"
                 ></app-flow-sessions-table>
             </div>
 
-            @if (isLoaded() && totalCount() > pageSize()) {
                 <div class="pagination-container">
-                    <app-pagination-controls
-                        [pageSize]="pageSize()"
-                        [totalCount]="totalCount()"
-                        [currentPage]="currentPage()"
-                        [maxPagesToShow]="5"
-                        (pageChange)="onPageChange($event)"
-                    ></app-pagination-controls>
+                    @if (isLoaded() && totalCount() > pageSize()) {
+                        <app-pagination-controls
+                            [pageSize]="pageSize()"
+                            [totalCount]="totalCount()"
+                            [currentPage]="currentPage()"
+                            [maxPagesToShow]="5"
+                            (pageChange)="onPageChange($event)"
+                        ></app-pagination-controls>
+                    }
+                    <label class="page-size-selector">
+                        <span>Sessions per page</span>
+                        <select
+                            [value]="pageSize()"
+                            (change)="onPageSizeChange(+$any($event.target).value)"
+                        >
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </label>
                 </div>
-            }
+            </div>
+            
+            <div
+                class="panel-divider"
+                [class.panel-divider--open]="isPanelOpen()"
+                (mousedown)="isPanelOpen() && startResize($event)"
+            >
+                <button
+                    class="panel-toggle-btn"
+                    (click)="togglePanel(); $event.stopPropagation()"
+                    [title]="isPanelOpen() ? 'Close panel' : 'Open panel'"
+                >
+                    <app-svg-icon
+                        [icon]="isPanelOpen() ? 'arrow-right' : 'arrow-left'"
+                        size="12px"
+                    >
+                    </app-svg-icon>
+                </button>
+            </div>
+
+            <!-- RIGHT PANEL: session details -->
+            <div
+                class="right-panel"
+                [class.right-panel--open]="isPanelOpen()"
+                [style.width]="isPanelOpen() ? rightPanelWidth() + '%' : '0'"
+            >
+                @if (previewSession(); as session) {
+                    <div class="preview-header">
+                        <div class="preview-header-left">
+                            <div class="preview-header-icon">
+                                <app-svg-icon
+                                    icon="heartbeat"
+                                    size="18px"
+                                />
+                            </div>
+                            <span class="preview-header-title">Session execution</span>
+                        </div>
+                        <div class="preview-header-right">
+                            <span class="preview-session-id-badge">#{{ session.id }}</span>
+                            <button
+                                class="preview-open-btn"
+                                (click)="onViewSession(session.id)"
+                                title="Open session"
+                            >
+                                <app-svg-icon
+                                    icon="arrow-up-right"
+                                    size="16px"
+                                />
+                            </button>
+                        </div>
+                    </div>
+                    <div class="preview-body">
+                        <app-graph-messages
+                            [graphId]="session.graph_id"
+                            [sessionId]="session.id.toString()"
+                            [compact]="true"
+                        ></app-graph-messages>
+                    </div>
+                } @else {
+                    <div class="preview-empty">
+                        <span>Click Preview to view session details</span>
+                    </div>
+                }
+            </div>
         </div>
     </div>`,
     styleUrls: ['./global-sessions-list.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GlobalSessionsListComponent {
+    @ViewChild('contentRef') contentRef!: ElementRef<HTMLElement>;
+
     public sessions = signal<GraphSessionLight[]>([]);
     public isLoaded = signal<boolean>(false);
     public currentPage = signal(1);
@@ -122,9 +213,16 @@ export class GlobalSessionsListComponent {
     public sortOrder = signal<'asc' | 'desc'>('desc');
     public flowFilter = signal<string | null>(null);
     public isErrorCauseFilter = signal<boolean>(false);
+    public durationFilter = signal<DurationFilter | null>(null);
     public selectedIds = signal<Set<number>>(new Set());
     public availableFlows = signal<GetGraphLightRequest[]>([]);
     public totalCount = signal(0);
+    public isPanelOpen = signal(false);
+    public rightPanelWidth = signal(35);
+    private isResizing = false;
+    private resizeStartX = 0;
+    private resizeStartWidth = 0;
+    public previewSession = signal<GraphSessionLight | null>(null);
     public isExporting = signal(false);
     public isDeleting = signal(false);
     private reloadTrigger = signal(0);
@@ -150,8 +248,9 @@ export class GlobalSessionsListComponent {
             const sort = this.sortOrder();
             const flowName = this.flowFilter();
             const isErrorCause = this.isErrorCauseFilter();
+            const durationFilter = this.durationFilter();
             this.reloadTrigger();
-            this.loadGlobalSessions(size, (page - 1) * size, status, sort, flowName, isErrorCause);
+            this.loadGlobalSessions(size, (page - 1) * size, status, sort, flowName, isErrorCause, durationFilter);
         });
 
         this.flowsApiService
@@ -164,8 +263,40 @@ export class GlobalSessionsListComponent {
             });
     }
 
+    public togglePanel(): void {
+        this.isPanelOpen.update((v) => !v);
+    }
+
+    public startResize(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        this.isResizing = true;
+        this.resizeStartX = event.clientX;
+        this.resizeStartWidth = this.rightPanelWidth();
+    }
+
+    @HostListener('document:mousemove', ['$event'])
+    public onMouseMove(event: MouseEvent): void {
+        if (!this.isResizing) return;
+        const containerWidth = this.contentRef.nativeElement.getBoundingClientRect().width;
+        const dx = this.resizeStartX - event.clientX;
+        const dxPercent = (dx / containerWidth) * 100;
+        const newWidth = Math.min(60, Math.max(15, this.resizeStartWidth + dxPercent));
+        this.rightPanelWidth.set(newWidth);
+    }
+
+    @HostListener('document:mouseup')
+    public onMouseUp(): void {
+        this.isResizing = false;
+    }
+
     public onPageChange(page: number): void {
         this.currentPage.set(page);
+    }
+
+    public onPageSizeChange(size: number): void {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
     }
 
     public onViewSession(sessionId: number): void {
@@ -197,6 +328,18 @@ export class GlobalSessionsListComponent {
     public onSortChange(order: 'asc' | 'desc'): void {
         this.sortOrder.set(order);
         this.currentPage.set(1);
+    }
+
+    public onPreviewSession(sessionId: number | null): void {
+        if (sessionId === null) {
+            this.previewSession.set(null);
+            return;
+        }
+        const session = this.sessions().find((s) => s.id === sessionId) ?? null;
+        this.previewSession.set(session);
+        if (session) {
+            this.isPanelOpen.set(true);
+        }
     }
 
     public onStopSession(sessionId: number): void {
@@ -249,6 +392,11 @@ export class GlobalSessionsListComponent {
             });
     }
 
+    public onDurationFilterChange(filter: DurationFilter | null): void {
+        this.durationFilter.set(filter);
+        this.currentPage.set(1);
+    }
+
     public onExport(format: ExportFormat): void {
         if (this.selectedIds().size === 0 && this.totalCount() === 0) {
             return;
@@ -297,13 +445,14 @@ export class GlobalSessionsListComponent {
         status: string[],
         sort: 'asc' | 'desc' = 'desc',
         graphName?: string | null,
-        isErrorCause?: boolean
+        isErrorCause?: boolean,
+        durationFilter?: DurationFilter | null
     ): void {
         this.cancelLoad$.next();
         this.isLoaded.set(false);
         const ordering = sort === 'asc' ? 'created_at' : '-created_at';
         this.graphSessionService
-            .getGlobalSessions(limit, offset, status, ordering, graphName, isErrorCause)
+            .getGlobalSessions(limit, offset, status, ordering, graphName, isErrorCause, durationFilter)
             .pipe(takeUntil(this.cancelLoad$), takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (response) => {
