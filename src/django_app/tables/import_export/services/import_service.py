@@ -1,5 +1,6 @@
 from typing import List
 from collections import defaultdict
+from dataclasses import dataclass
 
 from django.db import transaction
 
@@ -7,6 +8,13 @@ from tables.import_export.id_mapper import IDMapper
 from tables.import_export.registry import EntityRegistry
 from tables.import_export.enums import NodeType, EntityType
 from tables.import_export.constants import DEPENDENCY_ORDER
+
+
+@dataclass
+class ImportSettings:
+    preserve_uuids: bool = False
+    replace_existing: bool = False
+    import_labels: bool = True
 
 
 class ImportService:
@@ -17,10 +25,11 @@ class ImportService:
         self,
         export_data: dict,
         main_entity: str,
-        preserve_uuids: bool = False,
-        replace_existing: bool = False,
-        import_labels: bool = True,
+        settings: ImportSettings = None,
     ):
+        if settings is None:
+            settings = ImportSettings()
+
         id_mapper = IDMapper()
 
         with transaction.atomic():
@@ -39,9 +48,7 @@ class ImportService:
                             strategy,
                             id_mapper,
                             entity_type == main_entity,
-                            preserve_uuids=preserve_uuids,
-                            replace_existing=replace_existing,
-                            import_labels=import_labels,
+                            settings=settings,
                         )
                 else:
                     for entity_data in entities:
@@ -69,7 +76,13 @@ class ImportService:
         return sorted_keys
 
     def _import_single_entity(
-        self, entity_data, entity_type, strategy, id_mapper, is_main, **kwargs
+        self,
+        entity_data,
+        entity_type,
+        strategy,
+        id_mapper,
+        is_main,
+        settings: ImportSettings = None,
     ):
         old_id = entity_data["id"]
 
@@ -79,6 +92,7 @@ class ImportService:
 
         was_created = existing is None
 
+        kwargs = vars(settings) if settings is not None else {}
         instance = strategy.import_entity(entity_data, id_mapper, is_main, **kwargs)
         id_mapper.map(entity_type, old_id, instance.id, was_created)
 

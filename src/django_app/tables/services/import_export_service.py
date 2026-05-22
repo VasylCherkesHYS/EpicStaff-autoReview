@@ -3,7 +3,7 @@ import json
 from rest_framework.exceptions import ValidationError
 
 from tables.import_export.services.export_service import ExportService
-from tables.import_export.services.import_service import ImportService
+from tables.import_export.services.import_service import ImportService, ImportSettings
 from tables.import_export.version_conversions.base import VersionConverter
 from tables.import_export.registry import entity_registry
 from tables.import_export.constants import MAIN_ENTITY_KEY
@@ -46,9 +46,7 @@ class ViewSetImportExportService:
     def import_entity(
         self,
         file,
-        preserve_uuids: bool = False,
-        replace_existing: bool = False,
-        import_labels: bool = True,
+        settings: ImportSettings = None,
     ):
         try:
             data = json.load(file)
@@ -67,9 +65,7 @@ class ViewSetImportExportService:
         id_mapper, registry = self.import_service.import_data(
             data,
             self.entity_type,
-            preserve_uuids=preserve_uuids,
-            replace_existing=replace_existing,
-            import_labels=import_labels,
+            settings=settings,
         )
         summary = id_mapper.get_detailed_summary(registry)
 
