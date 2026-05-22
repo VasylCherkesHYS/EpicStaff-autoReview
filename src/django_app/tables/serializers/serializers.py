@@ -126,6 +126,7 @@ class SessionExportAllSerializer(serializers.Serializer):
 class ImportRequestSerializer(serializers.Serializer):
     file = serializers.FileField()
     preserve_uuids = serializers.BooleanField(default=False, required=False)
+    import_labels = serializers.BooleanField(default=True, required=False)
 
 
 class RunPythonCodeSerializer(serializers.Serializer):
