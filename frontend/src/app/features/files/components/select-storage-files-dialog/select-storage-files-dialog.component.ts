@@ -59,14 +59,34 @@ export class SelectStorageFilesDialogComponent {
     readonly flowName = this.data.flowName;
 
     readonly attachedFiles = signal<GraphFileRecord[]>([]);
-    readonly attachedPaths = computed(() => new Set(this.attachedFiles().map((f) => f.path.replace(/\/+$/, ''))));
+
+    readonly attachedFilePaths = computed(
+        () =>
+            new Set(
+                this.attachedFiles()
+                    .filter((f) => !f.path.endsWith('/'))
+                    .map((f) => f.path)
+            )
+    );
+
+    readonly attachedFolderPaths = computed(
+        () =>
+            new Set(
+                this.attachedFiles()
+                    .filter((f) => f.path.endsWith('/'))
+                    .map((f) => f.path.replace(/\/+$/, ''))
+            )
+    );
+
     readonly searchQuery = signal('');
     readonly rootNodes = signal<TreeNode[]>([]);
     readonly isLoadingRoot = signal(true);
     readonly isSaving = signal(false);
 
-    /** Paths of FILES that are currently selected. Folders are derived from descendants. */
     readonly selectedFilePaths = signal<Set<string>>(new Set());
+
+    readonly selectedFolderPaths = signal<Set<string>>(new Set());
+
     private hasMadeChanges = false;
 
     private readonly allNodes = signal<TreeNode[]>([]);
@@ -83,10 +103,16 @@ export class SelectStorageFilesDialogComponent {
     });
 
     readonly hasChanges = computed(() => {
-        const selected = this.selectedFilePaths();
-        const attached = this.attachedPaths();
-        if (selected.size !== attached.size) return true;
-        for (const p of selected) if (!attached.has(p)) return true;
+        const selectedFiles = this.selectedFilePaths();
+        const attachedFiles = this.attachedFilePaths();
+        if (selectedFiles.size !== attachedFiles.size) return true;
+        for (const p of selectedFiles) if (!attachedFiles.has(p)) return true;
+
+        const selectedFolders = this.selectedFolderPaths();
+        const attachedFolders = this.attachedFolderPaths();
+        if (selectedFolders.size !== attachedFolders.size) return true;
+        for (const p of selectedFolders) if (!attachedFolders.has(p)) return true;
+
         return false;
     });
 
@@ -115,8 +141,8 @@ export class SelectStorageFilesDialogComponent {
 
     ngOnInit(): void {
         this.loadAttachedFiles(() => {
-            // Seed selection with currently-attached file paths
-            this.selectedFilePaths.set(new Set(this.attachedPaths()));
+            this.selectedFilePaths.set(new Set(this.attachedFilePaths()));
+            this.selectedFolderPaths.set(new Set(this.attachedFolderPaths()));
             this.loadLevel('', null, () => this.expandToAttachedPaths());
         });
     }
@@ -138,34 +164,64 @@ export class SelectStorageFilesDialogComponent {
 
     toggleCheck(node: TreeNode): void {
         if (node.type === 'file') {
+            const wasChecked = this.selectedFilePaths().has(node.path);
             this.selectedFilePaths.update((set) => {
                 const next = new Set(set);
-                if (next.has(node.path)) next.delete(node.path);
+                if (wasChecked) next.delete(node.path);
                 else next.add(node.path);
                 return next;
             });
+            if (wasChecked) this.clearAncestorFolders(node.path);
             return;
         }
 
-        // Folder: toggle all descendant files. Need to make sure folder is loaded first.
         this.ensureLoaded(node, () => {
-            const descendants = this.collectFilePaths(node);
             const checked = this.isChecked(node);
-            this.selectedFilePaths.update((set) => {
+            const descendants = this.collectFilePaths(node);
+
+            this.selectedFolderPaths.update((set) => {
                 const next = new Set(set);
-                if (checked) {
-                    for (const p of descendants) next.delete(p);
-                } else {
-                    for (const p of descendants) next.add(p);
-                }
+                if (checked) next.delete(node.path);
+                else next.add(node.path);
                 return next;
             });
+
+            if (descendants.length > 0) {
+                this.selectedFilePaths.update((set) => {
+                    const next = new Set(set);
+                    if (checked) {
+                        for (const p of descendants) next.delete(p);
+                    } else {
+                        for (const p of descendants) next.add(p);
+                    }
+                    return next;
+                });
+            }
+
+            if (checked) this.clearAncestorFolders(node.path);
         });
     }
 
-    /** A node is fully checked if all its descendant files are selected. */
+    private clearAncestorFolders(path: string): void {
+        const parts = path.split('/').filter(Boolean);
+        if (parts.length <= 1) return;
+        const ancestors = new Set<string>();
+        for (let i = 1; i < parts.length; i++) {
+            ancestors.add(parts.slice(0, i).join('/'));
+        }
+        this.selectedFolderPaths.update((set) => {
+            let changed = false;
+            const next = new Set(set);
+            for (const a of ancestors) {
+                if (next.delete(a)) changed = true;
+            }
+            return changed ? next : set;
+        });
+    }
+
     isChecked(node: TreeNode): boolean {
         if (node.type === 'file') return this.selectedFilePaths().has(node.path);
+        if (this.selectedFolderPaths().has(node.path)) return true;
         const files = this.collectFilePaths(node);
         if (files.length === 0) return false;
         const selected = this.selectedFilePaths();
@@ -174,6 +230,7 @@ export class SelectStorageFilesDialogComponent {
 
     isIndeterminate(node: TreeNode): boolean {
         if (node.type !== 'folder') return false;
+        if (this.selectedFolderPaths().has(node.path)) return false;
         const files = this.collectFilePaths(node);
         if (files.length === 0) return false;
         const selected = this.selectedFilePaths();
@@ -221,12 +278,19 @@ export class SelectStorageFilesDialogComponent {
     }
 
     private computeDiff(): { checks: string[]; unchecks: string[] } {
-        const selected = this.selectedFilePaths();
-        const attached = this.attachedPaths();
         const checks: string[] = [];
         const unchecks: string[] = [];
-        for (const p of selected) if (!attached.has(p)) checks.push(p);
-        for (const p of attached) if (!selected.has(p)) unchecks.push(p);
+
+        const selectedFiles = this.selectedFilePaths();
+        const attachedFiles = this.attachedFilePaths();
+        for (const p of selectedFiles) if (!attachedFiles.has(p)) checks.push(p);
+        for (const p of attachedFiles) if (!selectedFiles.has(p)) unchecks.push(p);
+
+        const selectedFolders = this.selectedFolderPaths();
+        const attachedFolders = this.attachedFolderPaths();
+        for (const p of selectedFolders) if (!attachedFolders.has(p)) checks.push(`${p}/`);
+        for (const p of attachedFolders) if (!selectedFolders.has(p)) unchecks.push(`${p}/`);
+
         return { checks, unchecks };
     }
 
