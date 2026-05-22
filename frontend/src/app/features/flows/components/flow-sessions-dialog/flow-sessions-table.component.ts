@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import {
+    ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
     EventEmitter,
@@ -15,7 +16,7 @@ import { CheckboxComponent, IconButtonComponent, LoadingSpinnerComponent } from 
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { GraphDto } from '../../models/graph.model';
-import { DurationFilter, GraphSessionLight, GraphSessionStatus } from '../../services/flows-sessions.service';
+import { DurationFilter, GraphSessionLight, GraphSessionStatus, isTerminalSessionStatus } from '../../services/flows-sessions.service';
 import { DurationFilterDropdownComponent } from './duration-filter-dropdown.component';
 import { FlowNameFilterDropdownComponent } from './flow-name-filter-dropdown.component';
 import { FlowSessionStatusBadgeComponent } from './flow-session-status-badge.component';
@@ -209,6 +210,7 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
         </div>
     `,
     styleUrls: ['./flow-sessions-table.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     @Input() sessions: GraphSessionLight[] = [];
@@ -220,6 +222,8 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     @Input() sortable: boolean = false;
     @Input() sortOrder: 'asc' | 'desc' = 'desc';
     @Input() statusFilter: string[] = ['all'];
+
+    @Input() selectedIds: Set<number> = new Set();
     @Input() flows: { id: number; name: string }[] = [];
     @Input() flowNameFilter: string | null = null;
     @Input() durationFilter: DurationFilter | null = null;
@@ -236,7 +240,6 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     @Output() selectedIdsChange = new EventEmitter<Set<number>>();
     @Output() previewSession = new EventEmitter<number | null>();
 
-    public selectedIds = signal<Set<number>>(new Set());
     public expandedSessionId = signal<number | null>(null);
 
     public readonly GraphSessionStatus = GraphSessionStatus;
@@ -284,49 +287,34 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
         this.cdr.markForCheck();
     }
 
-    isSelected(id: number) {
-        return this.selectedIds().has(id);
+    isSelected(id: number): boolean {
+        return this.selectedIds.has(id);
     }
 
-    toggleSelection(id: number, checked: boolean) {
-        this.selectedIds.update((set) => {
-            const s = new Set(set);
-            checked ? s.add(id) : s.delete(id);
-            return s;
-        });
-        this.selectedIdsChange.emit(this.selectedIds());
+    toggleSelection(id: number, checked: boolean): void {
+        const next = new Set(this.selectedIds);
+        checked ? next.add(id) : next.delete(id);
+        this.selectedIdsChange.emit(next);
         this.cdr.markForCheck();
     }
 
-    areAllSelected() {
-        return this.sessions.length > 0 && this.sessions.every((s) => this.selectedIds().has(s.id));
+    areAllSelected(): boolean {
+        return this.sessions.length > 0 && this.sessions.every((s) => this.selectedIds.has(s.id));
     }
 
-    toggleSelectAll(checked: boolean) {
-        this.selectedIds.update((set) => {
-            const s = new Set(set);
-            if (checked) {
-                this.sessions.forEach((session) => s.add(session.id));
-            } else {
-                this.sessions.forEach((session) => s.delete(session.id));
-            }
-            return s;
-        });
-        this.selectedIdsChange.emit(this.selectedIds());
-        this.cdr.markForCheck();
-    }
-
-    bulkDelete() {
-        this.deleteSelected.emit(Array.from(this.selectedIds()));
-        this.selectedIds.set(new Set());
-        this.selectedIdsChange.emit(this.selectedIds());
+    toggleSelectAll(checked: boolean): void {
+        const next = new Set(this.selectedIds);
+        if (checked) {
+            this.sessions.forEach((s) => next.add(s.id));
+        } else {
+            this.sessions.forEach((s) => next.delete(s.id));
+        }
+        this.selectedIdsChange.emit(next);
         this.cdr.markForCheck();
     }
 
     canStop(status: GraphSessionStatus) {
-        return [GraphSessionStatus.RUNNING, GraphSessionStatus.WAITING_FOR_USER, GraphSessionStatus.PENDING].includes(
-            status
-        );
+        return !isTerminalSessionStatus(status);
     }
 
     trackById(_: number, item: GraphSessionLight) {

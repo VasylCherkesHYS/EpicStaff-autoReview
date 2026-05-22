@@ -12,10 +12,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
-import { AppSvgIconComponent, PaginationControlsComponent } from '@shared/components';
-import { Subject, takeUntil } from 'rxjs';
+import {
+    ActionDropdownButtonComponent,
+    ActionDropdownItem,
+    AppSvgIconComponent,
+    PaginationControlsComponent,
+} from '@shared/components';
+import { finalize, Observable, Subject, takeUntil } from 'rxjs';
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
+import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
+import { ToastService } from '../../../../services/notifications/toast.service';
+import { downloadBlob } from '../../../../shared/utils/download-blob.util';
 import { FlowSessionsTableComponent } from '../../components/flow-sessions-dialog/flow-sessions-table.component';
 import { GetGraphLightRequest } from '../../models/graph.model';
 import { FlowsApiService } from '../../services/flows-api.service';
@@ -36,6 +44,7 @@ import {
         AppSvgIconComponent,
         RouterModule,
         GraphMessagesComponent,
+        ActionDropdownButtonComponent,
     ],
     template: `<div class="global-sessions-wrapper">
         <div class="global-sessions-header">
@@ -49,13 +58,10 @@ import {
                 <span class="slash">/All sessions</span>
             </div>
         </div>
-        <div
-            class="global-sessions-content"
-            #contentRef
-        >
-            <!-- LEFT PANEL: filters + table + pagination -->
-            <div class="left-panel">
-                <div class="filter-controls">
+        <div class="global-sessions-content" #contentRef>
+        <div class="left-panel">
+            <div class="filter-controls">
+                <div class="right-actions">
                     <button
                         class="delete-btn"
                         [class.invisible]="selectedIds().size === 0"
@@ -63,6 +69,13 @@ import {
                     >
                         Delete Selected ({{ selectedIds().size }})
                     </button>
+                    <app-action-dropdown-button
+                            [label]="'Export (' + (selectedIds().size === 0 ? totalCount() : selectedIds().size) + ')'"
+                            [items]="exportItems"
+                            [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)"
+                            (mainClick)="onExport('json')"
+                            (itemClick)="onExportItemSelected($event)"
+                        />
                     <span
                         [class.invisible]="selectedIds().size > 0"
                         class="results-length"
@@ -70,31 +83,34 @@ import {
                         {{ totalCount() }} Results
                     </span>
                 </div>
-                <div class="table-container">
-                    <app-flow-sessions-table
-                        [sessions]="sessions()"
-                        [showFlowName]="true"
-                        [showDuration]="true"
-                        [sortable]="true"
-                        [sortOrder]="sortOrder()"
-                        [statusFilter]="statusFilter()"
-                        [flows]="availableFlows()"
-                        [flowNameFilter]="flowFilter()"
-                        (flowNameFilterChange)="onFlowFilterChange($event)"
-                        [durationFilter]="durationFilter()"
-                        (durationFilterChange)="onDurationFilterChange($event)"
-                        [isLoading]="!isLoaded()"
-                        [showEmptyState]="isLoaded() && sessions().length === 0"
-                        [externalPreview]="true"
-                        (deleteSelected)="onDeleteSelected($event)"
-                        (viewSession)="onViewSession($event)"
-                        (stopSession)="onStopSession($event)"
-                        (sortChange)="onSortChange($event)"
-                        (statusFilterChange)="onStatusFilterChange($event)"
-                        (selectedIdsChange)="selectedIds.set($event)"
-                        (previewSession)="onPreviewSession($event)"
-                    ></app-flow-sessions-table>
-                </div>
+            </div>
+            <div class="table-container">
+                <app-flow-sessions-table
+                    [sessions]="sessions()"
+                    [showFlowName]="true"
+                    [showDuration]="true"
+                    [sortable]="true"
+                    [sortOrder]="sortOrder()"
+                    [statusFilter]="statusFilter()"
+                    [flows]="availableFlows()"
+                    [flowNameFilter]="flowFilter()"
+                    (flowNameFilterChange)="onFlowFilterChange($event)"
+                    [durationFilter]="durationFilter()"
+                    (durationFilterChange)="onDurationFilterChange($event)"
+                    [isLoading]="!isLoaded()"
+                    [showEmptyState]="isLoaded() && sessions().length === 0"
+                    [externalPreview]="true"
+                    [selectedIds]="selectedIds()"
+                    (deleteSelected)="onDeleteSelected($event)"
+                    (viewSession)="onViewSession($event)"
+                    (stopSession)="onStopSession($event)"
+                    (sortChange)="onSortChange($event)"
+                    (statusFilterChange)="onStatusFilterChange($event)"
+                    (previewSession)="onPreviewSession($event)"
+                    (selectedIdsChange)="selectedIds.set($event)"
+                ></app-flow-sessions-table>
+            </div>
+
                 <div class="pagination-container">
                     @if (isLoaded() && totalCount() > pageSize()) {
                         <app-pagination-controls
@@ -118,7 +134,7 @@ import {
                     </label>
                 </div>
             </div>
-
+            
             <div
                 class="panel-divider"
                 [class.panel-divider--open]="isPanelOpen()"
@@ -207,14 +223,23 @@ export class GlobalSessionsListComponent {
     private resizeStartX = 0;
     private resizeStartWidth = 0;
     public previewSession = signal<GraphSessionLight | null>(null);
+    public isExporting = signal(false);
+    public isDeleting = signal(false);
     private reloadTrigger = signal(0);
     private cancelLoad$ = new Subject<void>();
     private destroyRef = inject(DestroyRef);
 
+    readonly exportItems: ActionDropdownItem[] = [
+        { label: 'Export as JSON', value: 'json' },
+        { label: 'Export as CSV', value: 'csv' },
+    ];
+
     constructor(
         private graphSessionService: GraphSessionService,
         private flowsApiService: FlowsApiService,
-        private router: Router
+        private router: Router,
+        private importExportService: ImportExportService,
+        private toastService: ToastService
     ) {
         effect(() => {
             const page = this.currentPage();
@@ -293,7 +318,6 @@ export class GlobalSessionsListComponent {
 
     public onBulkDelete(): void {
         this.onDeleteSelected(Array.from(this.selectedIds()));
-        this.selectedIds.set(new Set());
     }
 
     public onStatusFilterChange(values: string[]): void {
@@ -341,11 +365,20 @@ export class GlobalSessionsListComponent {
     public onDeleteSelected(ids: number[]): void {
         if (ids.length === 0) return;
 
+        this.isDeleting.set(true);
         this.graphSessionService
             .bulkDeleteSessions(ids)
-            .pipe(takeUntilDestroyed(this.destroyRef))
+            .pipe(
+                finalize(() => this.isDeleting.set(false)),
+                takeUntilDestroyed(this.destroyRef)
+            )
             .subscribe({
                 next: () => {
+                    this.selectedIds.update((prev) => {
+                        const next = new Set(prev);
+                        ids.forEach((id) => next.delete(id));
+                        return next;
+                    });
                     const remaining = this.sessions().filter((s) => !ids.includes(s.id));
                     if (remaining.length === 0 && this.currentPage() > 1) {
                         this.currentPage.set(this.currentPage() - 1);
@@ -362,6 +395,48 @@ export class GlobalSessionsListComponent {
     public onDurationFilterChange(filter: DurationFilter | null): void {
         this.durationFilter.set(filter);
         this.currentPage.set(1);
+    }
+
+    public onExport(format: ExportFormat): void {
+        if (this.selectedIds().size === 0 && this.totalCount() === 0) {
+            return;
+        }
+        this.isExporting.set(true);
+        let obs$: Observable<Blob>;
+
+        if (this.selectedIds().size > 0) {
+            obs$ = this.importExportService.bulkExportSessions(Array.from(this.selectedIds()), format);
+        } else {
+            const activeStatuses = this.statusFilter().filter((s) => s !== 'all');
+            const selectedFlow = this.flowFilter()
+                ? this.availableFlows().find((f) => f.name === this.flowFilter())
+                : null;
+            obs$ = this.importExportService.exportAll(
+                {
+                    graph: selectedFlow?.id,
+                    status: activeStatuses.length > 0 ? activeStatuses : undefined,
+                    is_error_cause: this.isErrorCauseFilter() || undefined,
+                },
+                format
+            );
+        }
+
+        obs$.pipe(
+            finalize(() => this.isExporting.set(false)),
+            takeUntilDestroyed(this.destroyRef)
+        ).subscribe({
+            next: (blob) => {
+                downloadBlob(blob, `sessions_export_${Date.now()}.${format}`);
+                this.toastService.success('Sessions exported successfully');
+            },
+            error: () => {
+                this.toastService.error('Failed to export sessions');
+            },
+        });
+    }
+
+    public onExportItemSelected(item: ActionDropdownItem): void {
+        this.onExport(item.value as ExportFormat);
     }
 
     private loadGlobalSessions(
