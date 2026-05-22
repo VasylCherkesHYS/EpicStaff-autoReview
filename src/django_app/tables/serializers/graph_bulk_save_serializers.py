@@ -9,7 +9,6 @@ from tables.serializers.model_serializers import (
     EdgeSerializer,
     EndNodeSerializer,
     FileExtractorNodeSerializer,
-    LLMNodeSerializer,
     GraphNoteSerializer,
     PythonNodeSerializer,
     ScheduleTriggerNodeSerializer,
@@ -56,10 +55,6 @@ class FileExtractorNodeBulkSerializer(BulkSaveEntityMixin, FileExtractorNodeSeri
 class AudioTranscriptionNodeBulkSerializer(
     BulkSaveEntityMixin, AudioTranscriptionNodeSerializer
 ):
-    pass
-
-
-class LLMNodeBulkSerializer(BulkSaveEntityMixin, LLMNodeSerializer):
     pass
 
 
