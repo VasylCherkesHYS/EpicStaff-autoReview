@@ -14,7 +14,11 @@ class ImportService:
         self.registry = registry
 
     def import_data(
-        self, export_data: dict, main_entity: str, preserve_uuids: bool = False
+        self,
+        export_data: dict,
+        main_entity: str,
+        preserve_uuids: bool = False,
+        import_labels: bool = True,
     ):
         id_mapper = IDMapper()
 
@@ -35,6 +39,7 @@ class ImportService:
                             id_mapper,
                             entity_type == main_entity,
                             preserve_uuids=preserve_uuids,
+                            import_labels=import_labels,
                         )
                 else:
                     for entity_data in entities:
