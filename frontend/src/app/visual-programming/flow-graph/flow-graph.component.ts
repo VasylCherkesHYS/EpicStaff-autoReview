@@ -259,8 +259,32 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.isLoaded.set(true);
         setTimeout(() => {
             this.rerouteSegmentConnections();
+            this.focusStartNodeLeftCenter();
             this.cd.detectChanges();
         }, 0);
+    }
+
+    private focusStartNodeLeftCenter(): void {
+        const startNode = this.flowService.nodes().find((node) => node.type === NodeType.START);
+        if (!startNode) {
+            return;
+        }
+
+        const flowRect = this.fFlowComponent.hostElement.getBoundingClientRect();
+        const nodeWidth = startNode.size?.width ?? 0;
+        const nodeHeight = startNode.size?.height ?? 0;
+
+        const LEFT_OFFSET = 80;
+        const targetScreenX = LEFT_OFFSET;
+        const targetScreenY = flowRect.height / 2;
+        const nodeCenterX = startNode.position.x + nodeWidth / 2;
+        const nodeCenterY = startNode.position.y + nodeHeight / 2;
+
+        this.fCanvasComponent.setPosition({
+            x: targetScreenX - nodeCenterX,
+            y: targetScreenY - nodeCenterY,
+        });
+        this.fCanvasComponent.redraw();
     }
 
     public onReassignConnection(event: FReassignConnectionEvent): void {
