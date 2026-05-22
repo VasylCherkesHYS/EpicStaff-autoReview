@@ -116,6 +116,7 @@ from tables.views.knowledge_views.graph_rag_views import (
 
 
 from tables.views.agent_definition_views import AgentDefinitionViewSet
+from tables.views.surface_views import SurfaceViewSet
 from tables.views.storage_views import StorageAPIView
 from tables.views.sse_views import (
     RunSessionSSEView,
@@ -140,6 +141,7 @@ router.register(r"agents", AgentViewSet)
 router.register(
     r"agent-definitions", AgentDefinitionViewSet, basename="agentdefinition"
 )
+router.register(r"surfaces", SurfaceViewSet, basename="surface")
 router.register(r"crews", CrewReadWriteViewSet)
 router.register(r"tasks", TaskReadWriteViewSet)
 router.register(r"tools", ToolListRetrieveUpdateGenericViewSet)
