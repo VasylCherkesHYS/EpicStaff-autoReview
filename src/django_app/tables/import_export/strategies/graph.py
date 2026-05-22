@@ -64,6 +64,7 @@ class GraphStrategy(EntityImportExportStrategy):
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
         preserve_uuids = kwargs.get("preserve_uuids", False)
+        replace_existing = kwargs.get("replace_existing", False)
         import_labels = kwargs.get("import_labels", True)
         import_data = data.copy()
         import_data["metadata"] = self.update_metadata(
@@ -79,7 +80,10 @@ class GraphStrategy(EntityImportExportStrategy):
 
         imported_uuid = import_data.pop("uuid", None)
         if preserve_uuids and imported_uuid:
-            Graph.objects.filter(uuid=imported_uuid).update(uuid=uuid.uuid4())
+            if replace_existing:
+                Graph.objects.filter(uuid=imported_uuid).delete()
+            else:
+                Graph.objects.filter(uuid=imported_uuid).update(uuid=uuid.uuid4())
             import_data["uuid"] = imported_uuid
 
         nodes_data = import_data.pop("nodes", [])

@@ -850,6 +850,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         data = self.import_export_service.import_entity(
             file_serializer.validated_data["file"],
             preserve_uuids=file_serializer.validated_data["preserve_uuids"],
+            replace_existing=file_serializer.validated_data["replace_existing"],
             import_labels=file_serializer.validated_data["import_labels"],
         )
         return Response(data, status=status.HTTP_200_OK)

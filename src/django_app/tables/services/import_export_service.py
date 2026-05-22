@@ -44,7 +44,11 @@ class ViewSetImportExportService:
         return strategy.render(data, self.entity_type, self.export_prefix, base_name)
 
     def import_entity(
-        self, file, preserve_uuids: bool = False, import_labels: bool = True
+        self,
+        file,
+        preserve_uuids: bool = False,
+        replace_existing: bool = False,
+        import_labels: bool = True,
     ):
         try:
             data = json.load(file)
@@ -64,6 +68,7 @@ class ViewSetImportExportService:
             data,
             self.entity_type,
             preserve_uuids=preserve_uuids,
+            replace_existing=replace_existing,
             import_labels=import_labels,
         )
         summary = id_mapper.get_detailed_summary(registry)

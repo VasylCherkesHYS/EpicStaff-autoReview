@@ -18,6 +18,7 @@ class ImportService:
         export_data: dict,
         main_entity: str,
         preserve_uuids: bool = False,
+        replace_existing: bool = False,
         import_labels: bool = True,
     ):
         id_mapper = IDMapper()
@@ -39,6 +40,7 @@ class ImportService:
                             id_mapper,
                             entity_type == main_entity,
                             preserve_uuids=preserve_uuids,
+                            replace_existing=replace_existing,
                             import_labels=import_labels,
                         )
                 else:
