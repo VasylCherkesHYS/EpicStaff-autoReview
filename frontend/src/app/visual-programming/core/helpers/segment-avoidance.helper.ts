@@ -34,18 +34,26 @@ export function getPortPosition(node: NodeModel, port: ViewPort | undefined): IP
     if (node.type === NodeType.TABLE && port) {
         const headerH = 50;
         const bodyH = height - headerH;
-        const rowH = bodyH / 3;
+
+        const conditionPorts = (node.ports ?? []).filter((p) => p.role?.startsWith('decision-out-'));
+        const totalOutputRows = conditionPorts.length + 2; // condition rows + default + error
+        const rowH = bodyH / totalOutputRows;
 
         let portY = y + height / 2;
 
         if (port.id?.includes('table-in')) {
             portY = y + headerH + bodyH / 2;
             result = { x, y: portY };
+        } else if (port.role?.startsWith('decision-out-')) {
+            const conditionIndex = conditionPorts.findIndex((p) => p.id === port.id);
+            const rowIndex = conditionIndex >= 0 ? conditionIndex : 0;
+            portY = y + headerH + rowH * (rowIndex + 0.5);
+            result = { x: x + width, y: portY };
         } else if (port.id?.includes('decision-default')) {
-            portY = y + headerH + rowH * 1.5 - 10;
+            portY = y + headerH + rowH * (conditionPorts.length + 0.5) - 10;
             result = { x: x + width, y: portY };
         } else if (port.id?.includes('decision-error')) {
-            portY = y + headerH + rowH * 2.5 - 6;
+            portY = y + headerH + rowH * (conditionPorts.length + 1.5) - 6;
             result = { x: x + width, y: portY };
         } else {
             result =
@@ -702,13 +710,9 @@ export function computeSegmentAvoidanceWaypoints(
                     : excludeIds;
 
             const strictBlockers = findSegmentBlockers(a, b, allNodes, segmentExcludeIds);
-            const nearBlockers =
-                strictBlockers.length > 0
-                    ? []
-                    : findSegmentNearBlockers(a, b, allNodes, segmentExcludeIds, NODE_CLEARANCE);
-
-            const segBlockers = strictBlockers.length > 0 ? strictBlockers : nearBlockers;
-            if (!segBlockers.length) continue;
+            // Near-blockers are diagnostic only — see EST-2905
+            if (strictBlockers.length === 0) continue;
+            const segBlockers = strictBlockers;
 
             const detourPts =
                 a.y === b.y
