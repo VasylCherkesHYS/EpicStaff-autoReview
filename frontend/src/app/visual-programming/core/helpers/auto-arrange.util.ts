@@ -370,7 +370,6 @@ function layoutSingleComponent(
 export function computeAutoArrangePositions(nodes: NodeModel[], connections: ConnectionModel[]): Map<string, IPoint> {
     const nodeMap = new Map<string, NodeModel>(nodes.map((n) => [n.id, n]));
     const nonNoteNodes = nodes.filter((n) => n.type !== NodeType.NOTE);
-    const noteNodes = nodes.filter((n) => n.type === NodeType.NOTE);
 
     // ── Build connected components (Union-Find, undirected) ────────────────
     const components = buildUndirectedComponents(nonNoteNodes, connections);
@@ -411,16 +410,6 @@ export function computeAutoArrangePositions(nodes: NodeModel[], connections: Con
             positions.set(nodeId, { x: snapToGrid(isolatedX), y: currentY });
             isolatedX += nWidth(nodeMap.get(nodeId)) + HORIZONTAL_GAP;
         }
-        const maxIsolatedHeight = Math.max(...isolatedNodes.map((id) => nHeight(nodeMap.get(id))));
-        currentY += maxIsolatedHeight + COMPONENT_VERTICAL_GAP;
-    }
-
-    // ── NOTE nodes below disconnected area ─────────────────────────────────
-    const noteBaseY = currentY;
-    let noteX = CANVAS_START_X;
-    for (const node of noteNodes) {
-        positions.set(node.id, { x: snapToGrid(noteX), y: noteBaseY });
-        noteX += nWidth(node) + HORIZONTAL_GAP;
     }
 
     return positions;
