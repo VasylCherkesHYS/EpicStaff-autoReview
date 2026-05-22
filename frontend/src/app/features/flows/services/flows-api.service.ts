@@ -4,9 +4,11 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { ApiGetRequest } from '../../../core/models/api-request.model';
+import { GetScheduleTriggerNodeRequest } from '../../../pages/flows-page/components/flow-visual-programming/models/schedule-trigger.model';
 import { ConfigService } from '../../../services/config/config.service';
 import {
     CreateGraphDtoRequest,
+    CreateGraphFromVersionResponse,
     GetGraphLightRequest,
     GraphDto,
     GraphRestoreResponse,
@@ -136,5 +138,19 @@ export class FlowsApiService {
 
     deleteGraphVersion(id: number): Observable<void> {
         return this.http.delete<void>(`${this.configService.apiUrl}graph-versions/${id}/`);
+    }
+
+    getScheduleTriggerNode(id: number): Observable<GetScheduleTriggerNodeRequest> {
+        return this.http.get<GetScheduleTriggerNodeRequest>(
+            `${this.configService.apiUrl}schedule-trigger-nodes/${id}/`
+        );
+    }
+
+    createGraphFromVersion(versionId: number): Observable<CreateGraphFromVersionResponse> {
+        return this.http.post<CreateGraphFromVersionResponse>(
+            `${this.configService.apiUrl}graph-versions/${versionId}/create-graph/`,
+            {},
+            { headers: this.httpHeaders }
+        );
     }
 }

@@ -149,6 +149,7 @@ from tables.models.graph_models import (
     TelegramTriggerNode,
     TelegramTriggerNodeField,
     WebhookTriggerNode,
+    ScheduleTriggerNode,
 )
 from tables.models.rbac_models import Organization, OrganizationUser
 from tables.models.llm_models import (
@@ -231,6 +232,7 @@ from tables.serializers.model_serializers import (
     VoiceSettingsSerializer,
     WebhookTriggerNodeSerializer,
     WebhookTriggerSerializer,
+    ScheduleTriggerNodeSerializer,
     TelegramTriggerNodeSerializer,
     TelegramTriggerNodeFieldSerializer,
 )
@@ -683,12 +685,12 @@ class ToolConfigViewSet(ModelViewSet):
 
 
 class ContentHashPreconditionMixin:
-    """Passes content_hash from request data to the model instance before saving.
+    # """Passes content_hash from request data to the model instance before saving.
 
-    The model's ContentHashMixin.save() validates _expected_hash against the DB,
-    raising 409 Conflict on mismatch. Omitting content_hash skips the check.
-    Scripts can also set instance._expected_hash = hash before calling .save().
-    """
+    # The model's ContentHashMixin.save() validates _expected_hash against the DB,
+    # raising 409 Conflict on mismatch. Omitting content_hash skips the check.
+    # Scripts can also set instance._expected_hash = hash before calling .save().
+    # """
 
     def perform_update(self, serializer):
         incoming_hash = self.request.data.get("content_hash")
@@ -826,6 +828,10 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     "telegram_trigger_node_list",
                     queryset=TelegramTriggerNode.objects.all(),
                 ),
+                Prefetch(
+                    "schedule_trigger_node_list",
+                    queryset=ScheduleTriggerNode.objects.all(),
+                ),
                 "start_node_list",
                 Prefetch("graph_note_list", queryset=GraphNote.objects.all()),
             )
@@ -928,6 +934,18 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
             )
         ],
     ),
+    create_graph=extend_schema(
+        request=None,
+        responses={
+            201: inline_serializer(
+                name="CreateFromVersionResponse",
+                fields={
+                    "graph_id": serializers.IntegerField(),
+                    "warnings": serializers.ListField(child=serializers.DictField()),
+                },
+            )
+        },
+    ),
 )
 class GraphVersionViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
@@ -976,15 +994,21 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
         result = GraphVersioningService().restore_version(version, backup=backup)
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], url_path="create-graph")
+    def create_graph(self, request, *args, **kwargs):
+        version = self.get_object()
+        result = GraphVersioningService().create_graph_from_version(version)
+        return Response(result, status=status.HTTP_201_CREATED)
+
 
 class IdempotentNodeCreateMixin:
     # TODO: change fields from (graph, node_name) to id (all nodes id's are consistent)
-    """
-    COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
-    (graph, node_name) already exists, update it instead of failing with a
-    unique constraint violation. This prevents orphan accumulation when
-    forkJoin-based saves partially fail and retry.
-    """
+    # """
+    # COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
+    # (graph, node_name) already exists, update it instead of failing with a
+    # unique constraint violation. This prevents orphan accumulation when
+    # forkJoin-based saves partially fail and retry.
+    # """
 
     def create(self, request, *args, **kwargs):
         graph_id = request.data.get("graph")
@@ -1389,6 +1413,15 @@ class TelegramTriggerNodeViewSet(
 class TelegramTriggerNodeFieldViewSet(ModelViewSet):
     queryset = TelegramTriggerNodeField.objects.select_related("telegram_trigger_node")
     serializer_class = TelegramTriggerNodeFieldSerializer
+
+
+class ScheduleTriggerNodeViewSet(
+    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, ModelViewSet
+):
+    queryset = ScheduleTriggerNode.objects.all()
+    serializer_class = ScheduleTriggerNodeSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["graph", "is_active", "run_mode"]
 
 
 class GraphNoteViewSet(

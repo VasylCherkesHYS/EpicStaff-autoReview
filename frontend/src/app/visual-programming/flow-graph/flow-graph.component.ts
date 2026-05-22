@@ -704,11 +704,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public emitSave(): void {
-        if (this.pendingProjectCopies.size > 0) {
-            this.toastService.error('Please wait — project copies are still in progress');
-            return;
+        if (this.nodePanelShell?.hasPanelInstance()) {
+            const updatedNode = this.nodePanelShell.captureCurrentNodeState();
+            if (updatedNode === null) {
+                return;
+            }
+            this.flowService.updateNode(updatedNode);
         }
-        this.commitSidePanelToFlow();
         this.save.emit(this.flowService.getFlowState());
     }
 
