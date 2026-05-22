@@ -1,8 +1,11 @@
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from tables.import_export.id_mapper import IDMapper
 from tables.import_export.enums import EntityType
+
+if TYPE_CHECKING:
+    from tables.import_export.services.import_service import ImportSettings
 
 
 class EntityImportExportStrategy(ABC):
@@ -31,7 +34,12 @@ class EntityImportExportStrategy(ABC):
         pass
 
     def import_entity(
-        self, data: dict, id_mapper: "IDMapper", is_main: bool = False, **kwargs
+        self,
+        data: dict,
+        id_mapper: IDMapper,
+        is_main: bool = False,
+        settings: "ImportSettings" = None,
+        **kwargs,
     ) -> Any:
         """
         Standard import - checks for existing first.
@@ -42,14 +50,16 @@ class EntityImportExportStrategy(ABC):
             existing_id = id_mapper.get(self.entity_type, old_id)
             existing = self.get_instance(existing_id)
             return existing
+
+        settings_kwargs = vars(settings) if settings is not None else {}
         if is_main:
-            return self.create_entity(data, id_mapper, **kwargs)
+            return self.create_entity(data, id_mapper, **settings_kwargs)
 
         existing = self.find_existing(data, id_mapper)
-        if existing and not is_main:
+        if existing:
             return existing
 
-        return self.create_entity(data, id_mapper, **kwargs)
+        return self.create_entity(data, id_mapper, **settings_kwargs)
 
     def find_existing(self, data: dict, id_mapper: IDMapper) -> Optional[Any]:
         """

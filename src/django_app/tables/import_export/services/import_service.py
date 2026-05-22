@@ -14,7 +14,7 @@ from tables.import_export.constants import DEPENDENCY_ORDER
 class ImportSettings:
     preserve_uuids: bool = False
     replace_existing: bool = False
-    import_labels: bool = True
+    import_labels: bool = False
 
 
 class ImportService:
@@ -83,6 +83,7 @@ class ImportService:
         id_mapper,
         is_main,
         settings: ImportSettings = None,
+        **kwargs,
     ):
         old_id = entity_data["id"]
 
@@ -92,8 +93,9 @@ class ImportService:
 
         was_created = existing is None
 
-        kwargs = vars(settings) if settings is not None else {}
-        instance = strategy.import_entity(entity_data, id_mapper, is_main, **kwargs)
+        instance = strategy.import_entity(
+            entity_data, id_mapper, is_main, settings=settings
+        )
         id_mapper.map(entity_type, old_id, instance.id, was_created)
 
     def _resolve_graph_order(self, graphs: List[dict]) -> List[dict]:

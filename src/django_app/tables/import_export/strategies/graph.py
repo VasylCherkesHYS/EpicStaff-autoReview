@@ -60,7 +60,7 @@ class GraphStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: Graph) -> dict:
         data = self.serializer_class(instance).data
         data["nodes"] = self._export_nodes(instance)
-        data["labels"] = self.label_strategy.export(instance)
+        data["labels"] = self.label_strategy.export_entity(instance)
         return data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
@@ -110,7 +110,7 @@ class GraphStrategy(EntityImportExportStrategy):
         )
 
         if import_labels and labels_data:
-            self.label_strategy.import_labels(graph, labels_data)
+            self.label_strategy.create_entity(graph, id_mapper, labels_data)
 
         return graph
 
