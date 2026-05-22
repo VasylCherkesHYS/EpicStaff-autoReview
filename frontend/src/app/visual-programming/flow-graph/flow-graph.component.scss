@@ -443,17 +443,6 @@
     box-shadow: 0 0 0 2px #222 inset;
 }
 
-.top-right-controls {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.5rem;
-    z-index: 10;
-}
-
 .routing-toggle-block {
     display: flex;
     align-items: center;
