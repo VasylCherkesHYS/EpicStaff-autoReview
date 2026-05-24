@@ -762,3 +762,87 @@ class TaskNode(BaseNode, InlineSurfaceMixin):
         default=False,
         help_text="If True, task output is memoized in session state and reused on re-runs within the same session.",
     )
+
+
+class AgentNode(BaseNode, InlineSurfaceMixin):
+    """Node representing an agent that executes an ordered list of sub-tasks (AgentNodeTask) with shared surfaces."""
+
+    graph = models.ForeignKey(
+        "Graph",
+        on_delete=models.CASCADE,
+        related_name="agent_node_list",
+        help_text="Graph this agent node belongs to.",
+    )
+    agent_definition = models.ForeignKey(
+        "AgentDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        default=None,
+        related_name="agent_nodes",
+        help_text="AgentDefinition that executes this node's tasks. Null allowed — runtime surfaces a missing-agent error.",
+    )
+    surfaces = models.ManyToManyField(
+        "Surface",
+        blank=True,
+        related_name="agent_nodes",
+        help_text="Reusable Surface bundles whose resources are merged at runtime and shared across all sub-tasks.",
+    )
+
+
+class AgentNodeTask(TimestampMixin):
+    """Child sub-task of an AgentNode; not a graph node — executes sequentially within the parent node."""
+
+    agent_node = models.ForeignKey(
+        AgentNode,
+        on_delete=models.CASCADE,
+        related_name="tasks",
+        help_text="Parent AgentNode this task belongs to.",
+    )
+    order = models.PositiveIntegerField(
+        help_text="Zero-based position within the parent agent node. Tasks execute in ascending order.",
+    )
+    instructions = models.TextField(
+        blank=True,
+        default="",
+        help_text="Prompt text passed to the agent for this sub-task. Empty means no task-level instructions.",
+    )
+    output_schema = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Optional JSON schema the task output must conform to. Empty dict = no enforcement.",
+    )
+    context_tasks = models.ManyToManyField(
+        "self",
+        symmetrical=False,
+        blank=True,
+        related_name="dependent_tasks",
+        help_text="Earlier sibling tasks whose outputs are injected as context for this task.",
+    )
+
+    class Meta:
+        ordering = ["order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["agent_node", "order"],
+                name="uniq_agentnodetask_node_order",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+
+        if self.pk:
+            invalid = self.context_tasks.exclude(agent_node=self.agent_node)
+
+            if invalid.exists():
+                raise ValidationError(
+                    "context_tasks must belong to the same agent_node."
+                )
+
+            forward = self.context_tasks.filter(order__gte=self.order)
+
+            if forward.exists():
+                raise ValidationError(
+                    "context_tasks must reference tasks with a strictly lower order."
+                )
