@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from tables.models.agent_models import AgentDefinition, Surface
+from tables.models.agent_models import AgentDefinition, InlineSurface, Surface
 from tables.models.crew_models import ToolConfig
 from tables.models.graph_models import StorageFile
 from tables.models.knowledge_models.collection_models import SourceCollection
@@ -104,3 +104,48 @@ class CombineSurfacesSerializer(serializers.Serializer):
     surface_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1), min_length=1
     )
+
+
+class InlineSurfaceReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InlineSurface
+        fields = [
+            "id",
+            "organization",
+            "tool_configs",
+            "python_code_tool_configs",
+            "mcp_tools",
+            "knowledge_collections",
+            "storage_files",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class InlineSurfaceWriteSerializer(serializers.ModelSerializer):
+    tool_configs = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ToolConfig.objects.all(), required=False
+    )
+    python_code_tool_configs = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=PythonCodeToolConfig.objects.all(), required=False
+    )
+    mcp_tools = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=McpTool.objects.all(), required=False
+    )
+    knowledge_collections = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=SourceCollection.objects.all(), required=False
+    )
+    storage_files = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=StorageFile.objects.all(), required=False
+    )
+
+    class Meta:
+        model = InlineSurface
+        fields = [
+            "tool_configs",
+            "python_code_tool_configs",
+            "mcp_tools",
+            "knowledge_collections",
+            "storage_files",
+        ]

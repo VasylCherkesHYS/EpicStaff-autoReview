@@ -89,6 +89,7 @@ from tables.models import (
     SubGraphNode,
     Task,
     TaskContext,
+    TaskNode,
     TemplateAgent,
     ToolConfig,
     ToolConfigField,
@@ -225,6 +226,7 @@ from tables.serializers.model_serializers import (
     RealtimeSessionItemSerializer,
     StartNodeSerializer,
     SubGraphNodeSerializer,
+    TaskNodeSerializer,
     TaskReadSerializer,
     TaskWriteSerializer,
     TemplateAgentSerializer,
@@ -1042,6 +1044,13 @@ class LLMNodeViewSet(
 class CodeAgentNodeViewSet(IdempotentNodeCreateMixin, viewsets.ModelViewSet):
     queryset = CodeAgentNode.objects.all()
     serializer_class = CodeAgentNodeSerializer
+
+
+class TaskNodeViewSet(
+    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
+):
+    queryset = TaskNode.objects.all()
+    serializer_class = TaskNodeSerializer
 
 
 class EdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet):

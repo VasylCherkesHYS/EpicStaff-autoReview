@@ -15,6 +15,7 @@ from tables.models.graph_models import (
     LLMNode,
     PythonNode,
     SubGraphNode,
+    TaskNode,
 )
 from tables.serializers.base_serializer import (
     BaseGraphEntityMixin,
@@ -89,6 +90,12 @@ class CodeAgentNodeSerializer(serializers.ModelSerializer):
 class EdgeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
     class Meta(BaseGraphEntityMixin.Meta):
         model = Edge
+        fields = "__all__"
+
+
+class TaskNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
+    class Meta:
+        model = TaskNode
         fields = "__all__"
 
 

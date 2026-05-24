@@ -15,6 +15,7 @@ from .basic_node_serializers import (
     LLMNodeSerializer,
     PythonNodeSerializer,
     SubGraphNodeSerializer,
+    TaskNodeSerializer,
 )
 from .trigger_serializers import (
     ScheduleTriggerNodeSerializer,
