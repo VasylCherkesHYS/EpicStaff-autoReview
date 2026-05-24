@@ -2,6 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from tables.views.model_view_sets import (
+    AgentNodeViewSet,
+    AgentNodeTaskViewSet,
     ConditionalEdgeViewSet,
     CrewNodeViewSet,
     DecisionTableNodeModelViewSet,
@@ -171,6 +173,8 @@ router.register(r"endnodes", EndNodeModelViewSet)
 router.register(r"subgraph-nodes", SubGraphNodeModelViewSet)
 router.register(r"code-agent-nodes", CodeAgentNodeViewSet)
 router.register(r"tasknodes", TaskNodeViewSet)
+router.register(r"agentnodes", AgentNodeViewSet)
+router.register(r"agentnodetasks", AgentNodeTaskViewSet)
 
 router.register(r"edges", EdgeViewSet)
 router.register(r"conditionaledges", ConditionalEdgeViewSet)

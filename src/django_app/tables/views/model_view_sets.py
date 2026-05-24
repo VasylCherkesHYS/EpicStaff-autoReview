@@ -65,6 +65,8 @@ from tables.graph_versioning.serializers import (
 from tables.import_export.enums import EntityType
 from tables.models import (
     Agent,
+    AgentNode,
+    AgentNodeTask,
     AudioTranscriptionNode,
     CodeAgentNode,
     ConditionalEdge,
@@ -190,6 +192,8 @@ from tables.services.copy_services import (
 )
 from tables.views.mixins import CopyActionMixin
 from tables.serializers.model_serializers import (
+    AgentNodeSerializer,
+    AgentNodeTaskSerializer,
     AgentReadSerializer,
     AgentWriteSerializer,
     AudioTranscriptionNodeSerializer,
@@ -1051,6 +1055,40 @@ class TaskNodeViewSet(
 ):
     queryset = TaskNode.objects.all()
     serializer_class = TaskNodeSerializer
+
+
+class AgentNodeViewSet(
+    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
+):
+    queryset = AgentNode.objects.all()
+    serializer_class = AgentNodeSerializer
+
+
+class AgentNodeTaskViewSet(viewsets.ModelViewSet):
+    queryset = AgentNodeTask.objects.all()
+    serializer_class = AgentNodeTaskSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["agent_node"]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+
+        try:
+            instance.full_clean()
+        except ValidationError as error:
+            raise serializers.ValidationError(
+                error.message_dict if hasattr(error, "message_dict") else error.messages
+            )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+
+        try:
+            instance.full_clean()
+        except ValidationError as error:
+            raise serializers.ValidationError(
+                error.message_dict if hasattr(error, "message_dict") else error.messages
+            )
 
 
 class EdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet):

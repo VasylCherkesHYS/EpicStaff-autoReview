@@ -7,6 +7,8 @@ from tables.serializers.model_serializers.crew_serializers import (
     CrewSerializer,
 )
 from tables.models.graph_models import (
+    AgentNode,
+    AgentNodeTask,
     AudioTranscriptionNode,
     CodeAgentNode,
     CrewNode,
@@ -97,6 +99,56 @@ class TaskNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
     class Meta:
         model = TaskNode
         fields = "__all__"
+
+
+class AgentNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
+    class Meta:
+        model = AgentNode
+        fields = "__all__"
+
+
+class AgentNodeTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentNodeTask
+        fields = [
+            "id",
+            "agent_node",
+            "order",
+            "instructions",
+            "output_schema",
+            "context_tasks",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        agent_node = attrs.get("agent_node") or (
+            self.instance and self.instance.agent_node
+        )
+        order = attrs.get("order")
+
+        if order is None and self.instance:
+            order = self.instance.order
+
+        context_tasks = attrs.get("context_tasks", [])
+
+        for ct in context_tasks:
+            if ct.agent_node_id != agent_node.id:
+                raise serializers.ValidationError(
+                    {
+                        "context_tasks": "All referenced tasks must belong to the same agent_node."
+                    }
+                )
+
+            if order is not None and ct.order >= order:
+                raise serializers.ValidationError(
+                    {
+                        "context_tasks": "Each context task must have a strictly lower `order` than this task."
+                    }
+                )
+
+        return attrs
 
 
 class SubGraphNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):

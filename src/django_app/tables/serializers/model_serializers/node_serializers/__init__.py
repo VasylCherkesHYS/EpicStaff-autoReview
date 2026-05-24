@@ -7,6 +7,8 @@ from .flow_control_serializers import (
     StartNodeSerializer,
 )
 from .basic_node_serializers import (
+    AgentNodeSerializer,
+    AgentNodeTaskSerializer,
     AudioTranscriptionNodeSerializer,
     CodeAgentNodeSerializer,
     CrewNodeSerializer,
