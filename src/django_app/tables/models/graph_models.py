@@ -10,6 +10,7 @@ from loguru import logger
 from tables.models.base_models import (
     BaseGlobalNode,
     BaseGraphEntity,
+    InlineSurfaceMixin,
     TimestampMixin,
     ContentHashMixin,
     SoftDeleteMixin,
@@ -723,3 +724,41 @@ class SessionStorageFile(models.Model):
                 name="unique_session_storage_file",
             )
         ]
+
+
+class TaskNode(BaseNode, InlineSurfaceMixin):
+    graph = models.ForeignKey(
+        "Graph",
+        on_delete=models.CASCADE,
+        related_name="task_node_list",
+        help_text="Graph this task node belongs to.",
+    )
+    agent_definition = models.ForeignKey(
+        "AgentDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        default=None,
+        related_name="task_nodes",
+        help_text="AgentDefinition that executes this task. Null allowed — runtime surfaces a missing-agent error.",
+    )
+    surfaces = models.ManyToManyField(
+        "Surface",
+        blank=True,
+        related_name="task_nodes",
+        help_text="Reusable Surface bundles whose resources are merged at runtime for this task.",
+    )
+    instructions = models.TextField(
+        blank=True,
+        default="",
+        help_text="Prompt text passed to the agent for this task. Empty means no task-level instructions.",
+    )
+    output_schema = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="JSON schema the task output must conform to. Empty dict means no schema enforcement.",
+    )
+    remember_output = models.BooleanField(
+        default=False,
+        help_text="If True, task output is memoized in session state and reused on re-runs within the same session.",
+    )

@@ -17,6 +17,7 @@ class TablesConfig(AppConfig):
         import tables.signals.python_code_tool_config_signals
         import tables.signals.naive_rag_signals
         import tables.signals.webhook_signals
+        import tables.signals.inline_surface_signals
         import tables.import_export.version_conversions.convertions
         import tables.signals.schedule_signals
         from tables.services.schedule_trigger_service import ScheduleTriggerService
@@ -65,9 +66,7 @@ class TablesConfig(AppConfig):
             session_manager_service=session_manager_service,
             webhook_trigger_service=webhook_trigger_service,
         )
-        ScheduleTriggerService(
-            session_manager_service=session_manager_service
-        )
+        ScheduleTriggerService(session_manager_service=session_manager_service)
 
         # Register strategies for import/export entities
         entity_registry.register(llm_models.LLMModelStrategy())

@@ -18,13 +18,51 @@ class ResolvedSurface:
     storage_files: list = field(default_factory=list)
 
 
-class Surface(TimestampMixin, models.Model):
+class BaseSurface(TimestampMixin, models.Model):
     organization = models.ForeignKey(
         "Organization",
         on_delete=models.CASCADE,
-        related_name="surfaces",
+        related_name="%(class)ss",
         help_text="Organization this surface belongs to.",
     )
+    tool_configs = models.ManyToManyField(
+        "ToolConfig",
+        blank=True,
+        related_name="%(class)ss",
+        help_text="Standard ToolConfig instances (configured tool invocations) exposed by this surface.",
+    )
+    python_code_tool_configs = models.ManyToManyField(
+        "PythonCodeToolConfig",
+        blank=True,
+        related_name="%(class)ss",
+        help_text="PythonCodeToolConfig instances exposed by this surface.",
+    )
+    mcp_tools = models.ManyToManyField(
+        "McpTool",
+        blank=True,
+        related_name="%(class)ss",
+        help_text="MCP tool instances exposed by this surface. Auth and URL are stored on McpTool directly.",
+    )
+    knowledge_collections = models.ManyToManyField(
+        "SourceCollection",
+        blank=True,
+        related_name="%(class)ss",
+        help_text="RAG SourceCollection instances this surface grants access to.",
+    )
+    storage_files = models.ManyToManyField(
+        "StorageFile",
+        blank=True,
+        related_name="%(class)ss",
+        help_text="Object-storage files this surface grants access to.",
+    )
+    # storage_files declared on each concrete subclass (through= varies).
+
+    class Meta(TimestampMixin.Meta):
+        abstract = True
+
+
+class Surface(BaseSurface):
+    # %(class)ss expands to "surfaces" for this class — identical to existing related_names.
     name = models.CharField(
         max_length=255,
         help_text="Stable identifier unique within the organization. Used as the user-facing name for this surface.",
@@ -53,44 +91,14 @@ class Surface(TimestampMixin, models.Model):
         related_name="allowed_surfaces",
         help_text="AgentDefinition instances permitted to select this surface. Empty set means any agent in the organization may use it.",
     )
-    tool_configs = models.ManyToManyField(
-        "ToolConfig",
-        blank=True,
-        related_name="surfaces",
-        help_text="Standard ToolConfig instances (configured tool invocations) exposed by this surface.",
-    )
-    python_code_tool_configs = models.ManyToManyField(
-        "PythonCodeToolConfig",
-        blank=True,
-        related_name="surfaces",
-        help_text="PythonCodeToolConfig instances exposed by this surface.",
-    )
-    mcp_tools = models.ManyToManyField(
-        "McpTool",
-        blank=True,
-        related_name="surfaces",
-        help_text="MCP tool instances exposed by this surface. Auth and URL are stored on McpTool directly.",
-    )
-    knowledge_collections = models.ManyToManyField(
-        "SourceCollection",
-        blank=True,
-        related_name="surfaces",
-        help_text="RAG SourceCollection instances this surface grants access to.",
-    )
-    storage_files = models.ManyToManyField(
-        "StorageFile",
-        through="SurfaceStorageFile",
-        blank=True,
-        related_name="surfaces",
-        help_text="Object-storage files this surface grants access to. Linked via SurfaceStorageFile through-table.",
-    )
 
-    class Meta:
+    class Meta(BaseSurface.Meta):
+        abstract = False
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "name"],
-                name="unique_surface_name_per_organization",
-            )
+                name="uniq_surface_org_name",
+            ),
         ]
 
     def clean(self) -> None:
@@ -164,21 +172,6 @@ class Surface(TimestampMixin, models.Model):
         return self.allowed_agents.filter(pk=agent_definition.pk).exists()
 
 
-class SurfaceStorageFile(models.Model):
-    surface = models.ForeignKey(
-        Surface,
-        on_delete=models.CASCADE,
-        help_text="Surface this file attachment belongs to.",
-    )
-    storage_file = models.ForeignKey(
-        "StorageFile",
-        on_delete=models.CASCADE,
-        help_text="Object-storage file granted by this surface.",
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Timestamp when this file was attached to the surface.",
-    )
-
-    class Meta:
-        unique_together = ("surface", "storage_file")
+class InlineSurface(BaseSurface):
+    class Meta(BaseSurface.Meta):
+        abstract = False

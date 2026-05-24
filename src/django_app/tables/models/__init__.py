@@ -28,7 +28,7 @@ from .default_models import DefaultModels
 from .agent_models import (
     AgentDefinition,
     DefaultAgentDefinitionConfig,
+    InlineSurface,
     Surface,
-    SurfaceStorageFile,
     ResolvedSurface,
 )

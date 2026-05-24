@@ -341,3 +341,9 @@ class BulkSaveValidationError(CustomAPIExeption):
     def __init__(self, errors: dict):
         self.errors = errors
         super().__init__(str(errors))
+
+
+class SurfaceValidationError(CustomAPIExeption):
+    status_code = 400
+    default_detail = "Invalid surface data."
+    default_code = "surface_invalid"

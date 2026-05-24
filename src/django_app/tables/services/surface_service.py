@@ -1,6 +1,6 @@
 from django.core import exceptions as dj_exceptions
-from rest_framework import serializers
 
+from tables.exceptions import SurfaceValidationError
 from tables.models.agent_models.surface_models import ResolvedSurface, Surface
 
 SURFACE_M2M_FIELDS = (
@@ -75,16 +75,16 @@ class SurfaceService:
             and attrs.get("parent")
             and attrs["parent"].pk == instance.pk
         ):
-            raise serializers.ValidationError(
-                {"parent": ["Surface cannot be its own parent."]}
+            raise SurfaceValidationError(
+                detail={"parent": ["Surface cannot be its own parent."]}
             )
 
         try:
             candidate.full_clean(exclude=list(SURFACE_M2M_FIELDS) + ["organization"])
         except dj_exceptions.ValidationError as exc:
             if hasattr(exc, "message_dict"):
-                raise serializers.ValidationError(exc.message_dict)
-            raise serializers.ValidationError(exc.messages)
+                raise SurfaceValidationError(detail=exc.message_dict)
+            raise SurfaceValidationError(detail=exc.messages)
 
         return attrs
 
@@ -128,6 +128,13 @@ class SurfaceService:
             else:
                 getattr(instance, m2m_name).set(value if value is not None else [])
 
+        if (
+            partial
+            and not scalar_keys
+            and any(v is not None for v in m2m_values.values())
+        ):
+            instance.save(update_fields=["updated_at"])
+
         return instance
 
     @staticmethod
@@ -146,8 +153,8 @@ class SurfaceService:
         missing = set(surface_ids) - surfaces_by_id.keys()
 
         if missing:
-            raise serializers.ValidationError(
-                {"surface_ids": [f"Surfaces not found: {sorted(missing)}"]}
+            raise SurfaceValidationError(
+                detail={"surface_ids": [f"Surfaces not found: {sorted(missing)}"]}
             )
 
         ordered = [surfaces_by_id[pk] for pk in surface_ids]
