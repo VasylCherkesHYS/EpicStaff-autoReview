@@ -10,73 +10,78 @@
     <div class="popover">
         <div class="popover__header">Import options</div>
 
-        <div class="popover__row">
-            <span class="popover__label">
-                Preserve Flow UUIDs
-                <app-help-tooltip
-                    size="0.875rem"
-                    class="help-icon"
-                    text="Imported flows keep the same IDs as the source system"
-                    position="right"
-                />
-            </span>
-            <div
-                class="toggle-group"
-                (click)="togglePreserveUuids()"
-            >
+        <div class="popover__section">
+            <div class="popover__row">
+                <span class="popover__label">
+                    Preserve Flow UUIDs
+                    <app-help-tooltip
+                        size="0.875rem"
+                        class="help-icon"
+                        text="Imported flows keep the same IDs as the source system"
+                        position="right"
+                    />
+                </span>
                 <div
-                    class="toggle-slider"
-                    [class.right]="settings().preserveUuids"
-                ></div>
-                <button
-                    type="button"
-                    class="toggle-btn"
-                    [class.text-active]="!settings().preserveUuids"
+                    class="toggle-group"
+                    (click)="togglePreserveUuids()"
                 >
-                    No
-                </button>
-                <button
-                    type="button"
-                    class="toggle-btn"
-                    [class.text-active]="settings().preserveUuids"
-                >
-                    Yes
-                </button>
+                    <div
+                        class="toggle-slider"
+                        [class.right]="settings().preserveUuids"
+                    ></div>
+                    <button
+                        type="button"
+                        class="toggle-btn"
+                        [class.text-active]="!settings().preserveUuids"
+                    >
+                        No
+                    </button>
+                    <button
+                        type="button"
+                        class="toggle-btn"
+                        [class.text-active]="settings().preserveUuids"
+                    >
+                        Yes
+                    </button>
+                </div>
             </div>
-        </div>
 
-        <div class="popover__row">
-            <span class="popover__label">
-                Replace existing
-                <app-help-tooltip
-                    size="0.875rem"
-                    class="help-icon"
-                    text="Overwrite entities that already exist (matched by UUID)"
-                    position="right"
-                />
-            </span>
             <div
-                class="toggle-group"
-                (click)="toggleReplaceExisting()"
+                class="popover__row popover__row--nested"
+                *ngIf="settings().preserveUuids"
             >
+                <span class="popover__label">
+                    Replace existing
+                    <app-help-tooltip
+                        size="0.875rem"
+                        class="help-icon"
+                        text="Overwrite entities that already exist (matched by UUID)"
+                        position="right"
+                    />
+                </span>
                 <div
-                    class="toggle-slider"
-                    [class.right]="settings().replaceExisting"
-                ></div>
-                <button
-                    type="button"
-                    class="toggle-btn"
-                    [class.text-active]="!settings().replaceExisting"
+                    class="toggle-group"
+                    (click)="toggleReplaceExisting()"
                 >
-                    No
-                </button>
-                <button
-                    type="button"
-                    class="toggle-btn"
-                    [class.text-active]="settings().replaceExisting"
-                >
-                    Yes
-                </button>
+                    <div
+                        class="toggle-slider"
+                        [class.right]="settings().replaceExisting"
+                    ></div>
+                    <button
+                        type="button"
+                        class="toggle-btn"
+                        [class.text-active]="!settings().replaceExisting"
+                    >
+                        No
+                    </button>
+                    <button
+                        type="button"
+                        class="toggle-btn"
+                        [class.text-active]="settings().replaceExisting"
+                    >
+                        Yes
+                    </button>
+                </div>
             </div>
         </div>
 

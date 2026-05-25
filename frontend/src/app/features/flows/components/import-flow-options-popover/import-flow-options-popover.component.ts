@@ -39,7 +39,11 @@ export class ImportFlowOptionsPopoverComponent {
     ];
 
     public togglePreserveUuids(): void {
-        this.settingsService.update({ preserveUuids: !this.settings().preserveUuids });
+        const newValue = !this.settings().preserveUuids;
+        this.settingsService.update({
+            preserveUuids: newValue,
+            ...(newValue === false && { replaceExisting: false }),
+        });
     }
 
     public toggleReplaceExisting(): void {
