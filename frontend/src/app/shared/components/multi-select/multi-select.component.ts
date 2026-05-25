@@ -112,7 +112,7 @@ export class MultiSelectComponent implements OnInit {
         this.openAt(this.triggerBtn.nativeElement);
     }
 
-    openAt(originElement: HTMLElement): void {
+    openAt(originElement: HTMLElement, seedValues?: unknown[]): void {
         const positionStrategy = this.overlayPositionBuilder
             .flexibleConnectedTo(originElement)
             .withPositions([
@@ -147,7 +147,7 @@ export class MultiSelectComponent implements OnInit {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(() => this.close());
 
-        this.tempSelected.set([...this.selectedValues()]);
+        this.tempSelected.set([...(seedValues ?? this.selectedValues())]);
         this.search.set('');
         const portal = new TemplatePortal(this.dropdownTemplate, this.vcr);
         this.overlayRef.attach(portal);

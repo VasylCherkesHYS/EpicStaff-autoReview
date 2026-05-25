@@ -1411,10 +1411,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     toggleFieldPicker(event?: MouseEvent): void {
-        this.exprSelectedFieldsModel.set([...this.activeFieldColumns()]);
+        const next = [...this.activeFieldColumns()];
+        this.exprSelectedFieldsModel.set(next);
         const anchor = (event?.currentTarget ?? event?.target) as HTMLElement | undefined;
         if (anchor) {
-            this.exprMultiSelect.openAt(anchor);
+            this.exprMultiSelect.openAt(anchor, next);
         } else {
             this.exprMultiSelect.openDropdown();
         }
@@ -1449,10 +1450,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     toggleManipFieldPicker(event?: MouseEvent): void {
-        this.manipSelectedFieldsModel.set([...this.activeManipFieldColumns()]);
+        const next = [...this.activeManipFieldColumns()];
+        this.manipSelectedFieldsModel.set(next);
         const anchor = (event?.currentTarget ?? event?.target) as HTMLElement | undefined;
         if (anchor) {
-            this.manipMultiSelect.openAt(anchor);
+            this.manipMultiSelect.openAt(anchor, next);
         } else {
             this.manipMultiSelect.openDropdown();
         }
