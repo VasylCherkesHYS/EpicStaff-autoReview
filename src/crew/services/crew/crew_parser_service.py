@@ -8,15 +8,15 @@ from crewai import Agent, Crew, Task
 from langchain_core.tools import BaseTool
 from langgraph.types import StreamWriter
 
-from src.crew.services.graph.events import StopEvent
-from src.crew.utils.parse_llm import parse_llm, parse_memory_llm, parse_memory_embedder
-from src.crew.callbacks.session_callback_factory import CrewCallbackFactory
-from src.crew.services.schema_converter.converter import generate_model_from_schema
-from src.crew.services.run_python_code_service import RunPythonCodeService
-from src.crew.services.knowledge_search_service import KnowledgeSearchService
-from src.crew.utils.singleton_meta import SingletonMeta
-from src.crew.services.redis_service import RedisService
-from src.shared.models import (
+from services.graph.events import StopEvent
+from utils.parse_llm import parse_llm, parse_memory_llm, parse_memory_embedder
+from callbacks.session_callback_factory import CrewCallbackFactory
+from services.schema_converter.converter import generate_model_from_schema
+from services.run_python_code_service import RunPythonCodeService
+from services.knowledge_search_service import KnowledgeSearchService
+from utils.singleton_meta import SingletonMeta
+from services.redis_service import RedisService
+from shared.models import (
     AgentData,
     ConfiguredToolData,
     CrewData,
@@ -25,10 +25,10 @@ from src.shared.models import (
     TaskData,
 )
 
-from src.crew.settings import PGVECTOR_MEMORY_CONFIG
+from settings import PGVECTOR_MEMORY_CONFIG
 
-from src.crew.services.crew.proxy_tool_factory import ProxyToolFactory
-from src.crew.services.crew.mcp_tool_factory import CrewaiMcpToolFactory
+from services.crew.proxy_tool_factory import ProxyToolFactory
+from services.crew.mcp_tool_factory import CrewaiMcpToolFactory
 
 
 class CrewParserService(metaclass=SingletonMeta):

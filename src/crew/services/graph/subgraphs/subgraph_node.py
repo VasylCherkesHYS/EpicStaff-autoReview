@@ -6,9 +6,9 @@ from dotdict import DotDict
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import StreamWriter
-from src.shared.models import GraphData, SubGraphData, SubGraphNodeData
+from shared.models import GraphData, SubGraphData, SubGraphNodeData
 
-from src.crew.models.graph_models import (
+from models.graph_models import (
     GraphMessage,
     SubGraphFinishMessageData,
     SubGraphStartMessageData,

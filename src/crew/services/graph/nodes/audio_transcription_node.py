@@ -1,5 +1,5 @@
-from src.crew.services.graph.nodes.python_node import PythonNode
-from src.shared.models import PythonCodeData
+from services.graph.nodes.python_node import PythonNode
+from shared.models import PythonCodeData
 
 
 class AudioTranscriptionNode(PythonNode):

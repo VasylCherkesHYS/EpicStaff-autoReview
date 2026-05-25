@@ -1,16 +1,16 @@
 from typing import cast, Any
 
 from langgraph.types import StreamWriter
-from src.shared.models import LLMData
+from shared.models import LLMData
 
 import litellm
 from litellm import Choices
 from litellm.types.utils import ModelResponse
 
-from src.crew.models.graph_models import LLMMessageData, GraphMessage
-from src.crew.models.state import State
-from src.crew.services.graph.events import StopEvent
-from src.crew.services.graph.nodes import BaseNode
+from models.graph_models import LLMMessageData, GraphMessage
+from models.state import State
+from services.graph.events import StopEvent
+from services.graph.nodes import BaseNode
 
 
 class LLMNode(BaseNode):

@@ -8,17 +8,17 @@ from loguru import logger
 
 from crewai.tools.base_tool import Tool
 
-from src.crew.models.response_models import ToolResponse
-from src.shared.models import (
+from models.response_models import ToolResponse
+from shared.models import (
     PythonCodeToolData,
     ConfiguredToolData,
     ToolInitConfigurationModel,
 )
 
-from src.crew.services.graph.events import StopEvent
-from src.crew.services.schema_converter.converter import generate_model_from_schema
-from src.crew.services.pickle_encode import txt_to_obj
-from src.crew.services.run_python_code_service import RunPythonCodeService
+from services.graph.events import StopEvent
+from services.schema_converter.converter import generate_model_from_schema
+from services.pickle_encode import txt_to_obj
+from services.run_python_code_service import RunPythonCodeService
 
 
 _TYPE_NORMALIZE = {"obj": "object", "list": "array"}

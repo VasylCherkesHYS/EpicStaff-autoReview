@@ -5,14 +5,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.crew.services.crew.proxy_tool_factory import ProxyToolFactory, _build_args_schema
-from src.crew.services.graph.events import StopEvent
+from services.crew.proxy_tool_factory import ProxyToolFactory, _build_args_schema
+from services.graph.events import StopEvent
 from src.shared.models import PythonCodeData, PythonCodeToolData
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def make_tool_data(variables, global_kwargs=None):
     return PythonCodeToolData(
@@ -63,7 +64,7 @@ def run_tool_ctx(variables, global_kwargs, run_code_return):
         return fut
 
     with patch(
-        "src.crew.services.crew.proxy_tool_factory.asyncio.run_coroutine_threadsafe",
+        "services.crew.proxy_tool_factory.asyncio.run_coroutine_threadsafe",
         side_effect=fake_run_coroutine_threadsafe,
     ):
         yield tool, captured
