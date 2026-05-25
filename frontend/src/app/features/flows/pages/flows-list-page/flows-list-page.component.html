@@ -107,6 +107,59 @@
                         </button>
                     }
                 </div>
+                <button
+                    #filterTrigger="cdkOverlayOrigin"
+                    cdkOverlayOrigin
+                    type="button"
+                    class="filter-trigger"
+                    [class.active]="hasActiveFilter() || filterMenuOpen()"
+                    (click)="toggleFilterMenu()"
+                >
+                    <app-svg-icon
+                        icon="filter-outline"
+                        size="1rem"
+                    />
+                    <span>Filter</span>
+                    <app-svg-icon
+                        icon="chevron-down"
+                        size="0.7rem"
+                        class="filter-chevron"
+                        [class.open]="filterMenuOpen()"
+                    />
+                </button>
+                @if (hasActiveFilter()) {
+                    <button
+                        type="button"
+                        class="filter-clear"
+                        (click)="clearAllFilters()"
+                        title="Clear all filters"
+                    >
+                        <app-svg-icon
+                            icon="x"
+                            size="0.85rem"
+                        />
+                    </button>
+                }
+                <ng-template
+                    cdkConnectedOverlay
+                    [cdkConnectedOverlayOrigin]="filterTrigger"
+                    [cdkConnectedOverlayOpen]="filterMenuOpen()"
+                    [cdkConnectedOverlayHasBackdrop]="true"
+                    cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+                    [cdkConnectedOverlayOffsetY]="6"
+                    [cdkConnectedOverlayPositions]="[
+                        {
+                            originX: 'end',
+                            originY: 'bottom',
+                            overlayX: 'end',
+                            overlayY: 'top',
+                        },
+                    ]"
+                    (backdropClick)="closeFilterMenu()"
+                    (detach)="closeFilterMenu()"
+                >
+                    <app-flows-filter-menu (actionSelected)="onFilterMenuAction($event)" />
+                </ng-template>
             </div>
         </nav>
     </div>

@@ -5,7 +5,13 @@ import copy
 
 from loguru import logger
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiResponse,
+    OpenApiParameter,
+    inline_serializer,
+)
+from rest_framework import serializers as drf_serializers
 from asgiref.sync import sync_to_async
 
 from tables.utils.mixins import SSEMixin
