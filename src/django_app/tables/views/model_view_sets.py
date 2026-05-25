@@ -893,7 +893,7 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     restore=extend_schema(
-        request=None,
+        request=RestoreVersionInputSerializer,
         responses={
             200: inline_serializer(
                 name="RestoreResponse",
