@@ -24,7 +24,6 @@ class OpenaiRealtimeTranscriptionClient(ITranscriptionClient):
         language: str | None = None,
         voice_recognition_prompt: str | None = None,
         buffer: ChatSummarizedBuffer = None,
-        temperature: float = 0.8,
         connection_model: str = "gpt-realtime-1.5",
     ):
         self.api_key = api_key
@@ -35,7 +34,6 @@ class OpenaiRealtimeTranscriptionClient(ITranscriptionClient):
         self.ws = None
         self.language = language
         self.voice_recognition_prompt = voice_recognition_prompt
-        self.temperature = temperature
         self.base_url = "wss://api.openai.com/v1/realtime"
         self.turn_detection_mode = "server_vad"
 
@@ -48,10 +46,9 @@ class OpenaiRealtimeTranscriptionClient(ITranscriptionClient):
         self.client_event_handler = TranscriptionClientEventHandler(self, buffer=buffer)
 
     async def connect(self) -> None:
-        url = f"{self.base_url}?model={self.connection_model}"
+        url = f"{self.base_url}?intent=transcription"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
         }
 
         self.ws = await websockets.connect(url, extra_headers=headers)

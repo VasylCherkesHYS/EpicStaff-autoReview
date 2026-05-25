@@ -35,7 +35,6 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         model: str = "gpt-realtime-1.5",
         voice: str = "alloy",
         instructions: str = "You are a helpful assistant",
-        temperature: float = 0.8,
         turn_detection_mode: TurnDetectionMode = TurnDetectionMode.SERVER_VAD,
         input_audio_format: str = "pcm16",
         output_audio_format: str = "pcm16",
@@ -50,7 +49,6 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         self.model = model
         self.voice = voice
         self.instructions = instructions
-        self.temperature = temperature
         self.base_url = "wss://api.openai.com/v1/realtime"
         self.turn_detection_mode = turn_detection_mode
         self.input_audio_format = input_audio_format
@@ -88,7 +86,6 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
                 "voice": self.voice,
                 "tools": self.tools,
                 "tool_choice": "auto",
-                "temperature": self.temperature,
                 "turn_detection": {
                     "type": self.turn_detection_mode.value,
                     "threshold": 0.5,
@@ -122,12 +119,11 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         turn_detection = config.get("turn_detection")
         tool_choice = config.get("tool_choice", "auto")
         input_audio_transcription = config.get(
-            "input_audio_transcription", {"model": "whisper-1"}
+            "input_audio_transcription", {"model": "gpt-4o-mini-transcribe"}
         )
         output_modalities = config.get(
             "output_modalities", config.get("modalities", ["audio"])
         )
-        temperature = config.get("temperature", self.temperature)
         input_audio_format = config.get("input_audio_format", "pcm16")
         output_audio_format = config.get("output_audio_format", "pcm16")
 
@@ -141,15 +137,16 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
                     "format": self._ga_audio_format(input_audio_format),
                     "turn_detection": turn_detection,
                     "transcription": input_audio_transcription,
+                    "noise_reduction": {"type": "near_field"},
                 },
                 "output": {
                     "format": self._ga_audio_format(output_audio_format),
                     "voice": voice,
                 },
             },
+            "include": ["item.input_audio_transcription.logprobs"],
             "tools": self.tools,
             "tool_choice": tool_choice,
-            "temperature": temperature,
         }
 
         event = {"type": "session.update", "session": session}

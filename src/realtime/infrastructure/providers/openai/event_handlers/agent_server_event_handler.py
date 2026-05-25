@@ -50,7 +50,7 @@ class ServerEventHandler:
             "response.function_call_arguments.done": self.handle_function_call_done,
             "conversation.item.input_audio_transcription.delta": self.default_handler,
             "conversation.item.input_audio_transcription.completed": self.default_handler,
-            "conversation.item.input_audio_transcription.failed": self.default_handler,
+            "conversation.item.input_audio_transcription.failed": self.handle_transcription_failed,
         }
 
     def reset(self) -> None:
@@ -102,6 +102,10 @@ class ServerEventHandler:
 
     async def handle_error(self, data: Dict[str, Any]) -> None:
         logger.error(f"Error received: {data}")
+        await self.default_handler(data)
+
+    async def handle_transcription_failed(self, data: Dict[str, Any]) -> None:
+        logger.error(f"Input audio transcription failed: {data}")
         await self.default_handler(data)
 
     async def handle_function_call_delta(self, data: Dict[str, Any]) -> None:

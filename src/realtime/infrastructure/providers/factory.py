@@ -88,7 +88,6 @@ class RealtimeAgentClientFactory:
             model=config.rt_model_name,
             voice=config.voice,
             instructions=instructions,
-            temperature=config.temperature,
             input_audio_format="g711_ulaw" if is_twilio else config.input_audio_format,
             output_audio_format="g711_ulaw"
             if is_twilio
