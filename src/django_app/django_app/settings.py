@@ -59,6 +59,11 @@ LOGGING = {
         "handlers": ["loguru"],
         "level": "DEBUG",
     },
+    "loggers": {
+        "LiteLLM": {"level": "WARNING", "propagate": True},
+        "LiteLLM Proxy": {"level": "WARNING", "propagate": True},
+        "LiteLLM Router": {"level": "WARNING", "propagate": True},
+    },
 }
 
 
