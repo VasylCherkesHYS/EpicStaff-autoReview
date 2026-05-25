@@ -520,6 +520,16 @@ class FlowAssistantService:
                 final_text = "".join(assistant_content_parts).strip()
                 ef_tables = []
                 action_message = []
+                # Mirror the structured branch: emit one terminal event so the
+                # frontend receives the assembled text even when the model
+                # ignored the response_format schema (e.g. non-JSON free-text
+                # from a proxy-forwarded model that drops response_format).
+                if final_text:
+                    yield StructuredEvent(
+                        message=final_text,
+                        ef_tables=[],
+                        action_message=[],
+                    )
 
             # Append final assistant reply to local working list.
             # Include ef_tables / action_message when present so the persisted
