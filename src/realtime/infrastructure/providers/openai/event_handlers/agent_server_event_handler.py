@@ -21,25 +21,61 @@ class ServerEventHandler:
             "session.created": self.default_handler,
             "error": self.handle_error,
             "session.updated": self.default_handler,
+            "conversation.item.added": self.conversation_item_created_handler,
+            "conversation.item.done": self.conversation_item_created_handler,
             "conversation.item.created": self.conversation_item_created_handler,
             "rate_limits.updated": self.default_handler,
             "response.output_item.added": self.default_handler,
-            "response.audio_transcript.delta": self.default_handler,
+            "response.output_item.done": self.default_handler,
+            "response.content_part.added": self.default_handler,
+            "response.content_part.done": self.default_handler,
+            "response.done": self.default_handler,
+            "response.output_audio.delta": self.default_handler,
+            "response.output_audio.done": self.default_handler,
+            "response.output_audio_transcript.delta": self.default_handler,
+            "response.output_audio_transcript.done": self.default_handler,
+            "response.output_text.delta": self.default_handler,
+            "response.output_text.done": self.default_handler,
             "response.audio.delta": self.default_handler,
             "response.audio.done": self.default_handler,
+            "response.audio_transcript.delta": self.default_handler,
             "response.audio_transcript.done": self.default_handler,
-            "response.content_part.done": self.default_handler,
-            "response.output_item.done": self.default_handler,
-            "response.done": self.default_handler,
+            "response.text.delta": self.default_handler,
+            "response.text.done": self.default_handler,
             "input_audio_buffer.speech_started": self.default_handler,
+            "input_audio_buffer.speech_stopped": self.default_handler,
             "input_audio_buffer.committed": self.default_handler,
+            "input_audio_buffer.cleared": self.default_handler,
             "response.function_call_arguments.delta": self.handle_function_call_delta,
             "response.function_call_arguments.done": self.handle_function_call_done,
-            "response.content_part.added": self.default_handler,
-            "input_audio_buffer.speech_stopped": self.default_handler,
             "conversation.item.input_audio_transcription.delta": self.default_handler,
             "conversation.item.input_audio_transcription.completed": self.default_handler,
+            "conversation.item.input_audio_transcription.failed": self.default_handler,
         }
+
+    def reset(self) -> None:
+        """
+        Mirrors GeminiServerEventHandler.reset(). For OpenAI the response/item
+        state lives on the client itself, so we clear it via the back-reference.
+        """
+        self.client._current_response_id = None
+        self.client._current_item_id = None
+        self.client._is_responding = False
+        self.client._output_transcript_buffer = ""
+
+    _GA_TO_INTERNAL_EVENT: Dict[str, str] = {
+        "response.output_audio.delta": "response.audio.delta",
+        "response.output_audio.done": "response.audio.done",
+        "response.output_audio_transcript.delta": "response.audio_transcript.delta",
+        "response.output_audio_transcript.done": "response.audio_transcript.done",
+        "response.output_text.delta": "response.text.delta",
+        "response.output_text.done": "response.text.done",
+        "conversation.item.added": "conversation.item.created",
+    }
+
+    @classmethod
+    def _normalize_event_type(cls, event_type: str) -> str:
+        return cls._GA_TO_INTERNAL_EVENT.get(event_type, event_type)
 
     async def handle_event(self, data: Dict[str, Any]) -> None:
         """Handle incoming event by calling the appropriate method."""
@@ -52,6 +88,10 @@ class ServerEventHandler:
         )
 
     async def default_handler(self, data: Dict[str, Any]) -> None:
+        event_type = data.get("type", "")
+        normalized = self._normalize_event_type(event_type)
+        if normalized != event_type:
+            data = {**data, "type": normalized}
         await self.client.send_client(data)
 
     async def unknown_event_handler(self, data: Dict[str, Any]) -> None:

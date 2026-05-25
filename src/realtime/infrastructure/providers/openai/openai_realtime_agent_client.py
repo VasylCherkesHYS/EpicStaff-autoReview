@@ -32,7 +32,7 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         on_server_event: Optional[Callable[[dict], Awaitable[None]]] = None,
         tool_manager_service: ToolManagerService = None,
         rt_tools: Optional[List[RealtimeTool]] = None,
-        model: str = "gpt-4o-mini-realtime-preview-2024-12-17",
+        model: str = "gpt-realtime-1.5",
         voice: str = "alloy",
         instructions: str = "You are a helpful assistant",
         temperature: float = 0.8,
@@ -74,18 +74,16 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         self._output_transcript_buffer = ""
 
     async def connect(self) -> None:
-        """Establish WebSocket connection with the Realtime API."""
         url = f"{self.base_url}?model={self.model}"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "OpenAI-Beta": "realtime=v1",
         }
 
         self.ws = await websockets.connect(url, extra_headers=headers)
 
         await self.update_session(
             config={
-                "modalities": ["text", "audio"],
+                "output_modalities": ["audio"],
                 "instructions": self.instructions,
                 "voice": self.voice,
                 "tools": self.tools,
@@ -102,48 +100,78 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
             }
         )
 
+    @staticmethod
+    def _ga_audio_format(audio_format: str) -> Dict[str, Any]:
+        """Translate a legacy beta audio-format string into the GA `audio.*.format` object.
+
+        Beta accepted bare strings ("pcm16", "g711_ulaw", "g711_alaw").
+        GA requires `{"type": "audio/pcm"|"audio/pcmu"|"audio/pcma", "rate": <hz>}`.
+        """
+        if audio_format == "g711_ulaw":
+            return {"type": "audio/pcmu", "rate": 8000}
+        if audio_format == "g711_alaw":
+            return {"type": "audio/pcma", "rate": 8000}
+        # default: pcm16 @ 24kHz (OpenAI's GA default sample rate)
+        return {"type": "audio/pcm", "rate": 24000}
+
     async def update_session(self, config: Dict[str, Any]) -> None:
-        """Update session configuration."""
+        """
+        Update session configuration using the GA `session` object shape.
+        """
         voice = config.get("voice", self.voice)
         turn_detection = config.get("turn_detection")
         tool_choice = config.get("tool_choice", "auto")
         input_audio_transcription = config.get(
             "input_audio_transcription", {"model": "whisper-1"}
         )
-        modalities = config.get("modalities", ["text", "audio"])
+        output_modalities = config.get(
+            "output_modalities", config.get("modalities", ["audio"])
+        )
         temperature = config.get("temperature", self.temperature)
         input_audio_format = config.get("input_audio_format", "pcm16")
         output_audio_format = config.get("output_audio_format", "pcm16")
-        data = {
-            "modalities": modalities,
+
+        session: Dict[str, Any] = {
+            "type": "realtime",
+            "model": self.model,
+            "output_modalities": output_modalities,
             "instructions": self.instructions,
-            "voice": voice,
-            "input_audio_format": input_audio_format,
-            "output_audio_format": output_audio_format,
-            "input_audio_transcription": input_audio_transcription,
-            "turn_detection": turn_detection,
+            "audio": {
+                "input": {
+                    "format": self._ga_audio_format(input_audio_format),
+                    "turn_detection": turn_detection,
+                    "transcription": input_audio_transcription,
+                },
+                "output": {
+                    "format": self._ga_audio_format(output_audio_format),
+                    "voice": voice,
+                },
+            },
             "tools": self.tools,
             "tool_choice": tool_choice,
             "temperature": temperature,
         }
 
-        event = {"type": "session.update", "session": data}
+        event = {"type": "session.update", "session": session}
 
         await self.send_server(event)
 
     async def request_response(self, data: dict | None = None) -> None:
-        """Request a response from the API. Needed when using manual mode."""
-        response = {"modalities": ["text", "audio"], "tools": self.tools}
+        """
+        Request a response from the API. Needed when using manual mode.
+        """
+        response = {"output_modalities": ["audio"], "tools": self.tools}
 
         if data is not None:
             client_response: dict = data.get("response")
 
             if client_response is not None:
                 client_response_modalities = client_response.get(
-                    "modalities", ["text", "audio"]
+                    "output_modalities",
+                    client_response.get("modalities", ["audio"]),
                 )
                 if client_response_modalities is not None:
-                    response["modalities"] = client_response_modalities
+                    response["output_modalities"] = client_response_modalities
 
         event = {
             "type": "response.create",
@@ -155,7 +183,10 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
     async def on_stream_start(self) -> None:
         """Twilio stream started — trigger initial response."""
         await self.send_server(
-            {"type": "response.create", "response": {"modalities": ["text", "audio"]}}
+            {
+                "type": "response.create",
+                "response": {"output_modalities": ["audio"]},
+            }
         )
 
     async def send_audio(self, ulaw8k_b64: str) -> None:

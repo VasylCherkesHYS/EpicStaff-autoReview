@@ -71,7 +71,7 @@ class ConversationService(IChatModeController):
 
     async def execute(self):
         try:
-            await self.client_websocket.accept(subprotocol="openai-beta.realtime-v1")
+            await self.client_websocket.accept()
 
             rt_agent_client_task = None
             rt_transcription_client_task = None
@@ -156,7 +156,9 @@ class ConversationService(IChatModeController):
                     client = rt_agent_client
 
                 if rt_agent_client_task is not None and rt_agent_client_task.done():
-                    logger.info(f"RT agent session closed — reconnecting ({self.realtime_agent_chat_data.rt_provider})...")
+                    logger.info(
+                        f"RT agent session closed — reconnecting ({self.realtime_agent_chat_data.rt_provider})..."
+                    )
                     try:
                         rt_agent_client.server_event_handler.reset()
                         await rt_agent_client.connect()

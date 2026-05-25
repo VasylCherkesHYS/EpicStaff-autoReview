@@ -14,8 +14,6 @@ INIT_API_URL = settings.INIT_API_URL
 AI_WS_URL = settings.AI_WS_URL
 AGENT_ID = settings.VOICE_AGENT_ID
 
-SUBPROTOCOL = "openai-beta.realtime-v1"
-
 
 @router.post("")
 async def incoming_call():
