@@ -3,9 +3,11 @@ import { Component } from '@angular/core';
 import { IHeaderAngularComp } from 'ag-grid-angular';
 import { IHeaderParams } from 'ag-grid-community';
 
+import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+
 @Component({
     selector: 'app-icon-header',
-    imports: [CommonModule],
+    imports: [CommonModule, AppSvgIconComponent],
     template: `
         <div
             class="icon-header"
@@ -14,12 +16,20 @@ import { IHeaderParams } from 'ag-grid-community';
             @if (label) {
                 <span class="icon-header-label">{{ label }}</span>
             }
-            <i
-                [class]="iconClass"
-                [class.icon-header-clickable]="!!onIconClick && variant === 'default'"
-                [class.icon-header-delete]="!!onIconClick && variant === 'delete'"
-                (click)="onIconClick ? onIconClick($event) : null"
-            ></i>
+            @if (variant === 'delete') {
+                <app-svg-icon
+                    class="icon-header-delete-svg"
+                    icon="trash"
+                    size="14px"
+                    (click)="onIconClick ? onIconClick($event) : null"
+                ></app-svg-icon>
+            } @else {
+                <i
+                    [class]="iconClass"
+                    [class.icon-header-clickable]="!!onIconClick"
+                    (click)="onIconClick ? onIconClick($event) : null"
+                ></i>
+            }
         </div>
     `,
     styles: [
@@ -80,6 +90,10 @@ import { IHeaderParams } from 'ag-grid-community';
             }
             .icon-header-delete:hover {
                 color: rgba(255, 100, 100, 0.85) !important;
+            }
+            .icon-header-delete-svg {
+                cursor: pointer;
+                color: var(--purple-primary);
             }
         `,
     ],

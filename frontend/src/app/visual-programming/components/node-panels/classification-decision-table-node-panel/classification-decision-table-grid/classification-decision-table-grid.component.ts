@@ -975,7 +975,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             headerName: '',
             headerComponent: IconHeaderComponent,
             headerComponentParams: {
-                iconClass: 'ti ti-trash',
                 label: '',
                 variant: 'delete',
             },

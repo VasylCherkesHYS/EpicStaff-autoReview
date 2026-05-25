@@ -177,7 +177,7 @@ function buildCdtNodePayload(
                     prompt_key: key,
                     prompt_text: cfg.prompt_text ?? '',
                     llm_config: cfg.llm_config ?? null,
-                    output_schema: cfg.output_schema ?? null,
+                    output_schema: cfg.output_schema ?? {},
                     result_variable: cfg.result_variable ?? '',
                     variable_mappings: cfg.variable_mappings ?? {},
                 }) satisfies CreatePromptConfigRequest

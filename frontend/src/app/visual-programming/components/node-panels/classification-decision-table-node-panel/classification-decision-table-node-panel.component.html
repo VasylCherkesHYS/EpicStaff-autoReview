@@ -243,7 +243,11 @@
                                                     title="Delete prompt"
                                                     (click)="deletePrompt(prompt.id); $event.stopPropagation()"
                                                 >
-                                                    <i class="ti ti-trash"></i>
+                                                    <app-svg-icon
+                                                        class="prompt-card-actions__trash"
+                                                        icon="trash"
+                                                        size="14px"
+                                                    ></app-svg-icon>
                                                 </button>
                                                 <i
                                                     class="ti"
