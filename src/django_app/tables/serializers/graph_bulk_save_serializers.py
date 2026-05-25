@@ -213,6 +213,7 @@ class GraphBulkSaveInputSerializer(serializers.Serializer):
     Edge lists declared explicitly because edges are not in NODE_TYPE_REGISTRY
     """
 
+    save_version = serializers.IntegerField(required=True)
     edge_list = serializers.ListField(
         child=serializers.DictField(), required=False, default=list
     )

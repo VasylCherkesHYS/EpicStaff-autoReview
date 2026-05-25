@@ -53,6 +53,7 @@ class GraphBulkSaveService:
         )
 
     def save(self, graph: Graph, validated_input: dict) -> Graph:
+        expected_save_version = validated_input["save_version"]
         deleted_data = validated_input.get("deleted", {})
         all_errors: dict = {}
         node_saveables: list[_NodeSaveable] = []
@@ -137,7 +138,13 @@ class GraphBulkSaveService:
             raise BulkSaveValidationError(all_errors)
 
         # Pass 2: atomic write
-        self._execute_writes(graph, deleted_data, node_saveables, edge_saveables)
+        self._execute_writes(
+            graph,
+            deleted_data,
+            node_saveables,
+            edge_saveables,
+            expected_save_version,
+        )
         return graph
 
     def _validate_node_list(
@@ -464,8 +471,13 @@ class GraphBulkSaveService:
         deleted_data: dict,
         node_saveables: list[_NodeSaveable],
         edge_saveables: list,
+        expected_save_version: int,
     ):
         """Atomically delete, then save nodes, then save edges."""
+
+        # check if graph was changed meanwhile editing
+        Graph.increment_version_if_current(pk=graph.pk, expected=expected_save_version)
+
         temp_id_map: dict[str, int] = {}
 
         self._execute_deletions(graph, deleted_data)

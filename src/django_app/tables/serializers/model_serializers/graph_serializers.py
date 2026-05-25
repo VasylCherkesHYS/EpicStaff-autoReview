@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from tables.serializers.model_serializers.node_serializers.flow_control_serializers import (
@@ -162,6 +163,7 @@ class GraphSerializer(serializers.ModelSerializer):
         many=True, source="labels", queryset=Label.objects.all(), required=False
     )
     graph_note_list = GraphNoteSerializer(many=True, read_only=True)
+    save_version = serializers.IntegerField(required=True)
 
     class Meta:
         model = Graph
@@ -191,17 +193,33 @@ class GraphSerializer(serializers.ModelSerializer):
             "schedule_trigger_node_list",
             "label_ids",
             "graph_note_list",
+            "save_version",
         ]
 
     def create(self, validated_data):
         labels = validated_data.pop("labels", [])
+        validated_data.pop("save_version", None)
         instance = super().create(validated_data)
         instance.labels.set(labels)
         return instance
 
     def update(self, instance, validated_data):
         labels = validated_data.pop("labels", None)
-        instance = super().update(instance, validated_data)
+
+        if "save_version" not in validated_data:
+            raise serializers.ValidationError(
+                {"save_version": "This field is required for updates."}
+            )
+        expected_save_version = validated_data.pop("save_version")
+
+        with transaction.atomic():
+            Graph.increment_version_if_current(
+                pk=instance.pk, expected=expected_save_version
+            )
+            instance = super().update(instance, validated_data)
+
         if labels is not None:
             instance.labels.set(labels)
+
+        instance.refresh_from_db(fields=["save_version"])
         return instance

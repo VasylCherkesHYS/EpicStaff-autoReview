@@ -52,6 +52,7 @@ from tables.exceptions import (
     BuiltInToolModificationError,
     BulkSaveValidationError,
     TaskSerializerError,
+    GraphSaveVersionConflictError,
 )
 from tables.serializers.graph_bulk_save_serializers import GraphBulkSaveInputSerializer
 from tables.services.graph_bulk_save_service import GraphBulkSaveService
@@ -60,6 +61,7 @@ from tables.graph_versioning.serializers import (
     GraphVersionCreateSerializer,
     GraphVersionReadSerializer,
     GraphVersionUpdateSerializer,
+    RestoreVersionInputSerializer,
 )
 
 from tables.import_export.enums import EntityType
@@ -867,6 +869,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             GraphBulkSaveService().save(graph, input_serializer.validated_data)
         except BulkSaveValidationError as exc:
             return Response({"errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+        # GraphSaveVersionConflictError propagates → DRF returns 409 automatically.
 
         refreshed = self.get_queryset().get(pk=pk)
         return Response(GraphSerializer(refreshed).data, status=status.HTTP_200_OK)
@@ -966,9 +969,17 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="restore")
     def restore(self, request, *args, **kwargs):
+        input_serializer = RestoreVersionInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        expected_save_version = input_serializer.validated_data["save_version"]
+
         version = self.get_object()
         backup = request.query_params.get("backup", "").lower() == "true"
-        result = GraphVersioningService().restore_version(version, backup=backup)
+        result = GraphVersioningService().restore_version(
+            version,
+            expected_save_version=expected_save_version,
+            backup=backup,
+        )
         return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="create-graph")
