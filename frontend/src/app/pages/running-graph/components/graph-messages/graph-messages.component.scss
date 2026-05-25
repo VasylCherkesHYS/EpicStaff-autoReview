@@ -508,6 +508,10 @@
         }
     }
 
+    .scroll-to-top-btn {
+        bottom: 60px;
+    }
+
     .scroll-to-bottom-btn {
         .unseen-badge {
             position: absolute;
@@ -664,4 +668,10 @@
     font-weight: 600;
     color: #c69999;
     margin: 10px;
+}
+
+.loading-more-indicator {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
 }

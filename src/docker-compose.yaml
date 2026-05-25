@@ -294,7 +294,6 @@ services:
       STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME:-epicstaff}
     volumes:
       - sandbox_venvs:${BASE_VENV_PATH}
-      - sandbox_executions:${OUTPUT_PATH}
       - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -495,8 +494,6 @@ services:
 
 volumes:
   sandbox_venvs:
-    external: true
-  sandbox_executions:
     external: true
   crew_pgdata:
     external: true
