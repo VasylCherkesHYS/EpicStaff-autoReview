@@ -47,6 +47,7 @@ TAG_MAP = [
     ("api/mcp-tools", "Tools"),
     ("api/run-python-code", "Tools"),
     ("api/naive-rag", "Knowledge & RAG"),
+    ("api/graph-rag", "Knowledge & RAG"),
     ("api/source-collections", "Knowledge & RAG"),
     ("api/documents", "Knowledge & RAG"),
     ("api/process-rag-indexing", "Knowledge & RAG"),

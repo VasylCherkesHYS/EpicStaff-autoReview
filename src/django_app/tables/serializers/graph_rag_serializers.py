@@ -9,6 +9,7 @@ from tables.constants.knowledge_constants import (
     GRAPHRAG_MIN_CHUNK_SIZE,
     GRAPHRAG_MIN_MAX_CLUSTER_SIZE,
     GRAPHRAG_MIN_MAX_GLEANINGS,
+    MAX_TOKEN_FIELD_VALUE,
 )
 from tables.models.knowledge_models import (
     GraphRag,
@@ -296,8 +297,8 @@ class GraphBasicSearchConfigInputSerializer(serializers.Serializer):
     max_context_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum context tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
 
 
@@ -343,8 +344,8 @@ class GraphLocalSearchConfigInputSerializer(serializers.Serializer):
     max_context_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum context tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
 
 
@@ -376,14 +377,14 @@ class GraphGlobalSearchConfigInputSerializer(serializers.Serializer):
     max_context_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum context tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
     data_max_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum data tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum data tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
     map_max_length = serializers.IntegerField(
         required=False,
@@ -442,47 +443,47 @@ class GraphDriftSearchConfigInputSerializer(serializers.Serializer):
     data_max_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum data tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum data tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
     reduce_max_tokens = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=1,
-        max_value=100000,
+        max_value=MAX_TOKEN_FIELD_VALUE,
         help_text="Maximum reduce response tokens",
     )
     reduce_max_completion_tokens = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=1,
-        max_value=100000,
+        max_value=MAX_TOKEN_FIELD_VALUE,
         help_text="Maximum reduce completion tokens",
     )
     primer_llm_max_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
-        help_text="Maximum primer LLM tokens (100-100000)",
+        max_value=MAX_TOKEN_FIELD_VALUE,
+        help_text="Maximum primer LLM tokens (100 to MAX_TOKEN_FIELD_VALUE)",
     )
     local_search_max_data_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
-        max_value=100000,
+        max_value=MAX_TOKEN_FIELD_VALUE,
         help_text="Maximum context tokens for local search (100-100000)",
     )
     local_search_llm_max_gen_tokens = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=1,
-        max_value=100000,
+        max_value=MAX_TOKEN_FIELD_VALUE,
         help_text="Maximum LLM generated tokens in local search",
     )
     local_search_llm_max_gen_completion_tokens = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=1,
-        max_value=100000,
+        max_value=MAX_TOKEN_FIELD_VALUE,
         help_text="Maximum LLM generated completion tokens in local search",
     )
     # Search behavior
