@@ -1061,7 +1061,7 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
 
 
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
-    queryset = GraphSessionMessage.objects.all()
+    queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["session_id"]

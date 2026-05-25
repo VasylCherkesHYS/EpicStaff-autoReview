@@ -123,12 +123,9 @@
                             />
                         </button>
 
-                        <input
-                            type="checkbox"
-                            class="label-checkbox"
+                        <app-checkbox
                             [checked]="isSelected(item.node.id)"
-                            (change)="toggleSelection(item.node.id)"
-                            (click)="$event.stopPropagation()"
+                            (changed)="toggleSelection(item.node.id)"
                         />
 
                         <span class="label-name">{{ item.node.name }}</span>
