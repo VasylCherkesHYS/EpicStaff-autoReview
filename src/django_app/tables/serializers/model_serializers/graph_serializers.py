@@ -196,6 +196,11 @@ class GraphSerializer(serializers.ModelSerializer):
             "save_version",
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance is None:
+            self.fields["save_version"].required = False
+
     def create(self, validated_data):
         labels = validated_data.pop("labels", [])
         validated_data.pop("save_version", None)
@@ -216,6 +221,7 @@ class GraphSerializer(serializers.ModelSerializer):
             Graph.increment_version_if_current(
                 pk=instance.pk, expected=expected_save_version
             )
+            instance.refresh_from_db(fields=["save_version"])
             instance = super().update(instance, validated_data)
 
         if labels is not None:
