@@ -1,6 +1,5 @@
 from typing import List
 from collections import defaultdict
-from dataclasses import dataclass
 
 from django.db import transaction
 
@@ -8,13 +7,7 @@ from tables.import_export.id_mapper import IDMapper
 from tables.import_export.registry import EntityRegistry
 from tables.import_export.enums import NodeType, EntityType
 from tables.import_export.constants import DEPENDENCY_ORDER
-
-
-@dataclass
-class ImportSettings:
-    preserve_uuids: bool = False
-    replace_existing: bool = False
-    import_labels: bool = False
+from tables.import_export.schemas import ImportSettings
 
 
 class ImportService:

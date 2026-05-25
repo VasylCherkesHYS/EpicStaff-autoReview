@@ -55,12 +55,13 @@ class GraphStrategy(EntityImportExportStrategy):
         deps[EntityType.LLM_CONFIG] = set(
             instance.code_agent_node_list.values_list("llm_config_id", flat=True)
         )
+        deps[EntityType.LABEL] = set(instance.labels.values_list("id", flat=True))
         return deps
 
     def export_entity(self, instance: Graph) -> dict:
         data = self.serializer_class(instance).data
         data["nodes"] = self._export_nodes(instance)
-        data["labels"] = self.label_strategy.export_entity(instance)
+        data["labels"] = self.label_strategy.export_graph_labels(instance)
         return data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
@@ -110,7 +111,7 @@ class GraphStrategy(EntityImportExportStrategy):
         )
 
         if import_labels and labels_data:
-            self.label_strategy.create_entity(graph, id_mapper, labels_data)
+            self.label_strategy.attach_labels_to_graph(graph, id_mapper, labels_data)
 
         return graph
 

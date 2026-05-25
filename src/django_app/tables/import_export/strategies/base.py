@@ -1,11 +1,9 @@
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 from abc import ABC, abstractmethod
 
 from tables.import_export.id_mapper import IDMapper
 from tables.import_export.enums import EntityType
-
-if TYPE_CHECKING:
-    from tables.import_export.services.import_service import ImportSettings
+from tables.import_export.schemas import ImportSettings
 
 
 class EntityImportExportStrategy(ABC):
@@ -38,7 +36,7 @@ class EntityImportExportStrategy(ABC):
         data: dict,
         id_mapper: IDMapper,
         is_main: bool = False,
-        settings: "ImportSettings" = None,
+        settings: ImportSettings = None,
         **kwargs,
     ) -> Any:
         """
