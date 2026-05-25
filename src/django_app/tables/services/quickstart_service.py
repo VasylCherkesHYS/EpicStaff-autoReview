@@ -184,8 +184,7 @@ class QuickstartService(metaclass=SingletonMeta):
         self, api_key: str, config_name: str
     ) -> OpenAIRealtimeConfig:
         return OpenAIRealtimeConfig.objects.create(
-            custom_name=config_name,
-            api_key=api_key,
+            custom_name=config_name, api_key=api_key, transcription_api_key=api_key
         )
 
     def _create_gemini_realtime_config(
