@@ -115,29 +115,18 @@ function buildCdtNodePayload(
     const conditionGroups = ((tableData?.condition_groups || []) as CdtConditionGroupUi[])
         .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER))
         .map((g, idx) => {
-            // Primary: resolve via group.next_node (FE UUID kept in sync by flow.service)
-            let nextNodeId: number | null = null;
-            if (g.next_node) {
-                nextNodeId = idMap.get(g.next_node) ?? null;
-                if (nextNodeId == null) {
-                    const targetNode = allNodes.find((n) => n.id === g.next_node);
-                    nextNodeId = targetNode?.backendId ?? null;
-                }
-            }
-
-            // Fallback: live-connection lookup using the same slug transform as helpers.ts
-            if (nextNodeId == null && g.route_code) {
+            // Determine the target UUID: prefer the synced group.next_node;
+            // fall back to a live connection matched by route_code-derived port id.
+            let targetUuid: string | null = g.next_node ?? null;
+            if (!targetUuid && g.route_code) {
                 const slugified = g.route_code.toLowerCase().replace(/\s+/g, '-');
                 const routePortId = `${node.id}_decision-route-${slugified}`;
                 const conn = connections.find((c) => c.sourceNodeId === node.id && c.sourcePortId === routePortId);
-                if (conn) {
-                    nextNodeId = idMap.get(conn.targetNodeId) ?? null;
-                    if (nextNodeId == null) {
-                        const targetNode = allNodes.find((n) => n.id === conn.targetNodeId);
-                        nextNodeId = targetNode?.backendId ?? null;
-                    }
-                }
+                if (conn) targetUuid = conn.targetNodeId;
             }
+
+            const resolved = resolveNodeRef(targetUuid, allNodes, idMap);
+
             return {
                 group_name: g.group_name,
                 order: typeof g.order === 'number' ? g.order : idx + 1,
@@ -146,7 +135,8 @@ function buildCdtNodePayload(
                 manipulation: g.manipulation || null,
                 continue_flag: !!(g.continue_flag ?? g.continue),
                 route_code: g.route_code || null,
-                next_node_id: nextNodeId,
+                next_node_id: resolved.backendId,
+                ...(resolved.tempId ? { next_node_temp_id: resolved.tempId } : {}),
                 dock_visible: g.dock_visible !== false,
                 field_expressions: serializeCDTFieldExpressions(g.field_expressions || {}),
                 field_manipulations: (g.field_manipulations || {}) as Record<string, string>,
