@@ -263,7 +263,11 @@ export class NodePanelShellComponent {
     }
 
     private saveSidePanel(): void {
-        if (this.panelInstance && typeof this.panelInstance.onSave === 'function') {
+        if (
+            this.panelInstance &&
+            typeof this.panelInstance.onSave === 'function' &&
+            this.panelInstanceSig()?.isDirty?.()
+        ) {
             const updatedNode = this.panelInstance.onSave();
             if (updatedNode) {
                 this.save.emit(updatedNode);
@@ -274,7 +278,11 @@ export class NodePanelShellComponent {
     }
 
     private performAutosave(): void {
-        if (this.panelInstance && typeof this.panelInstance.onSave === 'function') {
+        if (
+            this.panelInstance &&
+            typeof this.panelInstance.onSave === 'function' &&
+            this.panelInstanceSig()?.isDirty?.()
+        ) {
             const updatedNode = this.panelInstance.onSave();
             if (updatedNode) {
                 this.autosave.emit(updatedNode);

@@ -1,4 +1,4 @@
-# docker-compose.yaml — production
+# docker-compose.yaml — Именованные стеки
 
 x-common-env: &common_env
   CODE_RESULT_CHANNEL: code_results
@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: ./django_app/Dockerfile.dj
-    container_name: django_app
+    container_name: ${COMPOSE_PROJECT_NAME}-django_app
     command: ./entrypoint.sh
     environment:
       <<: *common_env
@@ -138,7 +138,7 @@ services:
     build:
       context: .
       dockerfile: ./manager/Dockerfile.man
-    container_name: manager_container
+    container_name: ${COMPOSE_PROJECT_NAME}-manager_container
     environment:
       <<: *common_env
       PULL_TOOL: ${PULL_TOOL}
@@ -166,7 +166,7 @@ services:
     build:
       context: ./crewdb
       dockerfile: Dockerfile.crewdb
-    container_name: crewdb
+    container_name: ${COMPOSE_PROJECT_NAME}-crewdb
     command: ["postgres", "-c", "port=${DB_PORT:-5432}"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-crew}
@@ -248,7 +248,7 @@ services:
     build:
       context: .
       dockerfile: ./crew/Dockerfile.crew
-    container_name: crew
+    container_name: ${COMPOSE_PROJECT_NAME}-crew
     environment:
       <<: *common_env
       MANAGER_HOST: ${MANAGER_HOST}
@@ -261,6 +261,9 @@ services:
       DB_CREW_USER: ${DB_CREW_USER}
       DB_CREW_PASSWORD: ${DB_CREW_PASSWORD}
       MAX_CONCURRENT_SESSIONS: ${MAX_CONCURRENT_SESSIONS}
+      DEFAULT_RAG_SEARCH_TIMEOUT: ${DEFAULT_RAG_SEARCH_TIMEOUT}
+      NAIVE_RAG_SEARCH_TIMEOUT: ${NAIVE_RAG_SEARCH_TIMEOUT}
+      GRAPH_RAG_SEARCH_TIMEOUT: ${GRAPH_RAG_SEARCH_TIMEOUT}
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
@@ -283,7 +286,7 @@ services:
     build:
       context: .
       dockerfile: ./sandbox/Dockerfile.sandbox
-    container_name: sandbox
+    container_name: ${COMPOSE_PROJECT_NAME}-sandbox
     init: true
     environment:
       <<: *common_env
@@ -295,7 +298,6 @@ services:
       STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME:-epicstaff}
     volumes:
       - sandbox_venvs:${BASE_VENV_PATH}
-      - sandbox_executions:${OUTPUT_PATH}
       - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -312,7 +314,7 @@ services:
     build:
       context: .
       dockerfile: ./code/Dockerfile.code
-    container_name: code
+    container_name: ${COMPOSE_PROJECT_NAME}-code
     init: true
     environment:
       - DJANGO_API_URL=http://django_app:${DJANGO_PORT:-8000}/api
@@ -343,7 +345,7 @@ services:
     build:
       context: .
       dockerfile: ./knowledge/Dockerfile.knowledge
-    container_name: knowledge
+    container_name: ${COMPOSE_PROJECT_NAME}-knowledge
     environment:
       <<: *common_env
       KNOWLEDGE_SOURCES_CHANNEL: knowledge_sources
@@ -364,7 +366,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: minio
+    container_name: ${COMPOSE_PROJECT_NAME}-minio
     command: server /data --console-address ":${MINIO_CONSOLE_PORT:-9001}"
     environment:
       MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:-minioadmin}
@@ -383,7 +385,7 @@ services:
 
   minio-init:
     image: minio/mc:latest
-    container_name: minio-init
+    container_name: ${COMPOSE_PROJECT_NAME}-minio-init
     networks:
       - backend-network
     depends_on:
@@ -404,7 +406,7 @@ services:
       context: ../frontend
       dockerfile: Dockerfile.fe
       target: production
-    container_name: epicstaff-frontend
+    container_name: ${COMPOSE_PROJECT_NAME}-epicstaff-frontend
     environment:
       - API_URL=${API_URL}
       - REALTIME_API_URL=${REALTIME_API_URL}
@@ -443,7 +445,7 @@ services:
 
   epicstaff-nginx:
     image: nginx
-    container_name: epicstaff-nginx
+    container_name: ${COMPOSE_PROJECT_NAME}-epicstaff-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -469,7 +471,7 @@ services:
 
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: ngrok
+    container_name: ${COMPOSE_PROJECT_NAME}-ngrok
     entrypoint: ["/bin/sh", "-c", "ngrok http --url=$$NGROK_DOMAIN realtime:${REALTIME_PORT:-8050}"]
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
@@ -484,9 +486,8 @@ services:
     profiles:
       - voice
 
-  #DEV container for test SMTP (remove later) 
   mailpit:
-    container_name: mailpit
+    container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     image: axllent/mailpit:latest
     ports:
       - "1025:1025"   # SMTP
@@ -497,18 +498,18 @@ services:
 volumes:
   sandbox_venvs:
     external: true
-  sandbox_executions:
-    external: true
   crew_pgdata:
-    external: true
+    name: ${COMPOSE_PROJECT_NAME}-crew_pgdata # У каждого стека БУДЕТ СВОЯ ЧИСТАЯ БД!
   media_data:
-    external: true
-  redis_data: {}
-  code_instances: {}
-  minio_data: {}
-
+    name: ${COMPOSE_PROJECT_NAME}-media_data
   graph_data:
-    external: true
+    name: ${COMPOSE_PROJECT_NAME}-graph_data
+  redis_data:
+    name: ${COMPOSE_PROJECT_NAME}-redis_data
+  code_instances:
+    name: ${COMPOSE_PROJECT_NAME}-code_instances
+  minio_data:
+    name: ${COMPOSE_PROJECT_NAME}-minio_data
 
 networks:
   backend-network:
