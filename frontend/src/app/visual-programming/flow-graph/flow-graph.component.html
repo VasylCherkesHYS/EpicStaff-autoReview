@@ -102,7 +102,7 @@
             @for (node of flowService.nodes(); track node.id) {
                 <app-flow-base-node
                     [node]="node"
-                    [showVariables]="showVariables()"
+                    [showVariables]="flowSettings.showInputsOutputs()"
                     [fMinimapClass]="getMinimapClassForNode(node)"
                     fNode
                     fDragHandle
@@ -137,22 +137,26 @@
                     [class.is-backward]="backwardConnectionIds().has(connection.id)"
                     [style.z-index]="backwardConnectionIds().has(connection.id) ? 0 : 1"
                     [style.--marker-start-color]="
-                        smartRoutingEnabled()
+                        flowSettings.arrowColorsEnabled()
                             ? nodeColorMap().get(connection.sourceNodeId) || '#555'
                             : connection.startColor || '#555'
                     "
                     [style.--marker-end-color]="
-                        smartRoutingEnabled()
+                        flowSettings.arrowColorsEnabled()
                             ? nodeColorMap().get(connection.targetNodeId) || '#555'
                             : connection.endColor || '#555'
                     "
                 >
                     <f-connection-gradient
                         [fStartColor]="
-                            smartRoutingEnabled() ? nodeColorMap().get(connection.sourceNodeId) || '#555' : '#555'
+                            flowSettings.arrowColorsEnabled()
+                                ? nodeColorMap().get(connection.sourceNodeId) || '#555'
+                                : '#555'
                         "
                         [fEndColor]="
-                            smartRoutingEnabled() ? nodeColorMap().get(connection.targetNodeId) || '#555' : '#555'
+                            flowSettings.arrowColorsEnabled()
+                                ? nodeColorMap().get(connection.targetNodeId) || '#555'
+                                : '#555'
                         "
                     ></f-connection-gradient>
 
@@ -171,7 +175,7 @@
                             r="2"
                             stroke="none"
                             [attr.fill]="
-                                smartRoutingEnabled()
+                                flowSettings.arrowColorsEnabled()
                                     ? nodeColorMap().get(connection.sourceNodeId) || '#555'
                                     : connection.startColor || '#555'
                             "
@@ -191,7 +195,7 @@
                             d="M0,0 L6,3 0,6Z"
                             stroke="none"
                             [attr.fill]="
-                                smartRoutingEnabled()
+                                flowSettings.arrowColorsEnabled()
                                     ? nodeColorMap().get(connection.targetNodeId) || '#555'
                                     : connection.endColor || '#555'
                             "
@@ -295,24 +299,6 @@
                 ></app-flow-files-button>
             }
             <button
-                class="show-inputs-btn"
-                [class.active]="showVariables()"
-                (click)="toggleShowVariables()"
-            >
-                {{ showVariables() ? 'Hide Inputs/Output' : 'Show Inputs/Output' }}
-            </button>
-
-            <div class="routing-toggle-block">
-                <app-svg-icon
-                    icon="routing-arrow"
-                    size="22px"
-                ></app-svg-icon>
-                <app-toggle-switch
-                    [checked]="smartRoutingEnabled()"
-                    (checkedChange)="onSmartRoutingToggle($event)"
-                ></app-toggle-switch>
-            </div>
-            <button
                 #arrangeBtnRef
                 class="arrange-btn"
                 title="Auto arrange"
@@ -323,6 +309,13 @@
                     icon="auto-arrange"
                     size="38px"
                 ></app-svg-icon>
+            </button>
+            <button
+                class="arrange-btn settings-icon-btn"
+                (click)="openSettings()"
+                title="Flow Settings"
+            >
+                <i class="ti ti-settings"></i>
             </button>
         </div>
     </div>
