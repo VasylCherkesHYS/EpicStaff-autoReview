@@ -492,6 +492,31 @@ services:
       - "8025:8025"   # web UI: http://localhost:8025/
     networks:
       - backend-network
+  
+  agent:
+    image: ghcr.io/epicstaff/agent:${IMAGE_TAG:-latest}
+    container_name: agent
+    build:
+      context: .
+      dockerfile: ./agent/Dockerfile.agent
+    environment:
+      <<: *common_env
+    ports:
+      - "${AGENT_PORT:-8052}:${AGENT_PORT:-8052}"
+    depends_on:
+      redis:
+        condition: service_healthy
+      django_app:
+        condition: service_healthy
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${AGENT_PORT:-8051}/')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
 
 volumes:
   sandbox_venvs:
