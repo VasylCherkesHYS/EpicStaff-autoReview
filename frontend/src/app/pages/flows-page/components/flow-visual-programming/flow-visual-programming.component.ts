@@ -1,5 +1,6 @@
 import { Dialog as CdkDialog } from '@angular/cdk/dialog';
 import { Overlay } from '@angular/cdk/overlay';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -64,8 +65,8 @@ import { ScheduleTriggerNodeModel } from '../../../../visual-programming/core/mo
 import { NodeModel } from '../../../../visual-programming/core/models/node.model';
 import { FlowGraphComponent } from '../../../../visual-programming/flow-graph/flow-graph.component';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
-import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
+import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import {
     createStartNode,
     hasStartNode,
@@ -239,7 +240,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previous, flowState);
         const idMap = buildUuidToBackendIdMap(flowState.nodes);
         const connectionDiff = getConnectionDiff(previous, flowState, idMap);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, flowState, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            flowState,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         this.isSaving.set(true);
 
@@ -274,8 +282,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 }
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning(
+                        'This graph was modified by another user. Please refresh to see the latest changes.'
+                    );
+                } else {
+                    this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             }),
             finalize(() => {
@@ -312,7 +326,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previousForDiff, singleNodeFlow);
         const connectionDiff = { toCreate: [], toUpdate: [], toDelete: [] };
         const idMap = buildUuidToBackendIdMap([node]);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, singleNodeFlow, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            singleNodeFlow,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         return this.flowApiService.bulkSaveGraph(this.graph.id, payload).pipe(
             tap((responseGraph) => {

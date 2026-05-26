@@ -40,9 +40,11 @@ export interface GetGraphLightRequest {
     created_at?: string;
     updated_at?: string;
     subflows?: SubflowLightDto[];
+    save_version?: number;
 }
 
 export interface GraphDto extends GetGraphLightRequest {
+    save_version: number;
     start_node_list: StartNode[];
     crew_node_list: CrewNode[];
     python_node_list: PythonNode[];
