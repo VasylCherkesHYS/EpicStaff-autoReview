@@ -300,6 +300,7 @@ export class GlobalSessionsListComponent {
     public onPreviewSession(sessionId: number | null): void {
         if (sessionId === null) {
             this.previewSession.set(null);
+            this.isPanelOpen.set(false);
             return;
         }
         const session = this.sessions().find((s) => s.id === sessionId) ?? null;

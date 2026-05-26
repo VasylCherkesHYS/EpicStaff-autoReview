@@ -177,6 +177,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     private currentOffset = 0;
     public isLoadingMore = false;
     public hasMore = true;
+    private loadedSubgraphIds = new Set<string>();
 
     private isFinishing = false;
     private finishTimer: ReturnType<typeof setTimeout> | null = null;
@@ -391,6 +392,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.currentOffset = 0;
             this.isLoadingMore = false;
             this.hasMore = true;
+            this.loadedSubgraphIds = new Set<string>();
             this.drillPaths.clear();
             this.breadcrumbsByRoot.clear();
             this.filteredBreadcrumbsByRoot.clear();
@@ -709,6 +711,15 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     }
 
     public onViewNestedMessages(message: GraphMessage): void {
+        if (!this.sseEnabled) {
+            const subgraphExecutionId = (message.message_data as unknown as Record<string, unknown>)[
+                'subgraph_execution_id'
+            ] as string | undefined;
+            if (subgraphExecutionId) {
+                this.loadSubgraphMessages(subgraphExecutionId);
+            }
+        }
+
         const context = this.getMessageContext(message);
         if (!context || !context.isSubgraphStart) return;
         const rootKey = this.getRootKeyForContext(context);
@@ -918,6 +929,45 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         this.messages = [...this.messages, ...toAdd].sort((a, b) => a.execution_order - b.execution_order);
     }
 
+    private insertSubgraphMessages(subgraphExecutionId: string, incoming: GraphMessage[]): void {
+        const toAdd = incoming.filter((m) => {
+            const key = this.getMessageKey(m);
+            if (this.seenKeys.has(key)) return false;
+            this.seenKeys.add(key);
+            return true;
+        });
+        if (toAdd.length === 0) return;
+
+        const startIdx = this.messages.findIndex(
+            (m) =>
+                m.message_data.message_type === MessageType.SUBGRAPH_START &&
+                (m.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] === subgraphExecutionId
+        );
+        if (startIdx === -1) return;
+
+        toAdd.sort((a, b) => a.execution_order - b.execution_order);
+        this.messages = [...this.messages.slice(0, startIdx + 1), ...toAdd, ...this.messages.slice(startIdx + 1)];
+    }
+
+    private loadSubgraphMessages(subgraphExecutionId: string): void {
+        if (this.loadedSubgraphIds.has(subgraphExecutionId) || !this.sessionId) return;
+        this.loadedSubgraphIds.add(subgraphExecutionId);
+
+        this.graphSessionService
+            .getSessionMessages(+this.sessionId, 10000, 0, subgraphExecutionId)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: (response) => {
+                    this.insertSubgraphMessages(subgraphExecutionId, response.results);
+                    this.rebuildMessageState(this.messages);
+                    this.cdr.markForCheck();
+                },
+                error: () => {
+                    this.loadedSubgraphIds.delete(subgraphExecutionId);
+                },
+            });
+    }
+
     public loadMoreMessages(): void {
         if (this.isLoadingMore || !this.hasMore || !this.sessionId) return;
         this.isLoadingMore = true;
@@ -934,12 +984,24 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                     this.hasMore = response.next !== null;
                     this.isLoadingMore = false;
                     this.cdr.markForCheck();
+                    if (this.hasMore && this.isInsideOpenSubgraph()) {
+                        this.loadMoreMessages();
+                    }
                 },
                 error: () => {
                     this.isLoadingMore = false;
                     this.cdr.markForCheck();
                 },
             });
+    }
+
+    private isInsideOpenSubgraph(): boolean {
+        if (!this.messageContexts.length) return false;
+        const last = this.messageContexts[this.messageContexts.length - 1];
+        let postDepth = last.depth;
+        if (last.isSubgraphStart) postDepth++;
+        else if (last.isSubgraphFinish && postDepth > 0) postDepth--;
+        return postDepth > 0;
     }
 
     private rebuildMessageState(messages: GraphMessage[]): void {
@@ -953,16 +1015,41 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         this.messageContextByKey.clear();
         this.messageByKey.clear();
 
-        const stack: string[] = [];
+        const executionIdToKey = new Map<string, string>();
+        messages.forEach((message) => {
+            if (isMessageType(message, MessageType.SUBGRAPH_START)) {
+                const execId = (message.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] as
+                    | string
+                    | undefined;
+                if (execId) {
+                    executionIdToKey.set(execId, this.getMessageKey(message));
+                }
+            }
+        });
+
         messages.forEach((message, index) => {
             const key = this.getMessageKey(message);
             const isSubgraphStart = isMessageType(message, MessageType.SUBGRAPH_START);
             const isSubgraphFinish = isMessageType(message, MessageType.SUBGRAPH_FINISH);
-            const path = [...stack];
+
+            const rawSubgraphIds = (message.message_data as unknown as Record<string, unknown>)[
+                'subgraph_execution_ids'
+            ];
+            const subgraphExecutionIds = Array.isArray(rawSubgraphIds) ? (rawSubgraphIds as string[]) : null;
+
+            let path: string[];
+            if (subgraphExecutionIds && subgraphExecutionIds.length > 0) {
+                path = subgraphExecutionIds
+                    .map((id) => executionIdToKey.get(id))
+                    .filter((k): k is string => k !== undefined);
+            } else {
+                path = [];
+            }
+
             const context: MessageContext = {
                 key,
                 index,
-                depth: stack.length,
+                depth: path.length,
                 path,
                 isSubgraphStart,
                 isSubgraphFinish,
@@ -971,12 +1058,6 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.messageContexts.push(context);
             this.messageContextByKey.set(key, context);
             this.messageByKey.set(key, message);
-
-            if (isSubgraphStart) {
-                stack.push(key);
-            } else if (isSubgraphFinish && stack.length > 0) {
-                stack.pop();
-            }
         });
 
         this.buildMessageGraphContexts(messages);
