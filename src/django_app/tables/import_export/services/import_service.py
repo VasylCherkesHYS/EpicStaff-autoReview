@@ -51,6 +51,7 @@ class ImportService:
                             strategy,
                             id_mapper,
                             entity_type == main_entity,
+                            settings=settings,
                         )
 
         return id_mapper, self.registry
@@ -89,6 +90,8 @@ class ImportService:
         instance = strategy.import_entity(
             entity_data, id_mapper, is_main, settings=settings
         )
+        if instance is None:
+            return
         id_mapper.map(entity_type, old_id, instance.id, was_created)
 
     def _resolve_graph_order(self, graphs: List[dict]) -> List[dict]:
