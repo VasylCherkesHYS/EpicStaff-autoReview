@@ -2,6 +2,7 @@ import uuid
 from copy import deepcopy
 
 from tables.models import Graph, Crew, Organization, GraphOrganization
+from tables.models.label_models import Label
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.serializers.model_serializers import (
     CrewSerializer,
@@ -18,13 +19,11 @@ from tables.import_export.id_mapper import IDMapper
 from tables.import_export.constants import NODE_MAPPING_KEY
 from tables.import_export.utils import ensure_unique_identifier
 from tables.import_export.strategies.node_handlers import NODE_HANDLERS
-from tables.import_export.strategies.label import LabelStrategy
 
 
 class GraphStrategy(EntityImportExportStrategy):
     entity_type = EntityType.GRAPH
     serializer_class = GraphImportSerializer
-    label_strategy = LabelStrategy()
 
     def get_instance(self, entity_id: int) -> Graph:
         return Graph.objects.filter(id=entity_id).first()
@@ -61,7 +60,7 @@ class GraphStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: Graph) -> dict:
         data = self.serializer_class(instance).data
         data["nodes"] = self._export_nodes(instance)
-        data["labels"] = self.label_strategy.export_graph_labels(instance)
+        data["labels"] = list(instance.labels.values_list("id", flat=True))
         return data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
@@ -111,7 +110,7 @@ class GraphStrategy(EntityImportExportStrategy):
         )
 
         if import_labels and labels_data:
-            self.label_strategy.attach_labels_to_graph(graph, id_mapper, labels_data)
+            self._attach_labels(graph, id_mapper, labels_data)
 
         return graph
 
@@ -260,6 +259,15 @@ class GraphStrategy(EntityImportExportStrategy):
         if changed:
             graph.metadata = metadata
             graph.save(update_fields=["metadata"])
+
+    def _attach_labels(
+        self, graph: Graph, id_mapper: IDMapper, label_ids: list
+    ) -> None:
+        new_label_ids = [
+            id_mapper.get(EntityType.LABEL, old_id) for old_id in label_ids
+        ]
+        if new_label_ids:
+            graph.labels.add(*Label.objects.filter(id__in=new_label_ids))
 
     def _default_import_node(self, graph: Graph, node_data: dict, config: dict):
         """Default import logic for simple nodes"""
