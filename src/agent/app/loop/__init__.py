@@ -6,8 +6,14 @@ Re-exports the loop ABC, its runtime context, and the stop-policy hierarchy.
 without depending on internal module paths.
 """
 
-from app.loop.agent_loop import AgentLoop
+from app.loop.agent_loop import AgentLoop, DefaultAgentLoop
 from app.loop.context import AgentContext
 from app.loop.stop_policy import MaxIterAndNoToolCalls, StopPolicy
 
-__all__ = ["AgentLoop", "AgentContext", "StopPolicy", "MaxIterAndNoToolCalls"]
+__all__ = [
+    "AgentLoop",
+    "DefaultAgentLoop",
+    "AgentContext",
+    "StopPolicy",
+    "MaxIterAndNoToolCalls",
+]

@@ -30,6 +30,8 @@ class AgentConfig(BaseModel):
     model: str
     system_prompt: str
     params: dict = Field(default_factory=dict)
+    max_execution_time: float | None = None
+    """Wall-clock budget in seconds honored by ``DefaultAgentLoop``; ``None`` means no limit."""
 
 
 class AgentRequest(BaseModel):

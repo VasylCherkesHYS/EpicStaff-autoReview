@@ -9,13 +9,15 @@ list of ``ContextAttachment`` objects.
 """
 
 from app.surface.items import RAGItem, S3Item, SurfaceItem, ToolItem
-from app.surface.resolver import ItemResolver, SurfaceResolver
+
+# ItemResolver and SurfaceResolver are imported lazily here to break the
+# circular dependency: app.models → app.surface.items → app.surface.__init__
+# → app.surface.resolver → app.models.  Callers that need the resolver must
+# import directly from app.surface.resolver.
 
 __all__ = [
     "SurfaceItem",
     "ToolItem",
     "RAGItem",
     "S3Item",
-    "ItemResolver",
-    "SurfaceResolver",
 ]
