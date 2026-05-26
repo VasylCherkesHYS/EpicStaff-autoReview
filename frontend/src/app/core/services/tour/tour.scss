@@ -1,0 +1,110 @@
+.shepherd-modal-overlay-container {
+    z-index: 1100;
+}
+
+body.tour-active .cdk-overlay-container {
+    z-index: auto !important;
+}
+
+body.tour-active .cdk-overlay-pane {
+    z-index: 1000;
+}
+
+body.tour-active .cdk-overlay-pane:has(.selector__dropdown) {
+    z-index: 1300;
+}
+
+.shepherd-element.shepherd-quickstart {
+    z-index: 1301;
+    background: var(--color-modals-background);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-divider-regular);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    max-width: 380px;
+    font-family: inherit;
+
+    .shepherd-content {
+        background: transparent;
+        padding: 0;
+    }
+
+    .shepherd-header {
+        background: transparent;
+        padding: 16px 20px 8px;
+        border-bottom: none;
+
+        .shepherd-title {
+            color: var(--color-text-primary);
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .shepherd-cancel-icon {
+            color: var(--color-text-secondary);
+            font-size: 18px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: opacity 120ms ease;
+
+            &:hover {
+                opacity: 1;
+            }
+        }
+    }
+
+    .shepherd-text {
+        color: var(--color-text-secondary);
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 0 20px 16px;
+    }
+
+    .shepherd-footer {
+        padding: 8px 16px 16px;
+        gap: 8px;
+        border-top: 1px solid var(--color-divider-subtle);
+
+        .shepherd-button {
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition:
+                background 120ms ease,
+                border-color 120ms ease,
+                color 120ms ease;
+
+            &.shepherd-button-primary {
+                background: var(--accent-color);
+                color: #ffffff;
+
+                &:hover {
+                    background: var(--accent-color-hover);
+                }
+
+                &:active {
+                    background: var(--accent-color-active);
+                }
+            }
+
+            &.shepherd-button-secondary {
+                background: transparent;
+                color: var(--color-text-secondary);
+                border-color: var(--color-divider-regular);
+
+                &:hover {
+                    background: var(--color-ghost-btn-hover);
+                    color: var(--color-text-primary);
+                }
+            }
+        }
+    }
+
+    .shepherd-arrow::before {
+        background: var(--color-modals-background);
+        border: 1px solid var(--color-divider-regular);
+    }
+}
