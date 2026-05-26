@@ -44,12 +44,12 @@ import { Subject } from 'rxjs';
 
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
-import { ToggleSwitchComponent } from '../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 import { DomainDialogComponent } from '../components/domain-dialog/domain-dialog.component';
 import { FlowActionPanelComponent } from '../components/flow-action-panel/flow-action-panel.component';
 import { FlowBaseNodeComponent } from '../components/flow-base-node/flow-base-node.component';
 import { FlowFilesButtonComponent } from '../components/flow-files-button/flow-files-button.component';
 import { FlowGraphContextMenuComponent } from '../components/flow-graph-context-menu/flow-graph-context-menu.component';
+import { FlowSettingsPanelComponent } from '../components/flow-settings-panel/flow-settings-panel.component';
 import { FlowShortcutsButtonComponent } from '../components/flow-shortcuts-button/flow-shortcuts-button.component';
 import { NodePanelShellComponent } from '../components/node-panels/node-panel-shell/node-panel-shell.component';
 import { NodesSearchComponent } from '../components/nodes-search/nodes-search.component';
@@ -84,6 +84,7 @@ import { CreateNodeRequest } from '../core/models/node-creation.types';
 import { CustomPortId } from '../core/models/port.model';
 import { ClipboardService } from '../services/clipboard.service';
 import { FlowService } from '../services/flow.service';
+import { FlowSettingsService } from '../services/flow-settings.service';
 import { NodeFactoryService } from '../services/node-factory.service';
 import { SidePanelService } from '../services/side-panel.service';
 import { UndoRedoService } from '../services/undo-redo.service';
@@ -123,7 +124,6 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         NodePanelShellComponent,
         FlowShortcutsButtonComponent,
         AppSvgIconComponent,
-        ToggleSwitchComponent,
         FConnectionGradient,
         FConnectionContent,
         FConnectionWaypoints,
@@ -169,8 +169,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     protected showContextMenu = signal(false);
     protected readonly hasUnarrangedChanges = signal(true);
     protected readonly isArranging = signal<boolean>(false);
-    protected showVariables = signal(false);
-    public smartRoutingEnabled = signal<boolean>(false);
+    protected readonly flowSettings = inject(FlowSettingsService);
 
     protected readonly nodeColorMap = computed<Map<string, string>>(() => {
         const map = new Map<string, string>();
@@ -259,6 +258,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.isLoaded.set(true);
         setTimeout(() => {
             this.rerouteSegmentConnections();
+            this.fCanvasComponent.fitToScreen({ x: 80, y: 80 }, false);
             this.cd.detectChanges();
         }, 0);
     }
@@ -867,16 +867,15 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.fZoomDirective.setZoom(position, 1, EFZoomDirection.ZOOM_IN, true);
     }
 
-    public toggleShowVariables(): void {
-        this.showVariables.set(!this.showVariables());
+    protected openSettings(): void {
+        this.dialog.open(FlowSettingsPanelComponent, {
+            width: '480px',
+            maxWidth: '90vw',
+        });
     }
 
     public updateMouseTrackerPosition(event: IPoint): void {
         this.mouseCursorPosition = event;
-    }
-
-    public onSmartRoutingToggle(value: boolean): void {
-        this.smartRoutingEnabled.set(value);
     }
 
     public onAutoArrange(): void {

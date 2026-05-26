@@ -102,6 +102,7 @@ import { SearchNodeItemComponent } from './search-node-item/search-node-item.com
                 flex-direction: column;
                 align-items: flex-start;
                 width: 100%;
+                width: 350px;
             }
 
             .search-header {
@@ -189,14 +190,14 @@ import { SearchNodeItemComponent } from './search-node-item/search-node-item.com
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: var(--gray-700, #424242);
+                background: transparent;
                 border: none;
-                border-radius: 50%;
+                padding: 0;
                 cursor: pointer;
-                color: var(--gray-300, #cdcdcd);
+                color: var(--gray-400, #b4b4b4);
+                transition: color 0.15s ease;
 
                 &:hover {
-                    background-color: var(--gray-600, #676767);
                     color: var(--white, #fff);
                 }
 

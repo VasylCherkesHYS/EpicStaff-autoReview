@@ -36,7 +36,6 @@ import {
     isTerminalSessionStatus,
 } from '../../services/flows-sessions.service';
 import { FlowSessionNodeFilterDropdownComponent } from './flow-session-node-filter-dropdown.component';
-import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-filter-dropdown.component';
 import { FlowSessionsTableComponent } from './flow-sessions-table.component';
 
 @Component({
@@ -48,7 +47,6 @@ import { FlowSessionsTableComponent } from './flow-sessions-table.component';
         CommonModule,
         FlowSessionsTableComponent,
         PaginationControlsComponent,
-        FlowSessionStatusFilterDropdownComponent,
         FlowSessionNodeFilterDropdownComponent,
         IconButtonComponent,
         ActionDropdownButtonComponent,
@@ -364,6 +362,11 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
         this.currentPage.set(page);
     }
 
+    onPageSizeChange(size: number) {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
+    }
+
     onStatusFilterChange(values: string[]) {
         this.currentPage.set(1);
         this.statusFilter.set(values);
@@ -382,6 +385,9 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
     onNodeFilterChange(value: string | null) {
         this.currentPage.set(1);
         this.nodeFilter.set(value);
+        if (!value) {
+            this.isErrorCauseFilter.set(false);
+        }
     }
 
     public onSelectedIdsChange(ids: Set<number>): void {
