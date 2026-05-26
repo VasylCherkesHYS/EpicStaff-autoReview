@@ -32,6 +32,10 @@ class AgentConfig(BaseModel):
     params: dict = Field(default_factory=dict)
     max_execution_time: float | None = None
     """Wall-clock budget in seconds honored by ``DefaultAgentLoop``; ``None`` means no limit."""
+    max_retry_limit: int | None = None
+    """Maximum LLM call retry attempts passed as ``runtime_config`` to ``LLMClient``; ``None`` uses the client default (5)."""
+    max_rpm: int | None = None
+    """Requests-per-minute cap enforced by the LiteLLM Router; ``None`` means no cap."""
 
 
 class AgentRequest(BaseModel):

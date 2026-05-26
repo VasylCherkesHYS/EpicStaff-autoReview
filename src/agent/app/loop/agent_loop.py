@@ -168,6 +168,10 @@ class DefaultAgentLoop(AgentLoop):
                     **context.agent_config.params,
                 },
                 stream=True,
+                runtime_config={
+                    "max_retry_limit": context.agent_config.max_retry_limit,
+                    "max_rpm": context.agent_config.max_rpm,
+                },
             ):
                 await emitter.on_chunk(chunk)
                 chunks.append(chunk)

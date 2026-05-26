@@ -11,6 +11,7 @@ class Settings:
     agent_result_stream: str
     agent_consumer_group: str
     log_level: str
+    llm_default_max_retries: int
 
 
 def load_settings() -> Settings:
@@ -22,4 +23,5 @@ def load_settings() -> Settings:
         agent_result_stream=os.environ.get("AGENT_RESULT_STREAM", "agent.results"),
         agent_consumer_group=os.environ.get("AGENT_CONSUMER_GROUP", "agent-executors"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
+        llm_default_max_retries=int(os.environ.get("LLM_DEFAULT_MAX_RETRIES", "5")),
     )

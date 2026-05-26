@@ -66,6 +66,7 @@ class LLMClient(ABC):
         model_config: dict,
         *,
         stream: bool,
+        runtime_config: dict | None = None,
     ) -> AsyncIterator[LLMChunk]:
         """Return an async iterator of normalized ``LLMChunk`` objects.
 
@@ -81,7 +82,8 @@ class LLMClient(ABC):
                 ``AgentConfig.params``.
             stream: whether to request token-by-token streaming from the
                 provider.
-
-        Body to be implemented in follow-up plan — see plan §'What is NOT in this plan'.
+            runtime_config: optional dict carrying ``max_retry_limit`` and
+                ``max_rpm`` sourced from ``AgentConfig``; kept separate from
+                ``model_config`` so ``model_config`` stays LiteLLM-kwargs only.
         """
         ...

@@ -9,9 +9,8 @@ loop behaviour without touching any real I/O.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import AsyncIterator, Callable
-
-import pytest
 
 from app.emitters.base import Emitter
 from app.llm.client import LLMChunk, LLMClient, ToolCallFragment
@@ -51,6 +50,7 @@ class FakeLLMClient(LLMClient):
         model_config: dict,
         *,
         stream: bool,
+        runtime_config: dict | None = None,
     ) -> AsyncIterator[LLMChunk]:
         if self.chat_raises is not None:
             raise self.chat_raises
@@ -100,7 +100,7 @@ class StubToolRegistry(ToolRegistry):
     @staticmethod
     def _make_executor(name: str, fn: Callable):
         async def executor(args: dict) -> ToolResult:
-            if asyncio.iscoroutinefunction(fn):
+            if inspect.iscoroutinefunction(fn):
                 raw = await fn(args)
             else:
                 raw = fn(args)
@@ -255,12 +255,13 @@ async def test_parallel_tool_calls():
     tool_ids = {m["tool_call_id"] for m in tool_messages}
     assert tool_ids == {"c1", "c2"}
 
-    tool_result_events = [
-        payload for name, payload in emitter.events if name == "on_tool_result"
+    tool_result_events: list[ToolResult] = [
+        payload
+        for name, payload in emitter.events
+        if name == "on_tool_result" and isinstance(payload, ToolResult)
     ]
     assert len(tool_result_events) == 2
     for r in tool_result_events:
-        assert isinstance(r, ToolResult)
         assert not r.is_error
 
 
@@ -288,12 +289,13 @@ async def test_tool_raises_feeds_error_back_and_loop_continues():
     assert result.stop_reason == "no_tool_calls"
     assert result.tool_invocations == 1
 
-    tool_result_events = [
-        payload for name, payload in emitter.events if name == "on_tool_result"
+    tool_result_events: list[ToolResult] = [
+        payload
+        for name, payload in emitter.events
+        if name == "on_tool_result" and isinstance(payload, ToolResult)
     ]
     assert len(tool_result_events) == 1
     payload = tool_result_events[0]
-    assert isinstance(payload, ToolResult)
     assert payload.is_error is True
     assert "boom" in payload.content
 
@@ -327,8 +329,10 @@ async def test_tool_json_parse_failure():
 
     assert result.stop_reason == "no_tool_calls"
 
-    tool_result_events = [
-        payload for name, payload in emitter.events if name == "on_tool_result"
+    tool_result_events: list[ToolResult] = [
+        payload
+        for name, payload in emitter.events
+        if name == "on_tool_result" and isinstance(payload, ToolResult)
     ]
     assert len(tool_result_events) == 1
     assert tool_result_events[0].is_error is True
@@ -352,8 +356,10 @@ async def test_unknown_tool_name():
 
     result = await loop.run(context, tools, emitter, stop)
 
-    tool_result_events = [
-        payload for name, payload in emitter.events if name == "on_tool_result"
+    tool_result_events: list[ToolResult] = [
+        payload
+        for name, payload in emitter.events
+        if name == "on_tool_result" and isinstance(payload, ToolResult)
     ]
     assert len(tool_result_events) == 1
     assert tool_result_events[0].is_error is True
