@@ -196,6 +196,7 @@ export class FlowsStorageService {
                     description: updateData.description || currentFlow.description,
                     metadata: updateData.metadata || currentFlow.metadata,
                     tags: updateData.tags || currentFlow.tags || [],
+                    save_version: currentFlow.save_version,
                 };
                 return this.updateFlow(updatedPayload);
             })

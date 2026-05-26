@@ -92,6 +92,7 @@ export interface UpdateGraphDtoRequest {
     description: string;
     metadata: FlowModel | Record<string, unknown>;
     tags?: string[];
+    save_version?: number;
 }
 
 export interface GraphVersionCreateRequest {

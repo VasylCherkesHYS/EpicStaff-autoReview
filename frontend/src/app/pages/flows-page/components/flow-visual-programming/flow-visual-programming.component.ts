@@ -524,22 +524,24 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             return;
         }
 
-        this.flowApiService.patchGraph(this.graph.id, { epicchat_enabled: true }).subscribe({
-            next: () => {
-                this.graph.epicchat_enabled = true;
-                this.epicChatService.requestCreateAgent({
-                    name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
-                    description: this.graph.description?.trim(),
-                    flowId: this.graph.id,
-                    flowUrl,
-                    selectAfterCreate: true,
-                });
-                this.toastService.success('Flow connected to Epic Chat');
-            },
-            error: () => {
-                this.toastService.error('Failed to save EpicChat connection');
-            },
-        });
+        this.flowApiService
+            .patchGraph(this.graph.id, { epicchat_enabled: true, save_version: this.graphState()!.save_version })
+            .subscribe({
+                next: () => {
+                    this.graph.epicchat_enabled = true;
+                    this.epicChatService.requestCreateAgent({
+                        name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
+                        description: this.graph.description?.trim(),
+                        flowId: this.graph.id,
+                        flowUrl,
+                        selectAfterCreate: true,
+                    });
+                    this.toastService.success('Flow connected to Epic Chat');
+                },
+                error: () => {
+                    this.toastService.error('Failed to save EpicChat connection');
+                },
+            });
     }
 
     private normalizeApiUrl(apiUrl: string): string {
@@ -698,6 +700,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             width: '380px',
             data: {
                 graphId: this.graph.id,
+                graphSaveVersion: () => this.graphState()?.save_version,
                 hasUnsavedChanges: () => this.hasUnsavedChanges(),
                 saveCurrentState: () => this.saveCurrentState(),
             },
