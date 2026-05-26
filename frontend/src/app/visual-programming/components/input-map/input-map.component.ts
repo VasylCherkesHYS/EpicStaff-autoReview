@@ -1,7 +1,23 @@
+import { Overlay, OverlayModule, OverlayRef } from '@angular/cdk/overlay';
+import { ComponentPortal } from '@angular/cdk/portal';
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    Input,
+    OnChanges,
+    OnDestroy,
+    OnInit,
+    Output,
+    output,
+    signal,
+    SimpleChanges,
+    ViewContainerRef,
+} from '@angular/core';
 import { EventEmitter } from '@angular/core';
-import { signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
     AbstractControl,
@@ -21,8 +37,167 @@ import { RunSessionSSEService } from '../../../pages/running-graph/services/grap
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ToggleSwitchComponent } from '../../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 import { HelpTooltipComponent } from '../../../shared/components/help-tooltip/help-tooltip.component';
+import { FlowService } from '../../services/flow.service';
 import { PythonCodeRunService } from '../../services/python-code-run.service';
 import { SidePanelService } from '../../services/side-panel.service';
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+interface PickerItem {
+    tag: string;
+    label: string;
+    fullPath: string;
+}
+
+@Component({
+    selector: 'app-var-picker-flat',
+    standalone: true,
+    imports: [CommonModule],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
+        <div class="vpf-container">
+            <div class="vpf-search">
+                <input
+                    #searchInput
+                    type="text"
+                    placeholder="Search variables..."
+                    autocomplete="off"
+                    (input)="filterText.set(searchInput.value)"
+                />
+            </div>
+            <div class="vpf-list">
+                @if (filteredItems().length === 0) {
+                    <div class="vpf-empty">No flow variables defined</div>
+                }
+                @for (item of filteredItems(); track item.fullPath) {
+                    <button
+                        type="button"
+                        class="vpf-item"
+                        [title]="item.fullPath"
+                        (click)="pathSelected.emit(item.fullPath)"
+                    >
+                        <span class="vpf-tag">{{ item.tag }}</span>
+                        <span class="vpf-label">{{ item.label }}</span>
+                    </button>
+                }
+            </div>
+        </div>
+    `,
+    styles: [
+        `
+            .vpf-container {
+                background: var(--color-nodes-sidepanel-bg, #1e1e2e);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 6px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+                width: 280px;
+                max-height: 280px;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .vpf-search {
+                padding: 8px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+                input {
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 6px 10px;
+                    background: rgba(255, 255, 255, 0.06);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border-radius: 4px;
+                    color: #fff;
+                    font-size: 0.8rem;
+                    outline: none;
+                    transition: border-color 0.15s;
+
+                    &:focus {
+                        border-color: rgba(104, 95, 255, 0.6);
+                    }
+                    &::placeholder {
+                        color: rgba(255, 255, 255, 0.3);
+                    }
+                }
+            }
+
+            .vpf-list {
+                overflow-y: auto;
+                flex: 1;
+                padding: 4px;
+            }
+
+            .vpf-empty {
+                padding: 12px;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.35);
+                font-size: 0.8rem;
+            }
+
+            .vpf-item {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                width: 100%;
+                text-align: left;
+                padding: 5px 8px;
+                background: transparent;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background 0.15s;
+                min-width: 0;
+
+                &:hover {
+                    background: rgba(104, 95, 255, 0.15);
+                }
+            }
+
+            .vpf-tag {
+                flex-shrink: 0;
+                font-size: 0.68rem;
+                font-weight: 600;
+                padding: 1px 5px;
+                border-radius: 3px;
+                background: rgba(104, 95, 255, 0.25);
+                color: rgba(170, 160, 255, 0.9);
+                letter-spacing: 0.02em;
+                text-transform: lowercase;
+            }
+
+            .vpf-label {
+                font-size: 0.8rem;
+                font-family: monospace;
+                color: rgba(255, 255, 255, 0.85);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .vpf-item:hover .vpf-label {
+                color: #fff;
+            }
+        `,
+    ],
+})
+class VarPickerFlatComponent {
+    items = signal<PickerItem[]>([]);
+    filterText = signal<string>('');
+
+    filteredItems = computed(() => {
+        const f = this.filterText().toLowerCase();
+        if (!f) return this.items();
+        return this.items().filter(
+            (item) =>
+                item.label.toLowerCase().includes(f) ||
+                item.tag.toLowerCase().includes(f) ||
+                item.fullPath.toLowerCase().includes(f)
+        );
+    });
+
+    pathSelected = output<string>();
+}
 
 @Component({
     selector: 'app-input-map',
@@ -34,6 +209,7 @@ import { SidePanelService } from '../../services/side-panel.service';
         ToggleSwitchComponent,
         AppSvgIconComponent,
         MatTooltipModule,
+        OverlayModule,
     ],
     viewProviders: [
         {
@@ -93,6 +269,14 @@ import { SidePanelService } from '../../services/side-panel.service';
                                         (keydown.enter)="onEnterKey($event, i)"
                                     />
                                 </div>
+                                <button
+                                    type="button"
+                                    class="var-picker-btn"
+                                    title="Variable picker"
+                                    (click)="openPicker(i, $event)"
+                                >
+                                    <i class="ti ti-braces"></i>
+                                </button>
                                 <app-svg-icon
                                     icon="trash"
                                     size="1rem"
@@ -400,6 +584,28 @@ import { SidePanelService } from '../../services/side-panel.service';
                 margin-top: 8px;
             }
 
+            .var-picker-btn {
+                flex-shrink: 0;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                border-radius: 4px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                color: rgba(255, 255, 255, 0.35);
+                font-size: 1rem;
+                transition: all 0.2s ease;
+
+                &:hover {
+                    color: var(--active-color, #685fff);
+                    background-color: rgba(104, 95, 255, 0.12);
+                }
+            }
+
             .test-input-dirty-warning {
                 display: grid;
                 grid-template-rows: 0fr;
@@ -444,7 +650,7 @@ import { SidePanelService } from '../../services/side-panel.service';
         `,
     ],
 })
-export class InputMapComponent implements OnInit, OnChanges {
+export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
     @Input() activeColor: string = '#685fff';
     @Input() testMode: boolean = false;
     @Input() showTestMode: boolean = false;
@@ -469,6 +675,20 @@ export class InputMapComponent implements OnInit, OnChanges {
     private readonly pythonCodeRunService = inject(PythonCodeRunService);
     private readonly graphSessionService = inject(GraphSessionService);
     private readonly runSessionSSEService = inject(RunSessionSSEService);
+    private readonly flowService = inject(FlowService);
+    private readonly overlay = inject(Overlay);
+    private readonly viewContainerRef = inject(ViewContainerRef);
+
+    private overlayRef: OverlayRef | null = null;
+    private autocompleteInstance: VarPickerFlatComponent | null = null;
+    private activeRowIndex: number | null = null;
+    private pickerSubs: { unsubscribe(): void }[] = [];
+
+    private readonly pickerItems = computed<PickerItem[]>(() => {
+        const state = this.flowService.startNodeInitialState();
+        if (!state || Object.keys(state).length === 0) return [];
+        return this.buildPickerItems(state);
+    });
 
     constructor(
         private controlContainer: ControlContainer,
@@ -794,6 +1014,109 @@ export class InputMapComponent implements OnInit, OnChanges {
         const target = key.trim();
         if (target === '') return -1;
         return this.testPairs.controls.findIndex((c) => ((c.value.key as string) ?? '').trim() === target);
+    }
+
+    openPicker(rowIndex: number, event: MouseEvent): void {
+        event.stopPropagation();
+        this.closePicker();
+
+        this.activeRowIndex = rowIndex;
+
+        const triggerEl = event.currentTarget as HTMLElement;
+
+        const positionStrategy = this.overlay
+            .position()
+            .flexibleConnectedTo(triggerEl)
+            .withPositions([
+                { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
+                { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -8 },
+                { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+            ])
+            .withViewportMargin(8);
+
+        this.overlayRef = this.overlay.create({
+            positionStrategy,
+            scrollStrategy: this.overlay.scrollStrategies.reposition(),
+            hasBackdrop: true,
+            backdropClass: 'cdk-overlay-transparent-backdrop',
+        });
+
+        const portal = new ComponentPortal(VarPickerFlatComponent, this.viewContainerRef);
+        const componentRef = this.overlayRef.attach(portal);
+        this.autocompleteInstance = componentRef.instance;
+
+        this.autocompleteInstance.items.set(this.pickerItems());
+
+        this.pickerSubs = [
+            this.autocompleteInstance.pathSelected.subscribe((path: string) => this.insertPath(path)),
+            this.overlayRef.backdropClick().subscribe(() => this.closePicker()),
+            this.overlayRef
+                .keydownEvents()
+                .pipe(filter((e) => e.key === 'Escape'))
+                .subscribe(() => this.closePicker()),
+        ];
+    }
+
+    private insertPath(path: string): void {
+        if (this.activeRowIndex !== null) {
+            const valueCtrl = this.pairs.at(this.activeRowIndex).get('value');
+            valueCtrl?.setValue(path);
+            valueCtrl?.markAsDirty();
+        }
+        this.closePicker();
+    }
+
+    closePicker(): void {
+        this.pickerSubs.forEach((s) => s.unsubscribe());
+        this.pickerSubs = [];
+        this.overlayRef?.dispose();
+        this.overlayRef = null;
+        this.autocompleteInstance = null;
+        this.activeRowIndex = null;
+    }
+
+    ngOnDestroy(): void {
+        this.closePicker();
+    }
+
+    private buildPickerItems(state: Record<string, unknown>): PickerItem[] {
+        const variablesObj = state['variables'];
+        if (!isRecord(variablesObj)) return [];
+
+        const items: PickerItem[] = [];
+        for (const firstSeg of Object.keys(variablesObj)) {
+            const val = variablesObj[firstSeg];
+            const fullPath = `variables.${firstSeg}`;
+
+            if (isRecord(val)) {
+                // The object itself is selectable
+                items.push({ tag: firstSeg, label: firstSeg, fullPath });
+                // Children: label is relative path within the firstSeg group
+                this.collectChildItems(val, '', fullPath, firstSeg, items);
+            } else {
+                // Leaf direct child of variables
+                items.push({ tag: 'var', label: firstSeg, fullPath });
+            }
+        }
+        return items;
+    }
+
+    private collectChildItems(
+        obj: Record<string, unknown>,
+        labelPrefix: string,
+        pathPrefix: string,
+        tag: string,
+        result: PickerItem[]
+    ): void {
+        for (const key of Object.keys(obj)) {
+            const label = labelPrefix ? `${labelPrefix}.${key}` : key;
+            const fullPath = `${pathPrefix}.${key}`;
+            result.push({ tag, label, fullPath });
+            const val = obj[key];
+            if (isRecord(val)) {
+                this.collectChildItems(val, label, fullPath, tag, result);
+            }
+        }
     }
 
     private getValidInputPairs(): AbstractControl[] {
