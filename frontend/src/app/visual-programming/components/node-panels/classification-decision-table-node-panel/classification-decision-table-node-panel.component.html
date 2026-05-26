@@ -230,10 +230,17 @@
                                             (click)="toggleEditPrompt(prompt.id)"
                                         >
                                             <div class="prompt-card-title">
-                                                <i class="ti ti-message-chatbot"></i>
+                                                <app-svg-icon
+                                                    class="prompt-card-title__chevron"
+                                                    [class.prompt-card-title__chevron--expanded]="
+                                                        editingPromptId() === prompt.id
+                                                    "
+                                                    icon="play"
+                                                    size="8px"
+                                                ></app-svg-icon>
                                                 <span class="prompt-id">{{ prompt.id }}</span>
                                                 @if (prompt.result_variable) {
-                                                    <span class="result-badge">→ {{ prompt.result_variable }}</span>
+                                                    <span class="result-badge">{{ prompt.result_variable }}</span>
                                                 }
                                             </div>
                                             <div class="prompt-card-actions">
@@ -249,11 +256,6 @@
                                                         size="14px"
                                                     ></app-svg-icon>
                                                 </button>
-                                                <i
-                                                    class="ti"
-                                                    [class.ti-chevron-down]="editingPromptId() !== prompt.id"
-                                                    [class.ti-chevron-up]="editingPromptId() === prompt.id"
-                                                ></i>
                                             </div>
                                         </div>
 
@@ -276,7 +278,9 @@
                                                 </div>
 
                                                 <div class="prompt-field">
-                                                    <label class="field-label">LLM Override</label>
+                                                    <label class="field-label"
+                                                        >LLM Override <span class="required-star">*</span></label
+                                                    >
                                                     <app-llm-model-selector
                                                         [llmConfigs]="llmConfigs"
                                                         [ngModel]="getLlmIdAsNumber(prompt.llm_config)"

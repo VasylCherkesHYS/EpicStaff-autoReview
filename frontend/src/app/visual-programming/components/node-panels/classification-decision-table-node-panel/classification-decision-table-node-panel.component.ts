@@ -17,6 +17,7 @@ import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { ConfirmationDialogService } from '../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { CustomInputComponent } from '../../../../shared/components/form-input/form-input.component';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
 import { LlmModelSelectorComponent } from '../../../../shared/components/llm-model-selector/llm-model-selector.component';
@@ -94,6 +95,7 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
     public postCode: string = '';
     private readonly codeChange$ = new Subject<void>();
     private sidePanelService = inject(SidePanelService);
+    private readonly confirmationDialogService = inject(ConfirmationDialogService);
 
     // Sub-FormGroups for InputMapComponent in pre/post tabs.
     public preInputForm!: FormGroup;
@@ -442,13 +444,29 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
     }
 
     public deletePrompt(id: string): void {
+        this.confirmationDialogService
+            .confirm({
+                title: 'Delete Prompt',
+                message: `Are you sure you want to delete <strong>${id}</strong> prompt?`,
+                confirmText: 'Delete',
+                cancelText: 'Cancel',
+                type: 'danger',
+            })
+            .subscribe((result) => {
+                if (result === true) {
+                    this.performDeletePrompt(id);
+                }
+            });
+    }
+
+    private performDeletePrompt(id: string): void {
         const current = { ...this.prompts() };
         delete current[id];
         this.prompts.set(current);
-        this.sidePanelService.triggerAutosave();
         if (this.editingPromptId() === id) {
             this.editingPromptId.set(null);
         }
+        this.flowService.updateNode(this.createUpdatedNode());
     }
 
     public toggleEditPrompt(id: string): void {

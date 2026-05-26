@@ -232,6 +232,9 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 line-height: 1.3;
                 color: rgba(217, 217, 222, 0.6);
                 white-space: nowrap;
+                max-width: 180px;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             .pe-item-open-btn {
                 display: none;
