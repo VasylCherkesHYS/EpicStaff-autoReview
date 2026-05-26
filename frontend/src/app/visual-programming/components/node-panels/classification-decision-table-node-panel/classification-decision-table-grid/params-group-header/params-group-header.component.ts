@@ -49,9 +49,9 @@ import { IHeaderGroupParams } from 'ag-grid-community';
                     (click)="handleFreeze()"
                 >
                     @if (isPinned && isPinned()) {
-                        Unfreeze
+                        Unfreeze All Columns
                     } @else {
-                        Freeze
+                        Freeze Up to This Column
                     }
                 </div>
                 <div

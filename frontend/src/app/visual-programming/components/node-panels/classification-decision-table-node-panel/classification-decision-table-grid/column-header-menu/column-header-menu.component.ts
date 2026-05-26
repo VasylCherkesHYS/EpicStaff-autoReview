@@ -74,9 +74,9 @@ export interface ColumnHeaderMenuParams extends IHeaderParams {
                         (click)="handleFreeze()"
                     >
                         @if (isPinned && isPinned()) {
-                            <span>Unfreeze</span>
+                            <span>Unfreeze All Columns</span>
                         } @else {
-                            <span>Freeze</span>
+                            <span>Freeze Up to This Column</span>
                         }
                     </div>
                 }

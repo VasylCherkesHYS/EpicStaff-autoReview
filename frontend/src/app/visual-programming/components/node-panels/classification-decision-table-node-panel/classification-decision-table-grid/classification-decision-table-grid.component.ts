@@ -103,9 +103,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     // Frozen column IDs (pinned left)
     public frozenColIds = signal<Set<string>>(new Set());
+    public freezeAnchorColId = signal<string | null>(null);
 
     // User-hidden column IDs
     public hiddenColIds = signal<Set<string>>(new Set());
+
+    public hiddenColumnGroups = signal<Map<string, { label: string; colIds: string[] }>>(new Map());
 
     // Hidden-column restore badges: position computed from DOM
     public hiddenColumnBadges = signal<Array<{ colId: string; x: number; y: number; label: string }>>([]);
@@ -294,6 +297,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 manipOrder: this.manipColumnOrder(),
                 pinned: [...this.frozenColIds()],
                 hiddenColIds: [...this.hiddenColIds()],
+                freezeAnchor: this.freezeAnchorColId(),
             };
             try {
                 localStorage.setItem(this.storageKey, JSON.stringify(state));
@@ -320,6 +324,21 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             }
             if (Array.isArray(state.hiddenColIds) && state.hiddenColIds.length > 0) {
                 this.hiddenColIds.set(new Set(state.hiddenColIds as string[]));
+            }
+            if (typeof state.freezeAnchor === 'string') {
+                this.freezeAnchorColId.set(state.freezeAnchor);
+            } else if (Array.isArray(state.pinned) && state.pinned.length > 0) {
+                const fullOrder = this.getFullColOrder();
+                let anchor: string | null = null;
+                let anchorIdx = -1;
+                for (const id of state.pinned as string[]) {
+                    const idx = fullOrder.indexOf(id);
+                    if (idx > anchorIdx) {
+                        anchor = id;
+                        anchorIdx = idx;
+                    }
+                }
+                if (anchor) this.freezeAnchorColId.set(anchor);
             }
         } catch {}
     }
@@ -389,7 +408,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             colId,
             onFreezeToggle: (id: string) => this.toggleFreeze(id),
             onHide: (id: string) => this.hideColumn(id),
-            isPinned: () => this.frozenColIds().has(colId),
+            isPinned: () => this.freezeAnchorColId() === colId,
         };
     }
 
@@ -398,16 +417,18 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const targetIdx = fullOrder.indexOf(colId);
         if (targetIdx === -1) return;
 
-        const wasFrozen = this.frozenColIds().has(colId);
+        const isAnchor = this.freezeAnchorColId() === colId;
 
         // Determine the new frozen prefix
         let newFrozenIds: string[];
-        if (wasFrozen) {
+        if (isAnchor) {
             // Unfreeze: clear the entire frozen set
             newFrozenIds = [];
+            this.freezeAnchorColId.set(null);
         } else {
             // Freeze: pin every column from index 0 up to and including targetIdx
             newFrozenIds = fullOrder.slice(0, targetIdx + 1);
+            this.freezeAnchorColId.set(colId);
         }
 
         const newFrozenSet = new Set(newFrozenIds);
@@ -447,6 +468,25 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     public unhideColumn(colId: string): void {
+        const groups = this.hiddenColumnGroups();
+        if (groups.has(colId)) {
+            const info = groups.get(colId)!;
+            const currentCols = new Set(this.hiddenColIds());
+            info.colIds.forEach((id) => currentCols.delete(id));
+            this.hiddenColIds.set(currentCols);
+
+            const nextGroups = new Map(groups);
+            nextGroups.delete(colId);
+            this.hiddenColumnGroups.set(nextGroups);
+
+            this.gridApi?.applyColumnState({
+                state: info.colIds.map((id) => ({ colId: id, hide: false })),
+            });
+            this.saveGridState();
+            setTimeout(() => this.updateBadgePositions(), 50);
+            this.cdr.markForCheck();
+            return;
+        }
         const current = new Set(this.hiddenColIds());
         current.delete(colId);
         this.hiddenColIds.set(current);
@@ -482,6 +522,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         }
 
         this.frozenColIds.set(newFrozenSet);
+        this.freezeAnchorColId.set(lastChild);
         if (stateUpdates.length > 0) {
             this.gridApi?.applyColumnState({ state: stateUpdates });
         }
@@ -496,6 +537,24 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const current = new Set(this.hiddenColIds());
         colIds.forEach((id) => current.add(id));
         this.hiddenColIds.set(current);
+        this.gridApi?.applyColumnState({
+            state: colIds.map((colId) => ({ colId, hide: true })),
+        });
+        this.saveGridState();
+        setTimeout(() => this.updateBadgePositions(), 50);
+        this.cdr.markForCheck();
+    }
+
+    public hideColumnGroup(groupId: string, label: string, colIds: string[]): void {
+        if (colIds.length === 0) return;
+        const currentCols = new Set(this.hiddenColIds());
+        colIds.forEach((id) => currentCols.add(id));
+        this.hiddenColIds.set(currentCols);
+
+        const currentGroups = new Map(this.hiddenColumnGroups());
+        currentGroups.set(groupId, { label, colIds: [...colIds] });
+        this.hiddenColumnGroups.set(currentGroups);
+
         this.gridApi?.applyColumnState({
             state: colIds.map((colId) => ({ colId, hide: true })),
         });
@@ -532,40 +591,42 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
         const fullOrder = this.getFullColOrder();
         const badges: Array<{ colId: string; x: number; y: number; label: string }> = [];
-        // Badge is rendered inside .grid-wrapper (position: relative), so coords must be relative to it.
         const wrapperEl = this.elRef.nativeElement.querySelector('.grid-wrapper') as HTMLElement | null;
         const containerRect = (wrapperEl ?? this.elRef.nativeElement).getBoundingClientRect();
 
-        // Position badge ABOVE the AG Grid header strip (outside the table, sitting on its top edge)
         const headerEl = this.elRef.nativeElement.querySelector('.ag-header') as HTMLElement | null;
         const headerRect = headerEl?.getBoundingClientRect();
         const y = headerRect ? headerRect.top - containerRect.top - 24 : -24;
 
-        for (const hiddenId of hidden) {
-            const hiddenIdx = fullOrder.indexOf(hiddenId);
-            if (hiddenIdx === -1) continue;
+        const groups = this.hiddenColumnGroups();
+        const groupedColIdToGroupId = new Map<string, string>();
+        for (const [groupId, info] of groups.entries()) {
+            for (const cid of info.colIds) {
+                groupedColIdToGroupId.set(cid, groupId);
+            }
+        }
 
-            const colLabel = this.getColLabel(hiddenId);
+        const computeBoundaryX = (anchorColId: string): number | null => {
+            const anchorIdx = fullOrder.indexOf(anchorColId);
+            if (anchorIdx === -1) return null;
 
-            // Find nearest visible column to the LEFT of this hidden column
             let prevVisibleColId: string | null = null;
-            for (let i = hiddenIdx - 1; i >= 0; i--) {
+            for (let i = anchorIdx - 1; i >= 0; i--) {
                 if (!hidden.has(fullOrder[i])) {
                     prevVisibleColId = fullOrder[i];
                     break;
                 }
             }
 
-            // Find nearest visible column to the RIGHT (skip consecutive hidden cols)
             let nextVisibleColId: string | null = null;
-            for (let i = hiddenIdx + 1; i < fullOrder.length; i++) {
+            for (let i = anchorIdx + 1; i < fullOrder.length; i++) {
                 if (!hidden.has(fullOrder[i])) {
                     nextVisibleColId = fullOrder[i];
                     break;
                 }
             }
 
-            if (!prevVisibleColId && !nextVisibleColId) continue;
+            if (!prevVisibleColId && !nextVisibleColId) return null;
 
             const prevHeader = prevVisibleColId
                 ? (this.elRef.nativeElement.querySelector(
@@ -581,23 +642,48 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const prevRect = prevHeader?.getBoundingClientRect() ?? null;
             const nextRect = nextHeader?.getBoundingClientRect() ?? null;
 
-            let boundaryX: number;
             if (prevRect && nextRect) {
-                // Place badge on the boundary between the two adjacent visible columns
-                boundaryX = (prevRect.right + nextRect.left) / 2 - containerRect.left - 10;
+                return (prevRect.right + nextRect.left) / 2 - containerRect.left - 10;
             } else if (nextRect) {
-                // Hidden column is the very first — anchor to left edge of next visible
-                boundaryX = nextRect.left - containerRect.left - 10;
+                return nextRect.left - containerRect.left - 10;
             } else {
-                // Hidden column is the very last — anchor to right edge of prev visible
-                boundaryX = prevRect!.right - containerRect.left - 10;
+                return prevRect!.right - containerRect.left - 10;
             }
+        };
 
-            // Offset stacking: if another badge already sits at the same boundary, shift right
+        for (const hiddenId of hidden) {
+            if (groupedColIdToGroupId.has(hiddenId)) continue;
+
+            const boundaryX = computeBoundaryX(hiddenId);
+            if (boundaryX === null) continue;
+
+            const colLabel = this.getColLabel(hiddenId);
             const existing = badges.filter((b) => Math.abs(b.x - boundaryX) < 5);
             const offsetX = existing.length * 22;
 
             badges.push({ colId: hiddenId, x: boundaryX + offsetX, y, label: colLabel });
+        }
+
+        const emittedGroups = new Set<string>();
+        for (const hiddenId of hidden) {
+            const groupId = groupedColIdToGroupId.get(hiddenId);
+            if (!groupId || emittedGroups.has(groupId)) continue;
+            emittedGroups.add(groupId);
+
+            const info = groups.get(groupId)!;
+            const sortedColIds = info.colIds
+                .filter((id) => fullOrder.indexOf(id) !== -1)
+                .sort((a, b) => fullOrder.indexOf(a) - fullOrder.indexOf(b));
+            if (sortedColIds.length === 0) continue;
+
+            const anchorColId = sortedColIds[0];
+            const boundaryX = computeBoundaryX(anchorColId);
+            if (boundaryX === null) continue;
+
+            const existing = badges.filter((b) => Math.abs(b.x - boundaryX) < 5);
+            const offsetX = existing.length * 22;
+
+            badges.push({ colId: groupId, x: boundaryX + offsetX, y, label: info.label });
         }
 
         this.hiddenColumnBadges.set(badges);
@@ -838,18 +924,24 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                         onAdd: (event: MouseEvent) => this.toggleFieldPicker(event),
                         onFreeze: () => {
                             const ids = visibleFieldCols.map((c) => c.colId!);
-                            const allFrozen = ids.length > 0 && ids.every((id) => this.frozenColIds().has(id));
-                            if (allFrozen) {
-                                this.toggleFreeze(ids[0]);
+                            if (ids.length === 0) return;
+                            const lastChild = ids[ids.length - 1];
+                            if (this.freezeAnchorColId() === lastChild) {
+                                this.toggleFreeze(lastChild);
                             } else {
                                 this.freezeThroughLastChild(ids);
                             }
                         },
-                        onHide: () => this.hideColumns(visibleFieldCols.map((c) => c.colId!)),
+                        onHide: () =>
+                            this.hideColumnGroup(
+                                'expr-params-group',
+                                'Params',
+                                visibleFieldCols.map((c) => c.colId!)
+                            ),
                         isPinned: () => {
                             const ids = visibleFieldCols.map((c) => c.colId!);
-                            const frozen = this.frozenColIds();
-                            return ids.length > 0 && ids.every((id) => frozen.has(id));
+                            if (ids.length === 0) return false;
+                            return this.freezeAnchorColId() === ids[ids.length - 1];
                         },
                     },
                     children: visibleFieldCols,
@@ -922,18 +1014,24 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                         onAdd: (event: MouseEvent) => this.toggleManipFieldPicker(event),
                         onFreeze: () => {
                             const ids = visibleManipCols.map((c) => c.colId!);
-                            const allFrozen = ids.length > 0 && ids.every((id) => this.frozenColIds().has(id));
-                            if (allFrozen) {
-                                this.toggleFreeze(ids[0]);
+                            if (ids.length === 0) return;
+                            const lastChild = ids[ids.length - 1];
+                            if (this.freezeAnchorColId() === lastChild) {
+                                this.toggleFreeze(lastChild);
                             } else {
                                 this.freezeThroughLastChild(ids);
                             }
                         },
-                        onHide: () => this.hideColumns(visibleManipCols.map((c) => c.colId!)),
+                        onHide: () =>
+                            this.hideColumnGroup(
+                                'manip-params-group',
+                                'Params',
+                                visibleManipCols.map((c) => c.colId!)
+                            ),
                         isPinned: () => {
                             const ids = visibleManipCols.map((c) => c.colId!);
-                            const frozen = this.frozenColIds();
-                            return ids.length > 0 && ids.every((id) => frozen.has(id));
+                            if (ids.length === 0) return false;
+                            return this.freezeAnchorColId() === ids[ids.length - 1];
                         },
                     },
                     children: visibleManipCols,
