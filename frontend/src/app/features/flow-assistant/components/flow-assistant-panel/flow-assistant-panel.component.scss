@@ -7,15 +7,30 @@
     z-index: 200;
 }
 
+:host.mode-floating {
+    top: auto;
+    right: auto;
+    height: auto;
+}
+
 .panel {
     display: flex;
     flex-direction: column;
+    flex: 1 1 0;
+    min-width: 0;
     height: 100%;
     background-color: var(--color-nodes-sidepanel-bg);
     border-left: 1px solid var(--color-divider-subtle);
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.18);
     overflow: hidden;
     position: relative;
+}
+
+:host.mode-floating .panel {
+    border-radius: 12px;
+    border-left: none;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--color-divider-subtle);
 }
 
 .drag-handle {
@@ -34,6 +49,52 @@
     }
 }
 
+:host.mode-floating .drag-handle {
+    display: none;
+}
+
+.float-resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    z-index: 10;
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
+
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        background-color: var(--color-text-secondary);
+        border-radius: 1px;
+    }
+
+    &::before {
+        bottom: 4px;
+        right: 2px;
+        width: 8px;
+        height: 2px;
+        transform: rotate(-45deg);
+        transform-origin: right center;
+    }
+
+    &::after {
+        bottom: 2px;
+        right: 4px;
+        width: 2px;
+        height: 8px;
+        transform: rotate(-45deg);
+        transform-origin: center bottom;
+    }
+
+    &:hover {
+        opacity: 0.8;
+    }
+}
+
 .panel-header {
     display: flex;
     align-items: center;
@@ -43,6 +104,14 @@
     border-bottom: 1px solid var(--color-divider-subtle);
     flex-shrink: 0;
     gap: 0.5rem;
+}
+
+:host.mode-floating .panel-header {
+    cursor: move;
+}
+
+:host.mode-floating .panel-header button {
+    cursor: pointer;
 }
 
 .panel-title {
@@ -401,42 +470,4 @@
     color: var(--color-text-secondary);
     font-size: 0.75rem;
     font-style: italic;
-}
-
-.typing-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0;
-
-    &__dot {
-        display: inline-block;
-        width: 0.4rem;
-        height: 0.4rem;
-        border-radius: 50%;
-        background-color: var(--color-text-secondary);
-        opacity: 0.4;
-        animation: typing-indicator-pulse 1.2s ease-in-out infinite;
-
-        &:nth-child(2) {
-            animation-delay: 0.15s;
-        }
-
-        &:nth-child(3) {
-            animation-delay: 0.3s;
-        }
-    }
-}
-
-@keyframes typing-indicator-pulse {
-    0%,
-    60%,
-    100% {
-        opacity: 0.4;
-        transform: scale(1);
-    }
-    30% {
-        opacity: 1;
-        transform: scale(1.15);
-    }
 }

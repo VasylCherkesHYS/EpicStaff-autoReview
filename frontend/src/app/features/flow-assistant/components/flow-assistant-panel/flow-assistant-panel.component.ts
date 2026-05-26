@@ -16,10 +16,15 @@ import { MarkdownModule } from 'ngx-markdown';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { FlowAssistantService } from '../../flow-assistant.service';
 import { ActionItem, EfTable, FlowAssistantMessage } from '../../models/flow-assistant.model';
+import { stripTrailingEllipsis, toolStatusFor } from '../../services/tool-labels';
 import { FlowAssistantActionsComponent } from '../flow-assistant-actions/flow-assistant-actions.component';
 import { FlowAssistantSettingsComponent } from '../flow-assistant-settings/flow-assistant-settings.component';
 import { FlowAssistantSidebarComponent } from '../flow-assistant-sidebar/flow-assistant-sidebar.component';
 import { FlowAssistantTableComponent } from '../flow-assistant-table/flow-assistant-table.component';
+import {
+    FlowAssistantToolPillComponent,
+    ToolPillEntry,
+} from '../flow-assistant-tool-pill/flow-assistant-tool-pill.component';
 
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 800;
@@ -38,10 +43,19 @@ const SCROLL_AT_BOTTOM_THRESHOLD = 50;
         FlowAssistantSidebarComponent,
         FlowAssistantTableComponent,
         FlowAssistantActionsComponent,
+        FlowAssistantToolPillComponent,
     ],
     templateUrl: './flow-assistant-panel.component.html',
     styleUrls: ['./flow-assistant-panel.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    host: {
+        '[class.mode-floating]': 'isFloatingMode()',
+        '[style.top.px]': 'hostTopPx()',
+        '[style.left.px]': 'hostLeftPx()',
+        '[style.right]': 'hostRight()',
+        '[style.width.px]': 'hostWidthPx()',
+        '[style.height.px]': 'hostHeightPx()',
+    },
 })
 export class FlowAssistantPanelComponent {
     @ViewChild('messagesContainer') messagesContainer?: ElementRef<HTMLDivElement>;
@@ -56,7 +70,12 @@ export class FlowAssistantPanelComponent {
 
     readonly messages = computed(() => this.assistantService.messages());
     readonly isStreaming = computed(() => this.assistantService.isStreaming());
-    readonly panelWidth = computed(() => this.assistantService.dockWidth());
+    readonly mode = computed(() => this.assistantService.mode());
+    readonly floatPosition = computed(() => this.assistantService.floatPosition());
+    readonly floatSize = computed(() => this.assistantService.floatSize());
+    readonly effectiveWidth = computed(() =>
+        this.mode() === 'docked' ? this.assistantService.dockWidth() : this.floatSize().width
+    );
     readonly sendDisabled = computed(() => this.isStreaming() || !this.inputText().trim());
     readonly currentStatus = computed(() => this.assistantService.currentStatus());
     readonly displayChips = computed(() => {
@@ -64,7 +83,53 @@ export class FlowAssistantPanelComponent {
         return pending.length > 0 ? pending : this.assistantService.starterChips();
     });
 
+    readonly liveToolsByAssistantIndex = computed<Map<number, ToolPillEntry[]>>(() => {
+        const msgs = this.messages();
+        const liveIds = this.assistantService.liveToolCallIds();
+        const result = new Map<number, ToolPillEntry[]>();
+
+        for (let i = 0; i < msgs.length; i++) {
+            const msg = msgs[i];
+            if (msg.role !== 'assistant') continue;
+
+            const tools: ToolPillEntry[] = [];
+            for (let j = i + 1; j < msgs.length; j++) {
+                const next = msgs[j];
+                if (next.role === 'user' || next.role === 'assistant') break;
+                if (next.role === 'tool' && liveIds.has(next.tool_call_id)) {
+                    const fakeEvent = {
+                        type: 'tool_call' as const,
+                        id: next.tool_call_id,
+                        name: next.name,
+                        arguments: next.arguments ?? {},
+                    };
+                    tools.push({
+                        callId: next.tool_call_id,
+                        name: next.name,
+                        label: stripTrailingEllipsis(toolStatusFor(fakeEvent)),
+                        args: next.arguments ?? {},
+                        content: next.content,
+                    });
+                }
+            }
+
+            if (tools.length > 0) {
+                result.set(i, tools);
+            }
+        }
+
+        return result;
+    });
+
     private readonly isAtBottom = signal(true);
+
+    // 3. Computed — host binding values
+    readonly isFloatingMode = computed(() => this.mode() === 'floating');
+    readonly hostTopPx = computed(() => (this.mode() === 'floating' ? (this.floatPosition()?.y ?? null) : null));
+    readonly hostLeftPx = computed(() => (this.mode() === 'floating' ? (this.floatPosition()?.x ?? null) : null));
+    readonly hostRight = computed(() => (this.mode() === 'floating' ? 'auto' : null));
+    readonly hostWidthPx = computed(() => this.effectiveWidth());
+    readonly hostHeightPx = computed(() => (this.mode() === 'floating' ? this.floatSize().height : null));
 
     // 4. Effects
     private readonly scrollEffect = effect(() => {
@@ -85,19 +150,27 @@ export class FlowAssistantPanelComponent {
         });
     });
 
-    private isDragging = false;
+    private isDragging: 'none' | 'docked-resize' | 'floating-move' | 'floating-resize' = 'none';
     private dragStartX = 0;
+    private dragStartY = 0;
     private dragStartWidth = 0;
+    private dragStartHeight = 0;
+    private dragStartPositionX = 0;
+    private dragStartPositionY = 0;
 
     isToolMessage(
         message: FlowAssistantMessage
-    ): message is { role: 'tool'; content: string; tool_call_id: string; name: string } {
+    ): message is {
+        role: 'tool';
+        content: string;
+        tool_call_id: string;
+        name: string;
+        arguments?: Record<string, unknown>;
+    } {
         return message.role === 'tool';
     }
 
-    isAssistantMessage(
-        message: FlowAssistantMessage
-    ): message is {
+    isAssistantMessage(message: FlowAssistantMessage): message is {
         role: 'assistant';
         content: string;
         ef_tables?: EfTable[];
@@ -114,6 +187,10 @@ export class FlowAssistantPanelComponent {
     isLastStreamingAssistant(message: FlowAssistantMessage, index: number): boolean {
         const msgs = this.messages();
         return this.isStreaming() && index === msgs.length - 1 && this.isAssistantMessage(message);
+    }
+
+    liveToolsForAssistant(index: number): ToolPillEntry[] | undefined {
+        return this.liveToolsByAssistantIndex().get(index);
     }
 
     copyAssistantMessage(message: FlowAssistantMessage, index: number): void {
@@ -188,22 +265,82 @@ export class FlowAssistantPanelComponent {
 
     onDragHandleMousedown(event: MouseEvent): void {
         event.preventDefault();
-        this.isDragging = true;
+        this.isDragging = 'docked-resize';
         this.dragStartX = event.clientX;
-        this.dragStartWidth = this.panelWidth();
+        this.dragStartWidth = this.assistantService.dockWidth();
+    }
+
+    onHeaderMousedown(event: MouseEvent): void {
+        if (this.mode() !== 'floating') return;
+        const target = event.target as Element;
+        if (target.closest('button') !== null) return;
+        event.preventDefault();
+        const position = this.floatPosition();
+        this.isDragging = 'floating-move';
+        this.dragStartX = event.clientX;
+        this.dragStartY = event.clientY;
+        this.dragStartPositionX = position?.x ?? 0;
+        this.dragStartPositionY = position?.y ?? 0;
+    }
+
+    onFloatResizeHandleMousedown(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        const size = this.floatSize();
+        this.isDragging = 'floating-resize';
+        this.dragStartX = event.clientX;
+        this.dragStartY = event.clientY;
+        this.dragStartWidth = size.width;
+        this.dragStartHeight = size.height;
+    }
+
+    onToggleMode(): void {
+        this.assistantService.toggleMode();
     }
 
     @HostListener('document:mousemove', ['$event'])
     onDocumentMousemove(event: MouseEvent): void {
-        if (!this.isDragging) return;
-        const delta = this.dragStartX - event.clientX;
-        const newWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, this.dragStartWidth + delta));
-        this.assistantService.setDockWidth(newWidth);
+        if (this.isDragging === 'none') return;
+
+        if (this.isDragging === 'docked-resize') {
+            const delta = this.dragStartX - event.clientX;
+            const newWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, this.dragStartWidth + delta));
+            this.assistantService.setDockWidth(newWidth);
+            return;
+        }
+
+        if (this.isDragging === 'floating-move') {
+            const dx = event.clientX - this.dragStartX;
+            const dy = event.clientY - this.dragStartY;
+            this.assistantService.setFloatPosition({
+                x: this.dragStartPositionX + dx,
+                y: this.dragStartPositionY + dy,
+            });
+            return;
+        }
+
+        if (this.isDragging === 'floating-resize') {
+            const dx = event.clientX - this.dragStartX;
+            const dy = event.clientY - this.dragStartY;
+            this.assistantService.setFloatSize({
+                width: this.dragStartWidth + dx,
+                height: this.dragStartHeight + dy,
+            });
+            // setFloatSize re-clamps position internally — no separate setFloatPosition call needed.
+            return;
+        }
     }
 
     @HostListener('document:mouseup')
     onDocumentMouseup(): void {
-        this.isDragging = false;
+        this.isDragging = 'none';
+    }
+
+    @HostListener('window:resize')
+    onWindowResize(): void {
+        if (this.mode() !== 'floating') return;
+        // setFloatSize re-clamps position too, so a single call covers both.
+        this.assistantService.setFloatSize(this.floatSize());
     }
 
     onMessagesScroll(): void {

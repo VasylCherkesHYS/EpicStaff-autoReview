@@ -67,7 +67,7 @@ export type FlowAssistantMessage =
           action_message?: ActionItem[];
           interrupted?: boolean;
       }
-    | { role: 'tool'; content: string; tool_call_id: string; name: string };
+    | { role: 'tool'; content: string; tool_call_id: string; name: string; arguments?: Record<string, unknown> };
 
 export interface StreamTokenEvent {
     type: 'token';
