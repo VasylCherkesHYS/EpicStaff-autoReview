@@ -1,15 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
-import {
-    ChangeDetectionStrategy,
-    Component,
-    computed,
-    DestroyRef,
-    inject,
-    input,
-    OnChanges,
-    OnInit,
-    signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnChanges, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
@@ -61,7 +51,6 @@ export class TelegramTriggerNodePanelComponent
     public override readonly isExpanded = input<boolean>(false);
 
     private dialog = inject(Dialog);
-    private destroyRef = inject(DestroyRef);
     private toastService = inject(ToastService);
     private ngrokStorageService = inject(NgrokConfigStorageService);
 
