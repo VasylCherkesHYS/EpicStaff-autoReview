@@ -120,7 +120,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
 )
 from drf_spectacular.types import OpenApiTypes
-from tables.swagger_schemas.graph_bulk_save_schema import (
+from tables.swagger_schemas.knowledge_schemas.graph_bulk_save_schemas import (
     SAVE_FLOW_SWAGGER as _SAVE_FLOW_SWAGGER,
 )
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
@@ -149,6 +149,7 @@ from tables.models.graph_models import (
     TelegramTriggerNode,
     TelegramTriggerNodeField,
     WebhookTriggerNode,
+    ScheduleTriggerNode,
 )
 from tables.models.rbac_models import Organization, OrganizationUser
 from tables.models.llm_models import (
@@ -212,7 +213,7 @@ from tables.serializers.model_serializers import (
     McpToolSerializer,
     MemorySerializer,
     NgrokWebhookConfigModelSerializer,
-    OrganizationUserSerializer,
+    ProviderSerializer,
     PythonCodeResultSerializer,
     PythonCodeSerializer,
     PythonCodeToolConfigSerializer,
@@ -230,6 +231,7 @@ from tables.serializers.model_serializers import (
     VoiceSettingsSerializer,
     WebhookTriggerNodeSerializer,
     WebhookTriggerSerializer,
+    ScheduleTriggerNodeSerializer,
     TelegramTriggerNodeSerializer,
     TelegramTriggerNodeFieldSerializer,
 )
@@ -240,6 +242,10 @@ from tables.serializers.serializers import (
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
 from tables.services.redis_service import RedisService
+from tables.swagger_schemas.twilio_schemas import (
+    TWILIO_PHONE_NUMBERS_GET,
+    TWILIO_CONFIGURE_WEBHOOK_POST,
+)
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from utils.logger import logger
 
@@ -557,9 +563,7 @@ class TaskReadWriteViewSet(ModelViewSet):
     queryset = Task.objects.prefetch_related(
         Prefetch(
             "task_python_code_tool_list",
-            queryset=TaskPythonCodeTools.objects.select_related(
-                "tool__python_code"
-            ),
+            queryset=TaskPythonCodeTools.objects.select_related("tool__python_code"),
         ),
         Prefetch(
             "task_python_code_tool_config_list",
@@ -573,9 +577,7 @@ class TaskReadWriteViewSet(ModelViewSet):
         ),
         Prefetch(
             "task_configured_tool_list",
-            queryset=TaskConfiguredTools.objects.select_related(
-                "tool__tool"
-            ),
+            queryset=TaskConfiguredTools.objects.select_related("tool__tool"),
         ),
         Prefetch(
             "task_mcp_tool_list",
@@ -654,12 +656,12 @@ class ToolConfigViewSet(ModelViewSet):
 
 
 class ContentHashPreconditionMixin:
-    """Passes content_hash from request data to the model instance before saving.
+    # """Passes content_hash from request data to the model instance before saving.
 
-    The model's ContentHashMixin.save() validates _expected_hash against the DB,
-    raising 409 Conflict on mismatch. Omitting content_hash skips the check.
-    Scripts can also set instance._expected_hash = hash before calling .save().
-    """
+    # The model's ContentHashMixin.save() validates _expected_hash against the DB,
+    # raising 409 Conflict on mismatch. Omitting content_hash skips the check.
+    # Scripts can also set instance._expected_hash = hash before calling .save().
+    # """
 
     def perform_update(self, serializer):
         incoming_hash = self.request.data.get("content_hash")
@@ -777,6 +779,10 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     "telegram_trigger_node_list",
                     queryset=TelegramTriggerNode.objects.all(),
                 ),
+                Prefetch(
+                    "schedule_trigger_node_list",
+                    queryset=ScheduleTriggerNode.objects.all(),
+                ),
                 "start_node_list",
                 Prefetch("graph_note_list", queryset=GraphNote.objects.all()),
             )
@@ -879,6 +885,18 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
             )
         ],
     ),
+    create_graph=extend_schema(
+        request=None,
+        responses={
+            201: inline_serializer(
+                name="CreateFromVersionResponse",
+                fields={
+                    "graph_id": serializers.IntegerField(),
+                    "warnings": serializers.ListField(child=serializers.DictField()),
+                },
+            )
+        },
+    ),
 )
 class GraphVersionViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
@@ -927,15 +945,21 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
         result = GraphVersioningService().restore_version(version, backup=backup)
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], url_path="create-graph")
+    def create_graph(self, request, *args, **kwargs):
+        version = self.get_object()
+        result = GraphVersioningService().create_graph_from_version(version)
+        return Response(result, status=status.HTTP_201_CREATED)
+
 
 class IdempotentNodeCreateMixin:
     # TODO: change fields from (graph, node_name) to id (all nodes id's are consistent)
-    """
-    COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
-    (graph, node_name) already exists, update it instead of failing with a
-    unique constraint violation. This prevents orphan accumulation when
-    forkJoin-based saves partially fail and retry.
-    """
+    # """
+    # COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
+    # (graph, node_name) already exists, update it instead of failing with a
+    # unique constraint violation. This prevents orphan accumulation when
+    # forkJoin-based saves partially fail and retry.
+    # """
 
     def create(self, request, *args, **kwargs):
         graph_id = request.data.get("graph")
@@ -1005,7 +1029,7 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
 
 
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
-    queryset = GraphSessionMessage.objects.all()
+    queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["session_id"]
@@ -1293,12 +1317,6 @@ class McpToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
 
 # TODO: refactor for rbac
-class OrganizationUserViewSet(viewsets.ModelViewSet):
-    queryset = OrganizationUser.objects.all()
-    serializer_class = OrganizationUserSerializer
-
-
-# TODO: refactor for rbac
 class GraphOrganizationViewSet(viewsets.ModelViewSet):
     queryset = GraphOrganization.objects.all()
     serializer_class = GraphOrganizationSerializer
@@ -1346,6 +1364,15 @@ class TelegramTriggerNodeViewSet(
 class TelegramTriggerNodeFieldViewSet(ModelViewSet):
     queryset = TelegramTriggerNodeField.objects.select_related("telegram_trigger_node")
     serializer_class = TelegramTriggerNodeFieldSerializer
+
+
+class ScheduleTriggerNodeViewSet(
+    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, ModelViewSet
+):
+    queryset = ScheduleTriggerNode.objects.all()
+    serializer_class = ScheduleTriggerNodeSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["graph", "is_active", "run_mode"]
 
 
 class GraphNoteViewSet(
@@ -1442,6 +1469,7 @@ def _twilio_request(
 class TwilioPhoneNumbersView(generics.GenericAPIView):
     """Return the list of incoming phone numbers from Twilio."""
 
+    @extend_schema(**TWILIO_PHONE_NUMBERS_GET)
     def get(self, request):
         vs = VoiceSettings.load()
         if not vs.twilio_account_sid or not vs.twilio_auth_token:
@@ -1471,6 +1499,7 @@ class TwilioPhoneNumbersView(generics.GenericAPIView):
 class TwilioConfigureWebhookView(generics.GenericAPIView):
     """Set the VoiceUrl on a Twilio phone number to the configured voice stream URL."""
 
+    @extend_schema(**TWILIO_CONFIGURE_WEBHOOK_POST)
     def post(self, request):
         phone_sid = request.data.get("phone_sid")
         if not phone_sid:

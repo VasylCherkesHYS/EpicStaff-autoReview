@@ -1,9 +1,10 @@
 <div class="flow-action-panel">
     <div class="action-buttons">
-        @for (action of actionIcons; track action.icon) {
+        @for (action of actionIcons; track action.action) {
             <button
                 class="action-button"
-                [attr.title]="action.tooltip"
+                [title]="action.tooltip"
+                [disabled]="isActionDisabled(action.action)"
                 (click)="handleAction(action.action)"
             >
                 <app-svg-icon [icon]="action.icon"></app-svg-icon>

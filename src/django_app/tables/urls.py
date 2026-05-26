@@ -48,7 +48,6 @@ from tables.views.model_view_sets import (
     RealtimeModelViewSet,
     RealtimeAgentViewSet,
     RealtimeAgentChatViewSet,
-    OrganizationUserViewSet,
     GraphOrganizationViewSet,
     GraphOrganizationUserViewSet,
     VoiceSettingsView,
@@ -57,6 +56,7 @@ from tables.views.model_view_sets import (
     WebhookTriggerNodeViewSet,
     WebhookTriggerViewSet,
     LabelViewSet,
+    ScheduleTriggerNodeViewSet,
 )
 
 from tables.views.views import (
@@ -122,6 +122,10 @@ from tables.views.sse_views import (
 )
 
 from tables.views.organization_admin_views import OrganizationAdminViewSet
+from tables.views.user_management_views import (
+    OrganizationMembershipAdminViewSet,
+    UserAdminViewSet,
+)
 
 router = DefaultRouter()
 router.register(r"template-agents", TemplateAgentReadWriteViewSet)
@@ -180,7 +184,6 @@ router.register(r"decision-table-node", DecisionTableNodeModelViewSet)
 
 router.register(r"sessions", SessionViewSet, basename="session")
 router.register(r"mcp-tools", McpToolViewSet)
-router.register(r"organization-users", OrganizationUserViewSet)
 router.register(r"graph-organizations", GraphOrganizationViewSet)
 router.register(r"graph-organization-users", GraphOrganizationUserViewSet)
 router.register(r"naive-rag-document-chunks", NaiveRagChunkViewSet)
@@ -191,6 +194,7 @@ router.register(r"telegram-trigger-node-fields", TelegramTriggerNodeFieldViewSet
 router.register(r"python-code-tool-configs", PythonCodeToolConfigViewSet)
 router.register(r"graph-notes", GraphNoteViewSet)
 router.register(r"ngrok-config", NgrokWebhookConfigViewSet)
+router.register(r"schedule-trigger-nodes", ScheduleTriggerNodeViewSet)
 
 router.register(r"labels", LabelViewSet)
 router.register(r"storage", StorageAPIView, basename="storage")
@@ -199,12 +203,30 @@ admin_router = DefaultRouter()
 admin_router.register(
     r"organizations", OrganizationAdminViewSet, basename="admin-organization"
 )
+admin_router.register(r"users", UserAdminViewSet, basename="admin-user")
 
 urlpatterns = [
     path(
         "documents/bulk-delete/",
         DocumentManagementViewSet.as_view({"post": "bulk_delete"}),
         name="document-bulk-delete",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/users/",
+        OrganizationMembershipAdminViewSet.as_view({"get": "list", "post": "create"}),
+        name="admin-org-users-list",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/users/<int:user_id>/",
+        OrganizationMembershipAdminViewSet.as_view(
+            {"patch": "partial_update", "delete": "destroy"}
+        ),
+        name="admin-org-users-detail",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/assign-users/",
+        OrganizationMembershipAdminViewSet.as_view({"post": "assign_users"}),
+        name="admin-org-users-assign",
     ),
     path("admin/", include(admin_router.urls)),
     path("", include(router.urls)),

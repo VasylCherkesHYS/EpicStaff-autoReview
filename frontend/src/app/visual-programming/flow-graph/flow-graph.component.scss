@@ -414,35 +414,6 @@
     z-index: 10;
 }
 
-.show-inputs-btn {
-    padding: 0.5rem 1.25rem;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1.5px solid var(--color-divider-subtle, #444);
-    background: var(--color-surface-card, #232323);
-    color: var(--color-text-primary, #fff);
-    cursor: pointer;
-    transition:
-        background 0.15s,
-        color 0.15s,
-        border 0.15s;
-    outline: none;
-    height: 36px;
-    white-space: nowrap;
-}
-.show-inputs-btn:hover,
-.show-inputs-btn:focus {
-    background: #222222;
-    color: #fff;
-}
-.show-inputs-btn.active {
-    background: #222222;
-    border-color: #888;
-    color: #fff;
-    font-weight: 600;
-    box-shadow: 0 0 0 2px #222 inset;
-}
-
 .top-right-controls {
     position: absolute;
     top: 1rem;
@@ -454,12 +425,49 @@
     z-index: 10;
 }
 
-.routing-toggle-block {
+.arrange-btn {
+    --arrange-icon-left: #d9d9de99;
+    --arrange-icon-right: #d9d9de;
+
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    padding: 1px;
+    background-color: var(--gray-800);
+    border: 1px solid var(--gray-750);
+    border-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 1rem;
-    background: var(--color-surface-card, #232323);
-    border: 1.5px solid var(--color-divider-subtle, #444);
-    border-radius: 4px;
+    justify-content: center;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease;
+    outline: none;
+
+    &:hover:not(:disabled) {
+        background-color: var(--gray-750);
+    }
+
+    &:active:not(:disabled) {
+        transform: scale(0.95);
+        background-color: #685fff;
+        border-color: transparent;
+    }
+
+    &:disabled {
+        --arrange-icon-left: #2b2d30;
+        --arrange-icon-right: #d9d9de29;
+        cursor: not-allowed;
+        pointer-events: all;
+    }
+}
+
+.settings-icon-btn {
+    color: rgba(217, 217, 222, 0.7);
+    font-size: 20px;
+
+    &:hover {
+        color: rgba(217, 217, 222, 1);
+    }
 }
