@@ -24,6 +24,15 @@ class ElevenLabsServerEventHandler:
 
         self._current_output_index = 0
 
+    def reset(self) -> None:
+        """
+        Clear transient response state so the next reconnect starts fresh.
+        """
+        self._current_response_id = None
+        self._current_item_id = None
+        self._current_user_item_id = None
+        self._current_output_index = 0
+
     async def _send_to_client(self, payload: Dict[str, Any]) -> None:
         if "event_id" not in payload:
             payload["event_id"] = f"evt_{uuid.uuid4().hex[:16]}"

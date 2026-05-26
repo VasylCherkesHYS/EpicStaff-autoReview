@@ -4,12 +4,19 @@ import base64
 from typing import Optional, Callable, Dict, Any
 from enum import Enum
 
-SUBPROTOCOL = "openai-beta.realtime-v1"
-
 
 class TurnDetectionMode(Enum):
     SERVER_VAD = "server_vad"
     MANUAL = "manual"
+
+
+def _ga_audio_format(audio_format: str) -> Dict[str, Any]:
+    """Translate a legacy beta audio-format string into the GA `audio.*.format` object."""
+    if audio_format == "g711_ulaw":
+        return {"type": "audio/pcmu", "rate": 8000}
+    if audio_format == "g711_alaw":
+        return {"type": "audio/pcma", "rate": 8000}
+    return {"type": "audio/pcm", "rate": 24000}
 
 
 class RealtimeClient:
@@ -46,30 +53,35 @@ class RealtimeClient:
         self._is_responding = False
 
     async def connect(self) -> None:
-        """Establish WebSocket connection."""
         separator = "&" if "?" in self.base_url else "?"
         url = f"{self.base_url}{separator}model={self.model}"
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "OpenAI-Beta": "realtime=v1",
         }
 
-        self.ws = await websockets.connect(
-            url, subprotocols=[SUBPROTOCOL], additional_headers=headers
-        )
-        # NOTE: Our rely server will not handle it.
-        session_config = {
-            "modalities": ["text", "audio"],
+        self.ws = await websockets.connect(url, additional_headers=headers)
+        # NOTE: Our relay server will not handle this — it is forwarded as-is
+        audio_fmt = _ga_audio_format(self.audio_format)
+        session_config: Dict[str, Any] = {
+            "type": "realtime",
+            "model": self.model,
+            "output_modalities": ["audio"],
             "instructions": self.instructions,
-            "voice": self.voice,
-            "input_audio_format": self.audio_format,
-            "output_audio_format": self.audio_format,
-            "turn_detection": (
-                {"type": "server_vad"}
-                if self.turn_detection_mode == TurnDetectionMode.SERVER_VAD
-                else None
-            ),
+            "audio": {
+                "input": {
+                    "format": audio_fmt,
+                    "turn_detection": (
+                        {"type": "server_vad"}
+                        if self.turn_detection_mode == TurnDetectionMode.SERVER_VAD
+                        else None
+                    ),
+                },
+                "output": {
+                    "format": audio_fmt,
+                    "voice": self.voice,
+                },
+            },
             "temperature": self.temperature,
         }
 
@@ -122,7 +134,7 @@ class RealtimeClient:
                 elif event_type == "response.done":
                     self._is_responding = False
 
-                elif event_type == "response.audio.delta":
+                elif event_type in ("response.output_audio.delta", "response.audio.delta"):
                     if self.on_audio_delta:
                         await self.on_audio_delta(base64.b64decode(event["delta"]))
 

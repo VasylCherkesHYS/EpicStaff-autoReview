@@ -22,7 +22,7 @@ class OpenAIRealtimeConfig(models.Model):
 
     custom_name = models.CharField(max_length=250)
     api_key = models.TextField(null=True, blank=True)
-    model_name = models.CharField(max_length=250, default="gpt-4o-realtime-preview")
+    model_name = models.CharField(max_length=250, default="gpt-realtime-1.5")
     transcription_model_name = models.CharField(
         max_length=250, default="whisper-1", null=True, blank=True
     )
