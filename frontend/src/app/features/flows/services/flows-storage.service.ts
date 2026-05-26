@@ -187,13 +187,15 @@ export class FlowsStorageService {
     }
 
     public patchUpdateFlow(id: number, updateData: Partial<GraphDto>): Observable<GraphDto> {
-        return this.getFlowById(id).pipe(
-            switchMap((currentFlow: GraphDto | undefined) => {
-                if (!currentFlow) throw new Error('Flow not found for patching');
+        // Always fetch from API (not cache) to get the full GraphDto with save_version.
+        // The cache holds light objects (GetGraphLightRequest) that don't have save_version,
+        // and the backend requires save_version in every PUT/PATCH request.
+        return this.flowsApiService.getGraphById(id).pipe(
+            switchMap((currentFlow: GraphDto) => {
                 const updatedPayload: UpdateGraphDtoRequest = {
                     id: currentFlow.id,
                     name: updateData.name || currentFlow.name,
-                    description: updateData.description || currentFlow.description,
+                    description: updateData.description !== undefined ? updateData.description : (currentFlow.description || ''),
                     metadata: updateData.metadata || currentFlow.metadata,
                     tags: updateData.tags || currentFlow.tags || [],
                     save_version: currentFlow.save_version,
@@ -203,8 +205,12 @@ export class FlowsStorageService {
         );
     }
 
-    public updateFlowLabels(id: number, labelIds: number[]): Observable<GraphDto> {
-        return this.flowsApiService.patchGraph(id, { label_ids: labelIds }).pipe(
+    public updateFlowLabels(id: number, labelIds: number[], saveVersion?: number): Observable<GraphDto> {
+        const body: Partial<GraphDto> = { label_ids: labelIds };
+        if (saveVersion !== undefined) {
+            body.save_version = saveVersion;
+        }
+        return this.flowsApiService.patchGraph(id, body).pipe(
             tap((updatedFlow) => {
                 const currentFlows = this.flowsSignal();
                 const index = currentFlows.findIndex((f) => f.id === updatedFlow.id);

@@ -227,7 +227,7 @@ export class FlowRenameDialogComponent implements OnInit, OnDestroy {
                 .pipe(
                     switchMap((updatedFlow) =>
                         this.flowsStorage
-                            .updateFlowLabels(updatedFlow.id, this.selectedLabelIds)
+                            .updateFlowLabels(updatedFlow.id, this.selectedLabelIds, updatedFlow.save_version)
                             .pipe(map(() => updatedFlow))
                     ),
                     finalize(() => {

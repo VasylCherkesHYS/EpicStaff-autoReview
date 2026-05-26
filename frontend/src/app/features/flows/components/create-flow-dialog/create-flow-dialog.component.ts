@@ -120,7 +120,7 @@ export class CreateFlowDialogComponent implements OnInit, OnDestroy {
                     switchMap((updatedFlow) => {
                         const labelIds: number[] = formValue.label_ids || [];
                         return this.flowsStorageService
-                            .updateFlowLabels(updatedFlow.id, labelIds)
+                            .updateFlowLabels(updatedFlow.id, labelIds, updatedFlow.save_version)
                             .pipe(map(() => updatedFlow));
                     }),
                     finalize(() => (this.isSubmitting = false))
@@ -152,7 +152,7 @@ export class CreateFlowDialogComponent implements OnInit, OnDestroy {
                 switchMap((newFlow) => {
                     const labelIds: number[] = formValue.label_ids || [];
                     if (labelIds.length === 0) return of(newFlow);
-                    return this.flowsStorageService.updateFlowLabels(newFlow.id, labelIds).pipe(map(() => newFlow));
+                    return this.flowsStorageService.updateFlowLabels(newFlow.id, labelIds, newFlow.save_version).pipe(map(() => newFlow));
                 }),
                 finalize(() => (this.isSubmitting = false))
             )
