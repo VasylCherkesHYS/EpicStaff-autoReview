@@ -3,18 +3,11 @@
 }
 
 body.tour-active .cdk-overlay-container {
-    z-index: auto !important;
-}
-
-body.tour-active .cdk-overlay-pane {
-    z-index: 1000;
-}
-
-body.tour-active .cdk-overlay-pane:has(.selector__dropdown) {
-    z-index: 1300;
+    z-index: 50 !important;
 }
 
 .shepherd-element.shepherd-quickstart {
+    position: relative;
     z-index: 1301;
     background: var(--color-modals-background);
     color: var(--color-text-primary);
@@ -23,6 +16,20 @@ body.tour-active .cdk-overlay-pane:has(.selector__dropdown) {
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     max-width: 380px;
     font-family: inherit;
+
+    &.shepherd-has-progress::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 3px;
+        width: var(--tour-progress, 0%);
+        background: var(--accent-color);
+        border-radius: 7px 7px 0 0;
+        transition: width 240ms ease;
+        pointer-events: none;
+        z-index: 1;
+    }
 
     .shepherd-content {
         background: transparent;

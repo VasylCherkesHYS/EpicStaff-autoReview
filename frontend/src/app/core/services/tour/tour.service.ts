@@ -47,9 +47,27 @@ export class TourService {
         const steps = createQuickStartTourSteps({
             configureModelsDialogService: this.configureModelsDialogService,
         });
-        for (const step of steps) {
+        const total = steps.length;
+        steps.forEach((step, index) => {
+            const showProgress = index > 0 && index < total - 1;
+            if (showProgress) {
+                const pct = (index / (total - 2)) * 100;
+                const prevShow = step.when?.show;
+                step.when = {
+                    ...step.when,
+                    show(this: { el?: HTMLElement; tour: unknown }) {
+                        prevShow?.call(this as never);
+                        const el =
+                            this.el ?? document.querySelector<HTMLElement>('.shepherd-element.shepherd-quickstart');
+                        if (el) {
+                            el.classList.add('shepherd-has-progress');
+                            el.style.setProperty('--tour-progress', `${pct}%`);
+                        }
+                    },
+                };
+            }
             tour.addStep(step as unknown as Record<string, unknown>);
-        }
+        });
 
         const finalize = (): void => {
             this.activeTour = null;
