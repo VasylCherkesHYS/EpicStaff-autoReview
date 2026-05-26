@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, model, output } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { ButtonComponent, SelectComponent } from '@shared/components';
+import { ButtonComponent, SelectComponent, SelectItem } from '@shared/components';
 
 import { FilesSearchService } from '../../../../../../features/files/services/files-search.service';
 import { GetCollectionRequest } from '../../../../models/collection.model';
@@ -17,6 +17,21 @@ export class CollectionsListItemSidebarComponent {
     private readonly filesSearchService = inject(FilesSearchService);
 
     collections = input<GetCollectionRequest[]>([]);
+
+    selectItems: SelectItem[] = [
+        {
+            name: 'Naive RAG',
+            value: 'naive',
+        },
+        {
+            name: 'Graph RAG',
+            value: 'graph',
+        },
+        {
+            name: 'Hybrid RAG',
+            value: 'hybrid',
+        },
+    ];
 
     filteredCollections = computed(() => {
         const search = this.filesSearchService.searchTerm().toLowerCase();

@@ -1,22 +1,26 @@
 <div
     class="collection"
-    [class.collection--selected]="selected()"
+    [class.selected]="selected()"
 >
-    <div class="collection__header">
-        <span class="collection__name">
-            {{ collection()?.collection_name }}
+    <div class="header">
+        <span class="name">
+            {{ collection().collection_name }}
         </span>
-        <span class="collection__rag-type"> Rag Type </span>
+
+        @if (collection()?.document_count; as count) {
+            <span class="files-count"> {{ count }} files </span>
+        } @else {
+            <span class="files-count empty"> No files </span>
+        }
     </div>
-    <span
-        class="collection__status"
-        [ngClass]="'collection__status--' + collection()?.status"
-    >
-        <app-svg-icon
-            [icon]="statusData.icon"
-            size="0.75rem"
-            class="collection__status-icon"
-        />
-        <span class="collection__status-text">{{ statusData.text }}</span>
-    </span>
+
+    @if (true) {
+        <div class="no-rag">
+            <app-svg-icon
+                icon="not-allowed"
+                size="12px"
+            />
+            <span>{{ collection().document_count ? 'No RAG initialized' : 'Empty' }}</span>
+        </div>
+    }
 </div>
