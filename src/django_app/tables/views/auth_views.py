@@ -7,7 +7,10 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from tables.services.rbac.authentication import IsAuthenticatedOrApiKey, JwtOrApiKeyAuthentication
+from tables.services.rbac.authentication import (
+    IsAuthenticatedOrApiKey,
+    JwtOrApiKeyAuthentication,
+)
 from tables.models.rbac_models import ApiKey
 from tables.serializers.rbac_serializers import (
     ApiKeyValidateResponseSerializer,

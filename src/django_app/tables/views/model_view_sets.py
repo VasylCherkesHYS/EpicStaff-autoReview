@@ -454,6 +454,7 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
 
         if self.request.query_params.get("has_realtime_config") == "true":
             from django.db.models import Q
+
             queryset = queryset.filter(
                 realtime_agent__isnull=False,
             ).filter(
@@ -518,7 +519,11 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
 
     @extend_schema(
         request={"multipart/form-data": ImportRequestSerializer},
-        responses={200: OpenApiResponse(description="Import summary with created/skipped entity counts")},
+        responses={
+            200: OpenApiResponse(
+                description="Import summary with created/skipped entity counts"
+            )
+        },
     )
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
@@ -563,7 +568,11 @@ class CrewReadWriteViewSet(CopyActionMixin, ModelViewSet):
 
     @extend_schema(
         request={"multipart/form-data": ImportRequestSerializer},
-        responses={200: OpenApiResponse(description="Import summary with created/skipped entity counts")},
+        responses={
+            200: OpenApiResponse(
+                description="Import summary with created/skipped entity counts"
+            )
+        },
     )
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
@@ -855,7 +864,11 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     @extend_schema(
         request={"multipart/form-data": ImportRequestSerializer},
-        responses={200: OpenApiResponse(description="Import summary with created/skipped entity counts")},
+        responses={
+            200: OpenApiResponse(
+                description="Import summary with created/skipped entity counts"
+            )
+        },
     )
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
@@ -1114,23 +1127,23 @@ class RealtimeSessionItemViewSet(viewsets.ReadOnlyModelViewSet):
 @extend_schema_view(
     create=extend_schema(
         request=RealtimeAgentWriteSerializer,
-        responses={201: RealtimeAgentReadSerializer}
+        responses={201: RealtimeAgentReadSerializer},
     ),
     update=extend_schema(
         request=RealtimeAgentWriteSerializer,
-        responses={200: RealtimeAgentReadSerializer}
+        responses={200: RealtimeAgentReadSerializer},
     ),
     partial_update=extend_schema(
         request=RealtimeAgentWriteSerializer,
-        responses={200: RealtimeAgentReadSerializer}
-    )
+        responses={200: RealtimeAgentReadSerializer},
+    ),
 )
 class RealtimeAgentViewSet(viewsets.ModelViewSet):
     queryset = RealtimeAgent.objects.all()
 
     def get_serializer_class(self):
         # На чтение (GET) отдаем полные объекты
-        if self.action in ['list', 'retrieve']:
+        if self.action in ["list", "retrieve"]:
             return RealtimeAgentReadSerializer
         return RealtimeAgentWriteSerializer
 
@@ -1138,23 +1151,26 @@ class RealtimeAgentViewSet(viewsets.ModelViewSet):
         write_serializer = self.get_serializer(data=request.data)
         write_serializer.is_valid(raise_exception=True)
         instance = write_serializer.save()
-        
+
         read_serializer = RealtimeAgentReadSerializer(instance)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
+        partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        
-        write_serializer = self.get_serializer(instance, data=request.data, partial=partial)
+
+        write_serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
+        )
         write_serializer.is_valid(raise_exception=True)
         self.perform_update(write_serializer)
 
-        if getattr(instance, '_prefetched_objects_cache', None):
+        if getattr(instance, "_prefetched_objects_cache", None):
             instance._prefetched_objects_cache = {}
 
         read_serializer = RealtimeAgentReadSerializer(instance)
         return Response(read_serializer.data)
+
 
 class RealtimeAgentChatViewSet(ReadOnlyModelViewSet):
     """
@@ -1181,7 +1197,10 @@ class RealtimeAgentChatViewSet(ReadOnlyModelViewSet):
 
         connection_key = request.data.get("connection_key")
         if not connection_key:
-            return Response({"detail": "connection_key required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "connection_key required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             chat = RealtimeAgentChat.objects.get(connection_key=connection_key)
@@ -1251,10 +1270,17 @@ class ConversationRecordingViewSet(viewsets.ModelViewSet):
         rt_agent_chat = None
         if connection_key:
             try:
-                rt_agent_chat = RealtimeAgentChat.objects.get(connection_key=connection_key)
+                rt_agent_chat = RealtimeAgentChat.objects.get(
+                    connection_key=connection_key
+                )
             except RealtimeAgentChat.DoesNotExist:
-                from rest_framework.exceptions import ValidationError as DRFValidationError
-                raise DRFValidationError({"connection_key": "No matching RealtimeAgentChat found"})
+                from rest_framework.exceptions import (
+                    ValidationError as DRFValidationError,
+                )
+
+                raise DRFValidationError(
+                    {"connection_key": "No matching RealtimeAgentChat found"}
+                )
 
         serializer.save(
             file_size=file_size,
@@ -1266,6 +1292,7 @@ class ConversationRecordingViewSet(viewsets.ModelViewSet):
 def _load_realtime_voices() -> dict:
     import json
     from pathlib import Path
+
     path = Path(__file__).parent.parent / "static" / "realtime_voices.json"
     with path.open(encoding="utf-8") as f:
         return json.load(f)
@@ -1598,7 +1625,9 @@ class TwilioPhoneNumbersView(generics.GenericAPIView):
         auth_token = request.headers.get("X-Twilio-Auth-Token", "").strip()
         if not account_sid or not auth_token:
             return Response(
-                {"error": "X-Twilio-Account-Sid and X-Twilio-Auth-Token headers are required"},
+                {
+                    "error": "X-Twilio-Account-Sid and X-Twilio-Auth-Token headers are required"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -1626,7 +1655,9 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
     def post(self, request):
         phone_sid = request.data.get("phone_sid")
         channel_token = request.data.get("channel_token")
-        logger.info(f"configure-webhook: phone_sid={phone_sid} channel_token={channel_token}")
+        logger.info(
+            f"configure-webhook: phone_sid={phone_sid} channel_token={channel_token}"
+        )
 
         if not phone_sid or not channel_token:
             logger.warning("configure-webhook: missing phone_sid or channel_token")
@@ -1636,16 +1667,22 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
             )
 
         try:
-            channel = RealtimeChannel.objects.select_related("twilio__ngrok_config").get(
-                token=channel_token
-            )
+            channel = RealtimeChannel.objects.select_related(
+                "twilio__ngrok_config"
+            ).get(token=channel_token)
         except RealtimeChannel.DoesNotExist:
-            logger.warning(f"configure-webhook: channel not found for token={channel_token}")
-            return Response({"error": "Channel not found"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"configure-webhook: channel not found for token={channel_token}"
+            )
+            return Response(
+                {"error": "Channel not found"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         twilio = getattr(channel, "twilio", None)
         if not twilio or not twilio.account_sid or not twilio.auth_token:
-            logger.warning(f"configure-webhook: no Twilio credentials for channel {channel.id}")
+            logger.warning(
+                f"configure-webhook: no Twilio credentials for channel {channel.id}"
+            )
             return Response(
                 {"error": "No Twilio credentials configured for this channel"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1653,12 +1690,16 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
 
         account_sid = twilio.account_sid
         auth_token = twilio.auth_token
-        logger.info(f"configure-webhook: using stored credentials for account_sid={account_sid}")
+        logger.info(
+            f"configure-webhook: using stored credentials for account_sid={account_sid}"
+        )
 
         ngrok = twilio.ngrok_config
         logger.info(f"configure-webhook: ngrok={ngrok}")
         if not ngrok:
-            logger.warning(f"configure-webhook: no ngrok tunnel configured for channel {channel.id}")
+            logger.warning(
+                f"configure-webhook: no ngrok tunnel configured for channel {channel.id}"
+            )
             return Response(
                 {"error": "No ngrok tunnel configured for this channel"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1671,14 +1712,18 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
             tunnel_url = f"https://{ngrok.domain}"
         logger.info(f"configure-webhook: tunnel_url={tunnel_url}")
         if not tunnel_url:
-            logger.warning(f"configure-webhook: ngrok tunnel {ngrok.id} has no live URL and no domain")
+            logger.warning(
+                f"configure-webhook: ngrok tunnel {ngrok.id} has no live URL and no domain"
+            )
             return Response(
                 {"error": "Ngrok tunnel is not running and has no domain configured"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         webhook_url = f"{tunnel_url.rstrip('/')}/voice/{channel_token}"
-        logger.info(f"configure-webhook: setting VoiceUrl={webhook_url} on phone_sid={phone_sid}")
+        logger.info(
+            f"configure-webhook: setting VoiceUrl={webhook_url} on phone_sid={phone_sid}"
+        )
 
         try:
             url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/IncomingPhoneNumbers/{phone_sid}.json"

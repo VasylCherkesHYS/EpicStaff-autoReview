@@ -561,6 +561,7 @@ class _NgrokConfigMinimalSerializer(serializers.ModelSerializer):
 
     def get_live_url(self, instance: NgrokWebhookConfig):
         from tables.services.webhook_trigger_service import WebhookTriggerService
+
         try:
             return WebhookTriggerService().get_tunnel_url(ngrok_webhook_config=instance)
         except Exception:
@@ -569,6 +570,7 @@ class _NgrokConfigMinimalSerializer(serializers.ModelSerializer):
 
 class _TwilioChannelReadSerializer(serializers.ModelSerializer):
     """Read-only variant that expands ngrok_config so downstream consumers get the domain."""
+
     ngrok_config = _NgrokConfigMinimalSerializer(read_only=True)
 
     class Meta:
@@ -587,7 +589,10 @@ class RealtimeChannelSerializer(serializers.ModelSerializer):
 class ConversationRecordingSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from tables.models.realtime_models import RealtimeAgentChat as _RealtimeAgentChat
+        from tables.models.realtime_models import (
+            RealtimeAgentChat as _RealtimeAgentChat,
+        )
+
         self.fields["rt_agent_chat"] = serializers.PrimaryKeyRelatedField(
             queryset=_RealtimeAgentChat.objects.all(),
             required=False,
@@ -618,15 +623,23 @@ class RealtimeAgentWriteSerializer(serializers.ModelSerializer):
         exclude = ["agent"]
 
     def validate(self, attrs):
-        openai_config = attrs.get('openai_config', getattr(self.instance, 'openai_config', None))
-        elevenlabs_config = attrs.get('elevenlabs_config', getattr(self.instance, 'elevenlabs_config', None))
-        gemini_config = attrs.get('gemini_config', getattr(self.instance, 'gemini_config', None))
+        openai_config = attrs.get(
+            "openai_config", getattr(self.instance, "openai_config", None)
+        )
+        elevenlabs_config = attrs.get(
+            "elevenlabs_config", getattr(self.instance, "elevenlabs_config", None)
+        )
+        gemini_config = attrs.get(
+            "gemini_config", getattr(self.instance, "gemini_config", None)
+        )
 
-        set_count = sum([
-            openai_config is not None,
-            elevenlabs_config is not None,
-            gemini_config is not None,
-        ])
+        set_count = sum(
+            [
+                openai_config is not None,
+                elevenlabs_config is not None,
+                gemini_config is not None,
+            ]
+        )
 
         if set_count > 1:
             raise serializers.ValidationError(
@@ -635,6 +648,7 @@ class RealtimeAgentWriteSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
 
 class AgentReadSerializer(serializers.ModelSerializer):
     tools = serializers.SerializerMethodField()
