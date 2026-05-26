@@ -64,7 +64,7 @@ class Graph(TimestampMixin, models.Model):
     epicchat_enabled = models.BooleanField(
         default=False, help_text="If 'True' -> flow is connected to EpicChat widget."
     )
-    save_version = models.IntegerField(default=1)
+    save_version = models.BigIntegerField(default=1)
 
     @classmethod
     def increment_version_if_current(cls, pk: int, expected: int) -> int:

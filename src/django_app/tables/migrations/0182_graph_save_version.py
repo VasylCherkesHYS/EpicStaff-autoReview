@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("tables", "0181_merge_schedule_trigger_node"),
     ]
@@ -13,6 +12,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="graph",
             name="save_version",
-            field=models.IntegerField(default=1),
+            field=models.BigIntegerField(default=1),
         ),
     ]
