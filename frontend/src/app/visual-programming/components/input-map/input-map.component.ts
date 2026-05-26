@@ -2,21 +2,17 @@ import { Overlay, OverlayModule, OverlayRef } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
 import { CommonModule } from '@angular/common';
 import {
-    AfterViewInit,
     Component,
     computed,
     DestroyRef,
-    ElementRef,
     inject,
     Input,
     OnChanges,
     OnDestroy,
     OnInit,
     Output,
-    output,
     signal,
     SimpleChanges,
-    ViewChild,
     ViewContainerRef,
 } from '@angular/core';
 import { EventEmitter } from '@angular/core';
@@ -42,174 +38,9 @@ import { HelpTooltipComponent } from '../../../shared/components/help-tooltip/he
 import { FlowService } from '../../services/flow.service';
 import { PythonCodeRunService } from '../../services/python-code-run.service';
 import { SidePanelService } from '../../services/side-panel.service';
+import { PickerItem, VarPickerFlatComponent } from './var-picker-flat.component';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
-interface PickerItem {
-    tag: string;
-    label: string;
-    fullPath: string;
-}
-
-@Component({
-    selector: 'app-var-picker-flat',
-    standalone: true,
-    imports: [CommonModule],
-    template: `
-        <div class="vpf-container">
-            <div class="vpf-search">
-                <input
-                    #searchInput
-                    type="text"
-                    placeholder="Search variables..."
-                    autocomplete="off"
-                    (input)="onSearchInput($event)"
-                    (keydown)="$event.stopPropagation()"
-                />
-            </div>
-            <div class="vpf-list">
-                @if (hasFilteredItems) {
-                    @for (item of filteredItems; track item.fullPath) {
-                        <button
-                            type="button"
-                            class="vpf-item"
-                            [title]="item.fullPath"
-                            (click)="pathSelected.emit(item.fullPath)"
-                        >
-                            <span class="vpf-tag">{{ item.tag }}</span>
-                            <span class="vpf-label">{{ item.label }}</span>
-                        </button>
-                    }
-                } @else {
-                    <div class="vpf-empty">No matching variables</div>
-                }
-            </div>
-        </div>
-    `,
-    styles: [
-        `
-            .vpf-container {
-                background: var(--color-nodes-sidepanel-bg, #1e1e2e);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 6px;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-                width: 280px;
-                max-height: 280px;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-            }
-
-            .vpf-search {
-                padding: 8px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-
-                input {
-                    width: 100%;
-                    box-sizing: border-box;
-                    padding: 6px 10px;
-                    background: rgba(255, 255, 255, 0.06);
-                    border: 1px solid rgba(255, 255, 255, 0.12);
-                    border-radius: 4px;
-                    color: #fff;
-                    font-size: 0.8rem;
-                    outline: none;
-                    transition: border-color 0.15s;
-
-                    &:focus {
-                        border-color: rgba(104, 95, 255, 0.6);
-                    }
-                    &::placeholder {
-                        color: rgba(255, 255, 255, 0.3);
-                    }
-                }
-            }
-
-            .vpf-list {
-                overflow-y: auto;
-                flex: 1;
-                padding: 4px;
-            }
-
-            .vpf-empty {
-                padding: 12px;
-                text-align: center;
-                color: rgba(255, 255, 255, 0.35);
-                font-size: 0.8rem;
-            }
-
-            .vpf-item {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                width: 100%;
-                text-align: left;
-                padding: 5px 8px;
-                background: transparent;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                transition: background 0.15s;
-                min-width: 0;
-
-                &:hover {
-                    background: rgba(104, 95, 255, 0.15);
-                }
-            }
-
-            .vpf-tag {
-                flex-shrink: 0;
-                font-size: 0.68rem;
-                font-weight: 600;
-                padding: 1px 5px;
-                border-radius: 3px;
-                background: rgba(104, 95, 255, 0.25);
-                color: rgba(170, 160, 255, 0.9);
-                letter-spacing: 0.02em;
-                text-transform: lowercase;
-            }
-
-            .vpf-label {
-                font-size: 0.8rem;
-                font-family: monospace;
-                color: rgba(255, 255, 255, 0.85);
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .vpf-item:hover .vpf-label {
-                color: #fff;
-            }
-        `,
-    ],
-})
-class VarPickerFlatComponent implements AfterViewInit {
-    @ViewChild('searchInput') private searchInputRef!: ElementRef<HTMLInputElement>;
-
-    private allItems: PickerItem[] = [];
-    filteredItems: PickerItem[] = [];
-
-    pathSelected = output<string>();
-
-    ngAfterViewInit(): void {
-        this.searchInputRef.nativeElement.focus();
-    }
-
-    get hasFilteredItems(): boolean {
-        return this.filteredItems.length > 0;
-    }
-
-    setItems(items: PickerItem[]): void {
-        this.allItems = items;
-        this.filteredItems = items;
-    }
-
-    onSearchInput(event: Event): void {
-        const f = (event.target as HTMLInputElement).value.toLowerCase().trim();
-        this.filteredItems = f ? this.allItems.filter((item) => item.label.toLowerCase().includes(f)) : this.allItems;
-    }
-}
 
 @Component({
     selector: 'app-input-map',
