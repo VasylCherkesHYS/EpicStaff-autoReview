@@ -501,21 +501,15 @@ services:
       dockerfile: ./agent/Dockerfile.agent
     environment:
       <<: *common_env
-    ports:
-      - "${AGENT_PORT:-8052}:${AGENT_PORT:-8052}"
+      AGENT_REQUEST_STREAM: ${AGENT_REQUEST_STREAM:-agent.requests}
+      AGENT_RESULT_STREAM: ${AGENT_RESULT_STREAM:-agent.results}
+      AGENT_CONSUMER_GROUP: ${AGENT_CONSUMER_GROUP:-agent-executors}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       redis:
         condition: service_healthy
-      django_app:
-        condition: service_healthy
     networks:
       - backend-network
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${AGENT_PORT:-8051}/')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
 
 
 volumes:

@@ -25,6 +25,7 @@ RUN poetry install --no-ansi --no-root --without dev
 
 # Copy application source
 COPY ./agent /app/src/agent
+COPY ./shared /app/src/shared
 
 # --- Stage 2: Runtime ---
 FROM python:3.12.10-slim@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db AS runtime
@@ -41,7 +42,7 @@ RUN groupadd --system --gid 1000 app \
 
 # Add virtualenv to PATH
 ENV PATH="/app/src/agent/.venv/bin:$PATH" \
-    PYTHONPATH=/app \
+    PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/src/agent/.venv
