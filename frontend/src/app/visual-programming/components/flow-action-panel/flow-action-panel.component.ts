@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, output } from '@angular/core';
+import { Component, inject, output } from '@angular/core';
 
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { UndoRedoService } from '../../services/undo-redo.service';
@@ -19,7 +19,16 @@ export class FlowActionPanelComponent {
         { icon: 'arrow-forward-up', tooltip: 'Redo', action: 'redo' },
     ];
 
-    constructor(private undoRedoService: UndoRedoService) {}
+    private readonly undoRedoService = inject(UndoRedoService);
+
+    readonly canUndo = this.undoRedoService.canUndo;
+    readonly canRedo = this.undoRedoService.canRedo;
+
+    isActionDisabled(action: string): boolean {
+        if (action === 'undo') return !this.canUndo();
+        if (action === 'redo') return !this.canRedo();
+        return false;
+    }
 
     handleAction(actionType: string): void {
         switch (actionType) {
