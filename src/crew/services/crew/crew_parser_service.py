@@ -29,6 +29,7 @@ from settings import PGVECTOR_MEMORY_CONFIG
 
 from services.crew.proxy_tool_factory import ProxyToolFactory
 from services.crew.mcp_tool_factory import CrewaiMcpToolFactory
+from services.crew.tool_factories import PythonCodeToolFactory
 
 
 class CrewParserService(metaclass=SingletonMeta):
@@ -41,7 +42,9 @@ class CrewParserService(metaclass=SingletonMeta):
         mcp_tool_factory: CrewaiMcpToolFactory,
     ):
         self.redis_service = redis_service
-
+        self.python_code_tool_factory = PythonCodeToolFactory(
+            executor=python_code_executor_service,
+        )
         self.proxy_tool_factory = ProxyToolFactory(
             host=manager_host,
             port=manager_port,
@@ -210,8 +213,8 @@ class CrewParserService(metaclass=SingletonMeta):
         tool_map = {}
         for base_tool_data in crew_data.tools:
             if isinstance(base_tool_data.data, PythonCodeToolData):
-                tool = self.proxy_tool_factory.create_python_code_proxy_tool(
-                    python_code_tool_data=base_tool_data.data,
+                tool = self.python_code_tool_factory.create(
+                    data=base_tool_data.data,
                     global_kwargs=global_kwargs,
                     stop_event=stop_event,
                 )
