@@ -81,28 +81,30 @@
                         </div>
                     } @else if (isAssistantMessage(message)) {
                         <div class="message message--assistant">
-                            @if (message.content) {
-                                <markdown
-                                    [data]="message.content"
-                                    [inline]="false"
-                                />
-                            }
-                            @if (message.ef_tables) {
-                                @for (table of message.ef_tables; track $index) {
-                                    <app-flow-assistant-table [table]="table" />
+                            <div class="message__text">
+                                @if (message.content) {
+                                    <markdown
+                                        [data]="message.content"
+                                        [inline]="false"
+                                    />
                                 }
-                            }
-                            @if (message.action_message?.length) {
-                                <app-flow-assistant-actions
-                                    [actions]="message.action_message!"
-                                    (executed)="onActionExecuted($event)"
-                                />
-                            }
-                            @if (liveToolsForAssistant($index); as liveTools) {
-                                @if (liveTools.length > 0) {
-                                    <app-flow-assistant-tool-pill [tools]="liveTools" />
+                                @if (message.ef_tables) {
+                                    @for (table of message.ef_tables; track $index) {
+                                        <app-flow-assistant-table [table]="table" />
+                                    }
                                 }
-                            }
+                                @if (message.action_message?.length) {
+                                    <app-flow-assistant-actions
+                                        [actions]="message.action_message!"
+                                        (executed)="onActionExecuted($event)"
+                                    />
+                                }
+                                @if (liveToolsForAssistant($index); as liveTools) {
+                                    @if (liveTools.length > 0) {
+                                        <app-flow-assistant-tool-pill [tools]="liveTools" />
+                                    }
+                                }
+                            </div>
                             @if (!isLastStreamingAssistant(message, $index)) {
                                 <button
                                     type="button"
@@ -150,9 +152,17 @@
                 }
 
                 @if (currentStatus(); as status) {
-                    <div class="status-line">
-                        <span class="status-pulse"></span>
-                        <span class="status-text">{{ status }}</span>
+                    <div
+                        class="typing-indicator"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <span class="typing-indicator__dots">
+                            <span class="typing-indicator__dot"></span>
+                            <span class="typing-indicator__dot"></span>
+                            <span class="typing-indicator__dot"></span>
+                        </span>
+                        <span class="typing-indicator__text">{{ status }}</span>
                     </div>
                 }
             </div>
@@ -170,7 +180,7 @@
                         }
                     </div>
                 }
-                <div class="input-area__row">
+                <div class="input-area__container">
                     <textarea
                         #messageInput
                         class="input-area__textarea"
@@ -181,32 +191,34 @@
                         (keydown)="onKeydown($event)"
                         [disabled]="isStreaming()"
                     ></textarea>
-                    @if (isStreaming()) {
-                        <button
-                            type="button"
-                            class="input-area__send-btn input-area__send-btn--stop"
-                            (click)="assistantService.cancelStream()"
-                            title="Stop generating"
-                            aria-label="Stop generating"
-                        >
-                            <app-svg-icon
-                                icon="stop"
-                                size="1.1rem"
-                            />
-                        </button>
-                    } @else {
-                        <button
-                            class="input-area__send-btn"
-                            [disabled]="sendDisabled()"
-                            (click)="sendMessage()"
-                            title="Send (Enter)"
-                        >
-                            <app-svg-icon
-                                icon="send"
-                                size="1.1rem"
-                            />
-                        </button>
-                    }
+                    <div class="input-area__bottom-bar">
+                        @if (isStreaming()) {
+                            <button
+                                type="button"
+                                class="input-area__send-btn input-area__send-btn--stop"
+                                (click)="assistantService.cancelStream()"
+                                title="Stop generating"
+                                aria-label="Stop generating"
+                            >
+                                <app-svg-icon
+                                    icon="stop"
+                                    size="0.875rem"
+                                />
+                            </button>
+                        } @else {
+                            <button
+                                class="input-area__send-btn"
+                                [disabled]="sendDisabled()"
+                                (click)="sendMessage()"
+                                title="Send (Enter)"
+                            >
+                                <app-svg-icon
+                                    icon="send"
+                                    size="0.875rem"
+                                />
+                            </button>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
