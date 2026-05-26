@@ -18,7 +18,6 @@ from utils.singleton_meta import SingletonMeta
 from services.redis_service import RedisService
 from shared.models import (
     AgentData,
-    ConfiguredToolData,
     CrewData,
     McpToolData,
     PythonCodeToolData,
@@ -27,7 +26,6 @@ from shared.models import (
 
 from settings import PGVECTOR_MEMORY_CONFIG
 
-from services.crew.proxy_tool_factory import ProxyToolFactory
 from services.crew.mcp_tool_factory import CrewaiMcpToolFactory
 from services.crew.tool_factories import PythonCodeToolFactory
 
@@ -44,11 +42,6 @@ class CrewParserService(metaclass=SingletonMeta):
         self.redis_service = redis_service
         self.python_code_tool_factory = PythonCodeToolFactory(
             executor=python_code_executor_service,
-        )
-        self.proxy_tool_factory = ProxyToolFactory(
-            host=manager_host,
-            port=manager_port,
-            python_code_executor_service=python_code_executor_service,
         )
         self.mcp_tool_factory = mcp_tool_factory
 
@@ -217,10 +210,6 @@ class CrewParserService(metaclass=SingletonMeta):
                     data=base_tool_data.data,
                     global_kwargs=global_kwargs,
                     stop_event=stop_event,
-                )
-            elif isinstance(base_tool_data.data, ConfiguredToolData):
-                tool = self.proxy_tool_factory.create_proxy_tool(
-                    tool_data=base_tool_data.data, stop_event=stop_event
                 )
             elif isinstance(base_tool_data.data, McpToolData):
                 tool = await self.mcp_tool_factory.create(
