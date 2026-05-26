@@ -32,6 +32,8 @@ const MAX_PANEL_WIDTH = 800;
 const SIDEBAR_OPEN_KEY = 'flow_assistant_sidebar_open';
 const SCROLL_AT_BOTTOM_THRESHOLD = 50;
 
+type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
 @Component({
     selector: 'app-flow-assistant-panel',
     standalone: true,
@@ -159,7 +161,10 @@ export class FlowAssistantPanelComponent {
         });
     });
 
+    readonly resizeHandles: readonly ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+
     private isDragging: 'none' | 'docked-resize' | 'floating-move' | 'floating-resize' = 'none';
+    private dragResizeDirection: ResizeDirection | null = null;
     private dragStartX = 0;
     private dragStartY = 0;
     private dragStartWidth = 0;
@@ -290,15 +295,19 @@ export class FlowAssistantPanelComponent {
         this.dragStartPositionY = position?.y ?? 0;
     }
 
-    onFloatResizeHandleMousedown(event: MouseEvent): void {
+    onFloatResizeHandleMousedown(event: MouseEvent, direction: ResizeDirection): void {
         event.preventDefault();
         event.stopPropagation();
         const size = this.floatSize();
+        const position = this.floatPosition();
+        this.dragResizeDirection = direction;
         this.isDragging = 'floating-resize';
         this.dragStartX = event.clientX;
         this.dragStartY = event.clientY;
         this.dragStartWidth = size.width;
         this.dragStartHeight = size.height;
+        this.dragStartPositionX = position?.x ?? 0;
+        this.dragStartPositionY = position?.y ?? 0;
     }
 
     onToggleMode(): void {
@@ -357,13 +366,29 @@ export class FlowAssistantPanelComponent {
         }
 
         if (this.isDragging === 'floating-resize') {
+            const dir = this.dragResizeDirection;
+            if (dir === null) return;
             const dx = event.clientX - this.dragStartX;
             const dy = event.clientY - this.dragStartY;
-            this.assistantService.setFloatSize({
-                width: this.dragStartWidth + dx,
-                height: this.dragStartHeight + dy,
-            });
-            // setFloatSize re-clamps position internally — no separate setFloatPosition call needed.
+
+            let newWidth = this.dragStartWidth;
+            let newHeight = this.dragStartHeight;
+            let newX = this.dragStartPositionX;
+            let newY = this.dragStartPositionY;
+
+            if (dir.includes('e')) newWidth = this.dragStartWidth + dx;
+            if (dir.includes('w')) newWidth = this.dragStartWidth - dx;
+            if (dir.includes('s')) newHeight = this.dragStartHeight + dy;
+            if (dir.includes('n')) newHeight = this.dragStartHeight - dy;
+
+            // Pin size to min/max before computing the anchored position,
+            // so dragging past the cap doesn't keep moving the panel.
+            const clamped = this.assistantService.clampSize({ width: newWidth, height: newHeight });
+
+            if (dir.includes('w')) newX = this.dragStartPositionX + (this.dragStartWidth - clamped.width);
+            if (dir.includes('n')) newY = this.dragStartPositionY + (this.dragStartHeight - clamped.height);
+
+            this.assistantService.setFloatBounds({ x: newX, y: newY }, clamped);
             return;
         }
     }
@@ -371,6 +396,7 @@ export class FlowAssistantPanelComponent {
     @HostListener('document:mouseup')
     onDocumentMouseup(): void {
         this.isDragging = 'none';
+        this.dragResizeDirection = null;
     }
 
     @HostListener('window:resize')

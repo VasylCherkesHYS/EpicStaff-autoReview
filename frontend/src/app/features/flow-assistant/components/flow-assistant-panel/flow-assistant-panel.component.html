@@ -286,9 +286,11 @@
     </div>
 
     @if (mode() === 'floating') {
-        <div
-            class="float-resize-handle"
-            (mousedown)="onFloatResizeHandleMousedown($event)"
-        ></div>
+        @for (direction of resizeHandles; track direction) {
+            <div
+                class="float-resize-handle float-resize-handle--{{ direction }}"
+                (mousedown)="onFloatResizeHandleMousedown($event, direction)"
+            ></div>
+        }
     }
 </div>

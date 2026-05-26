@@ -467,6 +467,15 @@ export class FlowAssistantService {
         this.persistMode(mode);
     }
 
+    setFloatBounds(position: FloatPosition, size: FloatSize): void {
+        const clampedSize = this.clampSize(size);
+        const clampedPos = this.clampPosition(position, clampedSize);
+        this.floatSize.set(clampedSize);
+        this.floatPosition.set(clampedPos);
+        this.persistFloatSize(clampedSize);
+        this.persistFloatPosition(clampedPos);
+    }
+
     setFloatPosition(position: FloatPosition): void {
         const size = this.floatSize();
         const clamped = this.clampPosition(position, size);
