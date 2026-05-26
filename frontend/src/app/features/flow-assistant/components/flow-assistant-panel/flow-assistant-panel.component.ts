@@ -1,3 +1,4 @@
+import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
@@ -38,6 +39,7 @@ const SCROLL_AT_BOTTOM_THRESHOLD = 50;
         CommonModule,
         FormsModule,
         MarkdownModule,
+        OverlayModule,
         AppSvgIconComponent,
         FlowAssistantSettingsComponent,
         FlowAssistantSidebarComponent,
@@ -67,10 +69,13 @@ export class FlowAssistantPanelComponent {
     readonly inputText = signal('');
     readonly sidebarOpen = signal<boolean>(this.loadPersistedSidebarOpen());
     readonly copiedMessageIndex = signal<number | null>(null);
+    readonly kebabMenuOpen = signal(false);
 
     readonly messages = computed(() => this.assistantService.messages());
     readonly isStreaming = computed(() => this.assistantService.isStreaming());
     readonly mode = computed(() => this.assistantService.mode());
+    readonly flowName = computed(() => this.assistantService.currentFlowName() ?? 'Flow Assistant');
+    readonly isFullHeight = computed(() => this.assistantService.isFullHeight());
     readonly floatPosition = computed(() => this.assistantService.floatPosition());
     readonly floatSize = computed(() => this.assistantService.floatSize());
     readonly effectiveWidth = computed(() =>
@@ -121,6 +126,10 @@ export class FlowAssistantPanelComponent {
         return result;
     });
 
+    readonly kebabOverlayPositions: ConnectedPosition[] = [
+        { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 4 },
+    ];
+
     private readonly isAtBottom = signal(true);
 
     // 3. Computed — host binding values
@@ -158,9 +167,7 @@ export class FlowAssistantPanelComponent {
     private dragStartPositionX = 0;
     private dragStartPositionY = 0;
 
-    isToolMessage(
-        message: FlowAssistantMessage
-    ): message is {
+    isToolMessage(message: FlowAssistantMessage): message is {
         role: 'tool';
         content: string;
         tool_call_id: string;
@@ -296,6 +303,36 @@ export class FlowAssistantPanelComponent {
 
     onToggleMode(): void {
         this.assistantService.toggleMode();
+    }
+
+    onKebabClick(): void {
+        this.kebabMenuOpen.update((v) => !v);
+    }
+
+    closeKebabMenu(): void {
+        this.kebabMenuOpen.set(false);
+    }
+
+    onMenuItemClick(item: 'sessions' | 'settings' | 'clear-history' | 'reset-position'): void {
+        this.closeKebabMenu();
+        switch (item) {
+            case 'sessions':
+                this.toggleSidebar();
+                break;
+            case 'settings':
+                this.toggleSettings();
+                break;
+            case 'clear-history':
+                this.assistantService.clearChatHistory();
+                break;
+            case 'reset-position':
+                this.assistantService.resetFloatPosition();
+                break;
+        }
+    }
+
+    onExpandClick(): void {
+        this.assistantService.toggleFullHeight();
     }
 
     @HostListener('document:mousemove', ['$event'])

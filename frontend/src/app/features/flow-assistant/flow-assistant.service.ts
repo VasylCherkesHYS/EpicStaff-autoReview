@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { ToastService } from '../../services/notifications/toast.service';
+import { FlowsStorageService } from '../flows/services/flows-storage.service';
 import {
     ActionItem,
     EfTable,
@@ -145,8 +146,10 @@ export class FlowAssistantService {
     private readonly toastService = inject(ToastService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly router = inject(Router);
+    private readonly flowsStorageService = inject(FlowsStorageService);
 
     readonly isOpen = signal(false);
+    readonly currentFlowName = signal<string | null>(null);
     readonly currentGraphId = signal<number | null>(null);
     readonly currentConversationId = signal<number | null>(null);
     readonly messages = signal<FlowAssistantMessage[]>([]);
@@ -159,6 +162,8 @@ export class FlowAssistantService {
     readonly sessions = signal<SessionSummary[]>([]);
     readonly currentStatus = signal<string | null>(null);
     readonly pendingPromptChips = signal<ActionItem[]>([]);
+    private readonly previousFloatHeight = signal<number | null>(null);
+    readonly isFullHeight = computed(() => this.previousFloatHeight() !== null);
 
     private readonly liveToolCallIdsInternal = signal<Set<string>>(new Set());
     readonly liveToolCallIds = computed(() => this.liveToolCallIdsInternal());
@@ -196,11 +201,14 @@ export class FlowAssistantService {
 
         // Populate sidebar but do NOT auto-select most recent — leave thread empty.
         this.loadSessions(graphId, false);
+        this.populateFlowName(graphId);
     }
 
     close(): void {
         this.closeEventSource();
         this.isOpen.set(false);
+        this.currentFlowName.set(null);
+        this.previousFloatHeight.set(null);
     }
 
     reset(): void {
@@ -218,6 +226,8 @@ export class FlowAssistantService {
         this.liveToolCallIdsInternal.set(new Set());
         this.isOpen.set(false);
         this.hasOpenedOnCurrentVisit = false;
+        this.currentFlowName.set(null);
+        this.previousFloatHeight.set(null);
     }
 
     markFreshVisit(graphId: number): void {
@@ -403,6 +413,30 @@ export class FlowAssistantService {
                 next: (updated) => this.config.set(updated),
                 error: () => this.toastService.error('Failed to update assistant config'),
             });
+    }
+
+    clearChatHistory(): void {
+        const conversationId = this.currentConversationId();
+        if (conversationId === null) return;
+        this.deleteSession(conversationId);
+    }
+
+    resetFloatPosition(): void {
+        if (this.mode() !== 'floating') return;
+        const size = this.floatSize();
+        this.setFloatPosition(this.computeDefaultFloatPosition(size));
+    }
+
+    toggleFullHeight(): void {
+        if (this.mode() !== 'floating') return;
+        const stored = this.previousFloatHeight();
+        if (stored !== null) {
+            this.setFloatSize({ ...this.floatSize(), height: stored });
+            this.previousFloatHeight.set(null);
+        } else {
+            this.previousFloatHeight.set(this.floatSize().height);
+            this.setFloatSize({ ...this.floatSize(), height: window.innerHeight });
+        }
     }
 
     setDockWidth(width: number): void {
@@ -758,6 +792,16 @@ export class FlowAssistantService {
         } catch {
             return null;
         }
+    }
+
+    private populateFlowName(graphId: number): void {
+        this.flowsStorageService
+            .getFlowById(graphId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (graph) => this.currentFlowName.set(graph?.name ?? null),
+                error: () => this.currentFlowName.set(null),
+            });
     }
 
     private computeDefaultFloatPosition(size: FloatSize): FloatPosition {
