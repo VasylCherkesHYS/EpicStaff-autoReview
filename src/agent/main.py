@@ -6,25 +6,11 @@ from uuid import uuid4
 
 from loguru import logger
 
+from app.data_loader import DataLoader
+from app.factory import RunnerFactory
+from app.request_handler import RequestHandler
 from settings import load_settings
 from shared.redis_streams import RedisStreamClient, StreamEnvelope
-
-
-async def handle(
-    envelope: StreamEnvelope,
-    message_id: str,
-    stream: str,
-    client: RedisStreamClient,
-    group: str,
-) -> None:
-    logger.info(
-        "received envelope type={} correlation_id={} stream={}",
-        envelope.type,
-        envelope.correlation_id,
-        stream,
-    )
-    await client.ack(stream, group, message_id)
-    logger.debug("acked message_id={}", message_id)
 
 
 async def main() -> None:
@@ -46,6 +32,25 @@ async def main() -> None:
         group=settings.agent_consumer_group,
         start_id="0",
         mkstream=True,
+    )
+
+    loader = DataLoader(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+    )
+    await loader.connect()
+
+    factory = RunnerFactory()
+    # No runners registered yet — unknown run_type triggers on_error path
+
+    handler = RequestHandler(
+        loader=loader,
+        factory=factory,
+        redis_client=client,
+        result_stream=settings.agent_result_stream,
+        request_stream=settings.agent_request_stream,
+        consumer_group=settings.agent_consumer_group,
     )
 
     stop = asyncio.Event()
@@ -89,14 +94,13 @@ async def main() -> None:
                 )
                 continue
 
-            await handle(
+            await handler.handle(
                 envelope=envelope,
                 message_id=message.message_id,
                 stream=message.stream,
-                client=client,
-                group=settings.agent_consumer_group,
             )
 
+    await loader.close()
     await client.close()
     logger.info("agent shut down cleanly")
 
