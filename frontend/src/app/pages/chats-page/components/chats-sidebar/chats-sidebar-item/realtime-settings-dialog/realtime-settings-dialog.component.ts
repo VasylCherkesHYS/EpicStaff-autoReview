@@ -177,11 +177,13 @@ export class RealtimeSettingsDialogComponent implements OnInit {
             gemini_config: formValues.gemini_config,
         };
 
+        const existingGraph = this.data.agent.search_configs?.graph;
         const searchConfigsData = {
             naive: {
                 similarity_threshold: formValues.threshold.toString(),
                 search_limit: formValues.searchLimit,
             },
+            ...(existingGraph ? { graph: existingGraph } : {}),
         };
 
         const configured_tool: number[] = [];
