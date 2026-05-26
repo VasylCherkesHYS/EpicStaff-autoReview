@@ -2,10 +2,11 @@ import { Overlay, OverlayModule, OverlayRef } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
 import { CommonModule } from '@angular/common';
 import {
-    ChangeDetectionStrategy,
+    AfterViewInit,
     Component,
     computed,
     DestroyRef,
+    ElementRef,
     inject,
     Input,
     OnChanges,
@@ -15,6 +16,7 @@ import {
     output,
     signal,
     SimpleChanges,
+    ViewChild,
     ViewContainerRef,
 } from '@angular/core';
 import { EventEmitter } from '@angular/core';
@@ -53,7 +55,6 @@ interface PickerItem {
     selector: 'app-var-picker-flat',
     standalone: true,
     imports: [CommonModule],
-    changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <div class="vpf-container">
             <div class="vpf-search">
@@ -62,23 +63,25 @@ interface PickerItem {
                     type="text"
                     placeholder="Search variables..."
                     autocomplete="off"
-                    (input)="filterText.set(searchInput.value)"
+                    (input)="onSearchInput($event)"
+                    (keydown)="$event.stopPropagation()"
                 />
             </div>
             <div class="vpf-list">
-                @if (filteredItems().length === 0) {
-                    <div class="vpf-empty">No flow variables defined</div>
-                }
-                @for (item of filteredItems(); track item.fullPath) {
-                    <button
-                        type="button"
-                        class="vpf-item"
-                        [title]="item.fullPath"
-                        (click)="pathSelected.emit(item.fullPath)"
-                    >
-                        <span class="vpf-tag">{{ item.tag }}</span>
-                        <span class="vpf-label">{{ item.label }}</span>
-                    </button>
+                @if (hasFilteredItems) {
+                    @for (item of filteredItems; track item.fullPath) {
+                        <button
+                            type="button"
+                            class="vpf-item"
+                            [title]="item.fullPath"
+                            (click)="pathSelected.emit(item.fullPath)"
+                        >
+                            <span class="vpf-tag">{{ item.tag }}</span>
+                            <span class="vpf-label">{{ item.label }}</span>
+                        </button>
+                    }
+                } @else {
+                    <div class="vpf-empty">No matching variables</div>
                 }
             </div>
         </div>
@@ -181,22 +184,31 @@ interface PickerItem {
         `,
     ],
 })
-class VarPickerFlatComponent {
-    items = signal<PickerItem[]>([]);
-    filterText = signal<string>('');
+class VarPickerFlatComponent implements AfterViewInit {
+    @ViewChild('searchInput') private searchInputRef!: ElementRef<HTMLInputElement>;
 
-    filteredItems = computed(() => {
-        const f = this.filterText().toLowerCase();
-        if (!f) return this.items();
-        return this.items().filter(
-            (item) =>
-                item.label.toLowerCase().includes(f) ||
-                item.tag.toLowerCase().includes(f) ||
-                item.fullPath.toLowerCase().includes(f)
-        );
-    });
+    private allItems: PickerItem[] = [];
+    filteredItems: PickerItem[] = [];
 
     pathSelected = output<string>();
+
+    ngAfterViewInit(): void {
+        this.searchInputRef.nativeElement.focus();
+    }
+
+    get hasFilteredItems(): boolean {
+        return this.filteredItems.length > 0;
+    }
+
+    setItems(items: PickerItem[]): void {
+        this.allItems = items;
+        this.filteredItems = items;
+    }
+
+    onSearchInput(event: Event): void {
+        const f = (event.target as HTMLInputElement).value.toLowerCase().trim();
+        this.filteredItems = f ? this.allItems.filter((item) => item.label.toLowerCase().includes(f)) : this.allItems;
+    }
 }
 
 @Component({
@@ -1045,7 +1057,7 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
         const componentRef = this.overlayRef.attach(portal);
         this.autocompleteInstance = componentRef.instance;
 
-        this.autocompleteInstance.items.set(this.pickerItems());
+        this.autocompleteInstance.setItems(this.pickerItems());
 
         this.pickerSubs = [
             this.autocompleteInstance.pathSelected.subscribe((path: string) => this.insertPath(path)),
