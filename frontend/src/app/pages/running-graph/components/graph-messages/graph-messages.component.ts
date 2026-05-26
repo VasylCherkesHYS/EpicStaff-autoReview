@@ -428,6 +428,8 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                     if (!TERMINAL_STATUSES.has(session.status)) {
                         this.sseEnabled = true;
                         this.sseService.startStream(this.sessionId!);
+                    } else {
+                        this.sseService.setStatus(session.status);
                     }
                     this.loadMoreMessages();
                 },
