@@ -1,26 +1,29 @@
-from typing import Any, Optional, Literal
-
-from services.crew.tool_factories.annotates import VariableDict
-from services.crew.tool_factories.enums import VariableTypeName
+from typing import Any, Optional
 
 
 def make_var(
     name: str,
-    input_type="agent_input",
-    type=VariableTypeName.STRING,
-    required=False,
+    type: str = "string",
+    input_type: str = "agent_input",
+    required: bool = False,
     default_value: Any = None,
-    description="",
+    description: str = "",
     properties: Optional[dict] = None,
-    item_type: Optional[Any] = None,
-) -> VariableDict:
-    return VariableDict(
-        name=name,
-        type=type,
-        input_type=input_type,
-        required=required,
-        default_value=default_value,
-        description=description,
-        properties=properties,
-        item_type=item_type,
-    )
+    required_properties: Optional[list[str]] = None,
+    item: Optional[dict] = None,
+) -> dict:
+    var = {
+        "name": name,
+        "type": type,
+        "input_type": input_type,
+        "required": required,
+        "default_value": default_value,
+        "description": description,
+    }
+    if properties is not None:
+        var["properties"] = properties
+    if required_properties is not None:
+        var["required_properties"] = required_properties
+    if item is not None:
+        var["item"] = item
+    return var

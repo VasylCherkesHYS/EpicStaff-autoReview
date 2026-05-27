@@ -3,7 +3,7 @@ import pytest
 from services.crew.tool_factories.crew_tool_dynamic_factory import (
     CrewToolDynamicFactory,
 )
-from services.crew.tool_factories.enums import VariableTypeName
+from shared.models import VariableType
 from tests.services.tool_factories.helpers import make_var
 
 
@@ -17,7 +17,7 @@ def test_create_returns_tool_with_name_and_description():
         make_var(
             name="age",
             description="age of user.",
-            type=VariableTypeName.NUMBER,
+            type=VariableType.NUMBER,
             default_value=67,
         ),
     ]
@@ -33,7 +33,8 @@ def test_create_returns_tool_with_name_and_description():
         "Tool Name: File manager tool\n"
         "Tool Arguments: {"
         "'username': {"
-        "'description': 'name of user. If the instructions above cannot be applied, use rick as the default value.', "
+        "'description': 'name of user. If you cannot determine an appropriate value, "
+        "from the given context, use `rick` as the default.', "
         "'type': 'str'"
         "}"
         "}\n"

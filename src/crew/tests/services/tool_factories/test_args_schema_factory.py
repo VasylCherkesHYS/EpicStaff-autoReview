@@ -2,7 +2,7 @@ import pytest
 from pydantic_core import PydanticUndefined
 
 from services.crew.tool_factories.args_schema_factory import ArgsSchemaFactory
-from services.crew.tool_factories.enums import VariableTypeName
+from shared.models import VariableType
 from tests.services.tool_factories.helpers import make_var
 
 
@@ -49,13 +49,13 @@ def test_setting_default_for_field_if_variable_has_no_default_value(
 @pytest.mark.parametrize(
     "type_name,default_value,expected",
     [
-        (VariableTypeName.STRING, "value", "value"),
-        (VariableTypeName.STRING, "", ""),
-        (VariableTypeName.NUMBER, "43", 43),
-        (VariableTypeName.NUMBER, 0, 0),
-        (VariableTypeName.NUMBER, "4.3", 4.3),
-        (VariableTypeName.NUMBER, 0.1, 0.1),
-        (VariableTypeName.BOOLEAN, False, False),
+        (VariableType.STRING, "value", "value"),
+        (VariableType.STRING, "", ""),
+        (VariableType.NUMBER, "43", 43),
+        (VariableType.NUMBER, 0, 0),
+        (VariableType.NUMBER, "4.3", 4.3),
+        (VariableType.NUMBER, 0.1, 0.1),
+        (VariableType.BOOLEAN, False, False),
     ],
 )
 def test_field_with_default_value_as_simple_type(default_value, type_name, expected):
@@ -68,28 +68,34 @@ def test_field_with_default_value_as_simple_type(default_value, type_name, expec
 @pytest.mark.parametrize(
     "type_name,default_value",
     [
-        (VariableTypeName.STRING, "value"),
-        (VariableTypeName.STRING, ""),
-        (VariableTypeName.NUMBER, "43"),
-        (VariableTypeName.NUMBER, 0),
-        (VariableTypeName.NUMBER, "4.3"),
-        (VariableTypeName.NUMBER, 0.1),
-        (VariableTypeName.BOOLEAN, False),
+        (VariableType.STRING, "value"),
+        (VariableType.STRING, ""),
+        (VariableType.NUMBER, "43"),
+        (VariableType.NUMBER, 0),
+        (VariableType.NUMBER, "4.3"),
+        (VariableType.NUMBER, 0.1),
+        (VariableType.BOOLEAN, False),
     ],
 )
 @pytest.mark.parametrize(
     "description,expected_description",
     [
-        (None, "Use the default value {default_value}"),
-        ("", "Use the default value {default_value}"),
+        (None, "Use `{default_value}` as the default value."),
+        ("", "Use `{default_value}` as the default value."),
         (
             "Given description.",
-            "Given description. If the instructions above cannot be applied, use {default_value} as the default value.",
+            (
+                "Given description. If you cannot determine an appropriate value, "
+                "from the given context, use `{default_value}` as the default."
+            ),
         ),
     ],
 )
 def test_default_value_appended_to_description(
-    type_name, default_value, description, expected_description
+    type_name,
+    default_value,
+    description,
+    expected_description,
 ):
     expected_description = expected_description.format(default_value=default_value)
     var = make_var(
