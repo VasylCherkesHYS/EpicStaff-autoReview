@@ -23,7 +23,7 @@ __all__ = [
     "NestedVariable",
 ]
 
-from shared.dotdict import DotDict, DotList
+from ..dotdict import DotDict, DotList
 
 
 class VariableTypeInput(StrEnum):
