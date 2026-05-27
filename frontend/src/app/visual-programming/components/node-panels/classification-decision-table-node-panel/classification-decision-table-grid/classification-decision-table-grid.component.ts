@@ -1,3 +1,5 @@
+import { Overlay, OverlayRef } from '@angular/cdk/overlay';
+import { TemplatePortal } from '@angular/cdk/portal';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -11,8 +13,10 @@ import {
     output,
     Renderer2,
     signal,
+    TemplateRef,
     untracked,
     ViewChild,
+    ViewContainerRef,
 } from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import {
@@ -26,6 +30,7 @@ import {
     GridApi,
     GridOptions,
     GridReadyEvent,
+    IRowNode,
     RowSpanParams,
     ValueGetterParams,
     ValueSetterParams,
@@ -33,6 +38,7 @@ import {
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { themeQuartz } from 'ag-grid-community';
 
+import { AppSvgIconComponent } from '../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
 import { HelpTooltipComponent } from '../../../../../shared/components/help-tooltip/help-tooltip.component';
 import { MultiSelectComponent } from '../../../../../shared/components/multi-select/multi-select.component';
@@ -49,18 +55,21 @@ import {
     toDisplayExpression,
 } from '../../../../utils/condition-expression.helper';
 import { ColumnHeaderMenuComponent } from './column-header-menu/column-header-menu.component';
+import { EnableFilterHeaderComponent, EnableFilterMode } from './enable-filter-header/enable-filter-header.component';
 import { ExpressionBuilderCellEditorComponent } from './expression-builder/expression-builder-cell-editor.component';
 import { IconHeaderComponent } from './icon-header/icon-header.component';
 import { MonacoCellRendererComponent } from './monaco-cell-renderer/monaco-cell-renderer.component';
 import { ParamsGroupHeaderComponent } from './params-group-header/params-group-header.component';
 import { PromptIdCellEditorComponent } from './prompt-id-cell-editor/prompt-id-cell-editor.component';
 import { PromptTooltipRendererComponent } from './prompt-tooltip-renderer/prompt-tooltip-renderer.component';
+import { SelectionCellRendererComponent } from './selection-cell-renderer/selection-cell-renderer.component';
+import { SelectionCountHeaderComponent } from './selection-count-header/selection-count-header.component';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 @Component({
     selector: 'app-classification-decision-table-grid',
-    imports: [AgGridModule, ButtonComponent, HelpTooltipComponent, MultiSelectComponent],
+    imports: [AgGridModule, AppSvgIconComponent, ButtonComponent, HelpTooltipComponent, MultiSelectComponent],
     templateUrl: './classification-decision-table-grid.component.html',
     styleUrls: ['./classification-decision-table-grid.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,6 +97,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     private cdr = inject(ChangeDetectorRef);
     private elRef = inject(ElementRef);
     private renderer = inject(Renderer2);
+    private overlay = inject(Overlay);
+    private vcr = inject(ViewContainerRef);
 
     private gridApi!: GridApi;
     private outsideClickUnlisten: (() => void) | null = null;
@@ -112,6 +123,188 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     // Hidden-column restore badges: position computed from DOM
     public hiddenColumnBadges = signal<Array<{ colId: string; x: number; y: number; label: string }>>([]);
+
+    // Selection state for toolbar buttons
+    public selectedRowCount = signal<number>(0);
+    private selectedRowsAllUngrouped = signal<boolean>(true);
+    public canGroupSelected = computed<boolean>(() => this.selectedRowCount() >= 1 && this.selectedRowsAllUngrouped());
+
+    // Row group collapse state
+    public collapsedGroups = signal<Set<string>>(new Set());
+
+    public groupOverlayItems = signal<
+        Array<{
+            sectionId: string;
+            top: number;
+            height: number;
+            isCollapsed: boolean;
+        }>
+    >([]);
+
+    // Enable/disable filter mode (default: show only enabled rows)
+    public enableFilterMode = signal<EnableFilterMode>('enabled');
+
+    // Precomputed set of group_name keys that should remain visible given collapse + enable filter state
+    public visibleRowKeys = signal<Set<string>>(new Set<string>());
+
+    private autoCollapseGroupsOnFirstLoad(): void {
+        if (this.autoCollapsedOnLoad) return;
+        const rows = this.rowData();
+        if (!rows || rows.length === 0) return;
+        if (!this.gridApi) return;
+
+        const sectionsInData = new Set<string>();
+        for (const row of rows) {
+            const section = (row as ConditionGroup).section;
+            if (section) sectionsInData.add(section);
+        }
+        this.autoCollapsedOnLoad = true;
+        if (sectionsInData.size === 0) return;
+
+        const merged = new Set(this.collapsedGroups());
+        sectionsInData.forEach((id) => merged.add(id));
+        this.collapsedGroups.set(merged);
+
+        this.recomputeVisibleRowKeys();
+        this.gridApi.onFilterChanged();
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public recomputeVisibleRowKeys(): void {
+        const collapsed = this.collapsedGroups();
+        const mode = this.enableFilterMode();
+        const rows = this.rowData();
+        const keys = new Set<string>();
+        for (const row of rows) {
+            const passesEnableFilter =
+                mode === 'all' ||
+                (mode === 'enabled' && row.dock_visible === true) ||
+                (mode === 'disabled' && row.dock_visible !== true);
+            const section = row.section ?? null;
+            if (section && collapsed.has(section)) {
+                continue;
+            }
+            if (passesEnableFilter) {
+                keys.add(row.group_name);
+            }
+        }
+        this.visibleRowKeys.set(keys);
+    }
+
+    public recomputeGroupOverlays(): void {
+        const api = this.gridApi;
+        if (!api) {
+            this.groupOverlayItems.set([]);
+            return;
+        }
+        const wrapperEl = this.elRef.nativeElement.querySelector('.grid-wrapper') as HTMLElement | null;
+        const bodyEl = this.elRef.nativeElement.querySelector('.ag-body-viewport') as HTMLElement | null;
+        if (!wrapperEl || !bodyEl) {
+            this.groupOverlayItems.set([]);
+            return;
+        }
+
+        const wrapperRect = wrapperEl.getBoundingClientRect();
+        const bodyRect = bodyEl.getBoundingClientRect();
+        const bodyOffsetY = bodyRect.top - wrapperRect.top;
+        const scrollTop = bodyEl.scrollTop;
+        const collapsed = this.collapsedGroups();
+
+        const rawRows = this.rowData() ?? [];
+        const sectionRange = new Map<string, { firstIdx: number; lastIdx: number }>();
+        rawRows.forEach((row, idx) => {
+            const section = (row as { section?: string | null }).section;
+            if (!section) return;
+            const existing = sectionRange.get(section);
+            if (existing) {
+                existing.firstIdx = Math.min(existing.firstIdx, idx);
+                existing.lastIdx = Math.max(existing.lastIdx, idx);
+            } else {
+                sectionRange.set(section, { firstIdx: idx, lastIdx: idx });
+            }
+        });
+
+        const isRowVisible = (row: ConditionGroup): boolean => {
+            const section = row.section ?? null;
+            if (section && collapsed.has(section)) return false;
+            const mode = this.enableFilterMode();
+            if (mode === 'enabled' && row.dock_visible !== true) return false;
+            if (mode === 'disabled' && row.dock_visible === true) return false;
+            return true;
+        };
+
+        const items: Array<{ sectionId: string; top: number; height: number; isCollapsed: boolean }> = [];
+        const expandedFirstLast = new Map<string, { firstTop: number; lastBottom: number }>();
+
+        api.forEachNodeAfterFilterAndSort((node) => {
+            if (node.rowTop == null) return;
+            const data = node.data as { section?: string | null } | undefined;
+            const section = data?.section ?? null;
+            const top = node.rowTop;
+            const bottom = top + (node.rowHeight ?? 40);
+            if (!section) return;
+            const existing = expandedFirstLast.get(section);
+            if (existing) {
+                existing.firstTop = Math.min(existing.firstTop, top);
+                existing.lastBottom = Math.max(existing.lastBottom, bottom);
+            } else {
+                expandedFirstLast.set(section, { firstTop: top, lastBottom: bottom });
+            }
+        });
+
+        const rowHeight = 40;
+
+        sectionRange.forEach((range, sectionId) => {
+            if (collapsed.has(sectionId)) {
+                let visibleBefore = 0;
+                for (let i = 0; i < range.firstIdx; i++) {
+                    if (isRowVisible(rawRows[i] as ConditionGroup)) visibleBefore++;
+                }
+                const anchorY = visibleBefore * rowHeight;
+                items.push({
+                    sectionId,
+                    top: bodyOffsetY + anchorY - scrollTop,
+                    height: 22,
+                    isCollapsed: true,
+                });
+            } else {
+                const positions = expandedFirstLast.get(sectionId);
+                if (!positions) {
+                    let visibleBefore = 0;
+                    for (let i = 0; i < range.firstIdx; i++) {
+                        if (isRowVisible(rawRows[i] as ConditionGroup)) visibleBefore++;
+                    }
+                    items.push({
+                        sectionId,
+                        top: bodyOffsetY + visibleBefore * rowHeight - scrollTop,
+                        height: (range.lastIdx - range.firstIdx + 1) * rowHeight,
+                        isCollapsed: false,
+                    });
+                    return;
+                }
+                items.push({
+                    sectionId,
+                    top: bodyOffsetY + positions.firstTop - scrollTop,
+                    height: positions.lastBottom - positions.firstTop,
+                    isCollapsed: false,
+                });
+            }
+        });
+
+        this.groupOverlayItems.set(items);
+    }
+
+    public openGroupMenuFromOverlay(sectionId: string, event: MouseEvent): void {
+        this.openGroupMenu(sectionId, event.currentTarget as HTMLElement);
+    }
+
+    private groupMenuOverlayRef: OverlayRef | null = null;
+    public groupMenuSectionId = signal<string | null>(null);
+
+    public isCurrentGroupCollapsed = computed<boolean>(() => {
+        const id = this.groupMenuSectionId();
+        return id !== null && this.collapsedGroups().has(id);
+    });
 
     // Computed: field names in their column order
     public activeFieldColumns = computed(() =>
@@ -186,6 +379,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     @ViewChild('exprMultiSelect') exprMultiSelect!: MultiSelectComponent;
     @ViewChild('manipMultiSelect') manipMultiSelect!: MultiSelectComponent;
+    @ViewChild('groupMenuTemplate') groupMenuTemplate!: TemplateRef<unknown>;
 
     public exprAddPos = signal<{ x: number; y: number } | null>(null);
     public manipAddPos = signal<{ x: number; y: number } | null>(null);
@@ -228,6 +422,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 setTimeout(() => this.updateAddButtonPositions(), 0);
             });
         });
+        effect(() => {
+            const rows = this.rowData();
+            if (rows.length > 0 && !this.autoCollapsedOnLoad) {
+                this.autoCollapseGroupsOnFirstLoad();
+            }
+        });
     }
 
     private initFieldColumnsFromData(groups: ConditionGroup[]): void {
@@ -252,6 +452,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const colIds = ['manipulation', ...[...manipKeys].map((f) => `manip_${f}`)];
             this.manipColumnOrder.set(colIds);
         }
+        this.recomputeVisibleRowKeys();
+        this.recomputeGroupOverlays();
     }
 
     public myTheme = themeQuartz.withParams({
@@ -278,6 +480,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     private isRebuilding = false;
     /** Guard flag to prevent recursive cellValueChanged loops during programmatic cell writes. */
     private isSyncing = false;
+    private autoCollapsedOnLoad = false;
 
     private get storageKey(): string {
         const stableId = this.storageNodeId() || this.currentNodeId();
@@ -298,6 +501,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 pinned: [...this.frozenColIds()],
                 hiddenColIds: [...this.hiddenColIds()],
                 freezeAnchor: this.freezeAnchorColId(),
+                collapsedGroups: [...this.collapsedGroups()],
+                enableFilterMode: this.enableFilterMode(),
             };
             try {
                 localStorage.setItem(this.storageKey, JSON.stringify(state));
@@ -324,6 +529,16 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             }
             if (Array.isArray(state.hiddenColIds) && state.hiddenColIds.length > 0) {
                 this.hiddenColIds.set(new Set(state.hiddenColIds as string[]));
+            }
+            if (Array.isArray(state.collapsedGroups)) {
+                this.collapsedGroups.set(new Set(state.collapsedGroups as string[]));
+            }
+            if (
+                state.enableFilterMode === 'all' ||
+                state.enableFilterMode === 'enabled' ||
+                state.enableFilterMode === 'disabled'
+            ) {
+                this.enableFilterMode.set(state.enableFilterMode);
             }
             if (typeof state.freezeAnchor === 'string') {
                 this.freezeAnchorColId.set(state.freezeAnchor);
@@ -353,6 +568,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         domLayout: 'autoHeight',
         rowDragManaged: true,
         animateRows: true,
+        rowSelection: {
+            mode: 'multiRow',
+            checkboxes: false,
+            headerCheckbox: false,
+            enableClickSelection: false,
+        },
         onRowDragEnd: () => {
             const updatedRows = this.getUpdatedRows();
             this.emitChanges(updatedRows);
@@ -395,6 +616,19 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         },
         onColumnVisible: () => {
             setTimeout(() => this.updateAddButtonPositions(), 0);
+        },
+        isExternalFilterPresent: () => this.collapsedGroups().size > 0 || this.enableFilterMode() !== 'all',
+        doesExternalFilterPass: (node) => {
+            const data = node.data as ConditionGroup | undefined;
+            if (!data) return true;
+            const mode = this.enableFilterMode();
+            if (mode === 'enabled' && data.dock_visible !== true) return false;
+            if (mode === 'disabled' && data.dock_visible === true) return false;
+            const section = data.section ?? null;
+            if (!section) return true;
+            if (!this.collapsedGroups().has(section)) return true;
+            const visibleKeys = this.visibleRowKeys();
+            return visibleKeys.has(data.group_name);
         },
     };
 
@@ -872,23 +1106,46 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     private buildColumnDefs(): (ColDef | ColGroupDef)[] {
-        const staticBefore: ColDef[] = [
-            {
-                headerName: 'Enabled',
-                field: 'dock_visible',
-                editable: true,
-                width: 85,
-                minWidth: 75,
-                rowDrag: true,
-                cellDataType: 'boolean',
-                headerTooltip: 'Enabled',
-                suppressMovable: true,
-                cellStyle: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+        const selectionCol: ColDef = {
+            colId: 'selection',
+            headerName: '',
+            headerComponent: SelectionCountHeaderComponent,
+            rowDrag: true,
+            cellRenderer: SelectionCellRendererComponent,
+            width: 64,
+            minWidth: 64,
+            maxWidth: 64,
+            suppressMovable: true,
+            sortable: false,
+            resizable: false,
+            cellStyle: { display: 'flex', alignItems: 'center', padding: '0 4px' },
+        };
+
+        const enabledCol: ColDef = {
+            colId: 'dock_visible',
+            field: 'dock_visible',
+            headerComponent: EnableFilterHeaderComponent,
+            headerComponentParams: {
+                getMode: () => this.enableFilterMode(),
+                setMode: (mode: EnableFilterMode) => {
+                    this.enableFilterMode.set(mode);
+                    this.recomputeVisibleRowKeys();
+                    this.gridApi?.refreshHeader();
+                    this.gridApi?.onFilterChanged();
+                    this.saveGridState();
                 },
             },
+            editable: true,
+            width: 85,
+            minWidth: 75,
+            cellDataType: 'boolean',
+            suppressMovable: true,
+            cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        };
+
+        const staticBefore: ColDef[] = [
+            selectionCol,
+            enabledCol,
             {
                 colId: 'group_name',
                 headerComponent: ColumnHeaderMenuComponent,
@@ -1589,6 +1846,26 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         this.gridApi = params.api;
         this.setupBodyClickListener();
         this.setupOutsideClickListener();
+        this.gridApi.addEventListener('selectionChanged', () => {
+            const nodes = this.gridApi.getSelectedNodes();
+            this.selectedRowCount.set(nodes.length);
+            this.selectedRowsAllUngrouped.set(
+                nodes.every((n: IRowNode) => !(n.data as ConditionGroup | undefined)?.section)
+            );
+        });
+        const overlayEvents = [
+            'modelUpdated',
+            'firstDataRendered',
+            'bodyScroll',
+            'viewportChanged',
+            'rowDataUpdated',
+            'filterChanged',
+            'sortChanged',
+            'paginationChanged',
+        ] as const;
+        for (const ev of overlayEvents) {
+            this.gridApi.addEventListener(ev, () => this.recomputeGroupOverlays());
+        }
         // Apply saved column widths after grid is ready
         if (this.savedColumnWidths.size > 0) {
             const colState = this.gridApi.getColumnState().map((s) => {
@@ -1599,7 +1876,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         }
         // Apply saved frozen/hidden state
         this.reapplyColumnState();
-        setTimeout(() => this.updateAddButtonPositions(), 100);
+        this.autoCollapseGroupsOnFirstLoad();
+        setTimeout(() => {
+            this.updateAddButtonPositions();
+            this.recomputeGroupOverlays();
+        }, 100);
         this.positionResizeObserver = new ResizeObserver(() => this.updateAddButtonPositions());
         this.positionResizeObserver.observe(this.elRef.nativeElement);
     }
@@ -1693,6 +1974,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         document.removeEventListener('click', this.bodyClickHandler);
         this.outsideClickUnlisten?.();
         this.positionResizeObserver?.disconnect();
+        this.groupMenuOverlayRef?.dispose();
     }
 
     /**
@@ -1848,6 +2130,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             }
         }
 
+        if (event.colDef.field === 'dock_visible' || event.colDef.colId === 'dock_visible') {
+            this.recomputeVisibleRowKeys();
+            this.gridApi?.onFilterChanged();
+        }
+
         this.unmergedGroup.set(null);
         const updatedRows = this.getUpdatedRows();
         this.emitChanges(updatedRows);
@@ -1905,6 +2192,150 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const updatedRows = currentRows.filter((_, index) => index !== rowIndex);
         this.rowData.set(updatedRows);
         this.emitChanges(updatedRows);
+    }
+
+    public groupSelectedRows(): void {
+        const nodes = this.gridApi?.getSelectedNodes() ?? [];
+        if (nodes.length === 0) return;
+        if (!nodes.every((n: IRowNode) => !(n.data as ConditionGroup | undefined)?.section)) return;
+        const sectionId = crypto.randomUUID();
+        const namesToGroup = new Set(nodes.map((n: IRowNode) => (n.data as ConditionGroup).group_name));
+        const updated = this.rowData().map((row) =>
+            namesToGroup.has(row.group_name) ? { ...row, section: sectionId } : row
+        );
+        this.rowData.set(updated);
+        const collapsed = new Set(this.collapsedGroups());
+        collapsed.add(sectionId);
+        this.collapsedGroups.set(collapsed);
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        this.gridApi?.deselectAll();
+        this.emitChanges(updated);
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public deleteSelectedRows(): void {
+        const nodes = this.gridApi?.getSelectedNodes() ?? [];
+        if (nodes.length === 0) return;
+        const namesToDelete = new Set(nodes.map((n: IRowNode) => (n.data as ConditionGroup).group_name));
+        const filtered = this.rowData().filter((g) => !namesToDelete.has(g.group_name));
+        this.gridApi?.deselectAll();
+        this.rowData.set(filtered);
+        this.emitChanges(filtered);
+        this.recomputeGroupOverlays();
+    }
+
+    private openGroupMenu(sectionId: string, anchor: HTMLElement): void {
+        if (this.groupMenuOverlayRef?.hasAttached()) {
+            this.groupMenuOverlayRef.detach();
+            this.groupMenuOverlayRef.dispose();
+            this.groupMenuOverlayRef = null;
+            if (this.groupMenuSectionId() === sectionId) {
+                this.groupMenuSectionId.set(null);
+                return;
+            }
+        }
+        this.groupMenuSectionId.set(sectionId);
+
+        const positionStrategy = this.overlay
+            .position()
+            .flexibleConnectedTo(anchor)
+            .withPositions([
+                { originX: 'end', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 4 },
+                { originX: 'end', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -4 },
+            ])
+            .withPush(false);
+
+        this.groupMenuOverlayRef = this.overlay.create({
+            positionStrategy,
+            hasBackdrop: true,
+            backdropClass: 'cdk-overlay-transparent-backdrop',
+            scrollStrategy: this.overlay.scrollStrategies.close(),
+        });
+
+        this.groupMenuOverlayRef.backdropClick().subscribe(() => {
+            this.groupMenuOverlayRef?.detach();
+            this.groupMenuOverlayRef?.dispose();
+            this.groupMenuOverlayRef = null;
+            this.groupMenuSectionId.set(null);
+        });
+
+        const portal = new TemplatePortal(this.groupMenuTemplate, this.vcr);
+        this.groupMenuOverlayRef.attach(portal);
+    }
+
+    public handleGroupMenuUngroup(): void {
+        const sectionId = this.groupMenuSectionId();
+        this.groupMenuOverlayRef?.detach();
+        this.groupMenuOverlayRef?.dispose();
+        this.groupMenuOverlayRef = null;
+        this.groupMenuSectionId.set(null);
+        if (!sectionId) return;
+        const updated = this.rowData().map((row) => (row.section === sectionId ? { ...row, section: null } : row));
+        const newCollapsed = new Set(this.collapsedGroups());
+        newCollapsed.delete(sectionId);
+        this.collapsedGroups.set(newCollapsed);
+        this.rowData.set(updated);
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        this.emitChanges(updated);
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public handleGroupMenuCollapse(): void {
+        const sectionId = this.groupMenuSectionId();
+        this.groupMenuOverlayRef?.detach();
+        this.groupMenuOverlayRef?.dispose();
+        this.groupMenuOverlayRef = null;
+        this.groupMenuSectionId.set(null);
+        if (!sectionId) return;
+        const newCollapsed = new Set(this.collapsedGroups());
+        newCollapsed.add(sectionId);
+        this.collapsedGroups.set(newCollapsed);
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public handleGroupMenuExpand(): void {
+        const sectionId = this.groupMenuSectionId();
+        this.groupMenuOverlayRef?.detach();
+        this.groupMenuOverlayRef?.dispose();
+        this.groupMenuOverlayRef = null;
+        this.groupMenuSectionId.set(null);
+        if (!sectionId) return;
+        const next = new Set(this.collapsedGroups());
+        next.delete(sectionId);
+        this.collapsedGroups.set(next);
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public handleGroupMenuExpandAll(): void {
+        this.groupMenuOverlayRef?.detach();
+        this.groupMenuOverlayRef?.dispose();
+        this.groupMenuOverlayRef = null;
+        this.groupMenuSectionId.set(null);
+        this.collapsedGroups.set(new Set());
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        queueMicrotask(() => this.recomputeGroupOverlays());
+    }
+
+    public handleGroupMenuCollapseAll(): void {
+        this.groupMenuOverlayRef?.detach();
+        this.groupMenuOverlayRef?.dispose();
+        this.groupMenuOverlayRef = null;
+        this.groupMenuSectionId.set(null);
+        const allSections = new Set<string>();
+        for (const row of this.rowData()) {
+            if (row.section) allSections.add(row.section);
+        }
+        this.collapsedGroups.set(allSections);
+        this.recomputeVisibleRowKeys();
+        this.gridApi?.onFilterChanged();
+        queueMicrotask(() => this.recomputeGroupOverlays());
     }
 
     private getUpdatedRows(): ConditionGroup[] {

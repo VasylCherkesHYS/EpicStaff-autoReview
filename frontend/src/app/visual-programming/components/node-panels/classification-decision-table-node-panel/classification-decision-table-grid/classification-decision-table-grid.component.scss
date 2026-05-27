@@ -50,6 +50,75 @@
     }
 }
 
+.grid-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.grid-header-secondary-btn {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid #2b2d30;
+    color: #d9d9de;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.grid-header-secondary-btn:hover:not(:disabled) {
+    border-color: var(--purple-primary);
+}
+
+.grid-header-secondary-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.grid-header-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid #2b2d30;
+    background: transparent;
+    color: var(--purple-primary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+
+.grid-header-icon-btn:hover {
+    background: rgba(255, 80, 80, 0.08);
+}
+
+.group-menu-dropdown {
+    background: #27272b;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    min-width: 180px;
+    padding: 4px 0;
+}
+
+.group-menu-item {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: background 0.1s ease;
+
+    &:hover {
+        background: rgba(104, 95, 255, 0.2);
+        color: #fff;
+    }
+}
+
 .grid-header-right {
     display: flex;
     align-items: center;
@@ -206,12 +275,81 @@
     position: relative;
     width: 100%;
     overflow: visible;
+    padding-left: 28px;
 
     // When at least one params group is absent, reserve space above the ag-grid
     // for the floating "+" button row.
     &.has-above-btns {
         padding-top: 36px;
     }
+}
+
+.group-overlays {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 28px;
+    z-index: 1;
+}
+
+.group-overlay {
+    position: absolute;
+    left: 0;
+    width: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    pointer-events: auto;
+}
+
+.group-overlay-chevron {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin-left: 2px;
+    border: 1px solid #d9d9de;
+    border-radius: 4px;
+    background: #212325;
+    color: #d9d9de;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.group-overlay-chevron app-svg-icon {
+    transform: rotate(90deg);
+    transition: transform 0.15s ease;
+}
+
+.group-overlay-chevron.collapsed app-svg-icon {
+    transform: rotate(0deg);
+}
+
+.group-overlay-chevron ::ng-deep svg {
+    fill: currentColor;
+}
+
+.group-overlay-bracket {
+    margin-left: 13px;
+    margin-top: 0;
+    width: 10px;
+    flex: 1;
+    border-left: 1px solid #d9d9de;
+    border-bottom: 1px solid #d9d9de;
+    border-bottom-left-radius: 8px;
+    box-sizing: border-box;
+}
+
+.group-overlay-chevron.active {
+    border-color: var(--purple-primary);
+    color: var(--purple-primary);
+}
+
+.group-overlay-bracket.active {
+    border-left-color: var(--purple-primary);
+    border-bottom-color: var(--purple-primary);
 }
 
 .hidden-col-badge {
@@ -489,41 +627,6 @@
         .ag-pinned-left-header {
             border-right: 4px solid #3f4144 !important;
         }
-
-        // Fix for "No Rows To Show" message being cut off - only when empty
-        &.empty-state {
-            .ag-center-cols-container,
-            .ag-center-cols-viewport {
-                min-height: 150px !important;
-            }
-
-            .ag-overlay {
-                overflow: visible !important;
-            }
-
-            .ag-overlay-no-rows-wrapper {
-                padding: 3rem 1rem !important;
-                min-height: 150px !important;
-                height: auto !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                overflow: visible !important;
-                position: relative !important;
-                box-sizing: border-box !important;
-
-                .ag-overlay-no-rows-center {
-                    overflow: visible !important;
-                    text-overflow: unset !important;
-                    white-space: normal !important;
-                    word-wrap: break-word !important;
-                    line-height: 1.6 !important;
-                    padding: 1rem 0 !important;
-                    margin: 0 !important;
-                    height: auto !important;
-                }
-            }
-        }
     }
 
     // Bug fix: when a popup cell editor is open (e.g. ExpressionBuilder), AG Grid adds
@@ -551,4 +654,14 @@
             }
         }
     }
+}
+
+:host ::ng-deep .ag-header-cell[col-id='selection'] {
+    border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+:host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-row-drag,
+:host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-drag-handle,
+:host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-selection-checkbox {
+    display: none !important;
 }

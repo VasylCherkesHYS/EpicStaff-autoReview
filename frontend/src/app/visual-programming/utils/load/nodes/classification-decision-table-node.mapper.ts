@@ -66,6 +66,7 @@ export function mapClassificationDecisionTableNodeToModel(
                     dock_visible: g.dock_visible,
                     field_expressions: g.field_expressions ?? {},
                     field_manipulations: g.field_manipulations ?? {},
+                    section: g.section ?? null,
                     next_node: null, // resolved in ref-resolvers/classification-decision-table-refs.ts
                 })),
             },

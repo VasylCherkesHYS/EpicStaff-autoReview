@@ -31,6 +31,7 @@ export interface ClassificationConditionGroupBackend {
     field_expressions: Record<string, string>;
     field_manipulations: Record<string, string>;
     next_node_id?: number | null;
+    section?: string | null;
 }
 
 export interface CreateClassificationConditionGroupRequest {
@@ -45,6 +46,7 @@ export interface CreateClassificationConditionGroupRequest {
     dock_visible: boolean;
     field_expressions: Record<string, string>;
     field_manipulations: Record<string, string>;
+    section?: string | null;
 }
 
 export interface CDTPythonCodeBlock {

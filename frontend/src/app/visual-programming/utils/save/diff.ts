@@ -247,6 +247,7 @@ interface CdtConditionGroupUi {
     dock_visible?: boolean;
     field_expressions?: Record<string, unknown>;
     field_manipulations?: Record<string, unknown>;
+    section?: string | null;
 }
 
 function toCdtComparable(node: ClassificationDecisionTableNodeModel, allNodes: NodeModel[]): unknown {
@@ -273,6 +274,7 @@ function toCdtComparable(node: ClassificationDecisionTableNodeModel, allNodes: N
                 manipulation: g.manipulation || null,
                 continue_flag: !!(g.continue_flag ?? g.continue),
                 route_code: g.route_code || null,
+                section: g.section ?? null,
                 next_node_id: resolveRef(g.next_node ?? null),
                 dock_visible: g.dock_visible !== false,
                 field_expressions: g.field_expressions || {},

@@ -20,6 +20,7 @@ export interface ConditionGroup {
     dock_visible?: boolean;
     field_expressions?: Record<string, string>;
     field_manipulations?: Record<string, string>;
+    section?: string | null;
 }
 
 export interface Condition {
