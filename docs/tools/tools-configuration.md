@@ -6,27 +6,102 @@ Python code tools use a unified **`variables`** field to define every input a to
 
 ## Variable object schema
 
-Each entry in the `variables` list is a JSON object:
+Each entry in the top-level `variables` list is a JSON object:
 
 ```jsonc
 {
   "name": "query",              // identifier — must match the kwarg name in main(**kwargs)
-  "type": "string",             // JSON Schema type (see allowed values below)
+  "type": "string",             // see allowed values below
   "description": "...",         // shown to LLM; write clear descriptions for better tool calls
   "input_type": "agent_input",  // routing rule: "agent_input" | "user_input" | "mixed"
   "required": true,             // only enforced for agent_input in the LLM schema
   "default_value": null,        // fallback injected server-side for user_input and mixed
 
-  // only when type = "object":
-  "properties": { "key": { "type": "string" } },
-  "required_properties": ["key"],
+  // when type = "object" — both `properties` and `required_properties` are required:
+  "properties": {               // map of field name → nested descriptor (see "Nested descriptors" below)
+    "key": { "type": "string", "description": "..." }
+  },
+  "required_properties": [      // list of field names from `properties` that must be present;
+    "key"                       // pass [] if no field is required
+  ],
 
-  // only when type = "array":
-  "items": { "type": "string" }
+  // when type = "array" — `item` is required:
+  "item": {                     // nested descriptor for each element; the array is homogeneous
+    "type": "string",
+    "description": "..."
+  }
 }
 ```
 
-**Allowed `type` values:** `string`, `integer`, `number`, `boolean`, `any`, `object` (alias `obj`), `array` (alias `list`)
+**Allowed `type` values:** `string`, `number`, `boolean`, `object`, `array`
+
+### Nested descriptors
+
+Values inside `properties` and `item` are **nested descriptors** — same shape as a top-level variable but **without** `name`, `input_type`, and `required` (these only make sense at the top level, where the variable participates in tool routing). A nested descriptor has:
+
+| Field | Required | Notes |
+|---|---|---|
+| `type` | yes | One of the 5 allowed values |
+| `description` | no | Shown to LLM; defaults to empty |
+| `default_value` | no | Same semantics as top-level |
+| `properties` + `required_properties` | only if `type === "object"` | Both required when type is `object` |
+| `item` | only if `type === "array"` | Required when type is `array` |
+
+Nesting can go arbitrarily deep: object inside object, array of objects, array of arrays.
+
+### Full example
+
+A tool variable describing a user profile with three primitive fields, a nested object (`address`), and a nested array of strings (`tags`):
+
+```jsonc
+{
+  "name": "user",
+  "type": "object",
+  "description": "User profile to look up",
+  "input_type": "agent_input",
+  "required": true,
+
+  "default_value": {                       // plain JSON object — no descriptor metadata inside
+    "username": "rick",
+    "age": 70,
+    "address": { "city": "Berlin", "zip": "10115" },
+    "tags": ["admin", "active"]
+  },
+
+  "properties": {
+    "username": {
+      "type": "string",
+      "description": "Login identifier"
+    },
+    "age": {
+      "type": "number",
+      "description": "Age in years"
+    },
+    "address": {                           // nested object — recursive structure
+      "type": "object",
+      "description": "Mailing address",
+      "properties": {
+        "city": { "type": "string", "description": "City name" },
+        "zip":  { "type": "string", "description": "Postal code" }
+      },
+      "required_properties": ["city"]      // empty array is also valid: []
+    },
+    "tags": {                              // array of strings
+      "type": "array",
+      "description": "User tags",
+      "item": {
+        "type": "string",
+        "description": "Single tag"
+      }
+    }
+  },
+  "required_properties": ["username", "address"]
+}
+```
+
+Note the separation:
+- **`properties` / `item`** describe the **structure** (recursive — values are again descriptors)
+- **`default_value`** holds the **literal data** (a plain JSON dict/list/value — no `"type"` keys inside)
 
 ---
 
@@ -69,6 +144,31 @@ Tool definition (variables list)
 
 **Override priority (highest wins):**
 agent-provided kwargs > PythonCodeToolConfig values > variable `default_value`
+
+---
+
+## Python types in `main()`
+
+When a variable's `type` is `object` or `array`, the value passed to `main(**kwargs)` is wrapped:
+
+| Variable `type` | Python type received by `main()` |
+|----|----|
+| `string` | `str` |
+| `number` | `int` or `float` |
+| `boolean` | `bool` |
+| `object` | `DotDict` (attribute access supported) |
+| `array` | `DotList` |
+
+`DotDict` and `DotList` come from `shared.dotdict` and allow attribute-style access into nested data:
+
+```python
+# Variable: { "name": "user", "type": "object", ... }
+def main(**kwargs):
+    return kwargs["user"].name        # attribute access works
+    # equivalent to kwargs["user"]["name"]
+```
+
+For nested `object`-in-`array` or `array`-in-`object` structures, the wrapping is applied recursively.
 
 ---
 
@@ -209,7 +309,7 @@ Validation rules for `configuration`:
 - Only `user_input` and `mixed` variables may appear in `configuration`
 - Sending an `agent_input` variable key → HTTP 400
 - Missing a required `user_input` variable → HTTP 400
-- Type mismatch (e.g., string for an integer field) → HTTP 400
+- Type mismatch (e.g., string for a number field) → HTTP 400
 
 ---
 
@@ -230,7 +330,7 @@ The LLM sees the variable as optional (never required) and may pass a value. If 
     },
     {
       "name": "count",
-      "type": "integer",
+      "type": "number",
       "description": "How many times to repeat (default: 3)",
       "input_type": "mixed",
       "required": false,
@@ -242,7 +342,7 @@ The LLM sees the variable as optional (never required) and may pass a value. If 
 
 LLM schema for `count`:
 ```json
-"count": { "type": "integer", "description": "How many times to repeat (default: 3)", "default": 3 }
+"count": { "type": "number", "description": "How many times to repeat (default: 3)", "default": 3 }
 ```
 
 The variable is not in `required`. If the agent omits it, the sandbox receives `count=3` from `global_kwargs`. If the agent passes `count=7`, the agent value wins.

@@ -30,13 +30,11 @@ The `variables` field is a list sent as part of `POST /api/python-code-tool/` or
 | `default_value` | Type-sensitive input | Hide when `input_type === "agent_input"` |
 | `properties` | Nested key→type editor | Show only when `type === "object"` |
 | `required_properties` | Multi-select / tag input | Show only when `type === "object"` |
-| `items` | Sub-schema editor | Show only when `type === "array"` |
+| `item` | Sub-schema editor | Show only when `type === "array"` |
 
 ### Allowed `type` values (for dropdown)
 
-`string`, `integer`, `number`, `boolean`, `any`, `object`, `array`
-
-Aliases `obj` and `list` are accepted by the server but the UI should save canonical names.
+`string`, `number`, `boolean`, `object`, `array`
 
 ### Conditional rules summary
 
@@ -58,7 +56,7 @@ type === "object"
   → show required_properties picker
 
 type === "array"
-  → show items editor
+  → show item editor
 ```
 
 ### Minimal variable object sent to server
@@ -108,7 +106,7 @@ Content-Type: application/json
     },
     {
       "name": "max_results",
-      "type": "integer",
+      "type": "number",
       "description": "Max results (agent can override, default 10)",
       "input_type": "mixed",
       "required": false,
@@ -134,10 +132,8 @@ This form lets users provide runtime values for `user_input` and `mixed` variabl
 | `type` | Control |
 |--------|---------|
 | `string` | Text input |
-| `integer` | Number input (integers only) |
-| `number` | Number input (float) |
+| `number` | Number input |
 | `boolean` | Toggle / checkbox |
-| `any` | Text input (raw JSON or plain string) |
 | `object` | JSON textarea |
 | `array` | JSON textarea |
 
@@ -174,9 +170,11 @@ PATCH /api/python-code-tool-configs/{id}/
 
 | Scenario | Error message |
 |----------|--------------|
-| `agent_input` key in `configuration` | `"Field '<name>' cannot be configured by user (input_type: agent_input)"` |
-| Required `user_input` variable missing | `"Required field '<name>' is missing from configuration"` |
-| Type mismatch | `"Field '<name>' expected <type>, got <actual>"` |
+| `agent_input` key in `configuration` | `"Field '<name>' is set by the agent and cannot be configured by the user"` |
+| Required `user_input` variable missing | `"Field '<name>' is required"` |
+| Type mismatch (primitive) | `"Error casting value '<value>' into '<type>'"` |
+| Type mismatch (object) | `"Expected an object, got '<actual_type>'"` |
+| Type mismatch (array) | `"Expected an array, got '<actual_type>'"` |
 
 ---
 
@@ -218,7 +216,7 @@ When displaying a tool's variables (e.g., on a detail page or tooltip), suggest 
 ```
 [AGENT]   query       string    required    "Search query from the user"
 [USER]    api_key     string    required    "API key"
-[MIXED]   max_results integer   optional    default: 10   "Max results"
+[MIXED]   max_results number    optional    default: 10   "Max results"
 ```
 
 Badge colours (suggestion):
