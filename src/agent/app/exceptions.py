@@ -23,3 +23,7 @@ class UnknownSurfaceItemTypeError(AgentServiceError):
 
 class DataLoadError(AgentServiceError):
     """Raised when DataLoader cannot fetch or parse the AgentRequest from Redis K/V."""
+
+
+class DuplicateToolNameError(AgentServiceError):
+    """Raised when ToolRegistryBuilder detects a prefixed tool name collision."""

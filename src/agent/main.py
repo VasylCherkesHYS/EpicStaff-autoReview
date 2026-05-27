@@ -9,6 +9,7 @@ from loguru import logger
 from app.data_loader import DataLoader
 from app.factory import RunnerFactory
 from app.request_handler import RequestHandler
+from app.sandbox.client import SandboxClient
 from settings import load_settings
 from shared.redis_streams import RedisStreamClient, StreamEnvelope
 
@@ -33,6 +34,15 @@ async def main() -> None:
         start_id="0",
         mkstream=True,
     )
+
+    sandbox_client = SandboxClient(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+        request_channel=settings.sandbox_request_channel,
+        result_channel=settings.sandbox_result_channel,
+    )
+    await sandbox_client.start()
 
     loader = DataLoader(
         host=settings.redis_host,
@@ -102,6 +112,7 @@ async def main() -> None:
 
     await loader.close()
     await client.close()
+    await sandbox_client.stop()
     logger.info("agent shut down cleanly")
 
 

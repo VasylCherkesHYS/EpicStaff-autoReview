@@ -12,6 +12,8 @@ class Settings:
     agent_consumer_group: str
     log_level: str
     llm_default_max_retries: int
+    sandbox_request_channel: str
+    sandbox_result_channel: str
 
 
 def load_settings() -> Settings:
@@ -24,4 +26,8 @@ def load_settings() -> Settings:
         agent_consumer_group=os.environ.get("AGENT_CONSUMER_GROUP", "agent-executors"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
         llm_default_max_retries=int(os.environ.get("LLM_DEFAULT_MAX_RETRIES", "5")),
+        sandbox_request_channel=os.environ.get(
+            "SANDBOX_REQUEST_CHANNEL", "code_exec_tasks"
+        ),
+        sandbox_result_channel=os.environ.get("SANDBOX_RESULT_CHANNEL", "code_results"),
     )
