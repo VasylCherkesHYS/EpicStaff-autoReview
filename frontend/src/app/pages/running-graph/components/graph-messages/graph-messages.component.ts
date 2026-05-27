@@ -197,7 +197,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     private currentOffset = 0;
     public isLoadingMore = false;
     public hasMore = true;
-    private loadedSubgraphIds = new Set<string>();
+    private loadingSubgraphIds = new Set<string>();
+    private subgraphOffsets = new Map<string, number>();
+    private subgraphHasMore = new Map<string, boolean>();
 
     private isFinishing = false;
     private finishTimer: ReturnType<typeof setTimeout> | null = null;
@@ -329,6 +331,17 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.loadMoreMessages();
         }
 
+        if (distanceFromBottom < 200) {
+            this.drillPaths.forEach((path, rootKey) => {
+                const currentKey = path[path.length - 1] ?? rootKey;
+                const message = this.messageByKey.get(currentKey);
+                const execId = (message?.message_data as unknown as Record<string, unknown>)?.['subgraph_execution_id'] as string | undefined;
+                if (execId && this.subgraphHasMore.get(execId) && !this.loadingSubgraphIds.has(execId)) {
+                    this.loadMoreSubgraphPage(execId);
+                }
+            });
+        }
+
         this.updateScrollButtonsVisibility();
         this.cdr.markForCheck();
     }
@@ -412,7 +425,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.currentOffset = 0;
             this.isLoadingMore = false;
             this.hasMore = true;
-            this.loadedSubgraphIds = new Set<string>();
+            this.loadingSubgraphIds = new Set<string>();
+            this.subgraphOffsets = new Map<string, number>();
+            this.subgraphHasMore = new Map<string, boolean>();
             this.drillPaths.clear();
             this.breadcrumbsByRoot.clear();
             this.filteredBreadcrumbsByRoot.clear();
@@ -738,7 +753,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 'subgraph_execution_id'
             ] as string | undefined;
             if (subgraphExecutionId) {
-                this.loadSubgraphMessages(subgraphExecutionId);
+                this.loadSubgraphMessages(subgraphExecutionId, 0);
             }
         }
 
@@ -960,34 +975,54 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         });
         if (toAdd.length === 0) return;
 
-        const startIdx = this.messages.findIndex(
+        const finishIdx = this.messages.findIndex(
             (m) =>
-                m.message_data.message_type === MessageType.SUBGRAPH_START &&
+                m.message_data.message_type === MessageType.SUBGRAPH_FINISH &&
                 (m.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] === subgraphExecutionId
         );
-        if (startIdx === -1) return;
 
         toAdd.sort((a, b) => a.execution_order - b.execution_order);
-        this.messages = [...this.messages.slice(0, startIdx + 1), ...toAdd, ...this.messages.slice(startIdx + 1)];
+
+        if (finishIdx !== -1) {
+            // Insert just before subgraph_finish — each new page accumulates at the bottom
+            this.messages = [...this.messages.slice(0, finishIdx), ...toAdd, ...this.messages.slice(finishIdx)];
+        } else {
+            // subgraph_finish not yet loaded — fall back to inserting after subgraph_start
+            const startIdx = this.messages.findIndex(
+                (m) =>
+                    m.message_data.message_type === MessageType.SUBGRAPH_START &&
+                    (m.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] === subgraphExecutionId
+            );
+            if (startIdx === -1) return;
+            this.messages = [...this.messages.slice(0, startIdx + 1), ...toAdd, ...this.messages.slice(startIdx + 1)];
+        }
     }
 
-    private loadSubgraphMessages(subgraphExecutionId: string): void {
-        if (this.loadedSubgraphIds.has(subgraphExecutionId) || !this.sessionId) return;
-        this.loadedSubgraphIds.add(subgraphExecutionId);
+    private loadSubgraphMessages(subgraphExecutionId: string, offset: number): void {
+        if (this.loadingSubgraphIds.has(subgraphExecutionId) || !this.sessionId) return;
+        this.loadingSubgraphIds.add(subgraphExecutionId);
 
         this.graphSessionService
-            .getSessionMessages(+this.sessionId, 10000, 0, subgraphExecutionId)
+            .getSessionMessages(+this.sessionId, this.PAGE_SIZE, offset, subgraphExecutionId)
             .pipe(takeUntil(this.destroy$))
             .subscribe({
                 next: (response) => {
                     this.insertSubgraphMessages(subgraphExecutionId, response.results);
+                    this.subgraphOffsets.set(subgraphExecutionId, offset + this.PAGE_SIZE);
+                    this.subgraphHasMore.set(subgraphExecutionId, response.next !== null);
+                    this.loadingSubgraphIds.delete(subgraphExecutionId);
                     this.rebuildMessageState(this.messages);
                     this.cdr.markForCheck();
                 },
                 error: () => {
-                    this.loadedSubgraphIds.delete(subgraphExecutionId);
+                    this.loadingSubgraphIds.delete(subgraphExecutionId);
                 },
             });
+    }
+
+    private loadMoreSubgraphPage(subgraphExecutionId: string): void {
+        const offset = this.subgraphOffsets.get(subgraphExecutionId) ?? 0;
+        this.loadSubgraphMessages(subgraphExecutionId, offset);
     }
 
     public loadMoreMessages(): void {

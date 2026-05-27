@@ -93,6 +93,7 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                         [isLoading]="!isLoaded()"
                         [showEmptyState]="isLoaded() && sessions().length === 0"
                         [externalPreview]="true"
+                        [activePreviewId]="previewSession()?.id ?? null"
                         (deleteSelected)="onDeleteSelected($event)"
                         (viewSession)="onViewSession($event)"
                         (stopSession)="onStopSession($event)"
@@ -235,7 +236,11 @@ export class GlobalSessionsListComponent {
     }
 
     public togglePanel(): void {
+        const closing = this.isPanelOpen();
         this.isPanelOpen.update((v) => !v);
+        if (closing) {
+            this.previewSession.set(null);
+        }
     }
 
     public startResize(event: MouseEvent): void {
