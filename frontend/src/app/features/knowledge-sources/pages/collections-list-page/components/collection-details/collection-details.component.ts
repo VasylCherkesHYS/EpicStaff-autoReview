@@ -1,3 +1,4 @@
+import { Dialog } from '@angular/cdk/dialog';
 import {
     ChangeDetectionStrategy,
     Component,
@@ -23,7 +24,9 @@ import { catchError, debounceTime, distinctUntilChanged, finalize, switchMap } f
 
 import { ToastService } from '../../../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { CreateCollectionDialogComponent } from '../../../../components/create-collection-dialog/create-collection-dialog.component';
 import { FILE_TYPES } from '../../../../constants/constants';
+import { RagType } from '../../../../models/base-rag.model';
 import { CreateCollectionDtoResponse } from '../../../../models/collection.model';
 import { DisplayedListDocument } from '../../../../models/document.model';
 import { CollectionsStorageService } from '../../../../services/collections-storage.service';
@@ -52,18 +55,21 @@ import { CollectionRagsComponent } from './collection-rags/collection-rags.compo
 })
 export class CollectionDetailsComponent implements OnInit, OnChanges {
     private destroyRef = inject(DestroyRef);
-    selectedCollectionId = model<number | null>(null);
-    loadingCollection = signal<boolean>(false);
-    loadingDocuments = signal<boolean>(false);
-    fullCollection = signal<CreateCollectionDtoResponse | null>(null);
-    documents = signal<DisplayedListDocument[]>([]);
-    collectionName: FormControl = new FormControl('', [Validators.required, Validators.maxLength(255)]);
-
+    private dialog = inject(Dialog);
     private confirmationDialogService = inject(ConfirmationDialogService);
     private collectionsStorageService = inject(CollectionsStorageService);
     private documentsStorageService = inject(DocumentsStorageService);
     private fileListService = inject(FileListService);
     private toastService = inject(ToastService);
+
+    selectedCollectionId = model<number | null>(null);
+
+    loadingCollection = signal<boolean>(false);
+    loadingDocuments = signal<boolean>(false);
+    fullCollection = signal<CreateCollectionDtoResponse | null>(null);
+    documents = signal<DisplayedListDocument[]>([]);
+
+    collectionName: FormControl = new FormControl('', [Validators.required, Validators.maxLength(255)]);
 
     private lastInitializedCollectionId: number | null = null;
 
@@ -204,6 +210,36 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
             this.onFilesDropped(input.files);
             input.value = '';
         }
+    }
+
+    createRagInCollection(type?: RagType) {
+        this.openCollectionModal(type);
+    }
+
+    private openCollectionModal(forceType?: RagType): void {
+        const collection = this.fullCollection();
+
+        if (!collection) return;
+
+        const dialog = this.dialog.open(CreateCollectionDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            data: { collection_id: collection.collection_id, isUpdate: true, forceType },
+            disableClose: true,
+        });
+
+        dialog.closed
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                switchMap(() => {
+                    return this.collectionsStorageService.getFullCollection(collection.collection_id, true);
+                }),
+                catchError((error) => {
+                    this.toastService.error('Failed to get collection data');
+                    return throwError(() => error);
+                })
+            )
+            .subscribe();
     }
 
     protected readonly FILE_TYPES = FILE_TYPES;

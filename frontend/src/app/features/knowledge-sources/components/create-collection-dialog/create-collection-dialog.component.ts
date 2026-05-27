@@ -2,13 +2,14 @@ import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ButtonComponent, StepConfig } from '@shared/components';
+import { ButtonComponent, ConfirmationDialogService, StepConfig } from '@shared/components';
 import { StepperComponent } from '@shared/components';
-import { Observable, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { filter, Observable, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { INDEXING_CONFIRMATION_DATA } from '../../constants/indexing-confirmation-data';
 import { RagType } from '../../models/base-rag.model';
 import { CreateCollectionStep } from '../../models/collection.model';
 import { DisplayedListDocument } from '../../models/document.model';
@@ -18,6 +19,12 @@ import { StepSelectRagComponent } from './components/steps/step-select-rag/step-
 import { StepUploadFilesComponent } from './components/steps/step-upload-files/step-upload-files.component';
 import { RagCreationStrategy } from './factory/interfaces/rag-creation-strategy.interface';
 import { RagStrategyFactory } from './factory/rag-creation.factory';
+
+export interface CreateCollectionDialogData {
+    collection_id: number;
+    isUpdate?: boolean;
+    forceType?: RagType;
+}
 
 @Component({
     selector: 'app-create-collection-dialog',
@@ -34,13 +41,14 @@ import { RagStrategyFactory } from './factory/rag-creation.factory';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateCollectionDialogComponent {
-    data: { collection_id: number; forceType: RagType | undefined } = inject(DIALOG_DATA);
+    data: CreateCollectionDialogData = inject(DIALOG_DATA);
 
     private destroyRef = inject(DestroyRef);
     private dialogRef = inject(DialogRef);
     private factory = inject(RagStrategyFactory);
     private collectionsStorageService = inject(CollectionsStorageService);
     private toastService = inject(ToastService);
+    private confirmation = inject(ConfirmationDialogService);
 
     currentStepIndex = signal(0);
     selectedRagType = signal<RagType | null>(null);
@@ -152,11 +160,17 @@ export class CreateCollectionDialogComponent {
             return of(false);
         }
 
-        return strategy.startIndexing(componentData).pipe(
-            catchError(() => {
-                this.toastService.error('Indexing failed');
-                return of(false);
-            })
+        return this.confirmation.confirm(INDEXING_CONFIRMATION_DATA).pipe(
+            takeUntilDestroyed(this.destroyRef),
+            filter((result) => result === true),
+            switchMap(() =>
+                strategy.startIndexing(componentData).pipe(
+                    catchError(() => {
+                        this.toastService.error('Indexing failed');
+                        return of(false);
+                    })
+                )
+            )
         );
     }
 

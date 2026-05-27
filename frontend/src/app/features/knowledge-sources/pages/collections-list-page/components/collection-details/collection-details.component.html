@@ -56,16 +56,19 @@
 
                             <div class="details__section-actions">
                                 <app-svg-icon
-                                    style="cursor: not-allowed"
                                     icon="plus"
                                     class="details__action details__action--medium"
                                     size="1rem"
+                                    (click)="createRagInCollection()"
                                 />
                             </div>
                         </div>
 
                         @if (fullCollection()) {
-                            <app-collection-details-rags [collection]="fullCollection()!" />
+                            <app-collection-details-rags
+                                [collection]="fullCollection()!"
+                                (onCreateRag)="createRagInCollection($event)"
+                            />
                         }
                     </div>
 

@@ -7,7 +7,7 @@
             {{ collection().collection_name }}
         </span>
 
-        @if (collection()?.document_count; as count) {
+        @if (collection().document_count; as count) {
             <span class="files-count"> {{ count }} files </span>
         } @else {
             <span class="files-count empty"> No files </span>

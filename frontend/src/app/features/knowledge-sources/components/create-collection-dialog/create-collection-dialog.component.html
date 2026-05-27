@@ -1,6 +1,8 @@
 <div class="dialog">
     <div class="dialog__header">
-        <span class="dialog__header-title"> Create New Collection </span>
+        <span class="dialog__header-title">
+            {{ data.isUpdate ? 'Update RAG in Collection' : 'Create New Collection' }}
+        </span>
 
         <div class="dialog__stepper">
             <app-stepper
