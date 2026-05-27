@@ -46,5 +46,9 @@ class LabelStrategy(EntityImportExportStrategy):
             if old_parent_id
             else None
         )
-        label, _ = Label.objects.get_or_create(name=data["name"], parent_id=parent_id)
+        label, _ = Label.objects.get_or_create(
+            name=data["name"],
+            parent_id=parent_id,
+            defaults={"metadata": data.get("metadata") or {}},
+        )
         return label
