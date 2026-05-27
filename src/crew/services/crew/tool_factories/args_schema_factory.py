@@ -1,34 +1,20 @@
 import re
 
-from types import MappingProxyType
-from typing import Any, Collection, NamedTuple, Callable, Optional
+from typing import Any, Collection, Optional
 
 from pydantic import BaseModel as PydanticModel, create_model, Field
 from pydantic.fields import FieldInfo
 
-from .annotates import VariableDict
-from .enums import VariableTypeName
-from .type_convertors import convert_to_number
-
+from shared.models import (
+    variable_adapter,
+    VariableTypeInput,
+    VariableType,
+    Variable,
+    ObjectVariable,
+    ArrayVariable,
+)
 
 __all__ = ["ArgsSchemaFactory"]
-
-
-# TODO: Add support for object and array types
-
-
-class TypeSpec[T](NamedTuple):
-    python_type: T
-    converter: Callable[[Any], T]
-
-
-VARIABLE_TYPES_MAP = MappingProxyType(
-    {
-        VariableTypeName.STRING: TypeSpec(str, str),
-        VariableTypeName.NUMBER: TypeSpec(int | float, convert_to_number),
-        VariableTypeName.BOOLEAN: TypeSpec(bool, bool),
-    }
-)
 
 
 class ArgsSchemaFactory:
@@ -40,7 +26,7 @@ class ArgsSchemaFactory:
     def create(
         cls,
         tool_name: str,
-        variables: Collection[VariableDict],
+        variables: Collection[dict],
         resolved_variables: Optional[Collection[str]] = None,
     ) -> type[PydanticModel]:
         resolved_variables = resolved_variables or set()
@@ -61,62 +47,61 @@ class ArgsSchemaFactory:
     @classmethod
     def _build_model_fields(
         cls,
-        variables: Collection[VariableDict],
+        variables: Collection[dict],
         resolved_variables: Collection[str],
     ) -> dict[str, tuple[type, FieldInfo]]:
         """Build the field mapping for `pydantic.create_model` from the variable list."""
         fields = {}
         for var in variables:
-            if var["input_type"] not in ("agent_input", "mixed"):
+            var = variable_adapter.validate_python(var)
+            if var.input_type not in (VariableTypeInput.AGENT, VariableTypeInput.MIXED):
                 continue
 
-            if var["name"] in resolved_variables:
+            if var.name in resolved_variables:
                 continue
 
-            type_spec = cls._get_type_spec(var["type"])
-            default = cls._get_default(
-                var["default_value"],
-                var["required"],
-                type_spec.converter,
-            )
-            description = cls._compose_description(
-                var["description"],
-                var["default_value"],
-            )
-
-            fields[var["name"]] = (
-                type_spec.python_type,
+            default = cls._get_default(var.default_value, var.required)
+            description = cls._compose_description(var.description, var)
+            fields[var.name] = (
+                var.python_type,
                 Field(default=default, description=description),
             )
         return fields
 
     @staticmethod
-    def _get_type_spec(type_name: str) -> TypeSpec:
-        return VARIABLE_TYPES_MAP[VariableTypeName(str(type_name))]
-
-    @staticmethod
-    def _get_default(
-        default_value: Any, required: bool, type_convertor: Callable
-    ) -> Any:
+    def _get_default(default_value: Any, required: bool) -> Any:
         if default_value is None:
             if required:
                 return ...
             else:
                 return None
 
-        return type_convertor(default_value)
+        return default_value
 
     @staticmethod
-    def _compose_description(description: str, default_value: Any):
+    def _compose_description(description: str, variable: Variable):
         """Compose the agent-facing description for a single args_schema field."""
-        if default_value is not None:
+        composed_description = description
+        if variable.type == VariableType.OBJECT:
+            assert isinstance(variable, ObjectVariable)
+            composed_description += (
+                f" Expected JSON object with fields: {variable.properties}."
+                f" Required fields: {variable.required_properties}."
+            )
+
+        elif variable.type == VariableType.ARRAY:
+            assert isinstance(variable, ArrayVariable)
+            composed_description += f" Expected JSON array of {variable.item}."
+
+        if variable.default_value is not None:
             if description:
-                return (
-                    f"{description} "
-                    "If the instructions above cannot be applied, "
-                    f"use {default_value} as the default value."
+                composed_description += (
+                    " If you cannot determine an appropriate value,"
+                    f" from the given context, use `{variable.default_value}` as the default."
                 )
             else:
-                return f"Use the default value {default_value}"
+                composed_description = (
+                    f"Use `{variable.default_value}` as the default value."
+                )
 
-        return description
+        return composed_description

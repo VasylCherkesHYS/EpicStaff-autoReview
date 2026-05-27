@@ -3,7 +3,6 @@ from typing import Callable, Collection
 
 from crewai.tools.base_tool import Tool
 
-from .annotates import VariableDict
 from .args_schema_factory import ArgsSchemaFactory
 
 
@@ -20,7 +19,7 @@ class CrewToolDynamicFactory:
         cls,
         name: str,
         description: str,
-        variables: Collection[VariableDict],
+        variables: Collection[dict],
         resolved_variables: Collection[str],
         func: Callable,
     ) -> Tool:
