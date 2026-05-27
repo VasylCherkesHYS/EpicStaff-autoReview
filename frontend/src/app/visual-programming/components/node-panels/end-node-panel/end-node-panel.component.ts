@@ -128,6 +128,7 @@ export class EndNodePanelComponent extends BaseSidePanel<EndNodeModel> {
 
     public onOutputMapChange(json: string): void {
         this.outputMapJson = json;
+        this.notifyExternalChange();
     }
 
     public onOutputMapValidChange(isValid: boolean): void {
