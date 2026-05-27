@@ -23,6 +23,8 @@ __all__ = [
     "NestedVariable",
 ]
 
+from shared.dotdict import DotDict, DotList
+
 
 class VariableTypeInput(StrEnum):
     AGENT = "agent_input"
@@ -80,23 +82,23 @@ class BooleanNestedVariable(BaseNestedVariable):
 
 class ObjectNestedVariable(BaseNestedVariable):
     type: Literal[VariableType.OBJECT] = VariableType.OBJECT
-    default_value: dict | None = None
+    default_value: DotDict | None = None
     properties: dict[str, "NestedVariable"]
     required_properties: list[str]
 
     @property
     def python_type(self):
-        return dict
+        return DotDict
 
 
 class ArrayNestedVariable(BaseNestedVariable):
     type: Literal[VariableType.ARRAY] = VariableType.ARRAY
-    default_value: list | None = None
+    default_value: DotList | None = None
     item: "NestedVariable"
 
     @property
     def python_type(self):
-        return list
+        return DotList
 
 
 NestedVariable = Annotated[
