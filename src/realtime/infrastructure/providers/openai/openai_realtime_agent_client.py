@@ -68,7 +68,6 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         self._current_response_id = None
         self._current_item_id = None
         self._is_responding = False
-        self._print_input_transcript = False
         self._output_transcript_buffer = ""
 
     async def connect(self) -> None:

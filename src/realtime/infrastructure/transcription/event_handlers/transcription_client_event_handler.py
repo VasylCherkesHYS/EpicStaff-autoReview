@@ -27,7 +27,8 @@ class TranscriptionClientEventHandler:
         """Handle incoming event by calling the appropriate method."""
         event_type = data.get("type")
 
-        logger.debug(f"Processing event type: {event_type}")
+        if event_type != "input_audio_buffer.append":
+            logger.debug(f"Processing event type: {event_type}")
 
         handler = self.event_map.get(event_type, self.unknown_event_handler)
         await handler(data)

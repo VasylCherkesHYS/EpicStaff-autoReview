@@ -34,7 +34,7 @@ class RedisService(IRedisMessagingService, metaclass=SingletonMeta):
     async def async_publish(self, channel: str, message: object):
         """Publish a message to a Redis channel."""
         await self.aioredis_client.publish(channel, json.dumps(message))
-        logger.info(f"Message published to channel '{channel}': {message}")
+        logger.debug(f"Message published to channel '{channel}': {message}")
 
     async def listen_to_channel(self, channel: str, callback):
         """Listen for messages on a Redis channel."""
@@ -44,5 +44,5 @@ class RedisService(IRedisMessagingService, metaclass=SingletonMeta):
         async for message in pubsub.listen():
             if message["type"] == "message":
                 data = message["data"]
-                logger.info(f"Received message from Redis: {data}")
+                logger.debug(f"Received message from Redis: {data}")
                 await callback(data)

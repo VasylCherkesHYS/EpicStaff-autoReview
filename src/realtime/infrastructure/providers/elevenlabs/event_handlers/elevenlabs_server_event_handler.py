@@ -101,7 +101,8 @@ class ElevenLabsServerEventHandler:
 
     async def handle_event(self, data: Dict[str, Any]) -> None:
         event_type = data.get("type", "")
-        logger.debug(f"EL Event Routing: {event_type}")
+        if event_type not in ("audio", "ping"):
+            logger.debug(f"EL Event Routing: {event_type}")
 
         handler = {
             "conversation_initiation_metadata": self._handle_initiation_metadata,

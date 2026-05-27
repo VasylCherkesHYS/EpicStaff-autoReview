@@ -105,7 +105,9 @@ async def get_channel_config(channel_token: str) -> dict:
                 headers={"Host": "localhost", "X-API-Key": settings.DJANGO_API_KEY},
                 timeout=5.0,
             )
-            logger.info(f"[channel_config] Django response: status={r.status_code} body={r.text[:300]}")
+            logger.debug(
+                f"[channel_config] Django response: status={r.status_code} body={r.text[:300]}"
+            )
             if r.is_success:
                 results = r.json()
                 # Router returns a list; token is unique so take first
@@ -116,10 +118,14 @@ async def get_channel_config(channel_token: str) -> dict:
                 else:
                     data = {}
                 _channel_cache[channel_token] = (data, now)
-                logger.info(f"[channel_config] loaded: agent_id={data.get('realtime_agent')} twilio={data.get('twilio')}")
+                logger.info(
+                    f"[channel_config] loaded: agent_id={data.get('realtime_agent')} twilio={data.get('twilio')}"
+                )
                 return data
             else:
-                logger.warning(f"[channel_config] request failed: {r.status_code} {r.text}")
+                logger.warning(
+                    f"[channel_config] request failed: {r.status_code} {r.text}"
+                )
     except Exception as e:
         logger.exception(f"[channel_config] exception fetching config: {e}")
     return {}
@@ -136,7 +142,11 @@ async def get_voice_settings() -> dict:
         try:
             url = settings.INIT_API_URL.replace("init-realtime", "voice-settings")
             async with httpx.AsyncClient() as client:
-                r = await client.get(url, headers={"Host": "localhost", "X-API-Key": settings.DJANGO_API_KEY}, timeout=5.0)
+                r = await client.get(
+                    url,
+                    headers={"Host": "localhost", "X-API-Key": settings.DJANGO_API_KEY},
+                    timeout=5.0,
+                )
                 if r.is_success:
                     _voice_settings_cache = r.json()
                     _voice_settings_cache_time = now
@@ -182,7 +192,9 @@ async def _run_forever(coro_fn, name: str, restart_delay: float = 2.0):
     while True:
         try:
             await coro_fn()
-            logger.warning(f"{name} exited unexpectedly, restarting in {restart_delay}s")
+            logger.warning(
+                f"{name} exited unexpectedly, restarting in {restart_delay}s"
+            )
         except Exception as e:
             logger.error(f"{name} crashed: {e}, restarting in {restart_delay}s")
         await asyncio.sleep(restart_delay)
@@ -209,7 +221,6 @@ async def redis_listener():
             try:
                 data = json.loads(message["data"])
                 realtime_agent_chat_data = RealtimeAgentChatData(**data)
-                logger.debug(connection_repository)
                 connection_repository.save_connection(
                     realtime_agent_chat_data.connection_key, realtime_agent_chat_data
                 )
@@ -271,6 +282,11 @@ async def root(
         connection_repository.get_connection(connection_key=connection_key)
     )
 
+    if realtime_agent_chat_data is None:
+        logger.warning(f"Connection not found for key: {connection_key}")
+        await websocket.close(code=1011)
+        return
+
     connection_key = realtime_agent_chat_data.connection_key
 
     instructions = generate_instruction(
@@ -312,6 +328,7 @@ async def healthcheck_endpoint(websocket: WebSocket):
 # Channel-token-based Twilio routes  (new, preferred)
 # ---------------------------------------------------------------------------
 
+
 async def _resolve_channel_agent(channel_token: str) -> tuple[int | None, dict]:
     """Fetch channel config and return (agent_id, channel_data)."""
     channel = await get_channel_config(channel_token)
@@ -319,25 +336,35 @@ async def _resolve_channel_agent(channel_token: str) -> tuple[int | None, dict]:
     return agent_id, channel
 
 
-async def _twilio_voice_webhook(request: Request, auth_token: str | None, voice_stream_url: str) -> Response:
+async def _twilio_voice_webhook(
+    request: Request, auth_token: str | None, voice_stream_url: str
+) -> Response:
     """Shared logic for both old and new Twilio voice webhook handlers."""
-    logger.info(f"[voice_webhook] auth_token present={bool(auth_token)} voice_stream_url={voice_stream_url}")
-    logger.info(f"[voice_webhook] headers={dict(request.headers)}")
+    logger.info(
+        f"[voice_webhook] auth_token present={bool(auth_token)} voice_stream_url={voice_stream_url}"
+    )
+    logger.debug(f"[voice_webhook] headers={dict(request.headers)}")
 
     if auth_token:
         validator = RequestValidator(auth_token)
         signature = request.headers.get("X-Twilio-Signature", "")
         proto = request.headers.get("x-forwarded-proto", "https")
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+        host = request.headers.get("x-forwarded-host") or request.headers.get(
+            "host", ""
+        )
         path = request.url.path
         query = f"?{request.url.query}" if request.url.query else ""
         url = f"{proto}://{host}{path}{query}"
         form_data = dict(await request.form())
-        logger.info(f"[voice_webhook] validating signature: url={url} signature={signature} form_data={form_data}")
+        logger.debug(
+            f"[voice_webhook] validating signature: url={url} signature={signature} form_data={form_data}"
+        )
         valid = validator.validate(url, form_data, signature)
         logger.info(f"[voice_webhook] signature valid={valid}")
         if not valid:
-            logger.warning(f"[voice_webhook] invalid signature from {request.client.host}")
+            logger.warning(
+                f"[voice_webhook] invalid signature from {request.client.host}"
+            )
             raise HTTPException(status_code=403, detail="Invalid Twilio signature")
     else:
         logger.warning("[voice_webhook] no auth_token — skipping signature validation")
@@ -399,7 +426,9 @@ async def _voice_stream_handler(
                 await twilio_ws.close()
                 return
             conn_key = resp.json().get("connection_key")
-            logger.info(f"Init realtime response: status={resp.status_code} conn_key={conn_key}")
+            logger.info(
+                f"Init realtime response: status={resp.status_code} conn_key={conn_key}"
+            )
         except Exception as e:
             logger.error(f"Failed to init realtime session: {e}")
             await twilio_ws.close()
@@ -446,28 +475,42 @@ async def twilio_voice_webhook_channel(channel_token: str, request: Request):
     logger.info(f"[voice/{channel_token}] POST received from {request.client.host}")
 
     agent_id, channel = await _resolve_channel_agent(channel_token)
-    logger.info(f"[voice/{channel_token}] resolved agent_id={agent_id} channel_keys={list(channel.keys())}")
+    logger.info(
+        f"[voice/{channel_token}] resolved agent_id={agent_id} channel_keys={list(channel.keys())}"
+    )
 
     if not agent_id:
         logger.error(f"[voice/{channel_token}] no agent assigned — returning 404")
-        raise HTTPException(status_code=404, detail="Channel not found or no agent assigned")
+        raise HTTPException(
+            status_code=404, detail="Channel not found or no agent assigned"
+        )
 
     twilio_cfg = channel.get("twilio") or {}
     auth_token = twilio_cfg.get("auth_token")
     ngrok_cfg = twilio_cfg.get("ngrok_config") or {}
     live_url = ngrok_cfg.get("live_url") or ""
     ngrok_domain = ngrok_cfg.get("domain") or ""
-    logger.info(f"[voice/{channel_token}] twilio_cfg keys={list(twilio_cfg.keys())} ngrok_cfg={ngrok_cfg} live_url={live_url} ngrok_domain={ngrok_domain}")
+    logger.info(
+        f"[voice/{channel_token}] twilio_cfg keys={list(twilio_cfg.keys())} ngrok_cfg={ngrok_cfg} live_url={live_url} ngrok_domain={ngrok_domain}"
+    )
 
     if live_url:
-        base = live_url.rstrip("/").replace("https://", "wss://").replace("http://", "wss://")
+        base = (
+            live_url.rstrip("/")
+            .replace("https://", "wss://")
+            .replace("http://", "wss://")
+        )
         voice_stream_url = f"{base}/voice/{channel_token}/stream"
     elif ngrok_domain:
         voice_stream_url = f"wss://{ngrok_domain}/voice/{channel_token}/stream"
     else:
-        voice_stream_url = settings.VOICE_STREAM_URL.replace(
-            "/voice/stream", f"/voice/{channel_token}/stream"
-        ) if settings.VOICE_STREAM_URL else ""
+        voice_stream_url = (
+            settings.VOICE_STREAM_URL.replace(
+                "/voice/stream", f"/voice/{channel_token}/stream"
+            )
+            if settings.VOICE_STREAM_URL
+            else ""
+        )
 
     logger.info(f"[voice/{channel_token}] voice_stream_url={voice_stream_url}")
     return await _twilio_voice_webhook(request, auth_token, voice_stream_url)
@@ -487,6 +530,7 @@ async def voice_stream_channel(channel_token: str, twilio_ws: WebSocket):
 # ---------------------------------------------------------------------------
 # Legacy Twilio routes  (kept for backward compatibility)
 # ---------------------------------------------------------------------------
+
 
 @app.post("/voice")
 async def twilio_voice_webhook(request: Request):

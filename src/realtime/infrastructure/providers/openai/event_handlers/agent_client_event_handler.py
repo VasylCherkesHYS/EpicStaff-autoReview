@@ -30,7 +30,8 @@ class ClientEventHandler:
         """Handle incoming event by calling the appropriate method."""
         event_type = data.get("type")
 
-        logger.debug(f"Processing event type: {event_type}")
+        if event_type != "input_audio_buffer.append":
+            logger.debug(f"Processing event type: {event_type}")
 
         handler = self.event_map.get(event_type, self.unknown_event_handler)
         await handler(data)
@@ -98,7 +99,6 @@ class ClientEventHandler:
     async def send_audio(self, audio_bytes: bytes) -> None:
         """Send audio data to the API."""
         pcm_data = base64.b64encode(audio_bytes).decode()
-        logger.debug(f"Sending audio data of type: {type(audio_bytes)}")
 
         append_event = {"type": "input_audio_buffer.append", "audio": pcm_data}
         await self.client.send_server(append_event)
