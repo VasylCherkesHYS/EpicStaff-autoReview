@@ -75,6 +75,23 @@ from .tools import (
     CodeResultData,
     CodeTaskData,
 )
+from .variables import (
+    VariableTypeInput,
+    VariableType,
+    StringVariable,
+    NumberVariable,
+    BooleanVariable,
+    ObjectVariable,
+    ArrayVariable,
+    Variable,
+    variable_adapter,
+    StringNestedVariable,
+    NumberNestedVariable,
+    BooleanNestedVariable,
+    ObjectNestedVariable,
+    ArrayNestedVariable,
+    NestedVariable,
+)
 
 __all__ = [
     # agents
@@ -148,4 +165,20 @@ __all__ = [
     "ToolInitConfigurationModel",
     "CodeResultData",
     "CodeTaskData",
+    # variables
+    "VariableTypeInput",
+    "VariableType",
+    "StringVariable",
+    "NumberVariable",
+    "BooleanVariable",
+    "ObjectVariable",
+    "ArrayVariable",
+    "Variable",
+    "variable_adapter",
+    "StringNestedVariable",
+    "NumberNestedVariable",
+    "BooleanNestedVariable",
+    "ObjectNestedVariable",
+    "ArrayNestedVariable",
+    "NestedVariable",
 ]
