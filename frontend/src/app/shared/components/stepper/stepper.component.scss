@@ -13,6 +13,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
+        min-width: 0;
 
         &::before {
             content: '';
@@ -68,6 +69,10 @@
         line-height: 130%;
         color: var(--color-ks-transparent-text-80);
         transition: 0.25s;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     &__step--active {
