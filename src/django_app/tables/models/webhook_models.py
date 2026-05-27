@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -33,6 +34,21 @@ class NgrokWebhookConfig(models.Model):
         return None
 
 
+class LocalhostWebhookConfig(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    domain = models.CharField(
+        max_length=255, blank=True, null=True, help_text="Optional local domain or URL"
+    )
+
+    def get_webhook_url(self):
+        if self.domain:
+            return f"http://{self.domain}"
+        return None
+
+    def __str__(self):
+        return self.name
+
+
 class WebhookTrigger(models.Model):
     path = models.CharField(
         max_length=255,
@@ -49,9 +65,24 @@ class WebhookTrigger(models.Model):
         default=None,
         null=True,
     )
+    localhost_webhook_config = models.ForeignKey(
+        LocalhostWebhookConfig,
+        on_delete=models.SET_DEFAULT,
+        default=None,
+        null=True,
+    )
 
     class Meta:
-        unique_together = [("path", "ngrok_webhook_config")]
+        unique_together = [
+            ("path", "ngrok_webhook_config"),
+            ("path", "localhost_webhook_config"),
+        ]
+
+    def clean(self):
+        if self.ngrok_webhook_config_id and self.localhost_webhook_config_id:
+            raise ValidationError(
+                "A WebhookTrigger can only be linked to one config: either ngrok or localhost, not both."
+            )
 
     def __str__(self):
         return self.path
@@ -60,6 +91,7 @@ class WebhookTrigger(models.Model):
 # ---------------------------------------------------------------------------
 # Generic communication channel models
 # ---------------------------------------------------------------------------
+
 
 class RealtimeChannel(models.Model):
     """
@@ -148,6 +180,7 @@ class TwilioChannel(models.Model):
 # Superseded by RealtimeChannel + TwilioChannel.
 # Kept temporarily for backward compatibility; remove after full migration.
 # ---------------------------------------------------------------------------
+
 
 class VoiceSettings(DefaultBaseModel):
     """

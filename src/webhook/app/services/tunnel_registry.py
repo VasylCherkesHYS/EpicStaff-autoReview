@@ -2,7 +2,7 @@ import asyncio
 from loguru import logger
 from typing import Optional
 
-from app.providers.base import AbstractTunnelProvider
+from app.providers.tunnels.base import AbstractTunnelProvider
 from app.providers.provider_factory import get_provider
 from src.shared.models import BaseTunnelConfigData, WebhookConfigData
 
@@ -60,9 +60,11 @@ class TunnelRegistry:
                 )
 
     async def register_many(self, webhook_config_data: WebhookConfigData):
-        expected_configs = {
-            config.unique_id: config for config in webhook_config_data.ngrok_configs
-        }
+        all_configs = [
+            *webhook_config_data.ngrok_configs,
+            *webhook_config_data.localhost_configs,
+        ]
+        expected_configs = {config.unique_id: config for config in all_configs}
         expected_ids = set(expected_configs.keys())
 
         async with self._lock:

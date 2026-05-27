@@ -8,6 +8,7 @@ class WebhookTriggerNestedSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    # TODO: Process localhost webhook configs too
 
     class Meta:
         model = WebhookTrigger

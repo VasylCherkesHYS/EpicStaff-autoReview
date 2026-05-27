@@ -1,15 +1,15 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from app.main import create_app
-from app.services.redis_service import RedisService
-from app.providers.base import AbstractTunnelProvider
+from app.providers.tunnels.base import AbstractTunnelProvider
 
 
 @pytest.fixture
 def mock_redis_service():
-    redis_mock = AsyncMock(spec=RedisService)
+    redis_mock = AsyncMock()
     redis_mock.publish_webhook.return_value = None
+    redis_mock.client.publish = AsyncMock(return_value=1)
     return redis_mock
 
 
@@ -21,8 +21,15 @@ def mock_tunnel_provider():
 
 
 @pytest.fixture
-def app(mock_webhook_service):
-    return create_app(webhook_service=mock_webhook_service)
+def app(mock_redis_service):
+    with (
+        patch(
+            "app.main.get_redis_service", new=AsyncMock(return_value=mock_redis_service)
+        ),
+        patch("app.main.close_redis_connection", new=AsyncMock()),
+        patch("app.main.listen_redis", new=AsyncMock()),
+    ):
+        yield create_app()
 
 
 @pytest.fixture

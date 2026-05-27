@@ -51,6 +51,7 @@ TAG_MAP = [
     ("api/process-rag-indexing", "Knowledge & RAG"),
     ("api/webhook-trigger", "Webhooks"),
     ("api/ngrok-config", "Webhooks"),
+    ("api/localhost-config", "Webhooks"),
     ("api/register-webhooks", "Webhooks"),
     ("api/telegram-trigger", "Telegram"),
     ("api/register-telegram-trigger", "Telegram"),

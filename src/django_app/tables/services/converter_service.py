@@ -2,6 +2,7 @@ from django.db.models import Prefetch
 
 from src.shared.models import (
     AgentData,
+    LocalhostConfigData,
     AudioTranscriptionNodeData,
     BaseToolData,
     ConditionalEdgeData,
@@ -85,7 +86,7 @@ from tables.models.realtime_models import (
     ElevenLabsRealtimeConfig,
     GeminiRealtimeConfig,
 )
-from tables.models.webhook_models import NgrokWebhookConfig
+from tables.models.webhook_models import LocalhostWebhookConfig, NgrokWebhookConfig
 from tables.serializers.model_serializers import ToolConfigSerializer
 from tables.validators.crew_memory_validator import CrewMemoryValidator
 from tables.validators.task_validator import TaskValidator
@@ -861,4 +862,12 @@ class ConverterService(metaclass=SingletonMeta):
             auth_token=ngrok_webhook_config.auth_token,
             domain=ngrok_webhook_config.domain,
             region=ngrok_webhook_config.region,
+        )
+
+    def convert_localhost_webhook_config_to_pydantic(
+        self, localhost_webhook_config: LocalhostWebhookConfig
+    ) -> LocalhostConfigData:
+        return LocalhostConfigData(
+            name=localhost_webhook_config.name,
+            domain=localhost_webhook_config.domain,
         )

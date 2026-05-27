@@ -13,6 +13,7 @@ from tables.views.model_view_sets import (
     GraphViewSet,
     GraphVersionViewSet,
     McpToolViewSet,
+    LocalhostWebhookConfigViewSet,
     NgrokWebhookConfigViewSet,
     PythonCodeToolConfigFieldViewSet,
     PythonCodeToolConfigViewSet,
@@ -203,6 +204,7 @@ router.register(r"python-code-tool-configs", PythonCodeToolConfigViewSet)
 router.register(r"python-code-tool-config-fields", PythonCodeToolConfigFieldViewSet)
 router.register(r"graph-notes", GraphNoteViewSet)
 router.register(r"ngrok-config", NgrokWebhookConfigViewSet)
+router.register(r"localhost-config", LocalhostWebhookConfigViewSet)
 
 router.register(r"labels", LabelViewSet)
 router.register(r"storage", StorageAPIView, basename="storage")

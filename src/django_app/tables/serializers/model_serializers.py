@@ -17,6 +17,7 @@ from tables.validators.python_code_tool_config_validator import (
 )
 from tables.models.python_models import PythonCodeToolConfig, PythonCodeToolConfigField
 from tables.models.webhook_models import (
+    LocalhostWebhookConfig,
     WebhookTrigger,
     NgrokWebhookConfig,
     VoiceSettings,
@@ -1834,6 +1835,19 @@ class WebhookTriggerSerializer(serializers.ModelSerializer):
         model = WebhookTrigger
         fields = "__all__"
 
+    def validate(self, attrs):
+        instance = self.instance or WebhookTrigger()
+        for k, v in attrs.items():
+            setattr(instance, k, v)
+        try:
+            instance.clean()
+            instance.validate_unique()
+        except ValidationError as e:
+            raise serializers.ValidationError(
+                e.message_dict if hasattr(e, "message_dict") else e.messages
+            )
+        return attrs
+
 
 class NgrokWebhookConfigModelSerializer(serializers.ModelSerializer):
     webhook_full_url = serializers.SerializerMethodField()
@@ -1856,6 +1870,27 @@ class NgrokWebhookConfigModelSerializer(serializers.ModelSerializer):
             return WebhookTriggerService().get_tunnel_url(ngrok_webhook_config=instance)
         except Exception as e:
             logger.error(f"Failed to read tunnel URL for '{instance.name}': {e}")
+        return None
+
+
+class LocalhostWebhookConfigModelSerializer(serializers.ModelSerializer):
+    webhook_full_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LocalhostWebhookConfig
+        fields = ["id", "name", "domain", "webhook_full_url"]
+
+    def get_webhook_full_url(self, instance: LocalhostWebhookConfig):
+        from tables.services.webhook_trigger_service import WebhookTriggerService
+
+        try:
+            return WebhookTriggerService().get_localhost_tunnel_url(
+                localhost_webhook_config=instance
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to read localhost tunnel URL for '{instance.name}': {e}"
+            )
         return None
 
 

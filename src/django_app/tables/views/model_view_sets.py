@@ -154,6 +154,7 @@ from tables.models.tag_models import AgentTag, CrewTag, GraphTag
 from tables.models.label_models import Label
 from tables.models.vector_models import MemoryDatabase
 from tables.models.webhook_models import (
+    LocalhostWebhookConfig,
     NgrokWebhookConfig,
     VoiceSettings,
     WebhookTrigger,
@@ -199,6 +200,7 @@ from tables.serializers.model_serializers import (
     LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
+    LocalhostWebhookConfigModelSerializer,
     NgrokWebhookConfigModelSerializer,
     OrganizationSerializer,
     OrganizationUserSerializer,
@@ -1531,6 +1533,25 @@ class GraphNoteViewSet(
 ):
     queryset = GraphNote.objects.all()
     serializer_class = GraphNoteSerializer
+
+
+class LocalhostWebhookConfigViewSet(ModelViewSet):
+    queryset = LocalhostWebhookConfig.objects.all()
+    serializer_class = LocalhostWebhookConfigModelSerializer
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        instance = LocalhostWebhookConfig.objects.get(pk=response.data["id"])
+        WebhookTriggerService().wait_for_localhost_tunnel_url(instance)
+        response.data = self.get_serializer(instance).data
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        instance = LocalhostWebhookConfig.objects.get(pk=response.data["id"])
+        WebhookTriggerService().wait_for_localhost_tunnel_url(instance)
+        response.data = self.get_serializer(instance).data
+        return response
 
 
 class NgrokWebhookConfigViewSet(ModelViewSet):

@@ -8,7 +8,7 @@ def test_webhook_endpoint_success(client, mock_redis_service):
 
     mock_redis_service.publish_webhook.assert_called_once()
     call_args = mock_redis_service.publish_webhook.call_args
-    assert call_args[0][0] == webhook_path
+    assert call_args.kwargs["path"] == webhook_path
 
 
 def test_webhook_endpoint_query_params(client, mock_redis_service):

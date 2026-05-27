@@ -6,7 +6,7 @@ from loguru import logger
 from pyngrok import ngrok, installer, conf
 from pyngrok.conf import PyngrokConfig
 import pyngrok.process
-from app.providers.base import AbstractTunnelProvider
+from app.providers.tunnels.base import AbstractTunnelProvider
 from typing import Optional
 
 

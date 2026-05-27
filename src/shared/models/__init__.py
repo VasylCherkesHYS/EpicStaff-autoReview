@@ -12,6 +12,7 @@ from .ai_providers import (
     EmbedderData,
     BaseTunnelConfigData,
     NgrokConfigData,
+    LocalhostConfigData,
     WebhookConfigData,
 )
 from .graph_nodes import (
@@ -85,6 +86,7 @@ __all__ = [
     "EmbedderData",
     "BaseTunnelConfigData",
     "NgrokConfigData",
+    "LocalhostConfigData",
     "WebhookConfigData",
     # graph_nodes
     "CrewNodeData",

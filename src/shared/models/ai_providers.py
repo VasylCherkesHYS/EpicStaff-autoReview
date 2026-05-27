@@ -70,7 +70,16 @@ class NgrokConfigData(BaseTunnelConfigData):
         return "ngrok"
 
 
+class LocalhostConfigData(BaseTunnelConfigData):
+    domain: str | None = None
+
+    @classmethod
+    def _tunnel_prefix(cls) -> str:
+        return "localhost"
+
+
 class WebhookConfigData(BaseModel):
-    ngrok_configs: list[NgrokConfigData]
+    ngrok_configs: list[NgrokConfigData] = []
+    localhost_configs: list[LocalhostConfigData] = []
     # other configs
     ...
