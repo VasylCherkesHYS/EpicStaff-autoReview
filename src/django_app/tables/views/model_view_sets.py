@@ -120,7 +120,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
 )
 from drf_spectacular.types import OpenApiTypes
-from tables.swagger_schemas.graph_bulk_save_schema import (
+from tables.swagger_schemas.knowledge_schemas.graph_bulk_save_schemas import (
     SAVE_FLOW_SWAGGER as _SAVE_FLOW_SWAGGER,
 )
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
@@ -244,6 +244,10 @@ from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
 from tables.import_export.services.import_service import ImportSettings
 from tables.services.redis_service import RedisService
+from tables.swagger_schemas.twilio_schemas import (
+    TWILIO_PHONE_NUMBERS_GET,
+    TWILIO_CONFIGURE_WEBHOOK_POST,
+)
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from utils.logger import logger
 
@@ -1501,6 +1505,7 @@ def _twilio_request(
 class TwilioPhoneNumbersView(generics.GenericAPIView):
     """Return the list of incoming phone numbers from Twilio."""
 
+    @extend_schema(**TWILIO_PHONE_NUMBERS_GET)
     def get(self, request):
         vs = VoiceSettings.load()
         if not vs.twilio_account_sid or not vs.twilio_auth_token:
@@ -1530,6 +1535,7 @@ class TwilioPhoneNumbersView(generics.GenericAPIView):
 class TwilioConfigureWebhookView(generics.GenericAPIView):
     """Set the VoiceUrl on a Twilio phone number to the configured voice stream URL."""
 
+    @extend_schema(**TWILIO_CONFIGURE_WEBHOOK_POST)
     def post(self, request):
         phone_sid = request.data.get("phone_sid")
         if not phone_sid:
