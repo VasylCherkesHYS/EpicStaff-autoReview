@@ -69,6 +69,26 @@ interface MessageContext {
     isSubgraphFinish: boolean;
 }
 
+// Message types that actually render a card in the template @switch.
+// Anything else (update_session_status, graph_end, future stream types like
+// python_stream, etc.) creates an empty .message div and breaks the unread
+// counter, so we keep it out of visibleMessageEntries.
+const RENDERABLE_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+    MessageType.START,
+    MessageType.USER,
+    MessageType.AGENT,
+    MessageType.AGENT_FINISH,
+    MessageType.PYTHON,
+    MessageType.LLM,
+    MessageType.EXTRACTED_CHUNKS,
+    MessageType.ERROR,
+    MessageType.TASK,
+    MessageType.FINISH,
+    MessageType.CODE_AGENT_STREAM,
+    MessageType.SUBGRAPH_START,
+    MessageType.SUBGRAPH_FINISH,
+]);
+
 interface MessageViewEntry {
     key: string;
     message: GraphMessage;
@@ -1017,41 +1037,16 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         this.messageContextByKey.clear();
         this.messageByKey.clear();
 
-        const executionIdToKey = new Map<string, string>();
-        messages.forEach((message) => {
-            if (isMessageType(message, MessageType.SUBGRAPH_START)) {
-                const execId = (message.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] as
-                    | string
-                    | undefined;
-                if (execId) {
-                    executionIdToKey.set(execId, this.getMessageKey(message));
-                }
-            }
-        });
-
+        const stack: string[] = [];
         messages.forEach((message, index) => {
             const key = this.getMessageKey(message);
             const isSubgraphStart = isMessageType(message, MessageType.SUBGRAPH_START);
             const isSubgraphFinish = isMessageType(message, MessageType.SUBGRAPH_FINISH);
-
-            const rawSubgraphIds = (message.message_data as unknown as Record<string, unknown>)[
-                'subgraph_execution_ids'
-            ];
-            const subgraphExecutionIds = Array.isArray(rawSubgraphIds) ? (rawSubgraphIds as string[]) : null;
-
-            let path: string[];
-            if (subgraphExecutionIds && subgraphExecutionIds.length > 0) {
-                path = subgraphExecutionIds
-                    .map((id) => executionIdToKey.get(id))
-                    .filter((k): k is string => k !== undefined);
-            } else {
-                path = [];
-            }
-
+            const path = [...stack];
             const context: MessageContext = {
                 key,
                 index,
-                depth: path.length,
+                depth: stack.length,
                 path,
                 isSubgraphStart,
                 isSubgraphFinish,
@@ -1060,6 +1055,12 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.messageContexts.push(context);
             this.messageContextByKey.set(key, context);
             this.messageByKey.set(key, message);
+
+            if (isSubgraphStart) {
+                stack.push(key);
+            } else if (isSubgraphFinish && stack.length > 0) {
+                stack.pop();
+            }
         });
 
         this.buildMessageGraphContexts(messages);
@@ -1172,7 +1173,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             .filter((context) => context.path.length === 0)
             .filter((context) => {
                 const msg = this.messages[context.index];
-                if (msg?.message_data?.message_type !== 'code_agent_stream') return true;
+                const type = msg?.message_data?.message_type;
+                if (!type || !RENDERABLE_MESSAGE_TYPES.has(type)) return false;
+                if (type !== MessageType.CODE_AGENT_STREAM) return true;
                 return caShowSet.has(context.index);
             })
             .map((context) => this.buildMessageEntry(this.messages[context.index], context));
