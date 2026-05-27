@@ -1,6 +1,6 @@
 <ng-template
     cdkConnectedOverlay
-    [cdkConnectedOverlayOrigin]="$any(origin)"
+    [cdkConnectedOverlayOrigin]="origin"
     [cdkConnectedOverlayOpen]="open"
     [cdkConnectedOverlayPositions]="positions"
     [cdkConnectedOverlayHasBackdrop]="false"
@@ -46,43 +46,42 @@
                 </div>
             </div>
 
-            <div
-                class="popover__row popover__row--nested"
-                *ngIf="settings().preserveUuids"
-            >
-                <span class="popover__label">
-                    Replace existing
-                    <app-help-tooltip
-                        size="0.875rem"
-                        class="help-icon"
-                        text="Overwrite entities that already exist (matched by UUID)"
-                        position="right"
-                    />
-                </span>
-                <div
-                    class="toggle-group"
-                    (click)="toggleReplaceExisting()"
-                >
+            @if (settings().preserveUuids) {
+                <div class="popover__row popover__row--nested">
+                    <span class="popover__label">
+                        Replace existing
+                        <app-help-tooltip
+                            size="0.875rem"
+                            class="help-icon"
+                            text="Overwrite entities that already exist (matched by UUID)"
+                            position="right"
+                        />
+                    </span>
                     <div
-                        class="toggle-slider"
-                        [class.right]="settings().replaceExisting"
-                    ></div>
-                    <button
-                        type="button"
-                        class="toggle-btn"
-                        [class.text-active]="!settings().replaceExisting"
+                        class="toggle-group"
+                        (click)="toggleReplaceExisting()"
                     >
-                        No
-                    </button>
-                    <button
-                        type="button"
-                        class="toggle-btn"
-                        [class.text-active]="settings().replaceExisting"
-                    >
-                        Yes
-                    </button>
+                        <div
+                            class="toggle-slider"
+                            [class.right]="settings().replaceExisting"
+                        ></div>
+                        <button
+                            type="button"
+                            class="toggle-btn"
+                            [class.text-active]="!settings().replaceExisting"
+                        >
+                            No
+                        </button>
+                        <button
+                            type="button"
+                            class="toggle-btn"
+                            [class.text-active]="settings().replaceExisting"
+                        >
+                            Yes
+                        </button>
+                    </div>
                 </div>
-            </div>
+            }
         </div>
 
         <div class="popover__row">

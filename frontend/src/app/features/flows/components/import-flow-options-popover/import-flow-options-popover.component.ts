@@ -1,5 +1,4 @@
-import { OverlayModule } from '@angular/cdk/overlay';
-import { CommonModule } from '@angular/common';
+import { CdkOverlayOrigin, OverlayModule } from '@angular/cdk/overlay';
 import { ChangeDetectionStrategy, Component, EventEmitter, inject, Input, Output } from '@angular/core';
 
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
@@ -8,13 +7,13 @@ import { ImportFlowSettingsService } from '../../services/import-flow-settings.s
 @Component({
     selector: 'app-import-flow-options-popover',
     standalone: true,
-    imports: [CommonModule, OverlayModule, HelpTooltipComponent],
+    imports: [OverlayModule, HelpTooltipComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './import-flow-options-popover.component.html',
     styleUrl: './import-flow-options-popover.component.scss',
 })
 export class ImportFlowOptionsPopoverComponent {
-    @Input({ required: true }) public origin!: unknown;
+    @Input({ required: true }) public origin!: CdkOverlayOrigin;
     @Input() public open = false;
     @Output() public readonly closed = new EventEmitter<void>();
 
