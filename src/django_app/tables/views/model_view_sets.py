@@ -25,7 +25,6 @@ from rest_framework.exceptions import (
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
-from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 
 from tables.serializers.model_serializers.embedding_serializers import (
