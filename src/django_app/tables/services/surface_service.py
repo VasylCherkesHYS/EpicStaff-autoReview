@@ -49,7 +49,7 @@ class SurfaceService:
 
         return ResolvedSurface(
             additional_instructions="\n\n".join(instructions_parts),
-            python_code_tool_configs=_cross_surface_effective(
+            python_tools=_cross_surface_effective(
                 "allowed_python_tools", "disabled_python_tools"
             ),
             mcp_tools=_cross_surface_effective(

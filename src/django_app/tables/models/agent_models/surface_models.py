@@ -10,7 +10,7 @@ from tables.models.base_models import TimestampMixin
 @dataclass
 class ResolvedSurface:
     additional_instructions: str
-    python_code_tool_configs: list = field(default_factory=list)
+    python_tools: list = field(default_factory=list)
     mcp_tools: list = field(default_factory=list)
     knowledge_collections: list = field(default_factory=list)
     storage_files: list = field(default_factory=list)
@@ -29,16 +29,16 @@ class BaseSurface(TimestampMixin, models.Model):
         help_text="Organization this surface belongs to.",
     )
     allowed_python_tools = models.ManyToManyField(
-        "PythonCodeToolConfig",
+        "PythonCodeTool",
         blank=True,
         related_name="+",
-        help_text="PythonCodeToolConfig instances explicitly allowed by this surface.",
+        help_text="PythonCodeTool instances explicitly allowed by this surface.",
     )
     disabled_python_tools = models.ManyToManyField(
-        "PythonCodeToolConfig",
+        "PythonCodeTool",
         blank=True,
         related_name="+",
-        help_text="PythonCodeToolConfig instances explicitly denied by this surface. Deny wins over any allow.",
+        help_text="PythonCodeTool instances explicitly denied by this surface. Deny wins over any allow.",
     )
     allowed_mcp_tools = models.ManyToManyField(
         "McpTool",
@@ -118,7 +118,7 @@ class Surface(BaseSurface):
     def resolve(self) -> ResolvedSurface:
         return ResolvedSurface(
             additional_instructions=self.additional_instructions,
-            python_code_tool_configs=_minus(
+            python_tools=_minus(
                 self.allowed_python_tools.all(), self.disabled_python_tools.all()
             ),
             mcp_tools=_minus(

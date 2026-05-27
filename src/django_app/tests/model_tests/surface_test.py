@@ -2,7 +2,7 @@ import pytest
 
 from tables.models.agent_models import Surface, InlineSurface
 from tables.models.mcp_models import McpTool
-from tables.models.python_models import PythonCodeToolConfig, PythonCodeTool, PythonCode
+from tables.models.python_models import PythonCodeTool, PythonCode
 from tables.models.knowledge_models.collection_models import SourceCollection
 from tables.models.graph_models import StorageFile
 from tables.models.rbac_models import Organization
@@ -20,28 +20,24 @@ def org(db):
 
 
 @pytest.fixture
-def python_tool(db):
+def py_tool_a(db):
     code = PythonCode.objects.create(code="def main(): pass")
-    tool = PythonCodeTool.objects.create(
-        name="surface-py-tool",
+    return PythonCodeTool.objects.create(
+        name="surface-py-tool-a",
         description="test",
         args_schema={},
         python_code=code,
     )
-    return tool
 
 
 @pytest.fixture
-def py_config_a(db, python_tool):
-    return PythonCodeToolConfig.objects.create(
-        name="py-config-a", tool=python_tool, configuration={}
-    )
-
-
-@pytest.fixture
-def py_config_b(db, python_tool):
-    return PythonCodeToolConfig.objects.create(
-        name="py-config-b", tool=python_tool, configuration={}
+def py_tool_b(db):
+    code = PythonCode.objects.create(code="def main(): pass")
+    return PythonCodeTool.objects.create(
+        name="surface-py-tool-b",
+        description="test",
+        args_schema={},
+        python_code=code,
     )
 
 
@@ -95,44 +91,42 @@ def surface(db, org):
 
 
 @pytest.mark.django_db
-def test_resolve_allowed_tool_appears_in_result(surface, py_config_a):
-    surface.allowed_python_tools.set([py_config_a])
+def test_resolve_allowed_tool_appears_in_result(surface, py_tool_a):
+    surface.allowed_python_tools.set([py_tool_a])
 
     result = surface.resolve()
 
-    assert py_config_a in result.python_code_tool_configs
+    assert py_tool_a in result.python_tools
 
 
 @pytest.mark.django_db
-def test_resolve_allowed_and_disabled_same_tool_excluded(surface, py_config_a):
-    surface.allowed_python_tools.set([py_config_a])
-    surface.disabled_python_tools.set([py_config_a])
+def test_resolve_allowed_and_disabled_same_tool_excluded(surface, py_tool_a):
+    surface.allowed_python_tools.set([py_tool_a])
+    surface.disabled_python_tools.set([py_tool_a])
 
     result = surface.resolve()
 
-    assert py_config_a not in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
 
 
 @pytest.mark.django_db
-def test_resolve_disabled_only_not_in_result(surface, py_config_a):
-    surface.disabled_python_tools.set([py_config_a])
+def test_resolve_disabled_only_not_in_result(surface, py_tool_a):
+    surface.disabled_python_tools.set([py_tool_a])
 
     result = surface.resolve()
 
-    assert py_config_a not in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
 
 
 @pytest.mark.django_db
-def test_resolve_allowed_minus_disabled_leaves_remainder(
-    surface, py_config_a, py_config_b
-):
-    surface.allowed_python_tools.set([py_config_a, py_config_b])
-    surface.disabled_python_tools.set([py_config_a])
+def test_resolve_allowed_minus_disabled_leaves_remainder(surface, py_tool_a, py_tool_b):
+    surface.allowed_python_tools.set([py_tool_a, py_tool_b])
+    surface.disabled_python_tools.set([py_tool_a])
 
     result = surface.resolve()
 
-    assert py_config_a not in result.python_code_tool_configs
-    assert py_config_b in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
+    assert py_tool_b in result.python_tools
 
 
 @pytest.mark.django_db
@@ -184,41 +178,39 @@ def test_resolve_returns_additional_instructions(surface):
 
 
 @pytest.mark.django_db
-def test_combine_deny_in_one_surface_removes_allow_in_other(
-    org, python_tool, py_config_a
-):
+def test_combine_deny_in_one_surface_removes_allow_in_other(org, py_tool_a):
     surface_a = Surface.objects.create(organization=org, name="s-a")
     surface_b = Surface.objects.create(organization=org, name="s-b")
 
-    surface_a.allowed_python_tools.set([py_config_a])
-    surface_b.disabled_python_tools.set([py_config_a])
+    surface_a.allowed_python_tools.set([py_tool_a])
+    surface_b.disabled_python_tools.set([py_tool_a])
 
     result = SurfaceService.combine(surface_a, surface_b)
 
-    assert py_config_a not in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
 
 
 @pytest.mark.django_db
-def test_combine_allow_in_one_surface_deny_in_same_surface_excluded(org, py_config_a):
+def test_combine_allow_in_one_surface_deny_in_same_surface_excluded(org, py_tool_a):
     surface_a = Surface.objects.create(organization=org, name="s-allow-deny")
-    surface_a.allowed_python_tools.set([py_config_a])
-    surface_a.disabled_python_tools.set([py_config_a])
+    surface_a.allowed_python_tools.set([py_tool_a])
+    surface_a.disabled_python_tools.set([py_tool_a])
 
     result = SurfaceService.combine(surface_a)
 
-    assert py_config_a not in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
 
 
 @pytest.mark.django_db
-def test_combine_allowed_in_both_surfaces_present_once(org, py_config_a):
+def test_combine_allowed_in_both_surfaces_present_once(org, py_tool_a):
     surface_a = Surface.objects.create(organization=org, name="s-dup-a")
     surface_b = Surface.objects.create(organization=org, name="s-dup-b")
-    surface_a.allowed_python_tools.set([py_config_a])
-    surface_b.allowed_python_tools.set([py_config_a])
+    surface_a.allowed_python_tools.set([py_tool_a])
+    surface_b.allowed_python_tools.set([py_tool_a])
 
     result = SurfaceService.combine(surface_a, surface_b)
 
-    assert result.python_code_tool_configs.count(py_config_a) == 1
+    assert result.python_tools.count(py_tool_a) == 1
 
 
 @pytest.mark.django_db
@@ -278,18 +270,18 @@ def test_combine_instructions_concatenated_in_order(org):
 
 
 @pytest.mark.django_db
-def test_combine_inline_surface_has_no_instructions(org, py_config_a):
+def test_combine_inline_surface_has_no_instructions(org, py_tool_a):
     surface_a = Surface.objects.create(
         organization=org, name="s-with-instr", additional_instructions="hello"
     )
     inline = InlineSurface.objects.create(organization=org)
-    surface_a.allowed_python_tools.set([py_config_a])
-    inline.disabled_python_tools.set([py_config_a])
+    surface_a.allowed_python_tools.set([py_tool_a])
+    inline.disabled_python_tools.set([py_tool_a])
 
     result = SurfaceService.combine(surface_a, inline)
 
     assert result.additional_instructions == "hello"
-    assert py_config_a not in result.python_code_tool_configs
+    assert py_tool_a not in result.python_tools
 
 
 @pytest.mark.django_db

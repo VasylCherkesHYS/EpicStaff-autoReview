@@ -4,7 +4,7 @@ from tables.models.agent_models import AgentDefinition, InlineSurface, Surface
 from tables.models.graph_models import StorageFile
 from tables.models.knowledge_models.collection_models import SourceCollection
 from tables.models.mcp_models import McpTool
-from tables.models.python_models import PythonCodeToolConfig
+from tables.models.python_models import PythonCodeTool
 from tables.services.surface_service import SurfaceService
 
 
@@ -37,10 +37,10 @@ class SurfaceWriteSerializer(serializers.ModelSerializer):
         many=True, queryset=AgentDefinition.objects.all(), required=False
     )
     allowed_python_tools = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=PythonCodeToolConfig.objects.all(), required=False
+        many=True, queryset=PythonCodeTool.objects.all(), required=False
     )
     disabled_python_tools = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=PythonCodeToolConfig.objects.all(), required=False
+        many=True, queryset=PythonCodeTool.objects.all(), required=False
     )
     allowed_mcp_tools = serializers.PrimaryKeyRelatedField(
         many=True, queryset=McpTool.objects.all(), required=False
@@ -89,9 +89,7 @@ class SurfaceWriteSerializer(serializers.ModelSerializer):
 
 class ResolvedSurfaceSerializer(serializers.Serializer):
     additional_instructions = serializers.CharField(read_only=True)
-    python_code_tool_configs = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True
-    )
+    python_tools = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     mcp_tools = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     knowledge_collections = serializers.PrimaryKeyRelatedField(
         many=True, read_only=True
@@ -127,10 +125,10 @@ class InlineSurfaceReadSerializer(serializers.ModelSerializer):
 
 class InlineSurfaceWriteSerializer(serializers.ModelSerializer):
     allowed_python_tools = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=PythonCodeToolConfig.objects.all(), required=False
+        many=True, queryset=PythonCodeTool.objects.all(), required=False
     )
     disabled_python_tools = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=PythonCodeToolConfig.objects.all(), required=False
+        many=True, queryset=PythonCodeTool.objects.all(), required=False
     )
     allowed_mcp_tools = serializers.PrimaryKeyRelatedField(
         many=True, queryset=McpTool.objects.all(), required=False
