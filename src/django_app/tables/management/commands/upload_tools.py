@@ -93,7 +93,7 @@ def args_schema_to_variables(args_schema: dict) -> list[dict]:
         if prop.get("required"):
             var["required_properties"] = prop["required"]
         if prop.get("items"):
-            var["items"] = prop["items"]
+            var["item"] = prop["items"]
         variables.append(var)
     return variables
 
