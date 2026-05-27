@@ -32,7 +32,7 @@ export interface PickerItem {
                             type="button"
                             class="vpf-item"
                             [title]="item.fullPath"
-                            [style.padding-left.px]="8 + item.depth * 12"
+                            [style.padding-left.px]="indentPx(item.depth)"
                             (click)="pathSelected.emit(item.fullPath)"
                         >
                             <span class="vpf-tag">{{ item.tag }}</span>
@@ -129,6 +129,8 @@ export interface PickerItem {
             }
 
             .vpf-label {
+                flex: 1;
+                min-width: 0;
                 font-size: 0.8rem;
                 font-family: monospace;
                 color: var(--color-text-primary);
@@ -162,6 +164,10 @@ export class VarPickerFlatComponent implements AfterViewInit {
     setItems(items: PickerItem[]): void {
         this.allItems = items;
         this.filteredItems = items;
+    }
+
+    indentPx(depth: number): number {
+        return Math.min(8 + depth * 12, 80);
     }
 
     onSearchInput(event: Event): void {

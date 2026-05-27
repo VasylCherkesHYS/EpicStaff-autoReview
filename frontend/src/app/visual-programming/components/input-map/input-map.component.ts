@@ -949,8 +949,9 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
         depth: number,
         result: PickerItem[]
     ): void {
+        const isArray = Array.isArray(obj);
         for (const key of Object.keys(obj)) {
-            const fullPath = `${pathPrefix}.${key}`;
+            const fullPath = isArray ? `${pathPrefix}[${key}]` : `${pathPrefix}.${key}`;
             const val = obj[key];
             const tag = isRecord(val) ? 'obj' : 'var';
             result.push({ tag, label: this.toRelativeLabel(fullPath), displayLabel: key, depth, fullPath });
