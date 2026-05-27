@@ -22,6 +22,7 @@ export interface TourStepDefinition {
     id: string;
     title: string;
     text: string;
+    classes?: string;
     attachTo?: { element: string; on: 'top' | 'bottom' | 'left' | 'right' };
     beforeShowPromise?: () => Promise<void>;
     advanceOn?: { selector: string; event: string };
@@ -37,6 +38,36 @@ export interface TourStepDefinition {
 }
 
 const DIALOG_OPEN_TIMEOUT_MS = 1500;
+
+async function fireDoneConfetti(): Promise<void> {
+    const { default: confetti } = await import('canvas-confetti');
+    const duration = 900;
+    const end = performance.now() + duration;
+    const colors = ['#a864fd', '#29cdff', '#78ff44', '#ff718d', '#fdff6a'];
+
+    const shoot = (): void => {
+        confetti({
+            particleCount: 4,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0, y: 0.8 },
+            colors,
+            zIndex: 1400,
+        });
+        confetti({
+            particleCount: 4,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1, y: 0.8 },
+            colors,
+            zIndex: 1400,
+        });
+        if (performance.now() < end) {
+            requestAnimationFrame(shoot);
+        }
+    };
+    shoot();
+}
 
 function waitForElement(selector: string, timeoutMs = DIALOG_OPEN_TIMEOUT_MS): Promise<void> {
     return new Promise((resolve) => {
@@ -91,8 +122,27 @@ export function createQuickStartTourSteps(deps: QuickStartTourDeps): TourStepDef
     return [
         {
             id: 'welcome',
-            title: 'Welcome to EpicStaff',
-            text: 'Let`s set up your first AI models so you can start building. It takes under a minute.',
+            title: '&#128640 Welcome to Quick Start!',
+            text: '<p>Hi! We noticed that you haven`t set up your environment for the project yet.</p><p>Follow a few simple steps to set up your workspace and start exploring.</p>',
+            classes: 'shepherd-welcome',
+            when: {
+                show(this: ShepherdStepInstance) {
+                    const el =
+                        (this as unknown as { el?: HTMLElement }).el ??
+                        document.querySelector<HTMLElement>('.shepherd-element.shepherd-welcome');
+                    const content = el?.querySelector<HTMLElement>('.shepherd-content');
+                    if (content && !content.querySelector('.shepherd-welcome-image')) {
+                        const img = document.createElement('img');
+                        img.src = '/assets/quick-start-guide/quick-start-guide-welcome.svg';
+                        img.alt = 'Welcome image';
+                        img.className = 'shepherd-welcome-image';
+                        img.width = 276;
+                        img.height = 283;
+                        img.draggable = false;
+                        content.prepend(img);
+                    }
+                },
+            },
             buttons: [skipButton, { ...nextButton, text: 'Get started' }],
         },
         {
@@ -215,6 +265,11 @@ export function createQuickStartTourSteps(deps: QuickStartTourDeps): TourStepDef
             id: 'done',
             title: 'You`re all set',
             text: 'When you`re ready, head to Projects to start building with your new models.',
+            when: {
+                show() {
+                    void fireDoneConfetti();
+                },
+            },
             buttons: [
                 {
                     text: 'Finish',
