@@ -300,7 +300,10 @@
     .preview-body {
         flex: 1;
         min-height: 0;
-        overflow-y: auto;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 5px;
         --color-nodes-background: rgba(60, 60, 72, 0.65);
     }
 
