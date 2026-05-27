@@ -11,13 +11,13 @@ from ..crew_models import Agent
 class GraphRag(models.Model):
     class GraphRagStatus(models.TextChoices):
         """
-        Status of GraphRag
+        Status of GraphRag.
+        Note: WARNING was previously declared but never set anywhere; removed.
         """
 
         NEW = "new"
         PROCESSING = "processing"
         COMPLETED = "completed"
-        WARNING = "warning"
         FAILED = "failed"
 
     graph_rag_id = models.AutoField(primary_key=True)

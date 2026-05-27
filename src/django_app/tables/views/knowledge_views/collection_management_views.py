@@ -1,5 +1,10 @@
 from rest_framework import viewsets, status
-from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter, inline_serializer
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiResponse,
+    OpenApiParameter,
+    inline_serializer,
+)
 from rest_framework import serializers as drf_serializers
 from utils.logger import logger
 from rest_framework.response import Response
@@ -45,8 +50,11 @@ class SourceCollectionViewSet(viewsets.ModelViewSet):
         """Optimize queries based on action."""
         queryset = SourceCollection.objects.all()
 
-        if self.action == "list" or self.action == "retrieve":
-            queryset = queryset.prefetch_related("documents")
+        if self.action in ("list", "retrieve"):
+            queryset = queryset.prefetch_related(
+                "documents",
+                *CollectionManagementService.rag_configurations_prefetch(),
+            )
 
         return queryset
 

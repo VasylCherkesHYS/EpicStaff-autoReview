@@ -242,8 +242,8 @@ class DocumentManagementService:
         # Get collection
         collection = DocumentManagementService.get_collection(collection_id)
 
-        # Update collection status to uploading
-        collection.status = SourceCollection.SourceCollectionStatus.UPLOADING
+        # Flip collection to NON_EMPTY (no-op if it already was).
+        collection.status = SourceCollection.SourceCollectionStatus.NON_EMPTY
         collection.save(update_fields=["status", "updated_at"])
 
         created_documents = []

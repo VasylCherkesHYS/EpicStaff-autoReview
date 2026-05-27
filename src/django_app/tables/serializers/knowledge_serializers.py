@@ -180,10 +180,13 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
 class SourceCollectionListSerializer(serializers.ModelSerializer):
     """
     Serializer for listing collections.
-    Shows basic collection info without related documents.
+    Shows basic collection info plus available RAG configurations with their statuses.
     """
 
     document_count = serializers.IntegerField(source="documents.count", read_only=True)
+    rag_configurations = serializers.SerializerMethodField(
+        help_text="List of RAG configurations for this collection (NaiveRag, GraphRag, etc.) with their statuses"
+    )
 
     class Meta:
         model = SourceCollection
@@ -193,10 +196,24 @@ class SourceCollectionListSerializer(serializers.ModelSerializer):
             "user_id",
             "status",
             "document_count",
+            "rag_configurations",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_rag_configurations(self, obj):
+        try:
+            rag_configs = (
+                CollectionManagementService.get_rag_configurations_for_collection(obj)
+            )
+            serializer = RagConfigurationSummarySerializer(rag_configs, many=True)
+            return serializer.data
+        except Exception as e:
+            logger.error(
+                f"Error fetching RAG configurations for collection {obj.collection_id}: {e}"
+            )
+            return []
 
 
 class SourceCollectionDetailSerializer(serializers.ModelSerializer):
@@ -231,8 +248,8 @@ class SourceCollectionDetailSerializer(serializers.ModelSerializer):
         """
 
         try:
-            rag_configs = CollectionManagementService.get_rag_configurations(
-                obj.collection_id
+            rag_configs = (
+                CollectionManagementService.get_rag_configurations_for_collection(obj)
             )
             serializer = RagConfigurationSummarySerializer(rag_configs, many=True)
             return serializer.data

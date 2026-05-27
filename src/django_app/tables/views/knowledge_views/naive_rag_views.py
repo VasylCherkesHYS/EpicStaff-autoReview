@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from typing import List, Optional
 
 from django.utils import timezone
 
@@ -473,16 +474,62 @@ class NaiveRagDocumentConfigViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        summary="List document statuses inside a NaiveRag",
+        description=(
+            "Returns documents attached to this NaiveRag with their current "
+            "indexing status, chunk parameters and the latest error (if any).\n\n"
+            "Pass `?ids=10,11,42` to fetch a subset — useful when polling only "
+            "the documents you just submitted to `/api/process-rag-indexing/` "
+            "instead of the whole RAG. IDs that don't belong to this NaiveRag "
+            "are silently ignored.\n\n"
+            "Each item exposes: `naive_rag_document_id`, `file_name`, "
+            "`chunk_strategy`, `chunk_size`, `chunk_overlap`, `additional_params`, "
+            "`status`, `total_chunks`, `total_embeddings`, `created_at`, "
+            '`processed_at`. When `status == "failed"` the response also '
+            "includes `error_message`, `error_code`, `failed_at`."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="ids",
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "Comma-separated list of `naive_rag_document_id`s to return. "
+                    "Omit to get all docs in this RAG. Example: `?ids=10,11,42`."
+                ),
+                required=False,
+                type=str,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="List of document configs with statuses for this NaiveRag"
+            ),
+            400: OpenApiResponse(description="Invalid `ids` query param"),
+            404: OpenApiResponse(description="NaiveRag not found"),
+        },
+    )
     @action(detail=False, methods=["get"])
     def list_configs(self, request, naive_rag_id=None):
         """
-        List all document configs for a NaiveRag.
+        List document configs for a NaiveRag.
 
-        URL: GET /api/naive-rag/{naive_rag_id}/document-configs/
+        URL: GET /api/naive-rag/{naive_rag_id}/document-configs/[?ids=10,11,42]
         """
+        ids_param = request.query_params.get("ids")
+        id_filter: Optional[List[int]] = None
+        if ids_param:
+            try:
+                id_filter = [int(x) for x in ids_param.split(",") if x.strip()]
+            except ValueError:
+                return Response(
+                    {"error": "ids must be a comma-separated list of integers"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
             configs = NaiveRagService.get_document_configs_for_naive_rag(
-                int(naive_rag_id)
+                int(naive_rag_id), document_config_ids=id_filter
             )
 
             serializer = DocumentConfigSerializer(configs, many=True)
@@ -504,6 +551,22 @@ class NaiveRagDocumentConfigViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        summary="Get a single document status inside a NaiveRag",
+        description=(
+            "Returns one document config by id with its current indexing status, "
+            "chunk parameters and the latest error (if any). Use this when "
+            "polling a specific document after a targeted reindex.\n\n"
+            "Fields: `naive_rag_document_id`, `file_name`, `chunk_strategy`, "
+            "`chunk_size`, `chunk_overlap`, `additional_params`, `status`, "
+            "`total_chunks`, `total_embeddings`, `created_at`, `processed_at`. "
+            'When `status == "failed"`: `error_message`, `error_code`, `failed_at`.'
+        ),
+        responses={
+            200: OpenApiResponse(description="Document config with status"),
+            404: OpenApiResponse(description="Document config or NaiveRag not found"),
+        },
+    )
     def retrieve(self, request, pk=None, naive_rag_id=None):
         """
         Get single document config.
