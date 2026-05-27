@@ -65,9 +65,7 @@ class TablesConfig(AppConfig):
             session_manager_service=session_manager_service,
             webhook_trigger_service=webhook_trigger_service,
         )
-        ScheduleTriggerService(
-            session_manager_service=session_manager_service
-        )
+        ScheduleTriggerService(session_manager_service=session_manager_service)
 
         # Register strategies for import/export entities
         entity_registry.register(llm_models.LLMModelStrategy())

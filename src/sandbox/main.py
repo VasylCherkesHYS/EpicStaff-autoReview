@@ -128,6 +128,7 @@ async def run(code_task_data: CodeTaskData):
             except Exception as e:
                 logger.warning(f"Failed to cleanup {execution_dir}: {e}")
 
+
 if __name__ == "__main__":
     asyncio.run(init())
     asyncio.run(listen_redis())
