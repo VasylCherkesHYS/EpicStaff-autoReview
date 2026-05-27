@@ -14,6 +14,8 @@ class LabelStrategy(EntityImportExportStrategy):
         return Label.objects.filter(id=entity_id).first()
 
     def extract_dependencies_from_instance(self, instance: Label):
+        if instance.parent_id:
+            return {EntityType.LABEL: [instance.parent_id]}
         return {}
 
     def export_entity(self, instance: Label) -> dict:
