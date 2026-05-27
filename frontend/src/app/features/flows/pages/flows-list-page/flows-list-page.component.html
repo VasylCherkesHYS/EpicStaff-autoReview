@@ -76,19 +76,13 @@
                         (closed)="closeImportOptions()"
                     />
 
-                    <div class="export-group">
-                        <button
-                            type="button"
-                            class="export-group__main"
-                            (click)="onExportClick()"
-                        >
-                            <app-svg-icon
-                                icon="upload"
-                                size="1.1rem"
-                            />
-                            <span>Export</span>
-                        </button>
-                    </div>
+                    <app-button
+                        type="ghost"
+                        [leftIcon]="'upload'"
+                        (click)="onExportClick()"
+                    >
+                        Export
+                    </app-button>
                     <app-button
                         type="primary"
                         class="btn-primary create-btn"
