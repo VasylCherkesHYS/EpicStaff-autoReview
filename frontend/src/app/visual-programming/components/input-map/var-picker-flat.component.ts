@@ -4,6 +4,8 @@ import { AfterViewInit, Component, ElementRef, output, ViewChild } from '@angula
 export interface PickerItem {
     tag: string;
     label: string;
+    displayLabel: string;
+    depth: number;
     fullPath: string;
 }
 
@@ -30,10 +32,11 @@ export interface PickerItem {
                             type="button"
                             class="vpf-item"
                             [title]="item.fullPath"
+                            [style.padding-left.px]="8 + item.depth * 12"
                             (click)="pathSelected.emit(item.fullPath)"
                         >
                             <span class="vpf-tag">{{ item.tag }}</span>
-                            <span class="vpf-label">{{ item.label }}</span>
+                            <span class="vpf-label">{{ item.displayLabel }}</span>
                         </button>
                     }
                 } @else {
@@ -163,6 +166,8 @@ export class VarPickerFlatComponent implements AfterViewInit {
 
     onSearchInput(event: Event): void {
         const f = (event.target as HTMLInputElement).value.toLowerCase().trim();
-        this.filteredItems = f ? this.allItems.filter((item) => item.label.toLowerCase().includes(f)) : this.allItems;
+        this.filteredItems = f
+            ? this.allItems.filter((item) => item.fullPath.toLowerCase().includes(f))
+            : this.allItems;
     }
 }

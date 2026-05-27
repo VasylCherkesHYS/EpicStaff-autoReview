@@ -930,15 +930,14 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
         for (const firstSeg of Object.keys(variablesObj)) {
             const val = variablesObj[firstSeg];
             const fullPath = `variables.${firstSeg}`;
+            const depth = 0;
+            const displayLabel = firstSeg;
 
             if (isRecord(val)) {
-                // The object itself is selectable
-                items.push({ tag: firstSeg, label: firstSeg, fullPath });
-                // Children: label is relative path within the firstSeg group
-                this.collectChildItems(val, '', fullPath, firstSeg, items);
+                items.push({ tag: 'obj', label: this.toRelativeLabel(fullPath), displayLabel, depth, fullPath });
+                this.collectChildItems(val, fullPath, depth + 1, items);
             } else {
-                // Leaf direct child of variables
-                items.push({ tag: 'var', label: firstSeg, fullPath });
+                items.push({ tag: 'var', label: this.toRelativeLabel(fullPath), displayLabel, depth, fullPath });
             }
         }
         return items;
@@ -946,20 +945,24 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
 
     private collectChildItems(
         obj: Record<string, unknown>,
-        labelPrefix: string,
         pathPrefix: string,
-        tag: string,
+        depth: number,
         result: PickerItem[]
     ): void {
         for (const key of Object.keys(obj)) {
-            const label = labelPrefix ? `${labelPrefix}.${key}` : key;
             const fullPath = `${pathPrefix}.${key}`;
-            result.push({ tag, label, fullPath });
             const val = obj[key];
+            const tag = isRecord(val) ? 'obj' : 'var';
+            result.push({ tag, label: this.toRelativeLabel(fullPath), displayLabel: key, depth, fullPath });
             if (isRecord(val)) {
-                this.collectChildItems(val, label, fullPath, tag, result);
+                this.collectChildItems(val, fullPath, depth + 1, result);
             }
         }
+    }
+
+    private toRelativeLabel(fullPath: string): string {
+        const prefix = 'variables.';
+        return fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath;
     }
 
     private getValidInputPairs(): AbstractControl[] {
