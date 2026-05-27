@@ -26,8 +26,69 @@
         </div>
 
         @if (searchConfigsFormGroup) {
+            @if (recommendedMethod() && recommendedMethod() !== activeGraphMethod) {
+                <div class="recommended-method-banner">
+                    <span>
+                        Recommended method for this collection:
+                        <b>{{ recommendedMethod() }}</b>
+                    </span>
+                    <app-button
+                        type="ghost"
+                        mod="small"
+                        (click)="switchAndResuggest()"
+                    >
+                        Switch and re-suggest
+                    </app-button>
+                </div>
+            }
+
+            <ng-template #suggestButton>
+                <span
+                    class="suggest-control"
+                    [title]="suggestDisabledReason()"
+                >
+                    <app-button
+                        type="secondary"
+                        mod="small"
+                        [disabled]="!canSuggest"
+                        (click)="onSuggestSettings()"
+                    >
+                        @if (suggesting()) {
+                            Suggesting…
+                        } @else {
+                            Suggest settings
+                        }
+                    </app-button>
+                </span>
+            </ng-template>
+
+            @if (suggestMessage() || suggestError()) {
+                <div class="suggest-feedback-row">
+                    @if (suggestMessage()) {
+                        <small
+                            class="suggest-feedback success"
+                            (click)="dismissSuggestMessage()"
+                        >
+                            {{ suggestMessage() }}
+                        </small>
+                    }
+                    @if (suggestError()) {
+                        <small
+                            class="suggest-feedback error"
+                            (click)="dismissSuggestError()"
+                        >
+                            {{ suggestError() }}
+                        </small>
+                    }
+                </div>
+            }
+
             <div [formGroup]="searchConfigsFormGroup">
                 @if (selectedRagType() === 'naive') {
+                    <div class="suggest-bar">
+                        <ng-container *ngTemplateOutlet="suggestButton" />
+                    </div>
+
                     <div class="form-group">
                         <app-slider-with-stepper
                             formControlName="similarity_threshold"
@@ -52,13 +113,14 @@
                         />
                     </div>
                 } @else if (selectedRagType() === 'graph') {
-                    <div class="form-group">
+                    <div class="form-group search-type-row">
                         <app-radio-button
                             formControlName="search_method"
                             label="Search Type"
-                            tooltipText="Basic Search - uses vector-based RAG to find relevant information and generate accurate responses. Local search generates answers by combining relevant data from the AI-extracted knowledge-graph with text chunks of the raw documents. This method is suitable for questions that require an understanding of specific entities mentioned in the documents"
+                            tooltipText="Basic Search - uses vector-based RAG to find relevant information and generate accurate responses. Local search generates answers by combining relevant data from the AI-extracted knowledge-graph with text chunks of the raw documents. Global search runs a map-reduce across community reports. DRIFT search drills down iteratively for highest quality."
                             [options]="searchTypes"
                         />
+                        <ng-container *ngTemplateOutlet="suggestButton" />
                     </div>
 
                     @switch (searchConfigsFormGroup.get('search_method')?.value) {
@@ -172,11 +234,390 @@
                                 </div>
                             </div>
                         }
-                        @case ('global') {
-                            <h3>Not available yet</h3>
+                        @case ('global_search') {
+                            <div formGroupName="global_search">
+                                <div class="form-group">
+                                    <app-textarea
+                                        formControlName="map_prompt"
+                                        label="Map Prompt"
+                                        tooltipText="Custom map-stage prompt. Leave empty for default."
+                                        placeholder="Leave empty for default."
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <app-textarea
+                                        formControlName="reduce_prompt"
+                                        label="Reduce Prompt"
+                                        tooltipText="Custom reduce-stage prompt. Leave empty for default."
+                                        placeholder="Leave empty for default."
+                                    />
+                                </div>
+
+                                <div class="form-group-container">
+                                    <div class="form-group">
+                                        <app-input-number
+                                            formControlName="max_context_tokens"
+                                            label="Max Context Tokens"
+                                            tooltipText="Maximum context size (tokens)"
+                                            [alwaysShowSteps]="true"
+                                            [min]="100"
+                                            [max]="100000"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <app-toggle-switch
+                                            formControlName="dynamic_community_selection"
+                                            label="Dynamic Community Selection"
+                                            tooltipText="Enable dynamic selection of community reports per query."
+                                        />
+                                    </div>
+                                </div>
+
+                                <details class="advanced-settings">
+                                    <summary>
+                                        <app-svg-icon
+                                            class="chevron"
+                                            icon="chevron-down"
+                                            size="0.9rem"
+                                        /><span>Advanced settings</span>
+                                    </summary>
+
+                                    <div class="form-group">
+                                        <app-textarea
+                                            formControlName="knowledge_prompt"
+                                            label="General Knowledge Prompt"
+                                            tooltipText="Custom general-knowledge prompt. Leave empty for default."
+                                            placeholder="Leave empty for default."
+                                        />
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="data_max_tokens"
+                                                label="Data Max Tokens"
+                                                tooltipText="Token limit for the data stage"
+                                                [alwaysShowSteps]="true"
+                                                [min]="100"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="map_max_length"
+                                                label="Map Max Length"
+                                                tooltipText="Max length of a map-stage answer (words)"
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="10000"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="reduce_max_length"
+                                                label="Reduce Max Length"
+                                                tooltipText="Max length of a reduce-stage answer (words)"
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="10000"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="dynamic_search_threshold"
+                                                label="Dynamic Search Threshold"
+                                                tooltipText="Rating threshold to include a community report (1–10)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="10"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="dynamic_search_num_repeats"
+                                                label="Dynamic Search Repeats"
+                                                tooltipText="Number of rating repeats per report (1–5)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="5"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="dynamic_search_max_level"
+                                                label="Dynamic Search Max Level"
+                                                tooltipText="Max community hierarchy level (1–5)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="5"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-toggle-switch
+                                                formControlName="dynamic_search_keep_parent"
+                                                label="Keep Parent Community"
+                                                tooltipText="Keep parent community in the selection."
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-toggle-switch
+                                                formControlName="dynamic_search_use_summary"
+                                                label="Use Community Summary"
+                                                tooltipText="Use community summary instead of full context."
+                                            />
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
                         }
-                        @case ('drift') {
-                            <h3>Not available yet</h3>
+                        @case ('drift_search') {
+                            <div formGroupName="drift_search">
+                                <div class="form-group">
+                                    <app-textarea
+                                        formControlName="prompt"
+                                        label="Local Stage Prompt"
+                                        tooltipText="Custom local-stage prompt for DRIFT. Leave empty for default."
+                                        placeholder="Leave empty for default."
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <app-textarea
+                                        formControlName="reduce_prompt"
+                                        label="Reduce Prompt"
+                                        tooltipText="Custom reduce-stage prompt for DRIFT. Leave empty for default."
+                                        placeholder="Leave empty for default."
+                                    />
+                                </div>
+
+                                <div class="form-group-container">
+                                    <div class="form-group">
+                                        <app-input-number
+                                            formControlName="n_depth"
+                                            label="Search Depth"
+                                            tooltipText="Depth of DRIFT search steps (1–10)."
+                                            [alwaysShowSteps]="true"
+                                            [min]="1"
+                                            [max]="10"
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <app-input-number
+                                            formControlName="drift_k_followups"
+                                            label="K Followups"
+                                            tooltipText="Top-global results used as drift seeds (1–100)."
+                                            [alwaysShowSteps]="true"
+                                            [min]="1"
+                                            [max]="100"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <app-slider-with-stepper
+                                        formControlName="reduce_temperature"
+                                        label="Reduce Temperature"
+                                        tooltipText="Generation temperature for the reduce stage (0.0–2.0)."
+                                        [min]="0"
+                                        [max]="2"
+                                        [step]="0.1"
+                                        [decimals]="1"
+                                    />
+                                </div>
+
+                                <details class="advanced-settings">
+                                    <summary>
+                                        <app-svg-icon
+                                            class="chevron"
+                                            icon="chevron-down"
+                                            size="0.9rem"
+                                        /><span>Advanced settings</span>
+                                    </summary>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="data_max_tokens"
+                                                label="Data Max Tokens"
+                                                tooltipText="Token limit for the data stage."
+                                                [alwaysShowSteps]="true"
+                                                [min]="100"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="primer_llm_max_tokens"
+                                                label="Primer LLM Max Tokens"
+                                                tooltipText="Token limit for the primer LLM call."
+                                                [alwaysShowSteps]="true"
+                                                [min]="100"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="concurrency"
+                                                label="Concurrency"
+                                                tooltipText="Parallel LLM requests (1–256)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="256"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="primer_folds"
+                                                label="Primer Folds"
+                                                tooltipText="Folds for search priming (1–50)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="50"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    @if (driftLocalTextUnitPropControl && driftLocalCommunityPropControl) {
+                                        <div class="form-group">
+                                            <app-dual-slider
+                                                firstLabel="Local Text Unit Proportion"
+                                                firstTooltipText="Context share for text units (0–1)."
+                                                secondLabel="Local Community Proportion"
+                                                secondTooltipText="Context share for community (0–1)."
+                                                [firstValue]="driftLocalTextUnitPropControl.value"
+                                                [secondValue]="driftLocalCommunityPropControl.value"
+                                                (firstValueChange)="onDriftLocalTextUnitPropUpdate($event)"
+                                                (secondValueChange)="onDriftLocalCommunityPropUpdate($event)"
+                                                [min]="0"
+                                                [max]="1"
+                                                [step]="0.01"
+                                            />
+                                        </div>
+                                    }
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_top_k_mapped_entities"
+                                                label="Local Top K Entities"
+                                                tooltipText="Top-K mapped entities for local stage (1–100)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_top_k_relationships"
+                                                label="Local Top K Relationships"
+                                                tooltipText="Top-K relationships for local stage (1–100)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_max_data_tokens"
+                                                label="Local Max Data Tokens"
+                                                tooltipText="Context limit for the local stage."
+                                                [alwaysShowSteps]="true"
+                                                [min]="100"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-slider-with-stepper
+                                                formControlName="local_search_temperature"
+                                                label="Local Temperature"
+                                                tooltipText="Local-stage generation temperature (0.0–2.0)."
+                                                [min]="0"
+                                                [max]="2"
+                                                [step]="0.1"
+                                                [decimals]="1"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-slider-with-stepper
+                                                formControlName="local_search_top_p"
+                                                label="Local Top P"
+                                                tooltipText="Top-p for local generation (0.0–1.0)."
+                                                [min]="0"
+                                                [max]="1"
+                                                [step]="0.05"
+                                                [decimals]="2"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_n"
+                                                label="Local N Completions"
+                                                tooltipText="Number of completions in local (1–10)."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="10"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="reduce_max_tokens"
+                                                label="Reduce Max Tokens"
+                                                tooltipText="Reduce-answer token cap. Leave empty for no limit."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="reduce_max_completion_tokens"
+                                                label="Reduce Max Completion Tokens"
+                                                tooltipText="Reduce completion token cap. Leave empty for no limit."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group-container">
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_llm_max_gen_tokens"
+                                                label="Local LLM Max Gen Tokens"
+                                                tooltipText="Local LLM-answer token cap. Leave empty for no limit."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                        <div class="form-group">
+                                            <app-input-number
+                                                formControlName="local_search_llm_max_gen_completion_tokens"
+                                                label="Local LLM Max Completion Tokens"
+                                                tooltipText="Local completion token cap. Leave empty for no limit."
+                                                [alwaysShowSteps]="true"
+                                                [min]="1"
+                                                [max]="100000"
+                                            />
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
                         }
                     }
                 }

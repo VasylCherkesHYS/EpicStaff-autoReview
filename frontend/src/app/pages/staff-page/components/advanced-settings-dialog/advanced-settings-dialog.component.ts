@@ -40,6 +40,7 @@ export interface AdvancedSettingsData {
     max_retry_limit: number | null;
     default_temperature: number | null;
     knowledge_collection?: number | null;
+    llm_config: number | null;
     fcm_llm_config: number | null;
     rag: AgentRag | null;
     search_configs: AgentSearchConfigs;

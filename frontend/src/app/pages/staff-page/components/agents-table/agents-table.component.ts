@@ -821,6 +821,7 @@ export class AgentsTableComponent {
             data: {
                 id: agentData.id,
                 role: agentData.role,
+                llm_config: agentData.llm_config ?? agentData.fullLlmConfig?.id ?? null,
                 fcm_llm_config: agentData.fcm_llm_config,
                 max_iter: agentData.max_iter ?? 20,
                 max_rpm: agentData.max_rpm ?? 10,
