@@ -79,8 +79,8 @@ class NaiveRag(models.Model):
         else:
             current_status = WARNING
 
-        self.status = current_status
-        self.save()
+        self.rag_status = current_status
+        self.save(update_fields=["rag_status", "updated_at"])
 
 
 class NaiveRagDocumentConfig(models.Model):
@@ -117,6 +117,17 @@ class NaiveRagDocumentConfig(models.Model):
         WARNING = "warning"
         FAILED = "failed"
 
+    class DocumentErrorCode(models.TextChoices):
+        """Machine-readable category of the last failure on this document."""
+
+        CHUNKING_FAILED = "chunking_failed"
+        EMBEDDING_FAILED = "embedding_failed"
+        EMBEDDER_AUTH = "embedder_auth"
+        EMBEDDER_RATE_LIMIT = "embedder_rate_limit"
+        UNKNOWN = "unknown"
+
+    ERROR_MESSAGE_MAX_LENGTH = 2000
+
     naive_rag_document_id = models.AutoField(primary_key=True)
 
     naive_rag = models.ForeignKey(
@@ -150,6 +161,15 @@ class NaiveRagDocumentConfig(models.Model):
         choices=NaiveRagDocumentStatus.choices,
         default=NaiveRagDocumentStatus.NEW,
     )
+
+    error_message = models.TextField(null=True, blank=True)
+    error_code = models.CharField(
+        max_length=32,
+        choices=DocumentErrorCode.choices,
+        null=True,
+        blank=True,
+    )
+    failed_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)

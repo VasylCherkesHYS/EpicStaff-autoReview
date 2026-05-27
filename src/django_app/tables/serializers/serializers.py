@@ -98,6 +98,26 @@ class ProcessRagIndexingSerializer(serializers.Serializer):
 
     rag_id = serializers.IntegerField(required=True, min_value=1)
     rag_type = serializers.ChoiceField(required=True, choices=["naive", "graph"])
+    document_config_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=True,
+        help_text=(
+            "Optional list of NaiveRagDocumentConfig IDs to (re)index. "
+            "If omitted/empty, the whole RAG is indexed. "
+            "Only honored for rag_type='naive'."
+        ),
+    )
+
+    def validate_document_config_ids(self, value):
+        # dedupe while preserving order
+        seen = set()
+        deduped = []
+        for v in value:
+            if v not in seen:
+                seen.add(v)
+                deduped.append(v)
+        return deduped
 
 
 class BulkExportSerializer(serializers.Serializer):

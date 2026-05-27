@@ -129,6 +129,10 @@ class NaiveRagDocumentConfig(Base):
         String(20), default="new"
     )  # new, chunking, chunked, indexing, completed, warning, failed
 
+    error_message = Column(Text, nullable=True)
+    error_code = Column(String(32), nullable=True)
+    failed_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
 

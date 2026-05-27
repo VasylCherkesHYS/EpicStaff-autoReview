@@ -1,30 +1,75 @@
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from django.db import transaction
 from loguru import logger
-from tables.models.knowledge_models import (
-    NaiveRagPreviewChunk,
-    SourceCollection,
-    BaseRagType,
-    NaiveRag,
-    NaiveRagDocumentConfig,
-    DocumentMetadata,
+
+from tables.constants.knowledge_constants import (
+    FILE_TYPE_SPECIFIC_STRATEGIES,
+    MAX_CHUNK_OVERLAP,
+    MAX_CHUNK_SIZE,
+    MIN_CHUNK_OVERLAP,
+    MIN_CHUNK_SIZE,
+    UNIVERSAL_STRATEGIES,
 )
-from tables.models.embedding_models import EmbeddingConfig
 from tables.exceptions import (
-    NaiveRagNotFoundException,
+    CollectionNotFoundException,
     DocumentConfigNotFoundException,
     EmbedderNotFoundException,
     InvalidChunkParametersException,
-    CollectionNotFoundException,
+    NaiveRagNotFoundException,
 )
-from tables.constants.knowledge_constants import (
-    MIN_CHUNK_SIZE,
-    MAX_CHUNK_SIZE,
-    MIN_CHUNK_OVERLAP,
-    MAX_CHUNK_OVERLAP,
-    UNIVERSAL_STRATEGIES,
-    FILE_TYPE_SPECIFIC_STRATEGIES,
+from tables.models.embedding_models import EmbeddingConfig
+from tables.models.knowledge_models import (
+    BaseRagType,
+    DocumentMetadata,
+    NaiveRag,
+    NaiveRagChunk,
+    NaiveRagDocumentConfig,
+    NaiveRagEmbedding,
+    NaiveRagPreviewChunk,
+    SourceCollection,
 )
+
+CHUNK_PARAM_FIELDS = (
+    "chunk_size",
+    "chunk_overlap",
+    "chunk_strategy",
+    "additional_params",
+)
+
+
+def _apply_chunk_param_changes(config: NaiveRagDocumentConfig, updates: dict) -> bool:
+    """
+    Apply updates to config; if any chunk-param field actually changed, wipe
+    derived data (chunks/embeddings/preview_chunks), reset status to NEW and
+    clear the error triplet.
+
+    Returns True if a real change happened (so callers can update parent rag_status).
+    """
+    changed = any(
+        field in updates and updates[field] != getattr(config, field)
+        for field in CHUNK_PARAM_FIELDS
+    )
+
+    for field, value in updates.items():
+        setattr(config, field, value)
+
+    if changed:
+        config_id = config.naive_rag_document_id
+        NaiveRagChunk.objects.filter(naive_rag_document_config_id=config_id).delete()
+        NaiveRagEmbedding.objects.filter(
+            naive_rag_document_config_id=config_id
+        ).delete()
+        NaiveRagPreviewChunk.objects.filter(
+            naive_rag_document_config_id=config_id
+        ).delete()
+        config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.NEW
+        config.error_message = None
+        config.error_code = None
+        config.failed_at = None
+
+    config.save()
+    return changed
 
 
 class NaiveRagService:
@@ -261,11 +306,10 @@ class NaiveRagService:
         if errors:
             raise InvalidChunkParametersException(errors=errors)
 
-        # Apply updates
-        for field, value in updates.items():
-            setattr(config, field, value)
+        changed = _apply_chunk_param_changes(config, updates)
 
-        config.save()
+        if changed:
+            config.naive_rag.update_rag_status()
 
         logger.info(f"Updated document config {config_id}")
 
@@ -574,6 +618,7 @@ class NaiveRagService:
         updated_count = 0
         failed_count = 0
         config_errors = {}
+        any_actual_change = False
 
         for config in configs:
             errors = []
@@ -615,11 +660,9 @@ class NaiveRagService:
                 config_errors[config.naive_rag_document_id] = errors
                 failed_count += 1
             else:
-                # Update this config
                 try:
-                    for field, value in updates.items():
-                        setattr(config, field, value)
-                    config.save()
+                    if _apply_chunk_param_changes(config, updates):
+                        any_actual_change = True
                     updated_count += 1
                 except Exception as e:
                     config_errors[config.naive_rag_document_id] = [
@@ -630,6 +673,9 @@ class NaiveRagService:
                         }
                     ]
                     failed_count += 1
+
+        if any_actual_change:
+            NaiveRag.objects.get(naive_rag_id=naive_rag_id).update_rag_status()
 
         logger.info(
             f"Bulk update completed: {updated_count} successful, {failed_count} failed"

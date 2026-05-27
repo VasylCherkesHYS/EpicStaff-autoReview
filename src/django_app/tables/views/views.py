@@ -1025,6 +1025,9 @@ class ProcessRagIndexingView(APIView):
     @extend_schema(
         request=ProcessRagIndexingSerializer,
         responses={
+            200: OpenApiResponse(
+                description="Nothing to index — all requested documents already up-to-date"
+            ),
             202: OpenApiResponse(description="Indexing process accepted and queued"),
             400: OpenApiResponse(
                 description="Invalid request or RAG not ready for indexing"
@@ -1039,16 +1042,39 @@ class ProcessRagIndexingView(APIView):
 
         rag_id = serializer.validated_data["rag_id"]
         rag_type = serializer.validated_data["rag_type"]
+        document_config_ids = (
+            serializer.validated_data.get("document_config_ids") or None
+        )
 
         try:
             indexing_data = IndexingService.validate_and_prepare_indexing(
-                rag_id=rag_id, rag_type=rag_type
+                rag_id=rag_id,
+                rag_type=rag_type,
+                document_config_ids=document_config_ids,
             )
+
+            accepted = indexing_data.get("accepted_config_ids")
+            skipped = indexing_data.get("skipped_completed_config_ids", [])
+
+            # Subset request with nothing to do → 200, do not publish.
+            if rag_type == "naive" and document_config_ids and not accepted:
+                return Response(
+                    data={
+                        "detail": "Nothing to index",
+                        "rag_id": indexing_data["rag_id"],
+                        "rag_type": indexing_data["rag_type"],
+                        "collection_id": indexing_data["collection_id"],
+                        "accepted_config_ids": [],
+                        "skipped_completed_config_ids": skipped,
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
             redis_service.publish_rag_indexing(
                 rag_id=indexing_data["rag_id"],
                 rag_type=indexing_data["rag_type"],
                 collection_id=indexing_data["collection_id"],
+                document_config_ids=accepted if rag_type == "naive" else None,
             )
 
             return Response(
@@ -1057,6 +1083,8 @@ class ProcessRagIndexingView(APIView):
                     "rag_id": indexing_data["rag_id"],
                     "rag_type": indexing_data["rag_type"],
                     "collection_id": indexing_data["collection_id"],
+                    "accepted_config_ids": accepted,
+                    "skipped_completed_config_ids": skipped,
                 },
                 status=status.HTTP_202_ACCEPTED,
             )

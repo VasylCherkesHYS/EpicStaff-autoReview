@@ -1,6 +1,8 @@
 import asyncio
 import uuid
 
+from django.utils import timezone
+
 from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -652,8 +654,14 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
 
         chunking_job_id = str(uuid.uuid4())
 
+        # Start of a new attempt — clear any stale error and flip to CHUNKING.
         config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING
-        config.save(update_fields=["status"])
+        config.error_message = None
+        config.error_code = None
+        config.failed_at = None
+        config.save(
+            update_fields=["status", "error_message", "error_code", "failed_at"]
+        )
 
         logger.info(
             f"Starting chunking job {chunking_job_id} for config {document_config_id}"
@@ -704,9 +712,17 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
 
         except Exception as e:
             logger.error(f"Chunking error for job {chunking_job_id}: {e}")
-            # Reset status to previous state on error
+            raw = f"{type(e).__name__}: {e}"
+            max_len = NaiveRagDocumentConfig.ERROR_MESSAGE_MAX_LENGTH
+            error_message = raw if len(raw) <= max_len else raw[: max_len - 1] + "…"
+
             config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.FAILED
-            config.save(update_fields=["status"])
+            config.error_code = NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED
+            config.error_message = error_message
+            config.failed_at = timezone.now()
+            config.save(
+                update_fields=["status", "error_code", "error_message", "failed_at"]
+            )
 
             return Response(
                 {
@@ -715,7 +731,7 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
                     "document_config_id": document_config_id,
                     "status": "failed",
                     "chunk_count": None,
-                    "message": str(e),
+                    "message": error_message,
                     "elapsed_time": None,
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

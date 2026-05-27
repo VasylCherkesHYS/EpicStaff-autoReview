@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional, Union
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import delete, select
@@ -176,6 +177,60 @@ class ORMNaiveRagStorage(BaseORMStorage):
         except Exception as e:
             logger.error(
                 f"Failed to update document config {naive_rag_document_config_id} status: {e}"
+            )
+            return False
+
+    def clear_document_config_error(self, naive_rag_document_config_id: int) -> bool:
+        """
+        Clear the error triplet (error_message/error_code/failed_at) on a config.
+        Called at the start of a new attempt so the UI never shows a stale error
+        next to an active CHUNKING/INDEXING status.
+        """
+        try:
+            doc_config = self.session.get(
+                NaiveRagDocumentConfig, naive_rag_document_config_id
+            )
+            if not doc_config:
+                return False
+            doc_config.error_message = None
+            doc_config.error_code = None
+            doc_config.failed_at = None
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to clear error for document config "
+                f"{naive_rag_document_config_id}: {e}"
+            )
+            return False
+
+    def mark_document_config_failed(
+        self,
+        naive_rag_document_config_id: int,
+        error_code: str,
+        error_message: str,
+    ) -> bool:
+        """
+        Mark a document config as FAILED with a categorized error.
+        Sets status, error_code, error_message, failed_at in one shot.
+        """
+        try:
+            doc_config = self.session.get(
+                NaiveRagDocumentConfig, naive_rag_document_config_id
+            )
+            if not doc_config:
+                logger.warning(
+                    f"NaiveRagDocumentConfig {naive_rag_document_config_id} not found"
+                )
+                return False
+            doc_config.status = "failed"
+            doc_config.error_code = error_code
+            doc_config.error_message = error_message
+            doc_config.failed_at = datetime.utcnow()
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to mark document config "
+                f"{naive_rag_document_config_id} as failed: {e}"
             )
             return False
 

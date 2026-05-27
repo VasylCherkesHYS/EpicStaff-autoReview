@@ -1,9 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from django.db import transaction
 from loguru import logger
 
 from tables.models.knowledge_models import (
     NaiveRag,
+    NaiveRagDocumentConfig,
     DocumentMetadata,
     GraphRag,
     GraphRagDocument,
@@ -30,40 +31,56 @@ class IndexingService:
 
     @staticmethod
     @transaction.atomic
-    def validate_and_prepare_indexing(rag_id: int, rag_type: str) -> Dict[str, Any]:
+    def validate_and_prepare_indexing(
+        rag_id: int,
+        rag_type: str,
+        document_config_ids: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
         """
         Validates RAG configuration and prepares data for indexing.
 
         Args:
             rag_id: The primary key of the specific RAG implementation
             rag_type: The type of RAG ("naive" or "graph")
+            document_config_ids: Optional subset of NaiveRagDocumentConfig IDs.
+                Only honored for naive RAG; ignored for graph.
 
         Returns:
-            Dict containing:
-                - rag_id: int
-                - rag_type: str
-                - collection_id: int
-                - base_rag_type_id: int
+            For naive: dict with rag_id, rag_type, collection_id, base_rag_type_id,
+                accepted_config_ids, skipped_completed_config_ids.
+            For graph: dict with rag_id, rag_type, collection_id, base_rag_type_id.
         """
         if rag_type == "naive":
-            return IndexingService._prepare_naive_rag_indexing(rag_id)
+            return IndexingService._prepare_naive_rag_indexing(
+                rag_id, document_config_ids
+            )
         elif rag_type == "graph":
             return IndexingService._prepare_graph_rag_indexing(rag_id)
         else:
             raise RagException(f"Unknown rag_type: {rag_type}")
 
     @staticmethod
-    def _prepare_naive_rag_indexing(naive_rag_id: int) -> Dict[str, Any]:
+    def _prepare_naive_rag_indexing(
+        naive_rag_id: int,
+        document_config_ids: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
         """
         Validates and prepares NaiveRag for indexing.
 
-        Args:
-            naive_rag_id: The NaiveRag primary key
+        Behavior:
+        - If document_config_ids is provided, validates that every ID belongs to
+          this NaiveRag. Configs in COMPLETED status are skipped (they were already
+          indexed with current params — see status-reset on param-change in
+          NaiveRagService). The rest are returned as accepted_config_ids.
+        - If document_config_ids is None/empty, the whole RAG is indexed; the
+          collection must have at least one document.
 
         Returns:
-            Dict with rag_id, rag_type, collection_id, base_rag_type_id
+            Dict with:
+              rag_id, rag_type, collection_id, base_rag_type_id,
+              accepted_config_ids (list[int] | None — None means "whole RAG"),
+              skipped_completed_config_ids (list[int])
         """
-        # Get NaiveRag instance
         try:
             naive_rag = NaiveRag.objects.select_related(
                 "base_rag_type", "base_rag_type__source_collection", "embedder"
@@ -71,39 +88,66 @@ class IndexingService:
         except NaiveRag.DoesNotExist:
             raise NaiveRagNotFoundException(naive_rag_id)
 
-        # Get related objects
         base_rag_type = naive_rag.base_rag_type
         collection = base_rag_type.source_collection
 
-        # Validate collection exists
         if not collection:
             raise CollectionNotFoundException(
                 f"Collection not found for BaseRagType {base_rag_type.rag_type_id}"
             )
 
-        # Validate collection has documents
-        document_count = DocumentMetadata.objects.filter(
-            source_collection=collection
-        ).count()
-
-        if document_count == 0:
-            raise DocumentsNotFoundException(
-                f"Collection {collection.collection_id} has no documents to index"
-            )
-
-        # Validate embedder is configured
         if not naive_rag.embedder:
             raise RagNotReadyForIndexingException(
                 f"NaiveRag {naive_rag_id} has no embedder configured. "
                 "Please configure an embedder before indexing."
             )
 
-        # Log preparation
+        accepted: Optional[List[int]] = None
+        skipped_completed: List[int] = []
+
+        if document_config_ids:
+            configs = list(
+                NaiveRagDocumentConfig.objects.filter(
+                    naive_rag_id=naive_rag_id,
+                    naive_rag_document_id__in=document_config_ids,
+                ).values("naive_rag_document_id", "status")
+            )
+            found_ids = {c["naive_rag_document_id"] for c in configs}
+            missing = [cid for cid in document_config_ids if cid not in found_ids]
+            if missing:
+                raise RagException(
+                    f"Document configs do not belong to NaiveRag {naive_rag_id}: "
+                    f"{missing}"
+                )
+
+            completed_status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.COMPLETED
+            accepted = []
+            for c in configs:
+                if c["status"] == completed_status:
+                    skipped_completed.append(c["naive_rag_document_id"])
+                else:
+                    accepted.append(c["naive_rag_document_id"])
+
+            # Preserve user-supplied order
+            order = {cid: i for i, cid in enumerate(document_config_ids)}
+            accepted.sort(key=lambda x: order[x])
+            skipped_completed.sort(key=lambda x: order[x])
+        else:
+            # Whole-RAG indexing — collection must have documents
+            document_count = DocumentMetadata.objects.filter(
+                source_collection=collection
+            ).count()
+            if document_count == 0:
+                raise DocumentsNotFoundException(
+                    f"Collection {collection.collection_id} has no documents to index"
+                )
+
         logger.info(
             f"Prepared NaiveRag {naive_rag_id} for indexing: "
             f"collection_id={collection.collection_id}, "
-            f"documents={document_count}, "
-            f"embedder={naive_rag.embedder.id}"
+            f"embedder={naive_rag.embedder.id}, "
+            f"accepted_config_ids={accepted}, "
+            f"skipped_completed_config_ids={skipped_completed}"
         )
 
         return {
@@ -111,6 +155,8 @@ class IndexingService:
             "rag_type": "naive",
             "collection_id": collection.collection_id,
             "base_rag_type_id": base_rag_type.rag_type_id,
+            "accepted_config_ids": accepted,
+            "skipped_completed_config_ids": skipped_completed,
         }
 
     @staticmethod
@@ -147,9 +193,7 @@ class IndexingService:
             )
 
         # Validate GraphRag has documents linked
-        document_count = GraphRagDocument.objects.filter(
-            graph_rag=graph_rag
-        ).count()
+        document_count = GraphRagDocument.objects.filter(graph_rag=graph_rag).count()
 
         if document_count == 0:
             raise RagNotReadyForIndexingException(

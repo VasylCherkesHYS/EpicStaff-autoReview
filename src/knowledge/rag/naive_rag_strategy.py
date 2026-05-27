@@ -24,6 +24,55 @@ from embedder.together_ai import TogetherAIEmbedder
 _embedder_cache = cachetools.LRUCache(maxsize=50)
 
 
+# Indexing error classification.
+# Codes mirror tables.NaiveRagDocumentConfig.DocumentErrorCode.
+_ERROR_MESSAGE_MAX_LENGTH = 2000
+_ERR_CHUNKING_FAILED = "chunking_failed"
+_ERR_EMBEDDING_FAILED = "embedding_failed"
+_ERR_EMBEDDER_AUTH = "embedder_auth"
+_ERR_EMBEDDER_RATE_LIMIT = "embedder_rate_limit"
+
+
+def _format_error_message(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}: {exc}".strip()
+    if len(text) > _ERROR_MESSAGE_MAX_LENGTH:
+        text = text[: _ERROR_MESSAGE_MAX_LENGTH - 1] + "…"
+    return text
+
+
+def _exc_status_code(exc: BaseException) -> int | None:
+    for attr in ("status_code", "http_status", "code"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    response = getattr(exc, "response", None)
+    if response is not None:
+        sc = getattr(response, "status_code", None)
+        if isinstance(sc, int):
+            return sc
+    return None
+
+
+def _classify_embedder_error(exc: BaseException) -> tuple[str, str]:
+    cls_name = type(exc).__name__.lower()
+    if "auth" in cls_name or "permissiondenied" in cls_name:
+        return _ERR_EMBEDDER_AUTH, _format_error_message(exc)
+    if "ratelimit" in cls_name or "toomanyrequests" in cls_name or "quota" in cls_name:
+        return _ERR_EMBEDDER_RATE_LIMIT, _format_error_message(exc)
+
+    status = _exc_status_code(exc)
+    if status in (401, 403):
+        return _ERR_EMBEDDER_AUTH, _format_error_message(exc)
+    if status == 429:
+        return _ERR_EMBEDDER_RATE_LIMIT, _format_error_message(exc)
+
+    return _ERR_EMBEDDING_FAILED, _format_error_message(exc)
+
+
+def _classify_chunking_error(exc: BaseException) -> tuple[str, str]:
+    return _ERR_CHUNKING_FAILED, _format_error_message(exc)
+
+
 class NaiveRAGStrategy(BaseRAGStrategy):
     """
     Naive RAG implementation strategy.
@@ -138,20 +187,27 @@ class NaiveRAGStrategy(BaseRAGStrategy):
 
         return knowledge_query_results.model_dump()
 
-    def process_rag_indexing(self, rag_id: int):
+    def process_rag_indexing(
+        self,
+        rag_id: int,
+        document_config_ids: Optional[list[int]] = None,
+    ):
         """
         Process RAG indexing (chunking + embedding) for a NaiveRag.
 
         Args:
             rag_id: ID of the NaiveRag (naive_rag_id)
+            document_config_ids: Optional explicit subset of document config IDs.
+                If provided, only these configs are processed (skipping any that
+                are already COMPLETED to guard against races). If None/empty —
+                pick up all NEW/WARNING/CHUNKED/FAILED/INDEXING configs.
 
-        Flow:
-        1. Get all document configs for this NaiveRag with status NEW/WARNING/CHUNKED
-        2. For each document config:
-           - Chunk the document (using ChunkDocumentService)
-           - Embed all chunks
-           - Update document config status
-        3. Update NaiveRag status based on document config statuses
+        Flow per config:
+        1. Wipe existing chunks/embeddings/preview chunks (re-index semantics).
+        2. Clear error_message/error_code/failed_at, set status=INDEXING.
+        3. Chunk → embed each chunk. On any failure: classify and persist code+message.
+        4. On success: status=COMPLETED.
+        Finally: recompute parent NaiveRag status.
         """
         naive_rag_id = rag_id
 
@@ -160,65 +216,111 @@ class NaiveRAGStrategy(BaseRAGStrategy):
 
         try:
             with uow.start() as uow_ctx:
-                # Update RAG status to PROCESSING
                 uow_ctx.naive_rag_storage.update_rag_status(
                     naive_rag_id=naive_rag_id,
                     status="processing",
                 )
-                logger.info(f"Processing embeddings for naive_rag_id: {naive_rag_id}")
-
-                # Get all document configs for this RAG with status NEW/WARNING/CHUNKED
-                document_configs = (
-                    uow_ctx.naive_rag_storage.get_naive_rag_document_configs(
-                        naive_rag_id=naive_rag_id,
-                        status=("new", "warning", "chunked", "completed"),
-                    )
+                logger.info(
+                    f"Processing embeddings for naive_rag_id: {naive_rag_id}, "
+                    f"document_config_ids={document_config_ids or 'all'}"
                 )
+
+                if document_config_ids:
+                    document_configs = [
+                        c
+                        for c in (
+                            uow_ctx.naive_rag_storage.get_naive_rag_document_config_by_id(
+                                cid
+                            )
+                            for cid in document_config_ids
+                        )
+                        if c is not None
+                        and c.naive_rag_id == naive_rag_id
+                        and c.status != "completed"
+                    ]
+                else:
+                    document_configs = (
+                        uow_ctx.naive_rag_storage.get_naive_rag_document_configs(
+                            naive_rag_id=naive_rag_id,
+                            status=("new", "warning", "chunked", "failed", "indexing"),
+                        )
+                    )
 
                 if len(document_configs) == 0:
                     logger.warning(
-                        f"NaiveRag {naive_rag_id} must contain at least 1 new document config to process"
+                        f"NaiveRag {naive_rag_id}: no document configs to (re)index"
                     )
 
                 for doc_config in document_configs:
+                    config_id = doc_config.naive_rag_document_id
+                    file_name = doc_config.document.file_name
+
+                    logger.info(
+                        f"Started processing document {file_name}, config ID: {config_id}"
+                    )
+
+                    # Wipe any existing artifacts from a previous run.
+                    uow_ctx.naive_rag_storage.delete_embeddings(
+                        naive_rag_document_config_id=config_id
+                    )
+                    uow_ctx.naive_rag_storage.delete_chunks(
+                        naive_rag_document_config_id=config_id
+                    )
                     try:
-                        # Extract data we need BEFORE any operations
-                        config_id = doc_config.naive_rag_document_id
-                        file_name = doc_config.document.file_name
-
-                        logger.info(
-                            f"Started processing document {file_name}, config ID: {config_id}"
+                        uow_ctx.naive_rag_storage.delete_preview_chunks(
+                            naive_rag_document_config_id=config_id
                         )
+                    except Exception:
+                        # Preview chunks are best-effort; don't fail the whole run.
+                        pass
 
-                        # Update document config status to PROCESSING
-                        uow_ctx.naive_rag_storage.update_document_config_status(
-                            naive_rag_document_config_id=config_id,
-                            status="processing",
-                        )
+                    uow_ctx.naive_rag_storage.clear_document_config_error(
+                        naive_rag_document_config_id=config_id
+                    )
+                    uow_ctx.naive_rag_storage.update_document_config_status(
+                        naive_rag_document_config_id=config_id,
+                        status="indexing",
+                    )
 
-                        # Chunk the document in the SAME session
-                        # Returns simple dicts: [{"chunk_id": int, "text": str}, ...]
+                    chunked_ok = False
+                    try:
                         chunk_data_list = (
                             ChunkDocumentService().process_chunk_document_in_session(
                                 uow_ctx=uow_ctx,
                                 naive_rag_document_config_id=config_id,
                             )
                         )
+                        chunked_ok = True
+                    except ForeignKeyViolation:
+                        logger.warning(
+                            f"Document: {file_name} was deleted and will not be embedded"
+                        )
+                        continue
+                    except Exception as e:
+                        code, message = _classify_chunking_error(e)
+                        uow_ctx.naive_rag_storage.mark_document_config_failed(
+                            naive_rag_document_config_id=config_id,
+                            error_code=code,
+                            error_message=message,
+                        )
+                        logger.error(
+                            f"Chunking failed for {file_name}, config {config_id}: {e}"
+                        )
+                        continue
 
-                        if not chunk_data_list:
-                            logger.warning(
-                                f"Document: {file_name} was not chunked and will not be embedded"
-                            )
-                            uow_ctx.naive_rag_storage.update_document_config_status(
-                                naive_rag_document_config_id=config_id,
-                                status="warning",
-                            )
-                            continue
+                    if not chunked_ok or not chunk_data_list:
+                        logger.warning(
+                            f"Document: {file_name} produced no chunks; marking warning"
+                        )
+                        uow_ctx.naive_rag_storage.update_document_config_status(
+                            naive_rag_document_config_id=config_id,
+                            status="warning",
+                        )
+                        continue
 
-                        # Embed all chunks (using simple dict data)
+                    try:
                         for chunk_data in chunk_data_list:
                             embedded_data = embedder.embed(chunk_data["text"])
-
                             if isinstance(embedded_data, dict):
                                 vector = embedded_data.get("embedding", [])
                             else:
@@ -229,25 +331,28 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                                 embedding=vector,
                                 naive_rag_document_config_id=config_id,
                             )
-
                     except ForeignKeyViolation:
                         logger.warning(
-                            f"Document: {file_name} was deleted and will not be embedded"
+                            f"Document: {file_name} was deleted mid-embedding"
                         )
+                        continue
                     except Exception as e:
-                        uow_ctx.naive_rag_storage.update_document_config_status(
+                        code, message = _classify_embedder_error(e)
+                        uow_ctx.naive_rag_storage.mark_document_config_failed(
                             naive_rag_document_config_id=config_id,
-                            status="failed",
+                            error_code=code,
+                            error_message=message,
                         )
                         logger.error(
-                            f"Error processing {file_name}, config ID: {config_id}. Error: {e}"
+                            f"Embedding failed for {file_name}, config {config_id}: {e}"
                         )
-                    else:
-                        uow_ctx.naive_rag_storage.update_document_config_status(
-                            naive_rag_document_config_id=config_id,
-                            status="completed",
-                        )
-                        logger.success(f"Document: {file_name} embedded!")
+                        continue
+
+                    uow_ctx.naive_rag_storage.update_document_config_status(
+                        naive_rag_document_config_id=config_id,
+                        status="completed",
+                    )
+                    logger.success(f"Document: {file_name} embedded!")
 
         except Exception as e:
             with uow.start() as uow_ctx:
