@@ -101,10 +101,10 @@ export class ClassificationDecisionTableNodeComponent {
     trackConditionGroup(index: number, group: ConditionGroup): string {
         const port = this.getPortForGroup(group);
         if (port) {
-            return port.id;
+            return `${index}:${port.id}`;
         }
         if (group.group_name) {
-            return group.group_name;
+            return `${index}:${group.group_name}`;
         }
         return String(index);
     }

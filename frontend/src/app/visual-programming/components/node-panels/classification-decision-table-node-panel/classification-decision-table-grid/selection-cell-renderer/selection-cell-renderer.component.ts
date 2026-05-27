@@ -9,7 +9,7 @@ import { ICellRendererParams, IRowNode } from 'ag-grid-community';
     template: `
         <div class="selection-cell">
             <span
-                class="ag-row-drag drag-grip"
+                class="drag-grip"
                 aria-hidden="true"
             >
                 <span class="drag-dot"></span>
@@ -61,6 +61,7 @@ import { ICellRendererParams, IRowNode } from 'ag-grid-community';
                 height: 3px;
                 border-radius: 50%;
                 background: rgba(217, 217, 222, 0.5);
+                pointer-events: none;
             }
             .selection-checkbox {
                 position: relative;

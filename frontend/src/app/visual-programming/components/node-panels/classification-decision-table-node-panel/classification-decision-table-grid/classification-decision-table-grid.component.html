@@ -97,7 +97,7 @@
             class="decision-grid ag-theme-quartz-dark"
             [class.empty-state]="isEmpty()"
             style="width: 100%"
-            [rowData]="rowData()"
+            [rowData]="displayedRowData()"
             [columnDefs]="columnDefs"
             [defaultColDef]="defaultColDef"
             [gridOptions]="gridOptions"
@@ -105,6 +105,13 @@
             (cellValueChanged)="onCellValueChanged($event)"
         >
         </ag-grid-angular>
+
+        @if (dropIndicatorTop() !== null) {
+            <div
+                class="row-drop-indicator"
+                [style.top.px]="dropIndicatorTop()"
+            ></div>
+        }
 
         <!-- Hidden-column restore badges -->
         @for (badge of hiddenColumnBadges(); track badge.colId) {

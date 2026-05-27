@@ -60,27 +60,28 @@ export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularC
             this.variables = [];
         }
 
-        if (this.mode === 'manipulation') {
-            // After Angular renders the popup, shift the AG Grid popup wrapper
-            // leftward so the popup's right edge aligns with the cell's right edge.
-            setTimeout(() => {
-                const cellEl = params.eGridCell as HTMLElement;
-                const cellWidth = cellEl.getBoundingClientRect().width;
+        setTimeout(() => this.repositionPopup(params), 0);
+    }
 
-                // Walk up from the host element to find the .ag-popup-editor wrapper
-                // that AG Grid positions absolutely.
-                let wrapper: HTMLElement | null = this.elRef.nativeElement;
-                while (wrapper && !wrapper.classList.contains('ag-popup-editor')) {
-                    wrapper = wrapper.parentElement;
-                }
+    private repositionPopup(params: ExpressionBuilderCellEditorParams): void {
+        const cellEl = params.eGridCell as HTMLElement;
+        const cellRect = cellEl.getBoundingClientRect();
 
-                if (wrapper) {
-                    const popupWidth = wrapper.getBoundingClientRect().width;
-                    const shift = cellWidth - popupWidth;
-                    wrapper.style.transform = `translateX(${shift}px)`;
-                }
-            }, 0);
+        let wrapper: HTMLElement | null = this.elRef.nativeElement;
+        while (wrapper && !wrapper.classList.contains('ag-popup-editor')) {
+            wrapper = wrapper.parentElement;
         }
+        if (!wrapper) return;
+
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const popupWidth = wrapperRect.width;
+
+        const targetTop = cellRect.top;
+        const targetLeft = this.mode === 'manipulation' ? cellRect.right - popupWidth : cellRect.left;
+
+        const dx = targetLeft - wrapperRect.left;
+        const dy = targetTop - wrapperRect.top;
+        wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
     }
 
     getValue(): string {

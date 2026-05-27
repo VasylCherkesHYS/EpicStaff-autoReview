@@ -352,6 +352,17 @@
     border-bottom-color: var(--purple-primary);
 }
 
+.row-drop-indicator {
+    position: absolute;
+    left: 28px;
+    right: 0;
+    height: 2px;
+    background: var(--purple-primary);
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 0 0 4px rgba(104, 95, 255, 0.6);
+}
+
 .hidden-col-badge {
     position: absolute;
     width: 20px;
@@ -664,4 +675,8 @@
 :host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-drag-handle,
 :host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-selection-checkbox {
     display: none !important;
+}
+
+:host ::ng-deep .ag-cell[col-id='selection'] .ag-cell-wrapper > .ag-row-drag:active {
+    cursor: grabbing;
 }
