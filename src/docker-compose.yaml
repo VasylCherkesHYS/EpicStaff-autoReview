@@ -491,6 +491,26 @@ services:
       - "8025:8025"   # web UI: http://localhost:8025/
     networks:
       - backend-network
+  
+  agent:
+    image: ghcr.io/epicstaff/agent:${IMAGE_TAG:-latest}
+    container_name: agent
+    build:
+      context: .
+      dockerfile: ./agent/Dockerfile.agent
+    environment:
+      <<: *common_env
+      AGENT_REQUEST_STREAM: ${AGENT_REQUEST_STREAM:-agent.requests}
+      AGENT_RESULT_STREAM: ${AGENT_RESULT_STREAM:-agent.results}
+      AGENT_CONSUMER_GROUP: ${AGENT_CONSUMER_GROUP:-agent-executors}
+      LLM_DEFAULT_MAX_RETRIES: ${LLM_DEFAULT_MAX_RETRIES:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+
 
 volumes:
   sandbox_venvs:
