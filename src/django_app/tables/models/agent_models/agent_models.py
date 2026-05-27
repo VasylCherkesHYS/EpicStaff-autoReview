@@ -85,6 +85,15 @@ class AgentDefinition(AbstractDefaultFillableModel):
         default=None,
         help_text="Optional dedicated LLM for function/tool-call routing. Falls back to llm_config when null.",
     )
+    default_surface = models.ForeignKey(
+        "Surface",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        default=None,
+        related_name="default_for_agents",
+        help_text="Surface applied to this agent by default when a node does not specify one. Null means no default surface.",
+    )
 
     # Execution config
     max_iter = models.IntegerField(

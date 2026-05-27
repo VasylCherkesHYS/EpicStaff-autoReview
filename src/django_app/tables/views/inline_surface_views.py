@@ -11,11 +11,14 @@ from tables.serializers.model_serializers.surface_serializers import (
 )
 
 INLINE_SURFACE_M2M_FIELDS = (
-    "tool_configs",
-    "python_code_tool_configs",
-    "mcp_tools",
-    "knowledge_collections",
-    "storage_files",
+    "allowed_python_tools",
+    "disabled_python_tools",
+    "allowed_mcp_tools",
+    "disabled_mcp_tools",
+    "allowed_knowledge_collections",
+    "disabled_knowledge_collections",
+    "allowed_storage_files",
+    "disabled_storage_files",
 )
 
 
@@ -71,6 +74,7 @@ class InlineSurfaceViewSet(viewsets.ModelViewSet):
 
         for name in INLINE_SURFACE_M2M_FIELDS:
             value = m2m[name]
+
             if partial:
                 if value is not None:
                     getattr(instance, name).set(value)

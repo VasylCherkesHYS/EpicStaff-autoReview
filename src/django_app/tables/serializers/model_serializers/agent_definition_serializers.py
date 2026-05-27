@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from tables.models.agent_models import AgentDefinition
+from tables.models.agent_models import AgentDefinition, Surface
 from tables.models.llm_models import LLMConfig
 
 
@@ -15,6 +15,7 @@ class AgentDefinitionReadSerializer(serializers.ModelSerializer):
             "instructions",
             "llm_config",
             "fcm_llm_config",
+            "default_surface",
             "max_iter",
             "max_rpm",
             "max_execution_time",
@@ -36,6 +37,11 @@ class AgentDefinitionWriteSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    default_surface = serializers.PrimaryKeyRelatedField(
+        queryset=Surface.objects.all(),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = AgentDefinition
@@ -45,6 +51,7 @@ class AgentDefinitionWriteSerializer(serializers.ModelSerializer):
             "instructions",
             "llm_config",
             "fcm_llm_config",
+            "default_surface",
             "max_iter",
             "max_rpm",
             "max_execution_time",
