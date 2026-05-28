@@ -1,29 +1,48 @@
+import json
 from datetime import datetime, timezone
 from collections import defaultdict
+from drf_yasg.utils import swagger_auto_schema
 import uuid
 import base64
 from tables.services.rbac.authentication import IsAuthenticatedOrApiKey
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.models.graph_models import TelegramTriggerNode
 from tables.services.telegram_trigger_service import TelegramTriggerService
-from tables.serializers.telegram_trigger_serializers import (
-    TelegramTriggerNodeDataFieldsSerializer,
+from tables.serializers.model_serializers import TelegramTriggerNodeDataFieldsSerializer
+
+from tables.serializers.model_serializers.crew_serializers import (
+    ToolSerializer,
 )
+from tables.serializers.model_serializers.embedding_serializers import (
+    DefaultEmbeddingConfigSerializer,
+)
+from tables.serializers.model_serializers.llm_serializers import (
+    DefaultLLMConfigSerializer,
+)
+from tables.services.webhook_trigger_service import WebhookTriggerService
+from tables.models.graph_models import (
+    TelegramTriggerNode,
+    PythonNode,
+    GraphSessionMessage,
+)
+from tables.services.telegram_trigger_service import TelegramTriggerService
 from tables.utils.telegram_fields import load_telegram_trigger_fields
 from tables.models import Tool
 from tables.models import Crew
 from tables.models.embedding_models import DefaultEmbeddingConfig
 from tables.models.llm_models import DefaultLLMConfig
 from tables.services.realtime_service import RealtimeService
+from tables.swagger_schemas.python_node_test_mode_schema import (
+    LAST_TEST_INPUT_SWAGGER as _LAST_TEST_INPUT_SWAGGER,
+)
 from utils.logger import logger
 
 from drf_spectacular.utils import (
     extend_schema,
-    OpenApiResponse,
+    extend_schema_view,
     OpenApiParameter,
-    inline_serializer,
+    OpenApiResponse,
 )
-from rest_framework import serializers as drf_serializers
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef
 from django.conf import settings
@@ -54,7 +73,6 @@ from tables.enums import SessionWarningType
 
 from tables.models import (
     Session,
-    SourceCollection,
     # DocumentMetadata,
     GraphOrganization,
     GraphOrganizationUser,
@@ -66,19 +84,19 @@ from tables.models import (
 from tables.serializers.model_serializers import (
     SessionSerializer,
     SessionLightSerializer,
-    DefaultLLMConfigSerializer,
-    DefaultEmbeddingConfigSerializer,
-    ToolSerializer,
+    TelegramTriggerNodeDataFieldsSerializer,
 )
 from tables.serializers.storage_serializers import SessionOutputFileSerializer
 from tables.serializers.serializers import (
     AnswerToLLMSerializer,
+    BulkExportSerializer,
     EnvironmentConfigSerializer,
     InitRealtimeSerializer,
-    ProcessCollectionEmbeddingSerializer,
     ProcessRagIndexingSerializer,
     RunSessionSerializer,
     RegisterTelegramTriggerSerializer,
+    RunPythonCodeSerializer,
+    SessionExportAllSerializer,
 )
 
 from tables.serializers.quickstart_serializers import (
@@ -87,9 +105,51 @@ from tables.serializers.quickstart_serializers import (
     QuickstartStatusSerializer,
 )
 from tables.serializers.default_config_serializers import DefaultModelsSerializer
-from tables.models.default_models import DefaultModels
 from tables.filters import SessionFilter  # CollectionFilter,
+from tables.services.import_export_service import ViewSetImportExportService
+from tables.import_export.enums import EntityType
+from tables.import_export.export_format_strategies import (
+    JsonExportFormatStrategy,
+    CsvExportFormatStrategy,
+)
+from tables.import_export.tabular.session import SessionTabularProjection
 
+from tables.swagger_schemas.crews_schema import CREW_DELETE
+from tables.swagger_schemas.default_config_schemas import (
+    DEFAULT_EMBEDDING_CONFIG_GET,
+    DEFAULT_EMBEDDING_CONFIG_PUT,
+    DEFAULT_LLM_CONFIG_GET,
+    DEFAULT_LLM_CONFIG_PUT,
+    ENVIRONMENT_CONFIG_GET,
+    ENVIRONMENT_CONFIG_POST,
+    ENVIRONMENT_CONFIG_DELETE,
+    QUICKSTART_GET,
+    QUICKSTART_POST,
+    QUICKSTART_APPLY_POST,
+)
+from tables.swagger_schemas.knowledge_schemas.naive_rag_schemas import (
+    PROCESS_RAG_INDEXING_POST,
+)
+from tables.swagger_schemas.realtime_schemas import INIT_REALTIME_POST
+from tables.swagger_schemas.sessions_schema import (
+    ANSWER_TO_LLM,
+    GET_UPDATES_GET,
+    RUN_SESSION_POST,
+    SESSION_BULK_DELETE_POST,
+    SESSION_DESTROY_DELETE,
+    SESSION_LIST_GET,
+    SESSION_OUTPUT_FILES_GET,
+    SESSION_RETRIEVE_GET,
+    SESSION_STATUSES_GET,
+    SESSION_WARNINGS_GET,
+    STOP_SESSION_POST,
+)
+from tables.swagger_schemas.telegram_schemas import (
+    TELEGRAM_TRIGGER_AVAILABLE_FIELDS_GET,
+    REGISTER_TELEGRAM_TRIGGER_POST,
+)
+from tables.swagger_schemas.webhook_schemas import REGISTER_WEBHOOKS_POST
+from tables.swagger_schemas.python_code_schemas import RUN_PYTHON_CODE_POST
 from .default_config import *
 
 
@@ -105,6 +165,10 @@ realtime_service = RealtimeService()
 quickstart_service = QuickstartService()
 
 
+@extend_schema_view(
+    retrieve=extend_schema(**SESSION_RETRIEVE_GET),
+    destroy=extend_schema(**SESSION_DESTROY_DELETE),
+)
 class SessionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
@@ -120,6 +184,19 @@ class SessionViewSet(
 
     serializer_class = SessionSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.import_export_service = ViewSetImportExportService(
+            entity_type=EntityType.SESSION,
+            export_prefix="session",
+            filename_attr="id",
+            format_strategies={
+                "json": JsonExportFormatStrategy(),
+                "csv": CsvExportFormatStrategy(SessionTabularProjection()),
+            },
+        )
+
     filterset_class = SessionFilter
     ordering_fields = [
         "created_at",
@@ -130,18 +207,7 @@ class SessionViewSet(
     ]  # allowed fields
     ordering = ["-created_at", "id"]  # default ordering
 
-    @extend_schema(
-        description="Retrieve a list of sessions.",
-        parameters=[
-            OpenApiParameter(
-                name="detailed",
-                location=OpenApiParameter.QUERY,
-                description="Whether to include all session details. Set to `false` to return only minimal fields. The `true` value is deprecated and will be removed in a future version.",
-                required=False,
-                type=drf_serializers.BooleanField(),
-            )
-        ],
-    )
+    @extend_schema(**SESSION_LIST_GET)
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -164,12 +230,129 @@ class SessionViewSet(
 
         return qs
 
+    _FORMAT_QUERY_PARAM = OpenApiParameter(
+        name="export_format",
+        location=OpenApiParameter.QUERY,
+        description="Export format: 'json' (default) returns a structured JSON file; 'csv' returns a flat CSV of session messages.",
+        required=False,
+        type=str,
+        enum=["json", "csv"],
+        default="json",
+    )
+
     @extend_schema(
-        description="Get counts of each status grouped by graph ID",
+        description="Export a single session's messages as a downloadable file. "
+        "Includes messages from all nested sub-sessions.",
+        parameters=[_FORMAT_QUERY_PARAM],
         responses={
-            200: OpenApiResponse(description="Mapping of graph_id to status counts"),
+            200: OpenApiResponse(
+                description="File download (application/json or text/csv)."
+            ),
         },
     )
+    @action(detail=True, methods=["get"])
+    def export(self, request, pk: int):
+        fmt = request.query_params.get("export_format", "json")
+        return self.import_export_service.export_entity(self.get_object(), fmt=fmt)
+
+    @extend_schema(
+        description="Export messages from multiple sessions as a single downloadable file. "
+        "Includes messages from all nested sub-sessions for each requested session.",
+        request=BulkExportSerializer,
+        parameters=[_FORMAT_QUERY_PARAM],
+        responses={
+            200: OpenApiResponse(
+                description="File download (application/json or text/csv)."
+            ),
+            400: OpenApiResponse(
+                description="Invalid request body or one or more session IDs do not exist."
+            ),
+        },
+    )
+    @action(detail=False, methods=["post"], url_path="bulk-export")
+    def bulk_export(self, request):
+        serializer = BulkExportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entity_ids = serializer.validated_data["ids"]
+
+        existing_ids = Session.objects.filter(id__in=entity_ids).values_list(
+            "id", flat=True
+        )
+        if len(existing_ids) != len(entity_ids):
+            return Response(
+                {"message": "Some entity IDs do not exist"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fmt = request.query_params.get("export_format", "json")
+        return self.import_export_service.bulk_export(entity_ids, fmt=fmt)
+
+    @extend_schema(
+        description="Export messages from top-level sessions matching the given filters as a single downloadable file. "
+        "Includes messages from all nested sub-sessions.",
+        request=SessionExportAllSerializer,
+        parameters=[_FORMAT_QUERY_PARAM],
+        responses={
+            200: OpenApiResponse(
+                description="File download (application/json or text/csv)."
+            ),
+            400: OpenApiResponse(description="Invalid request body."),
+            404: OpenApiResponse(description="No sessions match the given filters."),
+        },
+    )
+    @action(detail=False, methods=["post"], url_path="export_all")
+    def export_all(self, request):
+        serializer = SessionExportAllSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if (
+            "graph_id" in data
+            and not Graph.objects.filter(id=data["graph_id"]).exists()
+        ):
+            raise NotFound(f"Graph {data['graph_id']} not found")
+
+        qs = Session.objects.filter(parent_session_id=None)
+
+        if "graph_id" in data:
+            qs = qs.filter(graph_id=data["graph_id"])
+        if "graph_name" in data:
+            qs = qs.filter(graph__name__iexact=data["graph_name"])
+        if "status" in data:
+            qs = qs.filter(status__in=data["status"])
+        if "created_at_after" in data:
+            qs = qs.filter(created_at__gte=data["created_at_after"])
+        if "created_at_before" in data:
+            qs = qs.filter(created_at__lte=data["created_at_before"])
+        if "finished_at_after" in data:
+            qs = qs.filter(finished_at__gte=data["finished_at_after"])
+        if "finished_at_before" in data:
+            qs = qs.filter(finished_at__lte=data["finished_at_before"])
+
+        node_name = data.get("node_name")
+        if node_name:
+            qs = qs.filter(graphsessionmessage__name=node_name).distinct()
+
+        if data.get("is_error_cause"):
+            error_messages = GraphSessionMessage.objects.filter(
+                session=OuterRef("pk"), message_data__message_type="error"
+            )
+            if node_name:
+                error_messages = error_messages.filter(name=node_name)
+            qs = qs.filter(Exists(error_messages)).distinct()
+
+        session_ids = list(qs.values_list("id", flat=True))
+
+        if not session_ids:
+            return Response(
+                {"message": "No sessions match the given filters"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        fmt = request.query_params.get("export_format", "json")
+        return self.import_export_service.bulk_export(session_ids, fmt=fmt)
+
+    @extend_schema(**SESSION_STATUSES_GET)
     @action(detail=False, methods=["GET"])
     def statuses(self, request):
         queryset = self.get_queryset()
@@ -185,16 +368,7 @@ class SessionViewSet(
 
         return Response(data)
 
-    @extend_schema(
-        description="Delete multiple sessions by IDs",
-        request=inline_serializer(
-            name="SessionBulkDeleteRequest",
-            fields={
-                "ids": drf_serializers.ListField(child=drf_serializers.IntegerField()),
-            },
-        ),
-        responses={200: OpenApiResponse(description="Successfully deleted IDs")},
-    )
+    @extend_schema(**SESSION_BULK_DELETE_POST)
     @action(detail=False, methods=["post"], url_path="bulk_delete")
     def bulk_delete(self, request):
         ids = request.data.get("ids", [])
@@ -214,13 +388,7 @@ class SessionViewSet(
             {"deleted": deleted_count, "ids": ids}, status=status.HTTP_200_OK
         )
 
-    @extend_schema(
-        responses={
-            200: OpenApiResponse(description="Session warnings retrieved successfully"),
-            400: OpenApiResponse(description="Session is required"),
-            404: OpenApiResponse(description="Session not found"),
-        },
-    )
+    @extend_schema(**SESSION_WARNINGS_GET)
     @action(detail=True, methods=["get"], url_path="warnings")
     def get_session_warnings(self, request, pk=None):
         session = self.get_object()
@@ -233,14 +401,7 @@ class SessionViewSet(
 
         return Response(warning, status=status.HTTP_200_OK)
 
-    @extend_schema(
-        summary="List session output files",
-        description=(
-            "Returns all storage files recorded as output during the given session, "
-            "ordered by the time they were added."
-        ),
-        responses={200: SessionOutputFileSerializer(many=True)},
-    )
+    @extend_schema(**SESSION_OUTPUT_FILES_GET)
     @action(detail=True, methods=["get"], url_path="output-files")
     def output_files(self, request, pk=None):
         session = self.get_object()
@@ -253,13 +414,7 @@ class SessionViewSet(
 
 
 class RunSession(APIView):
-    @extend_schema(
-        request=RunSessionSerializer,
-        responses={
-            201: OpenApiResponse(description="Session Started"),
-            400: OpenApiResponse(description="Bad Request - Invalid Input"),
-        },
-    )
+    @extend_schema(**RUN_SESSION_POST)
     def post(self, request):
         logger.info("Received POST request to start a new session.")
 
@@ -394,12 +549,7 @@ class RunSession(APIView):
 
 
 class GetUpdates(APIView):
-    @extend_schema(
-        responses={
-            200: OpenApiResponse(description="Session details retrieved successfully"),
-            404: OpenApiResponse(description="Session not found or session ID missing"),
-        }
-    )
+    @extend_schema(**GET_UPDATES_GET)
     def get(self, request, *args, **kwargs):
         session_id = kwargs.get("session_id", None)
         if session_id is None:
@@ -419,12 +569,7 @@ class GetUpdates(APIView):
 
 
 class StopSession(APIView):
-    @extend_schema(
-        responses={
-            204: OpenApiResponse(description="Session stopped"),
-            404: OpenApiResponse(description="Session not found or session ID missing"),
-        },
-    )
+    @extend_schema(**STOP_SESSION_POST)
     def post(self, request, *args, **kwargs):
         session_id = kwargs.get("session_id", None)
         if session_id is None:
@@ -448,24 +593,14 @@ class StopSession(APIView):
 
 
 class EnvironmentConfig(APIView):
-    @extend_schema(
-        responses={
-            200: OpenApiResponse(description="Config retrieved successfully"),
-        },
-    )
+    @extend_schema(**ENVIRONMENT_CONFIG_GET)
     def get(self, request, format=None):
         config_dict: dict = config_service.get_all()
         logger.info("Configuration retrieved successfully.")
 
         return Response(status=status.HTTP_200_OK, data={"data": config_dict})
 
-    @extend_schema(
-        request=EnvironmentConfigSerializer,
-        responses={
-            201: OpenApiResponse(description="Config updated successfully"),
-            400: OpenApiResponse(description="Invalid config data provided"),
-        },
-    )
+    @extend_schema(**ENVIRONMENT_CONFIG_POST)
     def post(self, request, *args, **kwargs):
         serializer = EnvironmentConfigSerializer(data=request.data)
         if not serializer.is_valid():
@@ -480,13 +615,7 @@ class EnvironmentConfig(APIView):
         return Response(data={"data": updated_config}, status=status.HTTP_201_CREATED)
 
 
-@extend_schema(
-    responses={
-        204: OpenApiResponse(description="Config deleted successfully"),
-        400: OpenApiResponse(description="No key provided"),
-        404: OpenApiResponse(description="Key not found"),
-    },
-)
+@extend_schema(**ENVIRONMENT_CONFIG_DELETE)
 @api_view(["DELETE"])
 def delete_environment_config(request, *args, **kwargs):
     key: str | None = kwargs.get("key", None)
@@ -506,15 +635,7 @@ def delete_environment_config(request, *args, **kwargs):
 
 
 class AnswerToLLM(APIView):
-    @extend_schema(
-        request=AnswerToLLMSerializer,
-        responses={
-            202: OpenApiResponse(description="User input sent"),
-            400: OpenApiResponse(description="Invalid data provided"),
-            404: OpenApiResponse(description="Session not found"),
-            418: OpenApiResponse(description="Session status is not wait_for_input"),
-        },
-    )
+    @extend_schema(**ANSWER_TO_LLM)
     def post(self, request, *args, **kwargs):
         serializer = AnswerToLLMSerializer(data=request.data)
         if not serializer.is_valid():
@@ -573,22 +694,7 @@ class AnswerToLLM(APIView):
 
 
 class CrewDeleteAPIView(APIView):
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="delete_sessions",
-                location=OpenApiParameter.QUERY,
-                type=drf_serializers.CharField(),
-                description="Delete all sessions associated (true/false). Default is false.",
-                required=False,
-            )
-        ],
-        responses={
-            200: OpenApiResponse(description="Crew deleted successfully"),
-            400: OpenApiResponse(description="Invalid value for delete_sessions"),
-            404: OpenApiResponse(description="Crew not found"),
-        },
-    )
+    @extend_schema(**CREW_DELETE)
     def delete(self, request, id):
         delete_sessions = request.query_params.get("delete_sessions", "false").lower()
         if delete_sessions not in {"true", "false"}:
@@ -621,28 +727,14 @@ class CrewDeleteAPIView(APIView):
 
 
 class DefaultLLMConfigAPIView(APIView):
-    @extend_schema(
-        summary="Get llm config defaults",
-        responses={
-            200: DefaultLLMConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-        },
-    )
+    @extend_schema(**DEFAULT_LLM_CONFIG_GET)
     def get(self, request, *args, **kwargs):
         obj = DefaultLLMConfig.objects.first()
         serializer = DefaultLLMConfigSerializer(obj, many=False)
 
         return Response(serializer.data)
 
-    @extend_schema(
-        summary="Update llm config defaults",
-        request=DefaultLLMConfigSerializer,
-        responses={
-            200: DefaultLLMConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-            400: OpenApiResponse(description="Validation Error"),
-        },
-    )
+    @extend_schema(**DEFAULT_LLM_CONFIG_PUT)
     def put(self, request, *args, **kwargs):
         try:
             obj = DefaultLLMConfig.objects.get(pk=1)
@@ -659,28 +751,14 @@ class DefaultLLMConfigAPIView(APIView):
 
 
 class DefaultEmbeddingConfigAPIView(APIView):
-    @extend_schema(
-        summary="Get embedding config defaults",
-        responses={
-            200: DefaultEmbeddingConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-        },
-    )
+    @extend_schema(**DEFAULT_EMBEDDING_CONFIG_GET)
     def get(self, request, *args, **kwargs):
         obj = DefaultEmbeddingConfig.objects.first()
         serializer = DefaultEmbeddingConfigSerializer(obj, many=False)
 
         return Response(serializer.data)
 
-    @extend_schema(
-        summary="Update embedding config defaults",
-        request=DefaultEmbeddingConfigSerializer,
-        responses={
-            200: DefaultEmbeddingConfigSerializer,
-            404: OpenApiResponse(description="Object not found"),
-            400: OpenApiResponse(description="Validation Error"),
-        },
-    )
+    @extend_schema(**DEFAULT_EMBEDDING_CONFIG_PUT)
     def put(self, request, *args, **kwargs):
         try:
             obj = DefaultEmbeddingConfig.objects.get(pk=1)
@@ -704,51 +782,21 @@ class ToolListRetrieveUpdateGenericViewSet(
 
 
 class RunPythonCodeAPIView(APIView):
-    @extend_schema(
-        summary="Run Python Code",
-        request=inline_serializer(
-            name="RunPythonCodeRequest",
-            fields={
-                "python_code_id": drf_serializers.IntegerField(),
-                "variables": drf_serializers.DictField(
-                    child=drf_serializers.CharField(), required=False
-                ),
-            },
-        ),
-        responses={
-            200: inline_serializer(
-                name="RunPythonCodeResponse",
-                fields={
-                    "execution_id": drf_serializers.IntegerField(),
-                },
-            ),
-            400: OpenApiResponse(description="Bad Request"),
-        },
-    )
+    @extend_schema(**RUN_PYTHON_CODE_POST)
     def post(self, request):
-        python_code_id = request.data.get("python_code_id")
-        variables = request.data.get("variables", {})
+        serializer = RunPythonCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        python_code = serializer.validated_data["python_code"]
+        variables = serializer.validated_data["variables"]
 
-        if not python_code_id:
-            return Response(
-                {"error": "python_code_id is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        execution_id = run_python_code_service.run_code(python_code_id, variables)
+        execution_id = run_python_code_service.run_code(python_code.id, variables)
         return Response({"execution_id": execution_id}, status=status.HTTP_200_OK)
 
 
 class InitRealtimeAPIView(APIView):
     permission_classes = [IsAuthenticatedOrApiKey]
 
-    @extend_schema(
-        request=InitRealtimeSerializer,
-        responses={
-            201: OpenApiResponse(description="Realtime agent created successfully"),
-            400: OpenApiResponse(description="Bad Request - Invalid Input"),
-        },
-    )
+    @extend_schema(**INIT_REALTIME_POST)
     def post(self, request):
         logger.info("Received POST request to start a new session.")
 
@@ -786,10 +834,7 @@ class QuickstartView(APIView):
     API endpoint for managing quickstart configurations
     """
 
-    @extend_schema(
-        description="Get list of supported providers",
-        responses={200: OpenApiResponse(description="List of supported providers")},
-    )
+    @extend_schema(**QUICKSTART_GET)
     def get(self, request):
         try:
             supported_providers = list(quickstart_service.get_supported_providers())
@@ -814,10 +859,7 @@ class QuickstartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(
-        request=QuickstartSerializer,
-        responses={202: OpenApiResponse(description="Chunking operation accepted")},
-    )
+    @extend_schema(**QUICKSTART_POST)
     def post(self, request):
         serializer = QuickstartSerializer(data=request.data)
         if serializer.is_valid():
@@ -857,9 +899,7 @@ class QuickstartApplyView(APIView):
     If config_name is omitted, the most recently created quickstart config is used.
     """
 
-    @extend_schema(
-        responses={200: DefaultModelsSerializer},
-    )
+    @extend_schema(**QUICKSTART_APPLY_POST)
     def post(self, request):
         last = quickstart_service.get_last_quickstart()
         if not last:
@@ -878,16 +918,7 @@ class ProcessRagIndexingView(APIView):
     All business logic is handled by IndexingService.
     """
 
-    @extend_schema(
-        request=ProcessRagIndexingSerializer,
-        responses={
-            202: OpenApiResponse(description="Indexing process accepted and queued"),
-            400: OpenApiResponse(
-                description="Invalid request or RAG not ready for indexing"
-            ),
-            404: OpenApiResponse(description="RAG configuration not found"),
-        },
-    )
+    @extend_schema(**PROCESS_RAG_INDEXING_POST)
     def post(self, request):
         serializer = ProcessRagIndexingSerializer(data=request.data)
         if not serializer.is_valid():
@@ -942,6 +973,7 @@ class TelegramTriggerNodeAvailableFieldsView(APIView):
     for TelegramTriggerNode.
     """
 
+    @extend_schema(**TELEGRAM_TRIGGER_AVAILABLE_FIELDS_GET)
     def get(self, request, format=None):
         data = load_telegram_trigger_fields()
         serializer = TelegramTriggerNodeDataFieldsSerializer({"data": data})
@@ -949,14 +981,7 @@ class TelegramTriggerNodeAvailableFieldsView(APIView):
 
 
 class RegisterTelegramTriggerApiView(APIView):
-    @extend_schema(
-        request=RegisterTelegramTriggerSerializer,
-        responses={
-            200: OpenApiResponse(description="OK"),
-            404: OpenApiResponse(description="TelegramTriggerNode not found"),
-            503: OpenApiResponse(description="No webhook tunnel available"),
-        },
-    )
+    @extend_schema(**REGISTER_TELEGRAM_TRIGGER_POST)
     def post(self, request):
         serializer = RegisterTelegramTriggerSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -982,10 +1007,47 @@ class RegisterTelegramTriggerApiView(APIView):
 
 
 class RegisterWebhooksApiView(APIView):
-    @extend_schema(
-        responses={200: OpenApiResponse(description="OK")},
-    )
+    @extend_schema(**REGISTER_WEBHOOKS_POST)
     def post(self, request):
         webhook_trigger_service = WebhookTriggerService()
         webhook_trigger_service.register_webhooks()
         return Response(status=status.HTTP_200_OK)
+
+
+class PythonNodeLastTestInputView(APIView):
+    @swagger_auto_schema(**_LAST_TEST_INPUT_SWAGGER)
+    def get(self, request, pk):
+        try:
+            python_node = PythonNode.objects.get(pk=pk)
+        except PythonNode.DoesNotExist:
+            raise NotFound(detail="PythonNode not found.")
+
+        python_node_name = f"{python_node.node_name} #{python_node.pk}"
+        found_input = (
+            GraphSessionMessage.objects.filter(
+                session__graph_id=python_node.graph_id,
+                session__status=Session.SessionStatus.END,
+                name=python_node_name,
+                message_data__message_type="start",
+            )
+            .order_by("-session__created_at", "-created_at")
+            .values_list("message_data__input", flat=True)
+            .first()
+        )
+
+        if found_input is None:
+            return Response(
+                {
+                    "detail": "No matching test input found for this node.",
+                    "input": None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "detail": "Last test input retrieved successfully.",
+                "input": found_input,
+            },
+            status=status.HTTP_200_OK,
+        )

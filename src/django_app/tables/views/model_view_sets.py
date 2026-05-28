@@ -19,7 +19,7 @@ from django_filters.rest_framework import (
     NumberFilter,
 )
 from rest_framework import filters as drf_filters
-from rest_framework import generics, mixins, status, viewsets
+from rest_framework import generics, mixins, status, viewsets, serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import (
     PermissionDenied,
@@ -28,9 +28,30 @@ from rest_framework.exceptions import (
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 
+from tables.serializers.model_serializers.embedding_serializers import (
+    EmbeddingConfigSerializer,
+    EmbeddingModelSerializer,
+)
+from tables.serializers.model_serializers.llm_serializers import (
+    LLMConfigSerializer,
+    LLMModelSerializer,
+    RealtimeConfigSerializer,
+    RealtimeModelSerializer,
+    RealtimeTranscriptionConfigSerializer,
+    RealtimeTranscriptionModelSerializer,
+)
+from tables.serializers.model_serializers.provider_serializers import (
+    ProviderSerializer,
+)
+from tables.serializers.model_serializers.tag_serializers import (
+    AgentTagSerializer,
+    CrewTagSerializer,
+    GraphTagSerializer,
+)
 from tables.exceptions import (
     AgentSerializerError,
     BuiltInToolModificationError,
@@ -44,6 +65,7 @@ from tables.graph_versioning.services import GraphVersioningService
 from tables.graph_versioning.serializers import (
     GraphVersionCreateSerializer,
     GraphVersionReadSerializer,
+    GraphVersionUpdateSerializer,
 )
 
 from tables.import_export.enums import EntityType
@@ -82,8 +104,10 @@ from tables.models.crew_models import (
     AgentMcpTools,
     AgentPythonCodeTools,
     AgentPythonCodeToolConfigs,
+    TaskConfiguredTools,
     TaskMcpTools,
     TaskPythonCodeToolConfigs,
+    TaskPythonCodeTools,
 )
 from tables.exceptions import (
     TaskSerializerError,
@@ -94,8 +118,15 @@ from tables.models.llm_models import (
     RealtimeTranscriptionConfig,
     RealtimeTranscriptionModel,
 )
-from drf_spectacular.utils import extend_schema
-from tables.swagger_schemas.graph_bulk_save_schema import (
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    inline_serializer,
+    OpenApiParameter,
+    OpenApiResponse,
+)
+from drf_spectacular.types import OpenApiTypes
+from tables.swagger_schemas.knowledge_schemas.graph_bulk_save_schemas import (
     SAVE_FLOW_SWAGGER as _SAVE_FLOW_SWAGGER,
 )
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
@@ -124,6 +155,7 @@ from tables.models.graph_models import (
     TelegramTriggerNode,
     TelegramTriggerNodeField,
     WebhookTriggerNode,
+    ScheduleTriggerNode,
 )
 from tables.models.rbac_models import Organization, OrganizationUser
 from tables.models.llm_models import (
@@ -171,7 +203,6 @@ from tables.services.copy_services import (
 from tables.views.mixins import CopyActionMixin
 from tables.serializers.model_serializers import (
     AgentReadSerializer,
-    AgentTagSerializer,
     AgentWriteSerializer,
     AudioTranscriptionNodeSerializer,
     CodeAgentNodeSerializer,
@@ -181,11 +212,8 @@ from tables.serializers.model_serializers import (
     ConditionSerializer,
     CrewNodeSerializer,
     CrewSerializer,
-    CrewTagSerializer,
     DecisionTableNodeSerializer,
     EdgeSerializer,
-    EmbeddingConfigSerializer,
-    EmbeddingModelSerializer,
     EndNodeSerializer,
     FileExtractorNodeSerializer,
     GraphLightSerializer,
@@ -193,17 +221,12 @@ from tables.serializers.model_serializers import (
     GraphOrganizationUserSerializer,
     GraphSerializer,
     GraphSessionMessageSerializer,
-    GraphTagSerializer,
     LabelSerializer,
-    LLMConfigSerializer,
-    LLMModelSerializer,
     LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
     LocalhostWebhookConfigModelSerializer,
     NgrokWebhookConfigModelSerializer,
-    OrganizationSerializer,
-    OrganizationUserSerializer,
     ProviderSerializer,
     PythonCodeResultSerializer,
     PythonCodeSerializer,
@@ -225,10 +248,9 @@ from tables.serializers.model_serializers import (
     RealtimeTranscriptionConfigSerializer,
     RealtimeTranscriptionModelSerializer,
     TwilioChannelSerializer,
+    RealtimeAgentSerializer,
     StartNodeSerializer,
     SubGraphNodeSerializer,
-    TaskConfiguredTools,
-    TaskPythonCodeTools,
     TaskReadSerializer,
     TaskWriteSerializer,
     TemplateAgentSerializer,
@@ -236,18 +258,21 @@ from tables.serializers.model_serializers import (
     VoiceSettingsSerializer,
     WebhookTriggerNodeSerializer,
     WebhookTriggerSerializer,
+    ScheduleTriggerNodeSerializer,
+    TelegramTriggerNodeSerializer,
+    TelegramTriggerNodeFieldSerializer,
 )
 from tables.serializers.serializers import (
     BulkExportSerializer,
     ImportRequestSerializer,
 )
-from tables.serializers.telegram_trigger_serializers import (
-    TelegramTriggerNodeFieldSerializer,
-    TelegramTriggerNodeSerializer,
-)
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
 from tables.services.redis_service import RedisService
+from tables.swagger_schemas.twilio_schemas import (
+    TWILIO_PHONE_NUMBERS_GET,
+    TWILIO_CONFIGURE_WEBHOOK_POST,
+)
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from utils.logger import logger
 
@@ -688,12 +713,12 @@ class ToolConfigViewSet(ModelViewSet):
 
 
 class ContentHashPreconditionMixin:
-    """Passes content_hash from request data to the model instance before saving.
+    # """Passes content_hash from request data to the model instance before saving.
 
-    The model's ContentHashMixin.save() validates _expected_hash against the DB,
-    raising 409 Conflict on mismatch. Omitting content_hash skips the check.
-    Scripts can also set instance._expected_hash = hash before calling .save().
-    """
+    # The model's ContentHashMixin.save() validates _expected_hash against the DB,
+    # raising 409 Conflict on mismatch. Omitting content_hash skips the check.
+    # Scripts can also set instance._expected_hash = hash before calling .save().
+    # """
 
     def perform_update(self, serializer):
         incoming_hash = self.request.data.get("content_hash")
@@ -831,6 +856,10 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     "telegram_trigger_node_list",
                     queryset=TelegramTriggerNode.objects.all(),
                 ),
+                Prefetch(
+                    "schedule_trigger_node_list",
+                    queryset=ScheduleTriggerNode.objects.all(),
+                ),
                 "start_node_list",
                 Prefetch("graph_note_list", queryset=GraphNote.objects.all()),
             )
@@ -918,14 +947,60 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+@extend_schema_view(
+    restore=extend_schema(
+        request=None,
+        responses={
+            200: inline_serializer(
+                name="RestoreResponse",
+                fields={
+                    "graph_id": serializers.IntegerField(),
+                    "warnings": serializers.ListField(child=serializers.DictField()),
+                    "auto_backup_version_id": serializers.IntegerField(allow_null=True),
+                },
+            )
+        },
+        parameters=[
+            OpenApiParameter(
+                name="backup",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="If true, creates a backup version before restoring.",
+            )
+        ],
+    ),
+    create_graph=extend_schema(
+        request=None,
+        responses={
+            201: inline_serializer(
+                name="CreateFromVersionResponse",
+                fields={
+                    "graph_id": serializers.IntegerField(),
+                    "warnings": serializers.ListField(child=serializers.DictField()),
+                },
+            )
+        },
+    ),
+)
 class GraphVersionViewSet(viewsets.ModelViewSet):
-    queryset = GraphVersion.objects.all()
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["graph_id"]
+
+    def get_queryset(self):
+        manager = (
+            GraphVersion.all_objects if self.action == "all" else GraphVersion.objects
+        )
+        qs = manager.all()
+        if self.action in ("list", "all"):
+            qs = qs.defer("snapshot", "dependencies")
+        return qs
 
     def get_serializer_class(self):
         if self.action == "create":
             return GraphVersionCreateSerializer
+        if self.action in ("update", "partial_update"):
+            return GraphVersionUpdateSerializer
         return GraphVersionReadSerializer
 
     def create(self, request, *args, **kwargs):
@@ -944,15 +1019,32 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=False, methods=["get"], url_path="all")
+    def all(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+    @action(detail=True, methods=["post"], url_path="restore")
+    def restore(self, request, *args, **kwargs):
+        version = self.get_object()
+        backup = request.query_params.get("backup", "").lower() == "true"
+        result = GraphVersioningService().restore_version(version, backup=backup)
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="create-graph")
+    def create_graph(self, request, *args, **kwargs):
+        version = self.get_object()
+        result = GraphVersioningService().create_graph_from_version(version)
+        return Response(result, status=status.HTTP_201_CREATED)
+
 
 class IdempotentNodeCreateMixin:
     # TODO: change fields from (graph, node_name) to id (all nodes id's are consistent)
-    """
-    COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
-    (graph, node_name) already exists, update it instead of failing with a
-    unique constraint violation. This prevents orphan accumulation when
-    forkJoin-based saves partially fail and retry.
-    """
+    # """
+    # COMMIT_COMMENTS: Makes node POST idempotent — if a node with the same
+    # (graph, node_name) already exists, update it instead of failing with a
+    # unique constraint violation. This prevents orphan accumulation when
+    # forkJoin-based saves partially fail and retry.
+    # """
 
     def create(self, request, *args, **kwargs):
         graph_id = request.data.get("graph")
@@ -1022,7 +1114,7 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
 
 
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
-    queryset = GraphSessionMessage.objects.all()
+    queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["session_id"]
@@ -1470,21 +1562,13 @@ class McpToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
-    serializer_class = OrganizationSerializer
-
-
-class OrganizationUserViewSet(viewsets.ModelViewSet):
-    queryset = OrganizationUser.objects.all()
-    serializer_class = OrganizationUserSerializer
-
-
+# TODO: refactor for rbac
 class GraphOrganizationViewSet(viewsets.ModelViewSet):
     queryset = GraphOrganization.objects.all()
     serializer_class = GraphOrganizationSerializer
 
 
+# TODO: refactor for rbac
 class GraphOrganizationUserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GraphOrganizationUser.objects.all()
     serializer_class = GraphOrganizationUserSerializer
@@ -1526,6 +1610,15 @@ class TelegramTriggerNodeViewSet(
 class TelegramTriggerNodeFieldViewSet(ModelViewSet):
     queryset = TelegramTriggerNodeField.objects.select_related("telegram_trigger_node")
     serializer_class = TelegramTriggerNodeFieldSerializer
+
+
+class ScheduleTriggerNodeViewSet(
+    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, ModelViewSet
+):
+    queryset = ScheduleTriggerNode.objects.all()
+    serializer_class = ScheduleTriggerNodeSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["graph", "is_active", "run_mode"]
 
 
 class GraphNoteViewSet(
@@ -1641,6 +1734,7 @@ def _twilio_request(
 class TwilioPhoneNumbersView(generics.GenericAPIView):
     """Return the list of incoming phone numbers from Twilio."""
 
+    @extend_schema(**TWILIO_PHONE_NUMBERS_GET)
     def get(self, request):
         account_sid = request.headers.get("X-Twilio-Account-Sid", "").strip()
         auth_token = request.headers.get("X-Twilio-Auth-Token", "").strip()
@@ -1673,6 +1767,7 @@ class TwilioPhoneNumbersView(generics.GenericAPIView):
 class TwilioConfigureWebhookView(generics.GenericAPIView):
     """Set the VoiceUrl on a Twilio phone number to the configured voice stream URL."""
 
+    @extend_schema(**TWILIO_CONFIGURE_WEBHOOK_POST)
     def post(self, request):
         phone_sid = request.data.get("phone_sid")
         channel_token = request.data.get("channel_token")

@@ -1,5 +1,8 @@
 from django.db.models import Prefetch
 
+from tables.serializers.model_serializers.crew_serializers import (
+    ToolConfigSerializer,
+)
 from src.shared.models import (
     AgentData,
     LocalhostConfigData,
@@ -29,6 +32,7 @@ from src.shared.models import (
     PythonNodeData,
     RagSearchConfig,
     RealtimeAgentChatData,
+    ScheduleTriggerNodeData,
     SubGraphNodeData,
     TaskData,
     TelegramTriggerNodeData,
@@ -73,6 +77,7 @@ from tables.models.graph_models import (
     GraphOrganization,
     GraphStorageFile,
     PythonNode,
+    ScheduleTriggerNode,
     SubGraphNode,
     TelegramTriggerNode,
     WebhookTriggerNode,
@@ -88,6 +93,8 @@ from tables.models.realtime_models import (
 )
 from tables.models.webhook_models import LocalhostWebhookConfig, NgrokWebhookConfig
 from tables.serializers.model_serializers import ToolConfigSerializer
+from tables.models.realtime_models import RealtimeAgentChat
+from tables.models.webhook_models import NgrokWebhookConfig
 from tables.validators.crew_memory_validator import CrewMemoryValidator
 from tables.validators.task_validator import TaskValidator
 from tables.validators.tool_config_validator import (
@@ -809,6 +816,31 @@ class ConverterService(metaclass=SingletonMeta):
         return TelegramTriggerNodeData(
             node_name=resolver(telegram_trigger_node.id),
             field_list=field_data,
+        )
+
+    def convert_schedule_trigger_node_to_pydantic(
+        self,
+        schedule_trigger_node: ScheduleTriggerNode,
+        resolver: NodeNameResolver = SINGLE_LOOKUP_RESOLVER,
+    ) -> ScheduleTriggerNodeData:
+        return ScheduleTriggerNodeData(
+            node_name=resolver(schedule_trigger_node.id),
+            run_mode=schedule_trigger_node.run_mode,
+            start_date_time=(
+                schedule_trigger_node.start_date_time.isoformat()
+                if schedule_trigger_node.start_date_time
+                else None
+            ),
+            every=schedule_trigger_node.every,
+            unit=schedule_trigger_node.unit,
+            weekdays=schedule_trigger_node.weekdays or [],
+            end_type=schedule_trigger_node.end_type,
+            end_date_time=(
+                schedule_trigger_node.end_date_time.isoformat()
+                if schedule_trigger_node.end_date_time
+                else None
+            ),
+            max_runs=schedule_trigger_node.max_runs,
         )
 
     def convert_edge_to_pytdantic(

@@ -8,7 +8,7 @@
     <!-- Connection status indicator -->
     <div
         class="connection-status"
-        *ngIf="connectionStatus === 'reconnecting' || connectionStatus === 'disconnected'"
+        *ngIf="sseEnabled && (connectionStatus === 'reconnecting' || connectionStatus === 'disconnected')"
     >
         <div
             class="status-indicator"
@@ -38,7 +38,10 @@
         <!-- Warnings -->
         <app-warning-messages [messages]="warningMessages" />
         @for (entry of visibleMessageEntries; track entry.key; let i = $index) {
-            <div class="message">
+            <div
+                class="message"
+                #messageRow
+            >
                 <app-project-transition *ngIf="entry.shouldShowTransition"></app-project-transition>
 
                 @switch (entry.message.message_data.message_type) {
@@ -306,9 +309,16 @@
 
     <div
         class="empty-list"
-        *ngIf="messages.length === 0"
+        *ngIf="messages.length === 0 && !isLoadingMore"
     >
         No messages to show
+    </div>
+
+    <div
+        *ngIf="isLoadingMore"
+        class="loading-more-indicator"
+    >
+        <app-loading-dots></app-loading-dots>
     </div>
 
     <!-- Loading dots for running session -->
@@ -333,6 +343,22 @@
                 icon="arrow-up"
                 size="1rem"
             ></app-svg-icon>
+        </button>
+    }
+
+    @if (showScrollToBottom) {
+        <button
+            class="scroll-to-bottom-btn"
+            (click)="scrollToBottomAndReengage()"
+            aria-label="Scroll to bottom"
+        >
+            <app-svg-icon
+                icon="arrow-down"
+                size="1rem"
+            ></app-svg-icon>
+            @if (unseenMessageCount > 0) {
+                <span class="unseen-badge">{{ unseenMessageCount }}</span>
+            }
         </button>
     }
 </div>

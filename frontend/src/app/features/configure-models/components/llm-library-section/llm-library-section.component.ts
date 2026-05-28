@@ -22,6 +22,7 @@ import {
 } from '@shared/components';
 import { AppSvgIconComponent } from '@shared/components';
 import { ModelTypes } from '@shared/models';
+import { EmbeddingConfigStorageService, LlmConfigStorageService } from '@shared/services';
 import { Observable } from 'rxjs';
 
 import { ToastService } from '../../../../services/notifications';
@@ -29,9 +30,7 @@ import { LlmLibraryModel } from '../../interfaces/llm-library-model.interface';
 import { LlmLibraryProviderGroup } from '../../interfaces/llm-library-provider-group.interface';
 import { DefaultModelsStorageService } from '../../services/default-models-storage.service';
 import { ElevenLabsRealtimeConfigStorageService } from '../../services/llms/elevenlabs-realtime-config-storage.service';
-import { EmbeddingConfigStorageService } from '../../services/llms/embedding-config-storage.service';
 import { GeminiRealtimeConfigStorageService } from '../../services/llms/gemini-realtime-config-storage.service';
-import { LlmConfigStorageService } from '../../services/llms/llm-config-storage.service';
 import { LLMLibraryService } from '../../services/llms/llm-library.service';
 import { OpenAIRealtimeConfigStorageService } from '../../services/llms/openai-realtime-config-storage.service';
 import { AddConfigurationDialogComponent } from '../add-configuration-dialog/add-configuration-dialog.component';

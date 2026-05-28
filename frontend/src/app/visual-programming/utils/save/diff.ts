@@ -12,11 +12,13 @@ import {
     NodeModel,
     ProjectNodeModel,
     PythonNodeModel,
+    ScheduleTriggerNodeModel,
     StartNodeModel,
     SubGraphNodeModel,
     TelegramTriggerNodeModel,
     WebhookTriggerNodeModel,
 } from '../../core/models/node.model';
+import { hasPersistedWaypoints, waypointsChanged } from './edge-waypoints.helpers';
 import { toNodeMetadata } from './metadata';
 import { ConnectionDiff, NodeDiff, NodeDiffByType } from './types';
 
@@ -127,6 +129,7 @@ function toPythonComparable(node: PythonNodeModel): unknown {
         input_map: node.input_map || {},
         output_variable_path: node.output_variable_path || null,
         stream_config: node.stream_config ?? {},
+        test_input: node.test_input ?? {},
         metadata: toNodeMetadata(node),
     };
 }
@@ -194,6 +197,25 @@ function toTelegramComparable(node: TelegramTriggerNodeModel): unknown {
         telegram_bot_api_key: node.data.telegram_bot_api_key,
         webhook_trigger: node.data.webhook_trigger,
         fields: node.data.fields,
+        metadata: toNodeMetadata(node),
+    };
+}
+
+function toScheduleComparable(node: ScheduleTriggerNodeModel): unknown {
+    return {
+        node_name: node.node_name,
+        isActive: node.data.isActive,
+        runMode: node.data.runMode,
+        startDateTime: node.data.startDateTime,
+        intervalEvery: node.data.intervalEvery,
+        intervalUnit: node.data.intervalUnit,
+        weekdays: node.data.weekdays,
+        endType: node.data.endType,
+        endDateTime: node.data.endDateTime,
+        maxRuns: node.data.maxRuns,
+        timezone: node.data.timezone,
+        // currentRuns is excluded: it is a read-only backend counter, not user-configurable.
+        // Including it would mark nodes as dirty after every server response.
         metadata: toNodeMetadata(node),
     };
 }
@@ -282,6 +304,11 @@ export function getNodeDiff(previous: FlowModel, current: FlowModel): NodeDiffBy
             nodesByType<TelegramTriggerNodeModel>(current.nodes, NodeType.TELEGRAM_TRIGGER),
             toTelegramComparable
         ),
+        scheduleNodes: diffNodesByBackendId(
+            nodesByType<ScheduleTriggerNodeModel>(previous.nodes, NodeType.SCHEDULE_TRIGGER),
+            nodesByType<ScheduleTriggerNodeModel>(current.nodes, NodeType.SCHEDULE_TRIGGER),
+            toScheduleComparable
+        ),
         decisionTableNodes: diffNodesByBackendId(
             nodesByType<DecisionTableNodeModel>(previous.nodes, NodeType.TABLE),
             nodesByType<DecisionTableNodeModel>(current.nodes, NodeType.TABLE),
@@ -348,5 +375,15 @@ export function getConnectionDiff(previous: FlowModel, current: FlowModel, idMap
         if (!prevByKey.has(key)) toCreate.push(conn);
     }
 
-    return { toCreate, toDelete };
+    const toUpdate: ConnectionModel[] = [];
+    for (const [key, currConn] of currByKey) {
+        const prevConn = prevByKey.get(key);
+        if (!prevConn || currConn.data?.id == null) continue;
+        if (!hasPersistedWaypoints(currConn) && !hasPersistedWaypoints(prevConn)) continue;
+        if (waypointsChanged(prevConn.waypoints, currConn.waypoints)) {
+            toUpdate.push(currConn);
+        }
+    }
+
+    return { toCreate, toDelete, toUpdate };
 }

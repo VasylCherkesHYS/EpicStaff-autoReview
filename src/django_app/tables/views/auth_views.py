@@ -11,46 +11,47 @@ from tables.services.rbac.authentication import (
     IsAuthenticatedOrApiKey,
     JwtOrApiKeyAuthentication,
 )
+from tables.services.rbac.authentication import JwtOrApiKeyAuthentication
+from tables.services.rbac.permissions import IsSuperadmin
 from tables.models.rbac_models import ApiKey
 from tables.serializers.rbac_serializers import (
-    ApiKeyValidateResponseSerializer,
-    AuthMeResponseSerializer,
+    AdminPasswordResetSerializer,
     LoginSerializer,
     LogoutRequestSerializer,
-    LogoutResponseSerializer,
-    FirstSetupRequestSerializer,
-    FirstSetupResponseSerializer,
-    FirstSetupStatusSerializer,
-    ResetUserRequestSerializer,
-    ResetUserResponseSerializer,
-    SseTicketResponseSerializer,
-    SwaggerTokenRequestSerializer,
-    SwaggerTokenResponseSerializer,
+    PasswordResetConfirmResponseSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestResponseSerializer,
+    PasswordResetRequestSerializer,
     TokenIntrospectRequestSerializer,
-    TokenIntrospectResponseSerializer,
 )
-from tables.services.rbac.auth_service import AuthService, TokenPair
+from tables.services.rbac.auth_service import TokenPair
 from tables.services.rbac.auth_validation_service import AuthValidationService
 from tables.services.rbac.first_setup_service import FirstSetupService
+from tables.services.rbac.password_recovery_service import PasswordRecoveryService
 from tables.services.rbac.rbac_exceptions import InvalidRefreshTokenError
 from tables.services.rbac.reset_user_service import ResetUserService
 from tables.services.rbac.sse_ticket_service import SseTicketService
-from tables.throttles import LoginThrottle
+from tables.swagger_schemas.auth_schema import (
+    API_KEY_VALIDATE_GET,
+    FIRST_SETUP_GET,
+    FIRST_SETUP_POST,
+    LOGIN_POST,
+    LOGOUT_POST,
+    RESET_USER_POST,
+    SSE_TICKET_POST,
+    SWAGGER_TOKEN_POST,
+    TOKEN_INTROSPECT_POST,
+)
+from tables.throttles import LoginThrottle, PasswordResetRequestThrottle
 
 
 class LoginView(TokenObtainPairView):
-    """JWT login — accepts `{"email", "password"}` (USERNAME_FIELD=email).
-
-    Throttled by `LoginThrottle` (composite IP|email bucket; rate driven by
-    `LOGIN_THROTTLE_RATE` env var, default 5/min). 6th attempt inside the
-    window returns 429 with a `Retry-After` header.
-    """
-
     serializer_class = LoginSerializer
     throttle_classes = [LoginThrottle]
 
     _validator = AuthValidationService()
 
+    @extend_schema(**LOGIN_POST)
     def post(self, request, *args, **kwargs):
         # Shape-check both fields and aggregate missing/blank errors
         # before delegating to simplejwt. Wrong-credential errors stay a
@@ -60,23 +61,10 @@ class LoginView(TokenObtainPairView):
 
 
 class LogoutView(APIView):
-    """
-    JWT logout — blacklists the caller's refresh token so it can no longer
-    be used (or rotated) to obtain new access tokens. The short-lived access
-    token continues to work until its own expiry.
-    """
-
     authentication_classes = [JwtOrApiKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(
-        summary="Log out (blacklist refresh token)",
-        request=LogoutRequestSerializer,
-        responses={
-            205: LogoutResponseSerializer,
-            400: OpenApiResponse(description="Refresh token invalid or expired"),
-        },
-    )
+    @extend_schema(**LOGOUT_POST)
     def post(self, request):
         serializer = LogoutRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -99,22 +87,12 @@ class LogoutView(APIView):
 
 
 class SseTicketView(APIView):
-    """
-    Issue a single-use SSE ticket bound to the calling JWT user. The ticket
-    is used as a `?ticket=...` query param on SSE endpoints because
-    EventSource cannot attach an `Authorization` header. See
-    `docs/rbac/sse_auth.md` for the FE flow.
-    """
-
     authentication_classes = [JwtOrApiKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     _service = SseTicketService()
 
-    @extend_schema(
-        summary="Issue a short-lived single-use SSE ticket",
-        responses={200: SseTicketResponseSerializer},
-    )
+    @extend_schema(**SSE_TICKET_POST)
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False) or not hasattr(
             request.user, "email"
@@ -134,31 +112,11 @@ class FirstSetupView(APIView):
     _service = FirstSetupService()
     _validator = AuthValidationService()
 
-    @extend_schema(
-        summary="Check if first-time setup is required",
-        responses={200: FirstSetupStatusSerializer},
-    )
+    @extend_schema(**FIRST_SETUP_GET)
     def get(self, request):
         return Response({"needs_setup": self._service.is_setup_required()})
 
-    @extend_schema(
-        summary="Perform first-time setup",
-        description=(
-            "Creates the first superadmin (is_superadmin=True), a default "
-            "Organization (name from `DEFAULT_ORGANIZATION_NAME` env var, "
-            "falling back to 'Default Organization'), and an OrganizationUser "
-            "membership with the built-in 'Org Admin' role. Returns the user, "
-            "the org, and JWT tokens so the frontend can drop the user straight "
-            "into the app. Refuses with 409 if any user already exists or if "
-            "the default organization row survived a prior user wipe."
-        ),
-        request=FirstSetupRequestSerializer,
-        responses={
-            201: FirstSetupResponseSerializer,
-            400: OpenApiResponse(description="Validation error"),
-            409: OpenApiResponse(description="Setup already completed"),
-        },
-    )
+    @extend_schema(**FIRST_SETUP_POST)
     def post(self, request):
         cleaned = self._validator.validate_first_setup(request.data)
 
@@ -188,54 +146,11 @@ class FirstSetupView(APIView):
         )
 
 
-class AuthMeView(APIView):
-    authentication_classes = [JwtOrApiKeyAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    _service = AuthService()
-
-    @extend_schema(
-        summary="Get current user",
-        description=(
-            "Returns the authenticated user's profile and list of org "
-            "memberships (each with the role). Active-org resolution from "
-            "`X-Organization-Id` is added in Story 7."
-        ),
-        responses={200: AuthMeResponseSerializer},
-    )
-    def get(self, request):
-        if not getattr(request.user, "is_authenticated", False) or not hasattr(
-            request.user, "email"
-        ):
-            # API keys with no `created_by` resolve to AnonymousUser.
-            return Response(
-                {"detail": "This endpoint requires a user context."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        return Response(self._service.build_me_payload(request.user, request=request))
-
-
 class TokenIntrospectView(APIView):
     authentication_classes = [JwtOrApiKeyAuthentication]
     permission_classes = [IsAuthenticatedOrApiKey]
 
-    @extend_schema(
-        summary="Introspect a JWT access token",
-        description=(
-            "Service-to-service JWT validator: the caller authenticates with "
-            "an API key and passes a JWT in the body to get its claims back. "
-            "Intended for internal services / gateways that should not hold "
-            "`JWT_SECRET` but still need to verify bearer tokens. "
-            "See `docs/rbac/auth_endpoints.md` for full behavior."
-        ),
-        request=TokenIntrospectRequestSerializer,
-        responses={
-            200: TokenIntrospectResponseSerializer,
-            400: OpenApiResponse(description="token is required"),
-            403: OpenApiResponse(description="API key required"),
-        },
-    )
+    @extend_schema(**TOKEN_INTROSPECT_POST)
     def post(self, request):
         if not isinstance(request.auth, ApiKey):
             return Response(
@@ -267,17 +182,7 @@ class ApiKeyValidateView(APIView):
     authentication_classes = [JwtOrApiKeyAuthentication]
     permission_classes = [IsAuthenticatedOrApiKey]
 
-    @extend_schema(
-        summary="Validate the current API key",
-        description=(
-            "Requires an API key. Returns metadata about the calling key "
-            "including the owning user's id (null for env-seeded system keys)."
-        ),
-        responses={
-            200: ApiKeyValidateResponseSerializer,
-            403: OpenApiResponse(description="API key required"),
-        },
-    )
+    @extend_schema(**API_KEY_VALIDATE_GET)
     def get(self, request):
         key = request.auth
         if not isinstance(key, ApiKey):
@@ -298,24 +203,11 @@ class ApiKeyValidateView(APIView):
 
 
 class SwaggerTokenView(APIView):
-    """
-    OAuth2 password flow token endpoint for Swagger UI.
-    Swagger sends `username` + `password`; we interpret `username` as email
-    (since `USERNAME_FIELD = "email"` on the custom User model).
-    """
-
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_classes = [LoginThrottle]
 
-    @extend_schema(
-        summary="Swagger UI token endpoint (OAuth2 password flow)",
-        request=SwaggerTokenRequestSerializer,
-        responses={
-            200: SwaggerTokenResponseSerializer,
-            401: OpenApiResponse(description="Invalid credentials"),
-        },
-    )
+    @extend_schema(**SWAGGER_TOKEN_POST)
     def post(self, request):
         serializer = LoginSerializer(
             data={
@@ -336,27 +228,109 @@ class SwaggerTokenView(APIView):
         )
 
 
+class PasswordResetRequestView(APIView):
+    """Anonymous password-reset initiation.
+
+    Uniform 200 response by design — does not reveal whether the email
+    exists. The response also flags whether SMTP is configured so the
+    frontend can guide the user to the CLI fallback when it is not.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [PasswordResetRequestThrottle]
+
+    _validator = AuthValidationService()
+    _service = PasswordRecoveryService()
+
+    @extend_schema(
+        summary="Request a password reset",
+        request=PasswordResetRequestSerializer,
+        responses={200: PasswordResetRequestResponseSerializer},
+    )
+    def post(self, request):
+        cleaned = self._validator.validate_password_reset_request(request.data)
+        result = self._service.request_reset(cleaned["email"])
+        return Response(
+            {
+                "detail": "If the email is registered, a reset link has been sent.",
+                "smtp_configured": result["smtp_configured"],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """Consume a reset token and set a new password. Single-use, TTL-bound."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    _validator = AuthValidationService()
+    _service = PasswordRecoveryService()
+
+    @extend_schema(
+        summary="Confirm a password reset",
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: PasswordResetConfirmResponseSerializer,
+            400: OpenApiResponse(
+                description="Token invalid/expired/used or weak password"
+            ),
+        },
+    )
+    def post(self, request):
+        cleaned = self._validator.validate_password_reset_confirm(request.data)
+        self._service.confirm_reset(cleaned["token"], cleaned["new_password"])
+        return Response(
+            {"detail": "Password has been reset."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminPasswordResetView(APIView):
+    """Superadmin-only: set any user's password to a value the admin supplies.
+
+    Defense-in-depth: the IsSuperadmin permission class rejects non-superadmin
+    callers with the project's standard 403 envelope before the service is
+    reached. The in-service `actor.is_superadmin` check inside
+    `PasswordRecoveryService.admin_reset` stays as a redundant safety net.
+    """
+
+    authentication_classes = [JwtOrApiKeyAuthentication]
+    permission_classes = [IsAuthenticated, IsSuperadmin]
+
+    _validator = AuthValidationService()
+    _service = PasswordRecoveryService()
+
+    @extend_schema(
+        summary="Reset another user's password (superadmin)",
+        request=AdminPasswordResetSerializer,
+        responses={
+            204: OpenApiResponse(description="Password reset"),
+            400: OpenApiResponse(description="Weak password"),
+            403: OpenApiResponse(description="Superadmin required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+    )
+    def post(self, request):
+        cleaned = self._validator.validate_admin_password_reset(request.data)
+        self._service.admin_reset(
+            request.user,
+            cleaned["user_id"],
+            cleaned["new_password"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class ResetUserView(APIView):
     authentication_classes = [JwtOrApiKeyAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsSuperadmin]
 
     _service = ResetUserService()
     _validator = AuthValidationService()
 
-    @extend_schema(
-        summary="Reset user (destructive)",
-        description=(
-            "Deletes all Users and ApiKeys inside a single transaction, then "
-            "creates a new superadmin and a fresh 'realtime-default' API key. "
-            "Organizations are left intact; the new superadmin has no "
-            "automatic membership and relies on the is_superadmin bypass."
-        ),
-        request=ResetUserRequestSerializer,
-        responses={
-            201: ResetUserResponseSerializer,
-            400: OpenApiResponse(description="Validation error"),
-        },
-    )
+    @extend_schema(**RESET_USER_POST)
     def post(self, request):
         cleaned = self._validator.validate_reset_user(request.data)
 

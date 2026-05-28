@@ -37,34 +37,6 @@ class FirstSetupResponseSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
 
-# ---- AuthMe ----
-
-
-class _MembershipOrgPayload(serializers.Serializer):
-    id = serializers.IntegerField()
-    name = serializers.CharField()
-
-
-class _MembershipRolePayload(serializers.Serializer):
-    id = serializers.IntegerField()
-    name = serializers.CharField()
-
-
-class _MembershipPayload(serializers.Serializer):
-    organization = _MembershipOrgPayload()
-    role = _MembershipRolePayload()
-    joined_at = serializers.DateTimeField()
-
-
-class AuthMeResponseSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    email = serializers.EmailField()
-    display_name = serializers.CharField(allow_null=True)
-    avatar_url = serializers.CharField(allow_null=True)
-    is_superadmin = serializers.BooleanField()
-    memberships = _MembershipPayload(many=True)
-
-
 # ---- Token introspect ----
 
 
@@ -139,6 +111,36 @@ class SwaggerTokenResponseSerializer(serializers.Serializer):
     token_type = serializers.CharField()
 
 
+# ---- Password recovery ----
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    # Schema-only: real validation in
+    # `AuthValidationService.validate_password_reset_request`.
+    email = serializers.EmailField()
+
+
+class PasswordResetRequestResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    smtp_configured = serializers.BooleanField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    # Schema-only: real validation in
+    # `AuthValidationService.validate_password_reset_confirm`.
+    token = serializers.UUIDField()
+    new_password = serializers.CharField(write_only=True)
+
+
+class PasswordResetConfirmResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+
+
+class AdminPasswordResetSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1)
+    new_password = serializers.CharField(write_only=True)
+
+
 # ---- Custom TokenObtainPair (embeds email + is_superadmin claims) ----
 
 
@@ -149,3 +151,8 @@ class LoginSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["is_superadmin"] = user.is_superadmin
         return token
+
+
+class LoginResponseSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    access = serializers.CharField()

@@ -3,6 +3,8 @@ from tables.models.mcp_models import McpTool
 from tables.models.crew_models import ToolConfig
 from tables.models.python_models import PythonCodeTool
 from tables.models.python_models import PythonCodeToolConfig
+from tables.models import PythonCode
+from tables.models.session_models import Session
 
 
 class RunSessionSerializer(serializers.Serializer):
@@ -106,6 +108,33 @@ class BulkExportSerializer(serializers.Serializer):
     )
 
 
+class SessionExportAllSerializer(serializers.Serializer):
+    graph_id = serializers.IntegerField(required=False, min_value=1)
+    graph_name = serializers.CharField(required=False)
+    status = serializers.ListField(
+        child=serializers.ChoiceField(choices=Session.SessionStatus.choices),
+        required=False,
+    )
+    node_name = serializers.CharField(required=False)
+    is_error_cause = serializers.BooleanField(required=False)
+    created_at_after = serializers.DateTimeField(required=False)
+    created_at_before = serializers.DateTimeField(required=False)
+    finished_at_after = serializers.DateTimeField(required=False)
+    finished_at_before = serializers.DateTimeField(required=False)
+
+
 class ImportRequestSerializer(serializers.Serializer):
     file = serializers.FileField()
     preserve_uuids = serializers.BooleanField(default=False, required=False)
+
+
+class RunPythonCodeSerializer(serializers.Serializer):
+    python_code_id = serializers.PrimaryKeyRelatedField(
+        queryset=PythonCode.objects.all(),
+        source="python_code",
+    )
+    variables = serializers.DictField(
+        child=serializers.JSONField(),
+        required=False,
+        default=dict,
+    )

@@ -228,6 +228,7 @@ export class ConditionalEdgeNodePanelComponent extends BaseSidePanel<EdgeNodeMod
 
     public onPythonCodeChange(code: string): void {
         this.pythonCode = code;
+        this.notifyExternalChange();
     }
 
     public onCodeErrorChange(hasError: boolean): void {

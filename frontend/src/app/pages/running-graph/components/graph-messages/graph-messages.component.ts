@@ -69,6 +69,26 @@ interface MessageContext {
     isSubgraphFinish: boolean;
 }
 
+// Message types that actually render a card in the template @switch.
+// Anything else (update_session_status, graph_end, future stream types like
+// python_stream, etc.) creates an empty .message div and breaks the unread
+// counter, so we keep it out of visibleMessageEntries.
+const RENDERABLE_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+    MessageType.START,
+    MessageType.USER,
+    MessageType.AGENT,
+    MessageType.AGENT_FINISH,
+    MessageType.PYTHON,
+    MessageType.LLM,
+    MessageType.EXTRACTED_CHUNKS,
+    MessageType.ERROR,
+    MessageType.TASK,
+    MessageType.FINISH,
+    MessageType.CODE_AGENT_STREAM,
+    MessageType.SUBGRAPH_START,
+    MessageType.SUBGRAPH_FINISH,
+]);
+
 interface MessageViewEntry {
     key: string;
     message: GraphMessage;
@@ -94,6 +114,13 @@ interface RootDrilldownView {
     hasBreadcrumbOverflow: boolean;
     isClosing: boolean;
 }
+
+const TERMINAL_STATUSES = new Set<GraphSessionStatus>([
+    GraphSessionStatus.ENDED,
+    GraphSessionStatus.ERROR,
+    GraphSessionStatus.STOP,
+    GraphSessionStatus.EXPIRED,
+]);
 
 @Component({
     selector: 'app-graph-messages',
@@ -156,6 +183,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     public connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'manually_disconnected' =
         'disconnected';
     public reconnectAttempts: number = 0;
+    public sseEnabled = false;
 
     // Lookup maps for quick reference
     private agentMap: Map<number, GetAgentRequest> = new Map();
@@ -164,6 +192,15 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     public messages: GraphMessage[] = [];
     public visibleMessageEntries: MessageViewEntry[] = [];
 
+    private readonly PAGE_SIZE = 20;
+    private seenKeys = new Set<string>();
+    private currentOffset = 0;
+    public isLoadingMore = false;
+    public hasMore = true;
+
+    private isFinishing = false;
+    private finishTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly DRAIN_DELAY_MS = 3000;
     private drillPaths = new Map<string, string[]>();
     private breadcrumbsByRoot = new Map<string, { key: string; label: string }[]>();
     private filteredBreadcrumbsByRoot = new Map<string, { key: string; label: string; index: number }[]>();
@@ -193,6 +230,12 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     private breadcrumbScrollers!: QueryList<ElementRef<HTMLElement>>;
 
     public showScrollToTop = false;
+    public showScrollToBottom = false;
+    private autoScrollEnabled = true;
+    private readonly scrollBottomThreshold = 80;
+    public unseenMessageCount = 0;
+    private seenMessageCount = 0;
+    private lastScrollTop = 0;
 
     constructor(
         public sseService: RunSessionSSEService,
@@ -205,13 +248,22 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         private graphSessionService: GraphSessionService
     ) {
         effect(() => {
-            const messages = this.sseService.messages();
-            this.messages = messages;
-            this.messagesChanged.emit(messages);
-            this.rebuildMessageState(messages);
+            const sseMessages = this.sseService.messages();
+            this.mergeMessages(sseMessages);
+            this.messagesChanged.emit(this.messages);
+            this.rebuildMessageState(this.messages);
             this.processMessages();
             this.checkIfFinish();
             this.cdr.markForCheck();
+
+            if (this.autoScrollEnabled) {
+                this.unseenMessageCount = 0;
+                if (this.messages.length > 0) {
+                    requestAnimationFrame(() => this.scrollToBottom());
+                }
+            } else {
+                this.unseenMessageCount = Math.max(0, this.messages.length - this.seenMessageCount);
+            }
         });
 
         effect(() => {
@@ -264,18 +316,109 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
     public onMessagesScroll(): void {
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
-        this.showScrollToTop = el.scrollTop > 150;
+
+        const scrollTop = el.scrollTop;
+        const distanceFromBottom = el.scrollHeight - scrollTop - el.clientHeight;
+        const isAtBottom = distanceFromBottom <= this.scrollBottomThreshold;
+        const scrolledUp = scrollTop < this.lastScrollTop;
+        this.lastScrollTop = scrollTop;
+
+        if (scrolledUp && this.autoScrollEnabled) {
+            this.autoScrollEnabled = false;
+            this.seenMessageCount = this.visibleMessageEntries.length;
+        }
+
+        if (!this.autoScrollEnabled && isAtBottom) {
+            this.autoScrollEnabled = true;
+            this.unseenMessageCount = 0;
+        } else if (!this.autoScrollEnabled) {
+            this.updateSeenFromScrollPosition();
+        }
+
+        if (distanceFromBottom < 200 && this.hasMore && !this.isLoadingMore) {
+            this.loadMoreMessages();
+        }
+
+        this.updateScrollButtonsVisibility();
+
         this.cdr.markForCheck();
+    }
+
+    private updateSeenFromScrollPosition(): void {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+
+        const viewportBottom = el.getBoundingClientRect().bottom;
+        const messageElements = el.querySelectorAll<HTMLElement>('.messages-list > .message');
+
+        let visibleCount = 0;
+        for (let i = 0; i < messageElements.length; i++) {
+            const rect = messageElements[i].getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (midpoint <= viewportBottom) {
+                visibleCount = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        if (visibleCount > this.seenMessageCount) {
+            const prevSeen = this.seenMessageCount;
+            const prevUnseen = this.unseenMessageCount;
+            const newlySeenEntries = this.visibleMessageEntries.slice(prevSeen, visibleCount);
+            this.seenMessageCount = visibleCount;
+            this.unseenMessageCount = Math.max(0, this.visibleMessageEntries.length - this.seenMessageCount);
+            const delta = prevUnseen - this.unseenMessageCount;
+            console.log(
+                `[unread] -${delta} (${prevUnseen} → ${this.unseenMessageCount}); read ${newlySeenEntries.length} message(s):`,
+                newlySeenEntries.map((entry) => ({
+                    index: entry.index,
+                    type: entry.message.message_data?.message_type,
+                    name: entry.message.name,
+                    key: entry.key,
+                }))
+            );
+        }
     }
 
     public scrollToTop(): void {
         const el = this.messagesContainer?.nativeElement;
         if (!el) return;
+        if (this.autoScrollEnabled) {
+            this.autoScrollEnabled = false;
+            this.seenMessageCount = this.visibleMessageEntries.length;
+        }
+        this.updateScrollButtonsVisibility();
+        this.cdr.markForCheck();
         el.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    private scrollToBottom(): void {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+
+    private updateScrollButtonsVisibility(): void {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        this.showScrollToTop = el.scrollTop > 150;
+        this.showScrollToBottom = !this.autoScrollEnabled && distanceFromBottom > this.scrollBottomThreshold;
+    }
+
+    public scrollToBottomAndReengage(): void {
+        this.autoScrollEnabled = true;
+        this.unseenMessageCount = 0;
+        this.scrollToBottom();
     }
 
     public ngOnDestroy(): void {
         this.sseService.stopStream();
+        if (this.finishTimer !== null) {
+            clearTimeout(this.finishTimer);
+            this.finishTimer = null;
+        }
         this.destroy$.next();
         this.destroy$.complete();
         if (this.breadcrumbOverflowRefreshId !== null) {
@@ -288,15 +431,31 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         if (changes['sessionId'] && !changes['sessionId'].firstChange) {
             this.destroy$.next();
             this.sseService.stopStream();
+            if (this.finishTimer !== null) {
+                clearTimeout(this.finishTimer);
+                this.finishTimer = null;
+            }
             this.isLoading = true;
+            this.sseEnabled = false;
             this.session = null;
             this.animatedIndices = {};
             this.updateSessionStatusData = null;
             this.statusWaitForUser = false;
+            this.isFinishing = false;
             this.showUserInputWithDelay = false;
             this.warningMessages = null;
+            this.autoScrollEnabled = true;
+            this.lastScrollTop = 0;
+            this.showScrollToTop = false;
+            this.showScrollToBottom = false;
+            this.unseenMessageCount = 0;
+            this.seenMessageCount = 0;
             this.messages = [];
             this.visibleMessageEntries = [];
+            this.seenKeys = new Set<string>();
+            this.currentOffset = 0;
+            this.isLoadingMore = false;
+            this.hasMore = true;
             this.drillPaths.clear();
             this.breadcrumbsByRoot.clear();
             this.filteredBreadcrumbsByRoot.clear();
@@ -324,7 +483,23 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         const graphId = this.graphId;
         if (!this.sessionId || graphId == null || !isFinite(graphId)) return;
 
-        this.sseService.startStream(this.sessionId!);
+        this.graphSessionService
+            .getSessionById(+this.sessionId)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: (session) => {
+                    if (!TERMINAL_STATUSES.has(session.status)) {
+                        this.sseEnabled = true;
+                        this.sseService.startStream(this.sessionId!);
+                    }
+                    this.loadMoreMessages();
+                },
+                error: () => {
+                    this.sseEnabled = true;
+                    this.sseService.startStream(this.sessionId!);
+                    this.loadMoreMessages();
+                },
+            });
 
         // Load warning messages
         this.graphSessionService
@@ -376,7 +551,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                             this.graphNameById.set(rootGraph.id, rootGraph.name);
                         }
                     }
-                    this.rebuildMessageState(this.sseService.messages());
+                    this.rebuildMessageState(this.messages);
                     this.isLoading = false;
                     this.cdr.markForCheck();
                 },
@@ -489,7 +664,7 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 next: (graph) => {
                     this.graphCache.set(graph.id, graph);
                     this.graphLoadInFlight.delete(graphId);
-                    this.rebuildMessageState(this.sseService.messages());
+                    this.rebuildMessageState(this.messages);
                     this.cdr.markForCheck();
                 },
                 error: (err) => {
@@ -511,8 +686,18 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
 
             // Check for graph_end message - marks the session as finished
             if (sameTimeMessages.some((msg) => msg.message_data.message_type === MessageType.GRAPH_END)) {
-                this.sseService.stopStream();
-                this.updateSessionStatus();
+                if (this.isFinishing) return;
+                this.isFinishing = true;
+                // graph_end authoritatively ends the session — flip the badge immediately.
+                // The SSE service will block any late status: run from overwriting it.
+                this.sseService.setStatus(GraphSessionStatus.ENDED);
+                // Short drain — keep the stream open to catch any late messages,
+                // then stop it and refine the final status once (ENDED/ERROR/STOP/...).
+                this.finishTimer = setTimeout(() => {
+                    this.finishTimer = null;
+                    this.sseService.stopStream();
+                    this.updateSessionStatus();
+                }, this.DRAIN_DELAY_MS);
                 return;
             }
 
@@ -527,40 +712,22 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 this.sseService.stopStream();
                 this.updateSessionStatus();
             }
-
-            // if (
-            //   sameTimeMessages.some(
-            //     (msg) => msg.message_data.message_type === 'finish'
-            //   ) &&
-            //   sessionStatus === GraphSessionStatus.ENDED
-            // ) {
-            //   this.sseService.stopStream();
-            // } else if (
-            //   sameTimeMessages.some(
-            //     (msg) => msg.message_data.message_type === 'error'
-            //   ) &&
-            //   sessionStatus === GraphSessionStatus.ERROR
-            // ) {
-            //   this.sseService.stopStream();
-            // } else if (sessionStatus === GraphSessionStatus.EXPIRED) {
-            //   this.sseService.stopStream();
-            // } else if (sessionStatus === GraphSessionStatus.STOP) {
-            //   this.sseService.stopStream();
-            // } else if (sessionStatus === GraphSessionStatus.ERROR) {
-            //   this.sseService.stopStream();
-            // } else if (sessionStatus === GraphSessionStatus.ENDED) {
-            //   this.sseService.stopStream();
-            // }
-            // Note: PENDING is a transitional state - don't stop stream, wait for final status
         }
     }
 
     private updateSessionStatus(): void {
+        const currentSessionId = this.sessionId;
         this.graphSessionService
             .getSessionUpdates(this.sessionId!)
             .pipe(takeUntil(this.destroy$))
             .subscribe({
-                next: ({ status }: SessionUpdates) => this.sseService.setStatus(status),
+                next: ({ status }: SessionUpdates) => {
+                    if (this.sessionId !== currentSessionId) return;
+                    // Refine the final status. The lock in the SSE service allows
+                    // transitions between terminal statuses (ENDED → ERROR/STOP)
+                    // but blocks downgrades back to run.
+                    this.sseService.setStatus(status);
+                },
                 error: (err) => console.error(err),
             });
     }
@@ -621,12 +788,16 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
                 this.closingRootKeys.delete(rootKey);
                 this.updateDrilldownView();
                 this.cdr.markForCheck();
+                // Drilldown removed → content height shrank. The container
+                // doesn't fire a scroll event on shrink, so recompute manually.
+                this.refreshScrollButtonsAfterRender();
             }, this.drilldownCloseDelayMs);
         } else {
             this.closingRootKeys.delete(rootKey);
             this.drillPaths.set(rootKey, nextPath);
         }
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
     }
 
     public onBreadcrumbClick(rootKey: string, index: number): void {
@@ -634,6 +805,14 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         if (!currentPath) return;
         this.drillPaths.set(rootKey, currentPath.slice(0, index + 1));
         this.updateDrilldownView();
+        this.refreshScrollButtonsAfterRender();
+    }
+
+    private refreshScrollButtonsAfterRender(): void {
+        requestAnimationFrame(() => {
+            this.updateScrollButtonsVisibility();
+            this.cdr.markForCheck();
+        });
     }
 
     public isDrilldownRoot(message: GraphMessage): boolean {
@@ -792,15 +971,52 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
         };
 
         this.answerToLLMService.sendAnswerToLLM(requestData).subscribe({
-            next: () => {
+            next: (response) => {
+                console.log('Answer to LLM sent successfully:', response);
                 this.sseService.resumeStream();
                 this.statusWaitForUser = false;
+                this.autoScrollEnabled = true;
                 this.cdr.markForCheck();
             },
             error: (error) => {
                 console.error('Error sending answer to LLM:', error);
             },
         });
+    }
+
+    private mergeMessages(incoming: GraphMessage[]): void {
+        const toAdd = incoming.filter((m) => {
+            const key = this.getMessageKey(m);
+            if (this.seenKeys.has(key)) return false;
+            this.seenKeys.add(key);
+            return true;
+        });
+        if (toAdd.length === 0) return;
+        this.messages = [...this.messages, ...toAdd].sort((a, b) => a.execution_order - b.execution_order);
+    }
+
+    public loadMoreMessages(): void {
+        if (this.isLoadingMore || !this.hasMore || !this.sessionId) return;
+        this.isLoadingMore = true;
+        this.cdr.markForCheck();
+
+        this.graphSessionService
+            .getSessionMessages(+this.sessionId, this.PAGE_SIZE, this.currentOffset)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: (response) => {
+                    this.currentOffset += this.PAGE_SIZE;
+                    this.mergeMessages(response.results);
+                    this.rebuildMessageState(this.messages);
+                    this.hasMore = response.next !== null;
+                    this.isLoadingMore = false;
+                    this.cdr.markForCheck();
+                },
+                error: () => {
+                    this.isLoadingMore = false;
+                    this.cdr.markForCheck();
+                },
+            });
     }
 
     private rebuildMessageState(messages: GraphMessage[]): void {
@@ -950,7 +1166,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             .filter((context) => context.path.length === 0)
             .filter((context) => {
                 const msg = this.messages[context.index];
-                if (msg?.message_data?.message_type !== 'code_agent_stream') return true;
+                const type = msg?.message_data?.message_type;
+                if (!type || !RENDERABLE_MESSAGE_TYPES.has(type)) return false;
+                if (type !== MessageType.CODE_AGENT_STREAM) return true;
                 return caShowSet.has(context.index);
             })
             .map((context) => this.buildMessageEntry(this.messages[context.index], context));

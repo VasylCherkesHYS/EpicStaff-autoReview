@@ -8,6 +8,7 @@ from typing import Self
 from django.apps import apps
 from django.db import connection, models
 from django.db.models import Func, Value
+from django.utils import timezone
 
 
 class AbstractDefaultFillableModel(models.Model):
@@ -130,7 +131,6 @@ class CrewSessionMessage(BaseSessionMessage):
 
 class SoftDeleteMixin(models.Model):
     deleted_at = models.DateTimeField(
-        db_index=True,
         null=True,
         blank=True,
         default=None,
@@ -140,6 +140,19 @@ class SoftDeleteMixin(models.Model):
 
     class Meta:
         abstract = True
+
+    def delete(self, using=None, keep_parents=False):
+        self.is_active = False
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["is_active", "deleted_at"])
+
+    def hard_delete(self):
+        super().delete()
+
+    def restore(self):
+        self.is_active = True
+        self.deleted_at = None
+        self.save(update_fields=["is_active", "deleted_at"])
 
 
 class TimestampMixin(models.Model):
@@ -208,6 +221,21 @@ class ContentHashMixin(models.Model):
 class BaseGraphEntity(TimestampMixin, MetadataMixin, ContentHashMixin):
     class Meta:
         abstract = True
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._touch_graph_updated_at(getattr(self, "graph_id", None))
+
+    def delete(self, *args, **kwargs):
+        graph_id = getattr(self, "graph_id", None)
+        super().delete(*args, **kwargs)
+        self._touch_graph_updated_at(graph_id)
+
+    def _touch_graph_updated_at(self, graph_id):
+        if graph_id:
+            from tables.models import Graph
+
+            Graph.objects.filter(pk=graph_id).update(updated_at=timezone.now())
 
 
 class NextVal(Func):

@@ -4,7 +4,7 @@ import { DecisionTableNodeModel, NodeModel } from '../models/node.model';
 const HEADER_HEIGHT = 62;
 const ROW_HEIGHT = 46;
 const BASE_ROWS = 2;
-const MIN_TABLE_HEIGHT = 170;
+const MIN_TABLE_HEIGHT = 200;
 
 export function getDecisionTableVisualHeight(conditionGroups: { valid?: boolean }[]): number {
     const validGroupsCount = conditionGroups.filter((g) => g.valid !== false).length;
@@ -30,6 +30,9 @@ export function getDefaultNodeSize(type: NodeType, data?: unknown): { width: num
 
         case NodeType.START:
             return { width: 125, height: 60 };
+
+        case NodeType.SCHEDULE_TRIGGER:
+            return { width: 330, height: 60 };
 
         default:
             return { width: 330, height: 60 };
