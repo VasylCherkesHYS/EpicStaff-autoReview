@@ -30,7 +30,6 @@ import {
     GraphSearchMethod,
     SuggestResponse,
 } from '../../../../models';
-import { LlmConfigStorageService } from '../../../../services/llms/llm-config-storage.service';
 
 type SuggestKey = GraphSearchMethod | 'naive';
 
@@ -113,7 +112,6 @@ export class RagTabComponent implements OnInit {
     private fb = inject(FormBuilder);
     private destroyRef = inject(DestroyRef);
     private agentsService = inject(AgentsService);
-    private llmConfigStorage = inject(LlmConfigStorageService);
 
     form = input.required<FormGroup>();
     allKnowledgeSources = input.required<GetCollectionRequest[]>();
@@ -122,6 +120,7 @@ export class RagTabComponent implements OnInit {
     loadingKnowledgeSources = input<boolean>(false);
     loadingRags = input<boolean>(false);
     llmConfigId = input<number | null>(null);
+    agentId = input<number | null>(null);
 
     selectedRagType = signal<'naive' | 'graph' | null>(null);
     activeGraphMethodSignal = signal<GraphSearchMethod | null>(null);
@@ -135,9 +134,8 @@ export class RagTabComponent implements OnInit {
     });
     suggestingFor = signal<SuggestKey | null>(null);
     suggestErrorFor = signal<SuggestKey | null>(null);
-    firstAvailableLlmId = signal<number | null>(null);
 
-    resolvedLlmId = computed<number | null>(() => this.llmConfigId() ?? this.firstAvailableLlmId());
+    featureAvailable = computed<boolean>(() => this.agentId() != null && this.llmConfigId() != null);
 
     // Guard flag while we patchValue ourselves so the valueChanges watcher
     // doesn't interpret our own write as a user edit.
@@ -215,14 +213,6 @@ export class RagTabComponent implements OnInit {
             ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(() => {
                 this.resetSuggestState();
-                this.maybeFetchRecommendation();
-            });
-
-        this.llmConfigStorage
-            .getAllConfigs()
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((configs) => {
-                this.firstAvailableLlmId.set(configs?.[0]?.id ?? null);
                 this.maybeFetchRecommendation();
             });
 
@@ -524,15 +514,21 @@ export class RagTabComponent implements OnInit {
     }
 
     canToggleSuggested(): boolean {
+        if (this.agentId() == null) return false;
+        if (this.llmConfigId() == null) return false;
         if (this.collectionId == null) return false;
-        if (this.resolvedLlmId() == null) return false;
         if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return false;
         return !!this.searchConfigsFormGroup;
     }
 
     toggleDisabledReason(): string {
+        if (this.agentId() == null) {
+            return 'Save the agent first, then assign an LLM in the General tab to enable suggestions.';
+        }
+        if (this.llmConfigId() == null) {
+            return 'Assign an LLM to this agent in the General tab first.';
+        }
         if (this.collectionId == null) return 'Select a knowledge collection first';
-        if (this.resolvedLlmId() == null) return 'No LLM configs exist yet. Create one first.';
         if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return 'Pick a graph search method first';
         return 'Fetch recommended parameters from the backend and apply them to this method.';
     }
@@ -552,8 +548,8 @@ export class RagTabComponent implements OnInit {
 
     private fetchAndApply(key: SuggestKey): void {
         const collectionId = this.collectionId;
-        const llmConfigId = this.resolvedLlmId();
-        if (collectionId == null || llmConfigId == null) {
+        const llmConfigId = this.llmConfigId();
+        if (collectionId == null || llmConfigId == null || this.agentId() == null) {
             this.useSuggested.update((s) => ({ ...s, [key]: false }));
             return;
         }
@@ -610,9 +606,10 @@ export class RagTabComponent implements OnInit {
     }
 
     private maybeFetchRecommendation(): void {
+        if (!this.featureAvailable()) return;
         if (this.selectedRagType() !== 'graph') return;
         const collectionId = this.collectionId;
-        const llmConfigId = this.resolvedLlmId();
+        const llmConfigId = this.llmConfigId();
         if (collectionId == null || llmConfigId == null) return;
         if (!this.searchConfigsFormGroup) return;
 

@@ -33,6 +33,7 @@
                 >
                     <app-toggle-switch
                         [checked]="useSuggested()[activeKey()]"
+                        [disabled]="!canToggleSuggested()"
                         (checkedChange)="onUseSuggestedToggle($event)"
                         label="Use Suggest Params for Search Type"
                         tooltipText="Fetches recommended parameters for the selected search type and applies them to the fields below. Auto-disables when you edit any field; toggle off keeps the values."
