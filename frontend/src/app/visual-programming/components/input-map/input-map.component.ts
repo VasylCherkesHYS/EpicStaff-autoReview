@@ -1,7 +1,21 @@
+import { Overlay, OverlayModule, OverlayRef } from '@angular/cdk/overlay';
+import { ComponentPortal } from '@angular/cdk/portal';
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
+import {
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    Input,
+    OnChanges,
+    OnDestroy,
+    OnInit,
+    Output,
+    signal,
+    SimpleChanges,
+    ViewContainerRef,
+} from '@angular/core';
 import { EventEmitter } from '@angular/core';
-import { signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
     AbstractControl,
@@ -21,8 +35,12 @@ import { RunSessionSSEService } from '../../../pages/running-graph/services/grap
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ToggleSwitchComponent } from '../../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 import { HelpTooltipComponent } from '../../../shared/components/help-tooltip/help-tooltip.component';
+import { FlowService } from '../../services/flow.service';
 import { PythonCodeRunService } from '../../services/python-code-run.service';
 import { SidePanelService } from '../../services/side-panel.service';
+import { PickerItem, VarPickerFlatComponent } from './var-picker-flat.component';
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 @Component({
     selector: 'app-input-map',
@@ -34,6 +52,7 @@ import { SidePanelService } from '../../services/side-panel.service';
         ToggleSwitchComponent,
         AppSvgIconComponent,
         MatTooltipModule,
+        OverlayModule,
     ],
     viewProviders: [
         {
@@ -93,6 +112,14 @@ import { SidePanelService } from '../../services/side-panel.service';
                                         (keydown.enter)="onEnterKey($event, i)"
                                     />
                                 </div>
+                                <button
+                                    type="button"
+                                    class="var-picker-btn"
+                                    title="Variable picker"
+                                    (click)="openPicker(i, $event)"
+                                >
+                                    <i class="ti ti-braces"></i>
+                                </button>
                                 <app-svg-icon
                                     icon="trash"
                                     size="1rem"
@@ -400,6 +427,28 @@ import { SidePanelService } from '../../services/side-panel.service';
                 margin-top: 8px;
             }
 
+            .var-picker-btn {
+                flex-shrink: 0;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                border-radius: 4px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                color: rgba(255, 255, 255, 0.35);
+                font-size: 1rem;
+                transition: all 0.2s ease;
+
+                &:hover {
+                    color: var(--active-color, #685fff);
+                    background-color: rgba(104, 95, 255, 0.12);
+                }
+            }
+
             .test-input-dirty-warning {
                 display: grid;
                 grid-template-rows: 0fr;
@@ -444,7 +493,7 @@ import { SidePanelService } from '../../services/side-panel.service';
         `,
     ],
 })
-export class InputMapComponent implements OnInit, OnChanges {
+export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
     @Input() activeColor: string = '#685fff';
     @Input() testMode: boolean = false;
     @Input() showTestMode: boolean = false;
@@ -469,6 +518,20 @@ export class InputMapComponent implements OnInit, OnChanges {
     private readonly pythonCodeRunService = inject(PythonCodeRunService);
     private readonly graphSessionService = inject(GraphSessionService);
     private readonly runSessionSSEService = inject(RunSessionSSEService);
+    private readonly flowService = inject(FlowService);
+    private readonly overlay = inject(Overlay);
+    private readonly viewContainerRef = inject(ViewContainerRef);
+
+    private overlayRef: OverlayRef | null = null;
+    private autocompleteInstance: VarPickerFlatComponent | null = null;
+    private activeRowIndex: number | null = null;
+    private pickerSubs: { unsubscribe(): void }[] = [];
+
+    private readonly pickerItems = computed<PickerItem[]>(() => {
+        const state = this.flowService.startNodeInitialState();
+        if (!state || Object.keys(state).length === 0) return [];
+        return this.buildPickerItems(state);
+    });
 
     constructor(
         private controlContainer: ControlContainer,
@@ -794,6 +857,113 @@ export class InputMapComponent implements OnInit, OnChanges {
         const target = key.trim();
         if (target === '') return -1;
         return this.testPairs.controls.findIndex((c) => ((c.value.key as string) ?? '').trim() === target);
+    }
+
+    openPicker(rowIndex: number, event: MouseEvent): void {
+        event.stopPropagation();
+        this.closePicker();
+
+        this.activeRowIndex = rowIndex;
+
+        const triggerEl = event.currentTarget as HTMLElement;
+
+        const positionStrategy = this.overlay
+            .position()
+            .flexibleConnectedTo(triggerEl)
+            .withPositions([
+                { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
+                { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -8 },
+                { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
+            ])
+            .withViewportMargin(8);
+
+        this.overlayRef = this.overlay.create({
+            positionStrategy,
+            scrollStrategy: this.overlay.scrollStrategies.reposition(),
+            hasBackdrop: true,
+            backdropClass: 'cdk-overlay-transparent-backdrop',
+        });
+
+        const portal = new ComponentPortal(VarPickerFlatComponent, this.viewContainerRef);
+        const componentRef = this.overlayRef.attach(portal);
+        this.autocompleteInstance = componentRef.instance;
+
+        this.autocompleteInstance.setItems(this.pickerItems());
+
+        this.pickerSubs = [
+            this.autocompleteInstance.pathSelected.subscribe((path: string) => this.insertPath(path)),
+            this.overlayRef.backdropClick().subscribe(() => this.closePicker()),
+            this.overlayRef
+                .keydownEvents()
+                .pipe(filter((e) => e.key === 'Escape'))
+                .subscribe(() => this.closePicker()),
+        ];
+    }
+
+    private insertPath(path: string): void {
+        if (this.activeRowIndex !== null) {
+            const valueCtrl = this.pairs.at(this.activeRowIndex).get('value');
+            valueCtrl?.setValue(path);
+            valueCtrl?.markAsDirty();
+        }
+        this.closePicker();
+    }
+
+    closePicker(): void {
+        this.pickerSubs.forEach((s) => s.unsubscribe());
+        this.pickerSubs = [];
+        this.overlayRef?.dispose();
+        this.overlayRef = null;
+        this.autocompleteInstance = null;
+        this.activeRowIndex = null;
+    }
+
+    ngOnDestroy(): void {
+        this.closePicker();
+    }
+
+    private buildPickerItems(state: Record<string, unknown>): PickerItem[] {
+        const variablesObj = state['variables'];
+        if (!isRecord(variablesObj)) return [];
+
+        const items: PickerItem[] = [];
+        for (const firstSeg of Object.keys(variablesObj)) {
+            const val = variablesObj[firstSeg];
+            const fullPath = `variables.${firstSeg}`;
+            const depth = 0;
+            const displayLabel = firstSeg;
+
+            if (isRecord(val)) {
+                items.push({ tag: 'obj', label: this.toRelativeLabel(fullPath), displayLabel, depth, fullPath });
+                this.collectChildItems(val, fullPath, depth + 1, items);
+            } else {
+                items.push({ tag: 'var', label: this.toRelativeLabel(fullPath), displayLabel, depth, fullPath });
+            }
+        }
+        return items;
+    }
+
+    private collectChildItems(
+        obj: Record<string, unknown>,
+        pathPrefix: string,
+        depth: number,
+        result: PickerItem[]
+    ): void {
+        const isArray = Array.isArray(obj);
+        for (const key of Object.keys(obj)) {
+            const fullPath = isArray ? `${pathPrefix}[${key}]` : `${pathPrefix}.${key}`;
+            const val = obj[key];
+            const tag = isRecord(val) ? 'obj' : 'var';
+            result.push({ tag, label: this.toRelativeLabel(fullPath), displayLabel: key, depth, fullPath });
+            if (isRecord(val)) {
+                this.collectChildItems(val, fullPath, depth + 1, result);
+            }
+        }
+    }
+
+    private toRelativeLabel(fullPath: string): string {
+        const prefix = 'variables.';
+        return fullPath.startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath;
     }
 
     private getValidInputPairs(): AbstractControl[] {
