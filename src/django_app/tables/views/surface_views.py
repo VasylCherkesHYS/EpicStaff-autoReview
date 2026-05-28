@@ -1,5 +1,4 @@
 from django.db import transaction
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,17 +16,15 @@ from tables.services.surface_service import SURFACE_M2M_FIELDS, SurfaceService
 
 
 class SurfaceViewSet(viewsets.ModelViewSet):
-    queryset = Surface.objects.select_related(
-        "organization", "parent"
-    ).prefetch_related(*SURFACE_M2M_FIELDS)
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["parent"]
+    queryset = Surface.objects.select_related("organization").prefetch_related(
+        *SURFACE_M2M_FIELDS
+    )
 
     def _get_organization(self):
         return Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
 
     def get_serializer_class(self):
-        if self.action in ("list", "retrieve", "children"):
+        if self.action in ("list", "retrieve"):
             return SurfaceReadSerializer
         return SurfaceWriteSerializer
 
@@ -104,20 +101,6 @@ class SurfaceViewSet(viewsets.ModelViewSet):
     def resolve(self, request, pk=None):
         resolved = SurfaceService.resolve_surface(self.get_object())
         return Response(ResolvedSurfaceSerializer(resolved).data)
-
-    @action(detail=True, methods=["get"], url_path="children")
-    def children(self, request, pk=None):
-        children_qs = SurfaceService.list_children(self.get_object())
-        ctx = self.get_serializer_context()
-
-        page = self.paginate_queryset(children_qs)
-
-        if page is not None:
-            return self.get_paginated_response(
-                SurfaceReadSerializer(page, many=True, context=ctx).data
-            )
-
-        return Response(SurfaceReadSerializer(children_qs, many=True, context=ctx).data)
 
     @action(detail=False, methods=["post"], url_path="combine")
     def combine(self, request):

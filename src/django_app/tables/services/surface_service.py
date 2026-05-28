@@ -5,11 +5,14 @@ from tables.models.agent_models.surface_models import ResolvedSurface, Surface
 
 SURFACE_M2M_FIELDS = (
     "allowed_agents",
-    "tool_configs",
-    "python_code_tool_configs",
-    "mcp_tools",
-    "knowledge_collections",
-    "storage_files",
+    "allowed_python_tools",
+    "disabled_python_tools",
+    "allowed_mcp_tools",
+    "disabled_mcp_tools",
+    "allowed_knowledge_collections",
+    "disabled_knowledge_collections",
+    "allowed_storage_files",
+    "disabled_storage_files",
 )
 
 
@@ -17,37 +20,47 @@ class SurfaceService:
     @staticmethod
     def combine(*surfaces: Surface) -> ResolvedSurface:
         """
-        Resolve each surface (walking its own parent chain) then
-        union the results. additional_instructions concatenated in
-        argument order, separated by '\\n\\n'. Resources deduped by pk.
+        Apply deny-wins across ALL surfaces. For each resource type:
+        allowed_union = union by pk from every surface's allowed_X;
+        effective = objects whose pk is not in any surface's disabled_X.
+        Instructions concatenated in argument order, separated by '\\n\\n'.
         """
-        resolved = [surface.resolve() for surface in surfaces]
-
         instructions_parts = [
-            r.additional_instructions for r in resolved if r.additional_instructions
+            getattr(s, "additional_instructions", "") or ""
+            for s in surfaces
+            if getattr(s, "additional_instructions", "")
         ]
 
-        def _union_by_pk(lists):
-            seen: dict[int, object] = {}
+        def _cross_surface_effective(allowed_attr, disabled_attr):
+            allowed_by_pk: dict[int, object] = {}
 
-            for items in lists:
-                for obj in items:
-                    if obj.pk not in seen:
-                        seen[obj.pk] = obj
+            for surface in surfaces:
+                for obj in getattr(surface, allowed_attr).all():
+                    if obj.pk not in allowed_by_pk:
+                        allowed_by_pk[obj.pk] = obj
 
-            return list(seen.values())
+            disabled_pks: set[int] = set()
+
+            for surface in surfaces:
+                for obj in getattr(surface, disabled_attr).all():
+                    disabled_pks.add(obj.pk)
+
+            return [obj for pk, obj in allowed_by_pk.items() if pk not in disabled_pks]
 
         return ResolvedSurface(
             additional_instructions="\n\n".join(instructions_parts),
-            tool_configs=_union_by_pk(r.tool_configs for r in resolved),
-            python_code_tool_configs=_union_by_pk(
-                r.python_code_tool_configs for r in resolved
+            python_tools=_cross_surface_effective(
+                "allowed_python_tools", "disabled_python_tools"
             ),
-            mcp_tools=_union_by_pk(r.mcp_tools for r in resolved),
-            knowledge_collections=_union_by_pk(
-                r.knowledge_collections for r in resolved
+            mcp_tools=_cross_surface_effective(
+                "allowed_mcp_tools", "disabled_mcp_tools"
             ),
-            storage_files=_union_by_pk(r.storage_files for r in resolved),
+            knowledge_collections=_cross_surface_effective(
+                "allowed_knowledge_collections", "disabled_knowledge_collections"
+            ),
+            storage_files=_cross_surface_effective(
+                "allowed_storage_files", "disabled_storage_files"
+            ),
         )
 
     @staticmethod
@@ -59,25 +72,15 @@ class SurfaceService:
                 name=instance.name,
                 description=instance.description,
                 additional_instructions=instance.additional_instructions,
-                parent=instance.parent,
             )
         else:
             candidate = Surface()
 
-        for field_name in ("name", "description", "additional_instructions", "parent"):
+        for field_name in ("name", "description", "additional_instructions"):
             if field_name in attrs:
                 setattr(candidate, field_name, attrs[field_name])
 
         candidate.organization = organization
-
-        if (
-            instance is not None
-            and attrs.get("parent")
-            and attrs["parent"].pk == instance.pk
-        ):
-            raise SurfaceValidationError(
-                detail={"parent": ["Surface cannot be its own parent."]}
-            )
 
         try:
             candidate.full_clean(exclude=list(SURFACE_M2M_FIELDS) + ["organization"])
@@ -160,9 +163,3 @@ class SurfaceService:
         ordered = [surfaces_by_id[pk] for pk in surface_ids]
 
         return SurfaceService.combine(*ordered)
-
-    @staticmethod
-    def list_children(surface):
-        return Surface.objects.filter(parent=surface).select_related(
-            "organization", "parent"
-        )

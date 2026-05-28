@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from django.core.exceptions import ValidationError
 from django.db import models
 
 from tables.models.base_models import TimestampMixin
@@ -11,11 +10,15 @@ from tables.models.base_models import TimestampMixin
 @dataclass
 class ResolvedSurface:
     additional_instructions: str
-    tool_configs: list = field(default_factory=list)
-    python_code_tool_configs: list = field(default_factory=list)
+    python_tools: list = field(default_factory=list)
     mcp_tools: list = field(default_factory=list)
     knowledge_collections: list = field(default_factory=list)
     storage_files: list = field(default_factory=list)
+
+
+def _minus(allowed_qs, disabled_qs):
+    disabled_pks = {o.pk for o in disabled_qs}
+    return [o for o in allowed_qs if o.pk not in disabled_pks]
 
 
 class BaseSurface(TimestampMixin, models.Model):
@@ -25,44 +28,60 @@ class BaseSurface(TimestampMixin, models.Model):
         related_name="%(class)ss",
         help_text="Organization this surface belongs to.",
     )
-    tool_configs = models.ManyToManyField(
-        "ToolConfig",
+    allowed_python_tools = models.ManyToManyField(
+        "PythonCodeTool",
         blank=True,
-        related_name="%(class)ss",
-        help_text="Standard ToolConfig instances (configured tool invocations) exposed by this surface.",
+        related_name="+",
+        help_text="PythonCodeTool instances explicitly allowed by this surface.",
     )
-    python_code_tool_configs = models.ManyToManyField(
-        "PythonCodeToolConfig",
+    disabled_python_tools = models.ManyToManyField(
+        "PythonCodeTool",
         blank=True,
-        related_name="%(class)ss",
-        help_text="PythonCodeToolConfig instances exposed by this surface.",
+        related_name="+",
+        help_text="PythonCodeTool instances explicitly denied by this surface. Deny wins over any allow.",
     )
-    mcp_tools = models.ManyToManyField(
+    allowed_mcp_tools = models.ManyToManyField(
         "McpTool",
         blank=True,
-        related_name="%(class)ss",
-        help_text="MCP tool instances exposed by this surface. Auth and URL are stored on McpTool directly.",
+        related_name="+",
+        help_text="McpTool instances explicitly allowed by this surface.",
     )
-    knowledge_collections = models.ManyToManyField(
+    disabled_mcp_tools = models.ManyToManyField(
+        "McpTool",
+        blank=True,
+        related_name="+",
+        help_text="McpTool instances explicitly denied by this surface. Deny wins over any allow.",
+    )
+    allowed_knowledge_collections = models.ManyToManyField(
         "SourceCollection",
         blank=True,
-        related_name="%(class)ss",
-        help_text="RAG SourceCollection instances this surface grants access to.",
+        related_name="+",
+        help_text="SourceCollection instances explicitly allowed by this surface.",
     )
-    storage_files = models.ManyToManyField(
+    disabled_knowledge_collections = models.ManyToManyField(
+        "SourceCollection",
+        blank=True,
+        related_name="+",
+        help_text="SourceCollection instances explicitly denied by this surface. Deny wins over any allow.",
+    )
+    allowed_storage_files = models.ManyToManyField(
         "StorageFile",
         blank=True,
-        related_name="%(class)ss",
-        help_text="Object-storage files this surface grants access to.",
+        related_name="+",
+        help_text="StorageFile instances explicitly allowed by this surface.",
     )
-    # storage_files declared on each concrete subclass (through= varies).
+    disabled_storage_files = models.ManyToManyField(
+        "StorageFile",
+        blank=True,
+        related_name="+",
+        help_text="StorageFile instances explicitly denied by this surface. Deny wins over any allow.",
+    )
 
     class Meta(TimestampMixin.Meta):
         abstract = True
 
 
 class Surface(BaseSurface):
-    # %(class)ss expands to "surfaces" for this class — identical to existing related_names.
     name = models.CharField(
         max_length=255,
         help_text="Stable identifier unique within the organization. Used as the user-facing name for this surface.",
@@ -76,14 +95,6 @@ class Surface(BaseSurface):
         blank=True,
         default="",
         help_text="Free-form text appended to the agent prompt when this surface is resolved. Empty string means no extra instructions.",
-    )
-    parent = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="children",
-        help_text="Optional parent surface. Effective resources are the union of this surface and its full parent chain (root first). Null means no parent.",
     )
     allowed_agents = models.ManyToManyField(
         "AgentDefinition",
@@ -101,67 +112,24 @@ class Surface(BaseSurface):
             ),
         ]
 
-    def clean(self) -> None:
-        if not self.pk or self.parent_id is None:
-            return
-
-        visited: set[int] = set()
-        current: Surface | None = self.parent
-
-        while current is not None:
-            if current.pk == self.pk:
-                raise ValidationError("Surface parent chain contains a cycle.")
-
-            if current.pk in visited:
-                break
-
-            visited.add(current.pk)
-            current = current.parent
-
     def __repr__(self) -> str:
         return f"Surface(id={self.pk}, name={self.name!r})"
 
     def resolve(self) -> ResolvedSurface:
-        """
-        Walk parent chain root→leaf, union resources, concatenate
-        additional_instructions in chain order.
-        """
-        chain: list[Surface] = []
-        current: Surface | None = self
-
-        while current is not None:
-            chain.append(current)
-            current = current.parent
-
-        chain.reverse()
-
-        instructions_parts = [
-            s.additional_instructions for s in chain if s.additional_instructions
-        ]
-
-        def _union_by_pk(queryset_iter):
-            seen: dict[int, object] = {}
-
-            for obj in queryset_iter:
-                if obj.pk not in seen:
-                    seen[obj.pk] = obj
-
-            return list(seen.values())
-
         return ResolvedSurface(
-            additional_instructions="\n\n".join(instructions_parts),
-            tool_configs=_union_by_pk(
-                obj for s in chain for obj in s.tool_configs.all()
+            additional_instructions=self.additional_instructions,
+            python_tools=_minus(
+                self.allowed_python_tools.all(), self.disabled_python_tools.all()
             ),
-            python_code_tool_configs=_union_by_pk(
-                obj for s in chain for obj in s.python_code_tool_configs.all()
+            mcp_tools=_minus(
+                self.allowed_mcp_tools.all(), self.disabled_mcp_tools.all()
             ),
-            mcp_tools=_union_by_pk(obj for s in chain for obj in s.mcp_tools.all()),
-            knowledge_collections=_union_by_pk(
-                obj for s in chain for obj in s.knowledge_collections.all()
+            knowledge_collections=_minus(
+                self.allowed_knowledge_collections.all(),
+                self.disabled_knowledge_collections.all(),
             ),
-            storage_files=_union_by_pk(
-                obj for s in chain for obj in s.storage_files.all()
+            storage_files=_minus(
+                self.allowed_storage_files.all(), self.disabled_storage_files.all()
             ),
         )
 

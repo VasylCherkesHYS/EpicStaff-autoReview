@@ -348,7 +348,7 @@ WEBHOOK_HOST_NAME = os.getenv("WEBHOOK_HOST_NAME", "localhost")
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8009))
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "CrewAI SheetsUI API",
+    "TITLE": "EpicStaff API",
     "VERSION": "v1",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_SETTINGS": {
