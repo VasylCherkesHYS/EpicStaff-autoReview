@@ -1,0 +1,69 @@
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+from tables.graph_collab.protocol import (
+    EditorInfo,
+    # GraphModifiedMessage,
+    GraphSavedMessage,
+)
+from utils.logger import logger
+
+
+def _group_name(graph_id: int) -> str:
+    return f"graph_edit_{graph_id}"
+
+
+class GraphEditNotifier:
+    """
+    Synchronous helpers for broadcasting graph collaboration events from
+    HTTP views (which are sync). Uses async_to_sync to bridge into the
+    channel layer.
+    """
+
+    # TODO idk if delete or keep
+    # @staticmethod
+    # def notify_graph_modified(
+    #     graph_id: int, user, avatar_url: str | None = None
+    # ) -> None:
+    #     editor = EditorInfo(
+    #         user_id=user.pk,
+    #         display_name=getattr(user, "display_name", None),
+    #         avatar_url=avatar_url,
+    #     )
+    #     message = GraphModifiedMessage(graph_id=graph_id, modified_by=editor)
+    #     GraphEditNotifier._send(graph_id, message.model_dump())
+
+    @staticmethod
+    def notify_graph_saved(
+        graph_id: int,
+        new_save_version: int,
+        user,
+        saved_at: str,
+        avatar_url: str | None = None,
+    ) -> None:
+        editor = EditorInfo(
+            user_id=user.pk,
+            display_name=getattr(user, "display_name", None),
+            avatar_url=avatar_url,
+        )
+        message = GraphSavedMessage(
+            graph_id=graph_id,
+            new_save_version=new_save_version,
+            saved_by=editor,
+            saved_at=saved_at,
+        )
+        GraphEditNotifier._send(graph_id, message.model_dump())
+
+    @staticmethod
+    def _send(graph_id: int, message: dict) -> None:
+        layer = get_channel_layer()
+        if layer is None:
+            logger.warning(
+                "Channel layer is not configured — skipping broadcast for graph {}",
+                graph_id,
+            )
+            return
+        try:
+            async_to_sync(layer.group_send)(_group_name(graph_id), message)
+        except Exception as exc:
+            logger.error("Failed to broadcast to graph {} group: {}", graph_id, exc)
