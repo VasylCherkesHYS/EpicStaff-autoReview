@@ -9,7 +9,7 @@ import { catchError, switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
-import { INDEXING_CONFIRMATION_DATA } from '../../constants/indexing-confirmation-data';
+import { getIndexingConfirmationData } from '../../helpers/get-indexing-confirmation-data.util';
 import { RagType } from '../../models/base-rag.model';
 import { CreateCollectionStep } from '../../models/collection.model';
 import { DisplayedListDocument } from '../../models/document.model';
@@ -160,7 +160,7 @@ export class CreateCollectionDialogComponent {
             return of(false);
         }
 
-        return this.confirmation.confirm(INDEXING_CONFIRMATION_DATA).pipe(
+        return this.confirmation.confirm(getIndexingConfirmationData(this.selectedDocuments().length)).pipe(
             takeUntilDestroyed(this.destroyRef),
             filter((result) => result === true),
             switchMap(() =>

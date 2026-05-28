@@ -42,6 +42,28 @@
         }
     }
 
+    .rag-configs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .rag-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background-color: var(--color-ks-card-tag-background, rgba(255, 255, 255, 0.06));
+        font-size: 12px;
+        white-space: nowrap;
+
+        &__name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
     .no-rag {
         display: flex;
         gap: 4px;

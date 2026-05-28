@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonComponent } from '@shared/components';
 import { filter, switchMap } from 'rxjs/operators';
 
-import { INDEXING_CONFIRMATION_DATA } from '../../../constants/indexing-confirmation-data';
+import { getIndexingConfirmationData } from '../../../helpers/get-indexing-confirmation-data.util';
 import { CollectionGraphRag } from '../../../models/graph-rag.model';
 import { GraphRagService } from '../../../services/graph-rag.service';
 import { GraphRagConfigurationComponent } from '../../graph-rag-configuration/graph-rag-configuration.component';
@@ -35,7 +35,7 @@ export class GraphRagConfigurationDialog extends RagConfigurationDialogComponent
 
     runIndexing() {
         this.confirmation
-            .confirm(INDEXING_CONFIRMATION_DATA)
+            .confirm(getIndexingConfirmationData())
             .pipe(
                 filter((result) => result === true),
                 switchMap(() =>

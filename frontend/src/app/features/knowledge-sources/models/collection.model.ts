@@ -39,6 +39,7 @@ export interface GetCollectionRequest {
     user_id: string;
     status: CollectionStatus;
     document_count: number;
+    rag_configurations: RagConfiguration[];
     created_at: string;
     updated_at: string;
 }

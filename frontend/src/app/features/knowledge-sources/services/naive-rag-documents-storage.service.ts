@@ -20,6 +20,8 @@ import {
 import {
     BulkDeleteNaiveRagDocumentDtoResponse,
     BulkUpdateNaiveRagDocumentDtoResponse,
+    NaiveRagDocumentConfig,
+    NaiveRagDocumentStatus,
     UpdateNaiveRagDocumentDtoRequest,
     UpdateNaiveRagDocumentResponse,
 } from '../models/naive-rag-document.model';
@@ -251,6 +253,19 @@ export class NaiveRagDocumentsStorageService {
             items.map((i) => {
                 return i.naive_rag_document_id === id ? { ...i, checked: !i.checked } : i;
             })
+        );
+    }
+
+    public setDocumentStatuses(docIds: number[], status: NaiveRagDocumentStatus): void {
+        const idSet = new Set(docIds);
+        this.documentsSignal.update((items) =>
+            items.map((i) => (idSet.has(i.naive_rag_document_id) ? { ...i, status } : i))
+        );
+    }
+
+    public updateDocumentFromConfig(config: NaiveRagDocumentConfig): void {
+        this.documentsSignal.update((items) =>
+            items.map((i) => (i.naive_rag_document_id === config.naive_rag_document_id ? { ...i, ...config } : i))
         );
     }
 

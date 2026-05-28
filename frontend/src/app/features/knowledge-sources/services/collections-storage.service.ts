@@ -96,15 +96,18 @@ export class CollectionsStorageService {
     }
 
     private updateOrCreateCollectionInCache(updated: CreateCollectionDtoResponse): void {
-        const rest = { ...updated };
-        delete (rest as Record<string, unknown>)['rag_configurations'];
+        const { rag_configurations, ...rest } = updated;
 
         this.collectionsSignal.update((collections) => {
             const index = collections.findIndex((c) => c.collection_id === rest.collection_id);
             if (index >= 0) {
-                collections[index] = rest;
+                collections[index] = {
+                    ...collections[index],
+                    ...rest,
+                    rag_configurations: rag_configurations ?? collections[index].rag_configurations,
+                };
             } else {
-                collections.push(rest);
+                collections.push({ ...rest, rag_configurations: rag_configurations ?? [] });
             }
             return [...collections];
         });

@@ -18,6 +18,7 @@ import {
     BulkUpdateNaiveRagDocumentDtoResponse,
     GetNaiveRagDocumentConfigsResponse,
     InitNaiveRagDocumentsResponse,
+    NaiveRagDocumentConfig,
     UpdateNaiveRagDocumentDtoRequest,
     UpdateNaiveRagDocumentResponse,
 } from '../models/naive-rag-document.model';
@@ -48,6 +49,10 @@ export class NaiveRagService {
 
     getDocumentConfigs(naiveRagId: number): Observable<GetNaiveRagDocumentConfigsResponse> {
         return this.http.get<GetNaiveRagDocumentConfigsResponse>(`${this.apiUrl}${naiveRagId}/document-configs/`);
+    }
+
+    getDocumentConfigById(ragId: number, documentId: number): Observable<NaiveRagDocumentConfig> {
+        return this.http.get<NaiveRagDocumentConfig>(`${this.apiUrl}${ragId}/document-configs/${documentId}/`);
     }
 
     updateDocumentConfigById(

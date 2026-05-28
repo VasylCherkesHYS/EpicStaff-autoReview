@@ -22,7 +22,7 @@
         gap: 0.5rem;
         justify-content: flex-start;
         position: relative;
-        border-radius: 0.5rem;
+        border-radius: 4px;
         border: 1px solid var(--color-input-border);
         background-color: var(--color-input-background);
         color: var(--color-text-primary);
@@ -115,7 +115,7 @@
 
     &__dropdown {
         width: 100%;
-        border-radius: 10px;
+        border-radius: 4px;
         border: 1px solid var(--color-input-border);
         background-color: var(--color-input-background);
         color: var(--color-text-primary);

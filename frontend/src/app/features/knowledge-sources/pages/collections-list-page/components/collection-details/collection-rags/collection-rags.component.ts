@@ -3,12 +3,15 @@ import { ComponentType } from '@angular/cdk/overlay';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, output } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppSvgIconComponent } from '@shared/components';
+import { switchMap } from 'rxjs/operators';
 
 import { GraphRagConfigurationDialog } from '../../../../../components/rag-configuration-dialog/graph-rag-configuration-dialog/graph-rag-configuration-dialog.component';
 import { NaiveRagConfigurationDialog } from '../../../../../components/rag-configuration-dialog/naive-rag-configuration-dialog/naive-rag-configuration-dialog.component';
 import { RagConfigurationDialogComponent } from '../../../../../components/rag-configuration-dialog/rag-configuration-dialog.component';
-import { RagStatus, RagType } from '../../../../../models/base-rag.model';
+import { RAG_STATUS_CONFIG, RAG_TYPE_CONFIG } from '../../../../../constants/constants';
+import { RagType } from '../../../../../models/base-rag.model';
 import { CreateCollectionDtoResponse } from '../../../../../models/collection.model';
+import { CollectionsStorageService } from '../../../../../services/collections-storage.service';
 
 @Component({
     selector: 'app-collection-details-rags',
@@ -20,52 +23,13 @@ import { CreateCollectionDtoResponse } from '../../../../../models/collection.mo
 export class CollectionRagsComponent {
     private dialog = inject(Dialog);
     private destroyRef = inject(DestroyRef);
+    private collectionsStorageService = inject(CollectionsStorageService);
 
     collection = input.required<CreateCollectionDtoResponse>();
     onCreateRag = output<RagType>();
 
-    ragTypeConfig: Record<RagType, { name: string; icon: string }> = {
-        naive: {
-            name: 'Naive RAG',
-            icon: 'mouse',
-        },
-        graph: {
-            name: 'Graph RAG',
-            icon: 'web',
-        },
-        hybrid: {
-            name: 'Hybrid RAG',
-            icon: 'tab-group',
-        },
-    };
-
-    ragStatusConfig: Record<RagStatus, { color: string; icon: string; text: string }> = {
-        new: {
-            color: 'var(--color-ks-status-blue)',
-            icon: 'processing',
-            text: 'Processing',
-        },
-        completed: {
-            color: 'var(--color-ks-status-completed)',
-            icon: 'check',
-            text: 'Completed',
-        },
-        processing: {
-            color: 'var((--color-ks-status-blue)',
-            icon: 'processing',
-            text: 'Processing',
-        },
-        warning: {
-            color: 'var(--color-ks-status-warning)',
-            icon: 'warning',
-            text: 'Warning',
-        },
-        failed: {
-            color: 'var(--color-ks-status-failed)',
-            icon: 'x',
-            text: 'Failed',
-        },
-    };
+    ragTypeConfig = RAG_TYPE_CONFIG;
+    ragStatusConfig = RAG_STATUS_CONFIG;
 
     onConfigureRag(type: RagType): void {
         const ragConfigurations = this.collection().rag_configurations;
@@ -91,13 +55,19 @@ export class CollectionRagsComponent {
         ragId: number,
         dialogComponent: ComponentType<RagConfigurationDialogComponent>
     ): void {
+        const collectionId = this.collection().collection_id;
         const dialog = this.dialog.open(dialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
-            data: { ragId, collectionId: this.collection().collection_id },
+            data: { ragId, collectionId },
             disableClose: true,
         });
 
-        dialog.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+        dialog.closed
+            .pipe(
+                switchMap(() => this.collectionsStorageService.getFullCollection(collectionId, true)),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe();
     }
 }
