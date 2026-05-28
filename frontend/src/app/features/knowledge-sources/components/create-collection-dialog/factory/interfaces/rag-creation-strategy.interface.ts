@@ -6,4 +6,5 @@ export interface RagCreationStrategy {
     startIndexing(data?: unknown): Observable<boolean>;
     getConfigurationComponent(): Type<unknown>;
     getConfigurationInputs(): Record<string, unknown>;
+    dispose?(): void;
 }

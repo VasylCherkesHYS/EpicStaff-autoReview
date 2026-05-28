@@ -1,16 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ButtonComponent } from '@shared/components';
-import { interval, merge } from 'rxjs';
-import { filter, switchMap, takeWhile, tap } from 'rxjs/operators';
+import { filter, switchMap, take } from 'rxjs/operators';
 
 import { getReindexingConfirmationData } from '../../../helpers/get-indexing-confirmation-data.util';
 import { NaiveRagService } from '../../../services/naive-rag.service';
 import { NaiveRagDocumentsStorageService } from '../../../services/naive-rag-documents-storage.service';
+import { NaiveRagPollingService } from '../../../services/naive-rag-polling.service';
 import { NaiveRagConfigurationComponent } from '../../naive-rag-configuration/naive-rag-configuration.component';
 import { RagConfigurationDialogComponent } from '../rag-configuration-dialog.component';
-
-const POLL_INTERVAL_MS = 2500;
 
 @Component({
     selector: 'app-naive-rag-configuration-dialog',
@@ -22,7 +20,29 @@ const POLL_INTERVAL_MS = 2500;
 export class NaiveRagConfigurationDialog extends RagConfigurationDialogComponent {
     private naiveRagService = inject(NaiveRagService);
     private documentsStorageService = inject(NaiveRagDocumentsStorageService);
+    private pollingService = inject(NaiveRagPollingService);
     private ragConfiguration = viewChild.required(NaiveRagConfigurationComponent);
+
+    constructor() {
+        super();
+
+        this.destroyRef.onDestroy(() => this.pollingService.stopPolling());
+
+        toObservable(this.documentsStorageService.documents)
+            .pipe(
+                filter((docs) => docs.length > 0),
+                take(1),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe((docs) => {
+                const indexingIds = docs
+                    .filter((d) => d.status === 'chunking' || d.status === 'indexing')
+                    .map((d) => d.naive_rag_document_id);
+                if (indexingIds.length) {
+                    this.pollingService.pollDocumentStatuses(this.data.ragId, indexingIds);
+                }
+            });
+    }
 
     onClose(): void {
         this.dialogRef.close();
@@ -40,7 +60,7 @@ export class NaiveRagConfigurationDialog extends RagConfigurationDialogComponent
                     this.naiveRagService.startIndexing({
                         rag_id: this.data.ragId,
                         rag_type: 'naive',
-                        ...(configIds && { document_config_ids: configIds }),
+                        document_config_ids: configIds,
                     })
                 ),
                 takeUntilDestroyed(this.destroyRef)
@@ -48,28 +68,9 @@ export class NaiveRagConfigurationDialog extends RagConfigurationDialogComponent
             .subscribe({
                 next: () => {
                     this.toast.success('Indexing started');
-                    this.pollDocumentStatuses(configIds);
+                    this.pollingService.pollDocumentStatuses(this.data.ragId, configIds);
                 },
                 error: () => this.toast.error('Files re-indexing failed'),
             });
-    }
-
-    private pollDocumentStatuses(configIds?: number[]): void {
-        const idsToTrack = configIds ?? this.documentsStorageService.documents().map((d) => d.naive_rag_document_id);
-        if (!idsToTrack.length) return;
-
-        this.documentsStorageService.setDocumentStatuses(idsToTrack, 'indexing');
-
-        const polls = idsToTrack.map((docId) =>
-            interval(POLL_INTERVAL_MS).pipe(
-                switchMap(() => this.naiveRagService.getDocumentConfigById(this.data.ragId, docId)),
-                tap((config) => this.documentsStorageService.updateDocumentFromConfig(config)),
-                takeWhile((config) => config.status === 'chunking' || config.status === 'indexing', true)
-            )
-        );
-
-        merge(...polls)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe();
     }
 }

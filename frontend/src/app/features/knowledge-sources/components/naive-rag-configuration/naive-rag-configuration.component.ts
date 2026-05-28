@@ -206,7 +206,12 @@ export class NaiveRagConfigurationComponent implements OnInit, RagConfiguration 
         return true;
     }
 
-    getDocumentsForIndexing(): { configIds?: number[]; fileNames: string[] } {
+    getDocumentConfigIds(): number[] {
+        const { configIds } = this.getDocumentsForIndexing();
+        return configIds;
+    }
+
+    getDocumentsForIndexing(): { configIds: number[]; fileNames: string[] } {
         const checkedIds = this.filteredAndCheckedDocIds();
         const allDocs = this.documentsStorageService.documents();
 
@@ -218,7 +223,10 @@ export class NaiveRagConfigurationComponent implements OnInit, RagConfiguration 
             };
         }
 
-        return { fileNames: allDocs.map((d) => d.file_name) };
+        return {
+            configIds: allDocs.map((d) => d.naive_rag_document_id),
+            fileNames: allDocs.map((d) => d.file_name),
+        };
     }
 
     private handleDeepLink(): void {

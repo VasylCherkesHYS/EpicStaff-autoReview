@@ -89,8 +89,8 @@ export class CreateCollectionDialogComponent {
         {
             id: CreateCollectionStep.CONFIGURE,
             label: 'Configure',
-            proceedLabel: 'Finish Creation',
-            onProceed: () => this.handleFinish(),
+            proceedLabel: 'Run Indexing',
+            onProceed: () => this.handleIndexing(),
             canProceed: () => true,
         },
     ]);
@@ -124,7 +124,6 @@ export class CreateCollectionDialogComponent {
 
                 this.currentStepIndex.update((i) => {
                     if (i >= last) {
-                        this.onClose();
                         return i;
                     }
                     return i + 1;
@@ -149,32 +148,36 @@ export class CreateCollectionDialogComponent {
         );
     }
 
-    private handleFinish(): Observable<boolean> {
+    private handleIndexing(): Observable<boolean> {
         const strategy = this.strategy();
         if (!strategy || !this.strategyComponent) return of(false);
 
         const componentInstance: RagConfiguration = this.strategyComponent['_componentRef'].instance;
         const componentData = componentInstance.getConfigurationData();
+        const configIds = componentInstance.getDocumentConfigIds();
 
         if (!componentData) {
             return of(false);
         }
 
-        return this.confirmation.confirm(getIndexingConfirmationData(this.selectedDocuments().length)).pipe(
-            takeUntilDestroyed(this.destroyRef),
-            filter((result) => result === true),
-            switchMap(() =>
-                strategy.startIndexing(componentData).pipe(
-                    catchError(() => {
-                        this.toastService.error('Indexing failed');
-                        return of(false);
-                    })
+        return this.confirmation
+            .confirm(getIndexingConfirmationData(configIds.length || this.selectedDocuments().length))
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                filter((result) => result === true),
+                switchMap(() =>
+                    strategy.startIndexing({ ...componentData, configIds }).pipe(
+                        catchError(() => {
+                            this.toastService.error('Indexing failed');
+                            return of(false);
+                        })
+                    )
                 )
-            )
-        );
+            );
     }
 
     onClose() {
+        this.strategy()?.dispose?.();
         this.dialogRef.close();
     }
 

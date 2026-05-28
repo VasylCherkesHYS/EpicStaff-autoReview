@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 
+import { ToastService } from '../../../../../../services/notifications';
 import { CollectionGraphRag, CreateGraphRagIndexConfigRequest } from '../../../../models/graph-rag.model';
 import { GraphRagService } from '../../../../services/graph-rag.service';
 import { GraphRagConfigurationComponent } from '../../../graph-rag-configuration/graph-rag-configuration.component';
@@ -13,7 +14,10 @@ import { RagCreationStrategy } from '../interfaces/rag-creation-strategy.interfa
 export class GraphRagStrategy implements RagCreationStrategy {
     private graphRag!: CollectionGraphRag;
 
-    constructor(private graphRagService: GraphRagService) {}
+    constructor(
+        private graphRagService: GraphRagService,
+        private toastService: ToastService
+    ) {}
 
     create(collectionId: number, embedderId: number, llmId: number): Observable<boolean> {
         return this.graphRagService.createRagForCollection(collectionId, embedderId, llmId).pipe(
@@ -31,7 +35,10 @@ export class GraphRagStrategy implements RagCreationStrategy {
                 rag_id: ragId,
                 rag_type: 'graph',
             })
-            .pipe(map(() => true));
+            .pipe(
+                tap(() => this.toastService.success('Indexing started')),
+                map(() => true)
+            );
     }
 
     getConfigurationComponent() {

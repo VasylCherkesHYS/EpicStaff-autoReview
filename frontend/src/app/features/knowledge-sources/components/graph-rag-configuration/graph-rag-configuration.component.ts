@@ -105,6 +105,11 @@ export class GraphRagConfigurationComponent implements OnInit, AfterViewInit, Ra
         return { ...formValue, file_type };
     }
 
+    //TODO will be used for partial Graph RAG documents indexing
+    getDocumentConfigIds(): number[] {
+        return [];
+    }
+
     private updateConfigurationData(
         data: CreateGraphRagIndexConfigRequest
     ): Observable<CreateGraphRagIndexConfigRequest> {
