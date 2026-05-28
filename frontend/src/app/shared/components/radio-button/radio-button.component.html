@@ -49,6 +49,7 @@
                 class="item"
                 [style.width]="`calc(100% / ${count})`"
                 [class.active]="option.value === value()"
+                [title]="option.tooltip || null"
                 (click)="select(option)"
             >
                 @if (option.icon) {

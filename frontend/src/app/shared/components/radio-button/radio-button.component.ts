@@ -9,6 +9,7 @@ type RadioOption<T = unknown> = {
     label?: string;
     name?: string;
     icon?: string;
+    tooltip?: string;
 };
 
 @Component({

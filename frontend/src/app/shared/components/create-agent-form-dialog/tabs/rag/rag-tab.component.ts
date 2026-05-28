@@ -1,5 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    OnInit,
+    signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
@@ -120,7 +130,6 @@ export class RagTabComponent implements OnInit {
     loadingKnowledgeSources = input<boolean>(false);
     loadingRags = input<boolean>(false);
     llmConfigId = input<number | null>(null);
-    agentId = input<number | null>(null);
 
     selectedRagType = signal<'naive' | 'graph' | null>(null);
     activeGraphMethodSignal = signal<GraphSearchMethod | null>(null);
@@ -135,7 +144,35 @@ export class RagTabComponent implements OnInit {
     suggestingFor = signal<SuggestKey | null>(null);
     suggestErrorFor = signal<SuggestKey | null>(null);
 
-    featureAvailable = computed<boolean>(() => this.agentId() != null && this.llmConfigId() != null);
+    featureAvailable = computed<boolean>(() => this.llmConfigId() != null);
+
+    tokenLimitsLoading = signal<boolean>(false);
+    tokenLimitsError = signal<string | null>(null);
+    effectiveLlmContextWindow = signal<number | null>(null);
+    safeTokenBudget = signal<number | null>(null);
+
+    searchParamsReady = computed<boolean>(
+        () =>
+            this.featureAvailable() &&
+            !this.tokenLimitsLoading() &&
+            this.tokenLimitsError() == null &&
+            this.effectiveLlmContextWindow() != null
+    );
+
+    tokenWarningMsg = computed<string>(() => {
+        const safe = this.safeTokenBudget();
+        return safe != null ? `Above recommended budget (${safe.toLocaleString()} tokens).` : '';
+    });
+
+    tokenErrorMsg = computed<string>(() => {
+        const ctx = this.effectiveLlmContextWindow();
+        return ctx != null ? `Exceeds this LLM's context window (${ctx.toLocaleString()} tokens).` : '';
+    });
+
+    // Cache token limits per llm_config_id for the dialog's lifetime.
+    private tokenLimitsCache = new Map<number, { ctx: number; safe: number }>();
+    private fetchToken = 0;
+    private lastLlmConfigId: number | null = null;
 
     // Guard flag while we patchValue ourselves so the valueChanges watcher
     // doesn't interpret our own write as a user edit.
@@ -167,13 +204,34 @@ export class RagTabComponent implements OnInit {
     });
 
     searchConfigsFormGroup: FormGroup | null = null;
-    searchTypes = computed<(SelectItem<GraphSearchMethod> & { icon?: string })[]>(() => {
+    searchTypes = computed<(SelectItem<GraphSearchMethod> & { icon?: string; tooltip?: string })[]>(() => {
         const rec = this.recommendedSearchMethod();
+        const recTooltip = 'Recommended for your current configuration.';
         return [
-            { name: 'Basic', value: 'basic', icon: rec === 'basic' ? 'star' : undefined },
-            { name: 'Local', value: 'local', icon: rec === 'local' ? 'star' : undefined },
-            { name: 'Global', value: 'global_search', icon: rec === 'global_search' ? 'star' : undefined },
-            { name: 'DRIFT', value: 'drift_search', icon: rec === 'drift_search' ? 'star' : undefined },
+            {
+                name: 'Basic',
+                value: 'basic',
+                icon: rec === 'basic' ? 'star' : undefined,
+                tooltip: rec === 'basic' ? recTooltip : undefined,
+            },
+            {
+                name: 'Local',
+                value: 'local',
+                icon: rec === 'local' ? 'star' : undefined,
+                tooltip: rec === 'local' ? recTooltip : undefined,
+            },
+            {
+                name: 'Global',
+                value: 'global_search',
+                icon: rec === 'global_search' ? 'star' : undefined,
+                tooltip: rec === 'global_search' ? recTooltip : undefined,
+            },
+            {
+                name: 'DRIFT',
+                value: 'drift_search',
+                icon: rec === 'drift_search' ? 'star' : undefined,
+                tooltip: rec === 'drift_search' ? recTooltip : undefined,
+            },
         ];
     });
 
@@ -186,6 +244,17 @@ export class RagTabComponent implements OnInit {
     communityProportionControl!: FormControl;
     driftLocalTextUnitPropControl!: FormControl;
     driftLocalCommunityPropControl!: FormControl;
+
+    constructor() {
+        effect(() => {
+            const id = this.llmConfigId();
+            if (id !== this.lastLlmConfigId) {
+                this.lastLlmConfigId = id;
+                this.lastRecommendationKey = null;
+                this.maybeFetchSearchMetadata();
+            }
+        });
+    }
 
     ngOnInit() {
         const ragControl = this.form().get('rag');
@@ -205,7 +274,7 @@ export class RagTabComponent implements OnInit {
             }
             this.selectedRagType.set(rag.rag_type);
             this.initSearchConfigsFormGroup(rag.rag_type);
-            this.maybeFetchRecommendation();
+            this.maybeFetchSearchMetadata();
         });
 
         this.form()
@@ -213,11 +282,11 @@ export class RagTabComponent implements OnInit {
             ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(() => {
                 this.resetSuggestState();
-                this.maybeFetchRecommendation();
+                this.maybeFetchSearchMetadata();
             });
 
         // First mount: fire if everything's already there.
-        this.maybeFetchRecommendation();
+        this.maybeFetchSearchMetadata();
     }
 
     private initSearchConfigsFormGroup(ragType: string): void {
@@ -514,23 +583,14 @@ export class RagTabComponent implements OnInit {
     }
 
     canToggleSuggested(): boolean {
-        if (this.agentId() == null) return false;
         if (this.llmConfigId() == null) return false;
         if (this.collectionId == null) return false;
         if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return false;
         return !!this.searchConfigsFormGroup;
     }
 
-    toggleDisabledReason(): string {
-        if (this.agentId() == null) {
-            return 'Save the agent first, then assign an LLM in the General tab to enable suggestions.';
-        }
-        if (this.llmConfigId() == null) {
-            return 'Assign an LLM to this agent in the General tab first.';
-        }
-        if (this.collectionId == null) return 'Select a knowledge collection first';
-        if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return 'Pick a graph search method first';
-        return 'Fetch recommended parameters from the backend and apply them to this method.';
+    lockReason(): string {
+        return 'Assign an LLM to this agent so we know which model will run these searches.';
     }
 
     onUseSuggestedToggle(value: boolean): void {
@@ -549,7 +609,7 @@ export class RagTabComponent implements OnInit {
     private fetchAndApply(key: SuggestKey): void {
         const collectionId = this.collectionId;
         const llmConfigId = this.llmConfigId();
-        if (collectionId == null || llmConfigId == null || this.agentId() == null) {
+        if (collectionId == null || llmConfigId == null) {
             this.useSuggested.update((s) => ({ ...s, [key]: false }));
             return;
         }
@@ -605,34 +665,116 @@ export class RagTabComponent implements OnInit {
         this.suggestingFor.set(null);
     }
 
-    private maybeFetchRecommendation(): void {
+    retryMetadataFetch(): void {
+        this.tokenLimitsError.set(null);
+        this.lastRecommendationKey = null;
+        this.maybeFetchSearchMetadata();
+    }
+
+    private maybeFetchSearchMetadata(): void {
         if (!this.featureAvailable()) return;
-        if (this.selectedRagType() !== 'graph') return;
         const collectionId = this.collectionId;
         const llmConfigId = this.llmConfigId();
-        if (collectionId == null || llmConfigId == null) return;
+        const ragType = this.selectedRagType();
+        if (collectionId == null || llmConfigId == null || !ragType) return;
         if (!this.searchConfigsFormGroup) return;
+        if (ragType === 'graph' && !this.activeGraphMethod) return;
 
         const method = (this.activeGraphMethodSignal() ?? 'basic') as GraphSearchMethod;
-        const key = `${collectionId}|${llmConfigId}|${method}`;
+        const key = `${collectionId}|${llmConfigId}|${ragType}|${ragType === 'graph' ? method : 'naive'}`;
+
+        const cached = this.tokenLimitsCache.get(llmConfigId);
+        if (cached) {
+            this.effectiveLlmContextWindow.set(cached.ctx);
+            this.safeTokenBudget.set(cached.safe);
+            this.tokenLimitsLoading.set(false);
+            this.tokenLimitsError.set(null);
+            this.refreshTokenValidators();
+        }
+
         if (this.lastRecommendationKey === key) return;
         this.lastRecommendationKey = key;
 
-        this.agentsService
-            .suggestGraphSearchParams({
-                knowledge_collection_id: collectionId,
-                llm_config_id: llmConfigId,
-                search_method: method,
-            })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-                next: (response) => {
-                    this.recommendedSearchMethod.set(response.recommended_search_method ?? null);
-                },
-                error: () => {
-                    /* swallow — the toggle will surface specific errors when used */
-                },
-            });
+        if (!cached) {
+            this.tokenLimitsLoading.set(true);
+            this.tokenLimitsError.set(null);
+        }
+
+        const token = ++this.fetchToken;
+        const request$ =
+            ragType === 'naive'
+                ? this.agentsService.suggestNaiveSearchParams({
+                      knowledge_collection_id: collectionId,
+                      llm_config_id: llmConfigId,
+                  })
+                : this.agentsService.suggestGraphSearchParams({
+                      knowledge_collection_id: collectionId,
+                      llm_config_id: llmConfigId,
+                      search_method: method,
+                  });
+
+        request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: (response) => {
+                if (token !== this.fetchToken) return;
+                this.tokenLimitsCache.set(llmConfigId, {
+                    ctx: response.effective_llm_context_window,
+                    safe: response.safe_token_budget,
+                });
+                this.effectiveLlmContextWindow.set(response.effective_llm_context_window);
+                this.safeTokenBudget.set(response.safe_token_budget);
+                this.tokenLimitsLoading.set(false);
+                this.tokenLimitsError.set(null);
+                if (ragType === 'graph' && response.recommended_search_method) {
+                    this.recommendedSearchMethod.set(response.recommended_search_method);
+                }
+                this.refreshTokenValidators();
+            },
+            error: () => {
+                if (token !== this.fetchToken) return;
+                this.tokenLimitsLoading.set(false);
+                this.tokenLimitsError.set(
+                    "Couldn't load token limits for this LLM. Check your connection and try again."
+                );
+                this.lastRecommendationKey = null;
+            },
+        });
+    }
+
+    private refreshTokenValidators(): void {
+        const ctx = this.effectiveLlmContextWindow();
+        const group = this.searchConfigsFormGroup;
+        if (ctx == null || !group) return;
+
+        const tokenFieldsByMethod: Record<string, { name: string; min: number; required: boolean }[]> = {
+            basic: [{ name: 'max_context_tokens', min: 100, required: true }],
+            local: [{ name: 'max_context_tokens', min: 100, required: true }],
+            global_search: [
+                { name: 'max_context_tokens', min: 100, required: true },
+                { name: 'data_max_tokens', min: 100, required: true },
+            ],
+            drift_search: [
+                { name: 'data_max_tokens', min: 100, required: true },
+                { name: 'primer_llm_max_tokens', min: 100, required: true },
+                { name: 'local_search_max_data_tokens', min: 100, required: true },
+                { name: 'reduce_max_tokens', min: 1, required: false },
+                { name: 'reduce_max_completion_tokens', min: 1, required: false },
+                { name: 'local_search_llm_max_gen_tokens', min: 1, required: false },
+                { name: 'local_search_llm_max_gen_completion_tokens', min: 1, required: false },
+            ],
+        };
+
+        for (const method of ['basic', 'local', 'global_search', 'drift_search']) {
+            const methodGroup = group.get(method) as FormGroup | null;
+            if (!methodGroup) continue;
+            for (const field of tokenFieldsByMethod[method]) {
+                const ctrl = methodGroup.get(field.name);
+                if (!ctrl) continue;
+                const validators = [Validators.min(field.min), Validators.max(ctx)];
+                if (field.required) validators.unshift(Validators.required);
+                ctrl.setValidators(validators);
+                ctrl.updateValueAndValidity({ emitEvent: false });
+            }
+        }
     }
 
     private resetSuggestState(): void {

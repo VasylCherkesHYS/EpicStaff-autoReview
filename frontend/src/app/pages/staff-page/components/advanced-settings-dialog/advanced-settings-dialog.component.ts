@@ -202,10 +202,14 @@ export class AdvancedSettingsDialogComponent implements OnInit {
         if (this.form.invalid) return;
 
         const { search_configs, rag, ...rest } = this.form.value;
+        const searchConfigsAvailable = this.data.llm_config != null;
         const result = {
             ...rest,
             rag,
-            search_configs: rag?.rag_type ? { ...this.data.search_configs, [rag.rag_type]: search_configs } : null,
+            search_configs:
+                searchConfigsAvailable && rag?.rag_type
+                    ? { ...this.data.search_configs, [rag.rag_type]: search_configs }
+                    : null,
         };
 
         // Update agentData with current form control values
