@@ -4,7 +4,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
     AppSvgIconComponent,
-    ButtonComponent,
     DualSliderComponent,
     InputNumberComponent,
     RadioButtonComponent,
@@ -32,6 +31,8 @@ import {
     SuggestResponse,
 } from '../../../../models';
 import { LlmConfigStorageService } from '../../../../services/llms/llm-config-storage.service';
+
+type SuggestKey = GraphSearchMethod | 'naive';
 
 export const GRAPH_BASIC_DEFAULTS: GraphBasicSearchConfig = {
     prompt: null,
@@ -103,7 +104,6 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
         DualSliderComponent,
         TextareaComponent,
         ValidationErrorsComponent,
-        ButtonComponent,
         ToggleSwitchComponent,
         AppSvgIconComponent,
     ],
@@ -124,13 +124,27 @@ export class RagTabComponent implements OnInit {
     llmConfigId = input<number | null>(null);
 
     selectedRagType = signal<'naive' | 'graph' | null>(null);
-    suggesting = signal<boolean>(false);
-    suggestMessage = signal<string | null>(null);
-    suggestError = signal<string | null>(null);
-    recommendedMethod = signal<GraphSearchMethod | null>(null);
+    activeGraphMethodSignal = signal<GraphSearchMethod | null>(null);
+    recommendedSearchMethod = signal<GraphSearchMethod | null>(null);
+    useSuggested = signal<Record<SuggestKey, boolean>>({
+        basic: false,
+        local: false,
+        global_search: false,
+        drift_search: false,
+        naive: false,
+    });
+    suggestingFor = signal<SuggestKey | null>(null);
+    suggestErrorFor = signal<SuggestKey | null>(null);
     firstAvailableLlmId = signal<number | null>(null);
 
     resolvedLlmId = computed<number | null>(() => this.llmConfigId() ?? this.firstAvailableLlmId());
+
+    // Guard flag while we patchValue ourselves so the valueChanges watcher
+    // doesn't interpret our own write as a user edit.
+    private applying = false;
+    // Guard so the initial recommendation fetch fires once per
+    // (collection, llm, ragType) triple, not on every signal touch.
+    private lastRecommendationKey: string | null = null;
 
     knowledgeSelectItems = computed<SelectItem[]>(() => {
         return [
@@ -155,12 +169,20 @@ export class RagTabComponent implements OnInit {
     });
 
     searchConfigsFormGroup: FormGroup | null = null;
-    searchTypes: SelectItem[] = [
-        { name: 'Basic', value: 'basic' },
-        { name: 'Local', value: 'local' },
-        { name: 'Global', value: 'global_search' },
-        { name: 'DRIFT', value: 'drift_search' },
-    ];
+    searchTypes = computed<(SelectItem<GraphSearchMethod> & { icon?: string })[]>(() => {
+        const rec = this.recommendedSearchMethod();
+        return [
+            { name: 'Basic', value: 'basic', icon: rec === 'basic' ? 'star' : undefined },
+            { name: 'Local', value: 'local', icon: rec === 'local' ? 'star' : undefined },
+            { name: 'Global', value: 'global_search', icon: rec === 'global_search' ? 'star' : undefined },
+            { name: 'DRIFT', value: 'drift_search', icon: rec === 'drift_search' ? 'star' : undefined },
+        ];
+    });
+
+    activeKey = computed<SuggestKey>(() => {
+        if (this.selectedRagType() === 'naive') return 'naive';
+        return (this.activeGraphMethodSignal() ?? 'basic') as SuggestKey;
+    });
 
     textUnitProportionControl!: FormControl;
     communityProportionControl!: FormControl;
@@ -177,21 +199,35 @@ export class RagTabComponent implements OnInit {
         }
 
         ragControl?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((rag) => {
-            this.clearSuggestFeedback();
+            this.resetSuggestState();
             if (!rag) {
                 this.searchConfigsFormGroup = null;
+                this.selectedRagType.set(null);
                 return;
             }
             this.selectedRagType.set(rag.rag_type);
             this.initSearchConfigsFormGroup(rag.rag_type);
+            this.maybeFetchRecommendation();
         });
+
+        this.form()
+            .get('knowledge_collection')
+            ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(() => {
+                this.resetSuggestState();
+                this.maybeFetchRecommendation();
+            });
 
         this.llmConfigStorage
             .getAllConfigs()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((configs) => {
                 this.firstAvailableLlmId.set(configs?.[0]?.id ?? null);
+                this.maybeFetchRecommendation();
             });
+
+        // First mount: fire if everything's already there.
+        this.maybeFetchRecommendation();
     }
 
     private initSearchConfigsFormGroup(ragType: string): void {
@@ -207,18 +243,52 @@ export class RagTabComponent implements OnInit {
         }
 
         if (ragType === 'graph') {
+            const initialMethod = (configs?.graph?.search_method ?? 'basic') as GraphSearchMethod;
             this.searchConfigsFormGroup = this.fb.group({
-                search_method: [configs?.graph?.search_method ?? 'basic', [Validators.required]],
+                search_method: [initialMethod, [Validators.required]],
                 basic: this.initGraphBasicSearchConfig(configs?.graph?.basic),
                 local: this.initGraphLocalSearchConfig(configs?.graph?.local),
                 global_search: this.initGraphGlobalSearchConfig(configs?.graph?.global_search),
                 drift_search: this.initGraphDriftSearchConfig(configs?.graph?.drift_search),
             });
+            this.activeGraphMethodSignal.set(initialMethod);
+            this.searchConfigsFormGroup
+                .get('search_method')
+                ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+                .subscribe((m) => this.activeGraphMethodSignal.set((m as GraphSearchMethod) ?? null));
 
             this.wireDynamicCommunityToggle();
+            this.wireMethodValueWatchers();
+        } else {
+            this.activeGraphMethodSignal.set(null);
+            this.wireNaiveValueWatcher();
         }
 
         this.form().setControl('search_configs', this.searchConfigsFormGroup);
+    }
+
+    private wireMethodValueWatchers(): void {
+        const root = this.searchConfigsFormGroup;
+        if (!root) return;
+        (['basic', 'local', 'global_search', 'drift_search'] as GraphSearchMethod[]).forEach((m) => {
+            const group = root.get(m) as FormGroup | null;
+            if (!group) return;
+            group.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+                if (this.applying) return;
+                if (!this.useSuggested()[m]) return;
+                this.useSuggested.update((s) => ({ ...s, [m]: false }));
+            });
+        });
+    }
+
+    private wireNaiveValueWatcher(): void {
+        const group = this.searchConfigsFormGroup;
+        if (!group) return;
+        group.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+            if (this.applying) return;
+            if (!this.useSuggested().naive) return;
+            this.useSuggested.update((s) => ({ ...s, naive: false }));
+        });
     }
 
     private initGraphBasicSearchConfig(configs: GraphBasicSearchConfig | undefined): FormGroup {
@@ -453,111 +523,132 @@ export class RagTabComponent implements OnInit {
         return (this.searchConfigsFormGroup?.get('search_method')?.value as GraphSearchMethod) ?? null;
     }
 
-    get canSuggest(): boolean {
-        if (this.suggesting()) return false;
+    canToggleSuggested(): boolean {
         if (this.collectionId == null) return false;
         if (this.resolvedLlmId() == null) return false;
         if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return false;
         return !!this.searchConfigsFormGroup;
     }
 
-    suggestDisabledReason(): string {
-        if (this.suggesting()) return 'Fetching suggestions…';
+    toggleDisabledReason(): string {
         if (this.collectionId == null) return 'Select a knowledge collection first';
         if (this.resolvedLlmId() == null) return 'No LLM configs exist yet. Create one first.';
         if (this.selectedRagType() === 'graph' && !this.activeGraphMethod) return 'Pick a graph search method first';
-        return 'Compute recommended values for the selected collection and LLM';
+        return 'Fetch recommended parameters from the backend and apply them to this method.';
     }
 
-    onSuggestSettings(): void {
-        if (!this.canSuggest || !this.searchConfigsFormGroup) return;
+    onUseSuggestedToggle(value: boolean): void {
+        const key = this.activeKey();
+        this.useSuggested.update((s) => ({ ...s, [key]: value }));
+        this.suggestErrorFor.set(null);
+        if (!value) return;
+        if (!this.canToggleSuggested()) {
+            // Bounce the toggle back off; we shouldn't be able to fetch.
+            this.useSuggested.update((s) => ({ ...s, [key]: false }));
+            return;
+        }
+        this.fetchAndApply(key);
+    }
 
-        const ragType = this.selectedRagType();
-        const targetGroup =
-            ragType === 'graph'
-                ? (this.searchConfigsFormGroup.get(this.activeGraphMethod!) as FormGroup | null)
-                : this.searchConfigsFormGroup;
-
-        if (!targetGroup) return;
-
-        if (targetGroup.dirty) {
-            const ok = confirm('This will overwrite your changes. Continue?');
-            if (!ok) return;
+    private fetchAndApply(key: SuggestKey): void {
+        const collectionId = this.collectionId;
+        const llmConfigId = this.resolvedLlmId();
+        if (collectionId == null || llmConfigId == null) {
+            this.useSuggested.update((s) => ({ ...s, [key]: false }));
+            return;
         }
 
-        this.clearSuggestFeedback();
-        this.suggesting.set(true);
-
-        const collectionId = this.collectionId!;
-        const llmConfigId = this.resolvedLlmId()!;
+        this.suggestingFor.set(key);
+        this.suggestErrorFor.set(null);
 
         const request$ =
-            ragType === 'graph'
-                ? this.agentsService.suggestGraphSearchParams({
+            key === 'naive'
+                ? this.agentsService.suggestNaiveSearchParams({
                       knowledge_collection_id: collectionId,
                       llm_config_id: llmConfigId,
-                      search_method: this.activeGraphMethod!,
                   })
-                : this.agentsService.suggestNaiveSearchParams({
+                : this.agentsService.suggestGraphSearchParams({
                       knowledge_collection_id: collectionId,
                       llm_config_id: llmConfigId,
+                      search_method: key,
                   });
 
         request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: (response) => this.applySuggestion(targetGroup, response),
-            error: (err) => {
-                this.suggesting.set(false);
-                const message = err?.error?.error ?? 'Failed to fetch suggested settings';
-                this.suggestError.set(message);
+            next: (response) => this.applyResponse(key, response),
+            error: () => {
+                this.useSuggested.update((s) => ({ ...s, [key]: false }));
+                this.suggestErrorFor.set(key);
+                this.suggestingFor.set(null);
             },
         });
     }
 
-    private applySuggestion(target: FormGroup, response: SuggestResponse): void {
-        target.patchValue(response.suggested_params);
-        target.markAsPristine();
-
-        if (response.recommended_search_method) {
-            this.recommendedMethod.set(response.recommended_search_method);
-        } else {
-            this.recommendedMethod.set(null);
+    private applyResponse(key: SuggestKey, response: SuggestResponse): void {
+        const target =
+            key === 'naive' ? this.searchConfigsFormGroup : (this.searchConfigsFormGroup?.get(key) as FormGroup | null);
+        if (!target) {
+            this.suggestingFor.set(null);
+            return;
         }
 
-        const clamped = response.clamped_fields?.length ?? 0;
-        const warning = response.llm_resolution_warning;
-        let msg = `Suggested values applied.`;
-        if (clamped > 0) msg += ` ${clamped} field(s) auto-capped to fit context.`;
-        if (warning) msg += ` (${warning})`;
-        this.suggestMessage.set(msg);
-        this.suggesting.set(false);
+        this.applying = true;
+        try {
+            target.patchValue(response.suggested_params, { emitEvent: false });
+            target.markAsPristine();
+        } finally {
+            // Release the flag asynchronously to swallow any deferred valueChanges
+            // emissions that escape `emitEvent: false` from nested groups.
+            queueMicrotask(() => {
+                this.applying = false;
+            });
+        }
+
+        if (key !== 'naive' && response.recommended_search_method) {
+            this.recommendedSearchMethod.set(response.recommended_search_method);
+        }
+        this.suggestingFor.set(null);
     }
 
-    applyRecommendedMethod(): void {
-        const recommended = this.recommendedMethod();
-        if (!recommended || !this.searchConfigsFormGroup) return;
-        this.searchConfigsFormGroup.get('search_method')?.setValue(recommended);
-        this.recommendedMethod.set(null);
+    private maybeFetchRecommendation(): void {
+        if (this.selectedRagType() !== 'graph') return;
+        const collectionId = this.collectionId;
+        const llmConfigId = this.resolvedLlmId();
+        if (collectionId == null || llmConfigId == null) return;
+        if (!this.searchConfigsFormGroup) return;
+
+        const method = (this.activeGraphMethodSignal() ?? 'basic') as GraphSearchMethod;
+        const key = `${collectionId}|${llmConfigId}|${method}`;
+        if (this.lastRecommendationKey === key) return;
+        this.lastRecommendationKey = key;
+
+        this.agentsService
+            .suggestGraphSearchParams({
+                knowledge_collection_id: collectionId,
+                llm_config_id: llmConfigId,
+                search_method: method,
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (response) => {
+                    this.recommendedSearchMethod.set(response.recommended_search_method ?? null);
+                },
+                error: () => {
+                    /* swallow — the toggle will surface specific errors when used */
+                },
+            });
     }
 
-    switchAndResuggest(): void {
-        const recommended = this.recommendedMethod();
-        if (!recommended || !this.searchConfigsFormGroup) return;
-        this.searchConfigsFormGroup.get('search_method')?.setValue(recommended);
-        this.recommendedMethod.set(null);
-        this.onSuggestSettings();
-    }
-
-    dismissSuggestMessage(): void {
-        this.suggestMessage.set(null);
-    }
-
-    dismissSuggestError(): void {
-        this.suggestError.set(null);
-    }
-
-    private clearSuggestFeedback(): void {
-        this.suggestMessage.set(null);
-        this.suggestError.set(null);
-        this.recommendedMethod.set(null);
+    private resetSuggestState(): void {
+        this.useSuggested.set({
+            basic: false,
+            local: false,
+            global_search: false,
+            drift_search: false,
+            naive: false,
+        });
+        this.suggestingFor.set(null);
+        this.suggestErrorFor.set(null);
+        this.recommendedSearchMethod.set(null);
+        this.lastRecommendationKey = null;
     }
 }

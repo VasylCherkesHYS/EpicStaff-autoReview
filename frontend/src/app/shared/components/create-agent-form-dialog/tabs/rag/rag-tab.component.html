@@ -26,68 +26,28 @@
         </div>
 
         @if (searchConfigsFormGroup) {
-            @if (recommendedMethod() && recommendedMethod() !== activeGraphMethod) {
-                <div class="recommended-method-banner">
-                    <span>
-                        Recommended method for this collection:
-                        <b>{{ recommendedMethod() }}</b>
-                    </span>
-                    <app-button
-                        type="ghost"
-                        mod="small"
-                        (click)="switchAndResuggest()"
-                    >
-                        Switch and re-suggest
-                    </app-button>
-                </div>
-            }
-
-            <ng-template #suggestButton>
-                <span
-                    class="suggest-control"
-                    [title]="suggestDisabledReason()"
+            <ng-template #suggestedToggle>
+                <div
+                    class="suggested-params-toggle"
+                    [title]="canToggleSuggested() ? toggleDisabledReason() : toggleDisabledReason()"
                 >
-                    <app-button
-                        type="secondary"
-                        mod="small"
-                        [disabled]="!canSuggest"
-                        (click)="onSuggestSettings()"
-                    >
-                        @if (suggesting()) {
-                            Suggesting…
-                        } @else {
-                            Suggest settings
-                        }
-                    </app-button>
-                </span>
-            </ng-template>
-
-            @if (suggestMessage() || suggestError()) {
-                <div class="suggest-feedback-row">
-                    @if (suggestMessage()) {
-                        <small
-                            class="suggest-feedback success"
-                            (click)="dismissSuggestMessage()"
-                        >
-                            {{ suggestMessage() }}
-                        </small>
-                    }
-                    @if (suggestError()) {
-                        <small
-                            class="suggest-feedback error"
-                            (click)="dismissSuggestError()"
-                        >
-                            {{ suggestError() }}
-                        </small>
+                    <app-toggle-switch
+                        [checked]="useSuggested()[activeKey()]"
+                        (checkedChange)="onUseSuggestedToggle($event)"
+                        label="Use Suggest Params for Search Type"
+                        tooltipText="Fetches recommended parameters for the selected search type and applies them to the fields below. Auto-disables when you edit any field; toggle off keeps the values."
+                    />
+                    @if (suggestingFor() === activeKey()) {
+                        <small class="suggest-status">Fetching…</small>
+                    } @else if (suggestErrorFor() === activeKey()) {
+                        <small class="suggest-status error">Failed to fetch suggestions</small>
                     }
                 </div>
-            }
+            </ng-template>
 
             <div [formGroup]="searchConfigsFormGroup">
                 @if (selectedRagType() === 'naive') {
-                    <div class="suggest-bar">
-                        <ng-container *ngTemplateOutlet="suggestButton" />
-                    </div>
+                    <ng-container *ngTemplateOutlet="suggestedToggle" />
 
                     <div class="form-group">
                         <app-slider-with-stepper
@@ -113,15 +73,16 @@
                         />
                     </div>
                 } @else if (selectedRagType() === 'graph') {
-                    <div class="form-group search-type-row">
+                    <div class="form-group">
                         <app-radio-button
                             formControlName="search_method"
                             label="Search Type"
                             tooltipText="Basic Search - uses vector-based RAG to find relevant information and generate accurate responses. Local search generates answers by combining relevant data from the AI-extracted knowledge-graph with text chunks of the raw documents. Global search runs a map-reduce across community reports. DRIFT search drills down iteratively for highest quality."
-                            [options]="searchTypes"
+                            [options]="searchTypes()"
                         />
-                        <ng-container *ngTemplateOutlet="suggestButton" />
                     </div>
+
+                    <ng-container *ngTemplateOutlet="suggestedToggle" />
 
                     @switch (searchConfigsFormGroup.get('search_method')?.value) {
                         @case ('basic') {

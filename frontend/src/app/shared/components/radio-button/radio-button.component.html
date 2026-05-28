@@ -26,6 +26,13 @@
                 [disabled]="isDisabled()"
                 (click)="select(option)"
             >
+                @if (option.icon) {
+                    <app-svg-icon
+                        class="segmented__option-icon"
+                        [icon]="option.icon"
+                        size="0.9rem"
+                    />
+                }
                 {{ option.label ?? option.name }}
             </button>
         }
@@ -44,6 +51,13 @@
                 [class.active]="option.value === value()"
                 (click)="select(option)"
             >
+                @if (option.icon) {
+                    <app-svg-icon
+                        class="item-icon"
+                        [icon]="option.icon"
+                        size="0.9rem"
+                    />
+                }
                 {{ option.label ?? option.name }}
             </div>
         }
