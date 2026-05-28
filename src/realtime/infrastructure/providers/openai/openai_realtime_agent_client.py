@@ -101,14 +101,13 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         """Translate a legacy beta audio-format string into the GA `audio.*.format` object.
 
         Beta accepted bare strings ("pcm16", "g711_ulaw", "g711_alaw").
-        GA requires `{"type": "audio/pcm"|"audio/pcmu"|"audio/pcma", "rate": <hz>}`.
+        GA requires `{"type": "audio/pcm"|"audio/pcmu"|"audio/pcma"}`.
         """
         if audio_format == "g711_ulaw":
-            return {"type": "audio/pcmu", "rate": 8000}
+            return {"type": "audio/pcmu"}
         if audio_format == "g711_alaw":
-            return {"type": "audio/pcma", "rate": 8000}
-        # default: pcm16 @ 24kHz (OpenAI's GA default sample rate)
-        return {"type": "audio/pcm", "rate": 24000}
+            return {"type": "audio/pcma"}
+        return {"type": "audio/pcm"}
 
     async def update_session(self, config: Dict[str, Any]) -> None:
         """

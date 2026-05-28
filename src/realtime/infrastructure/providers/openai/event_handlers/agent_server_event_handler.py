@@ -20,7 +20,7 @@ class ServerEventHandler:
             "response.created": self.default_handler,
             "session.created": self.default_handler,
             "error": self.handle_error,
-            "session.updated": self.default_handler,
+            "session.updated": self.handle_session_updated,
             "conversation.item.added": self.conversation_item_created_handler,
             "conversation.item.done": self.conversation_item_created_handler,
             "conversation.item.created": self.conversation_item_created_handler,
@@ -102,6 +102,15 @@ class ServerEventHandler:
 
     async def handle_error(self, data: Dict[str, Any]) -> None:
         logger.error(f"Error received: {data}")
+        await self.default_handler(data)
+
+    async def handle_session_updated(self, data: Dict[str, Any]) -> None:
+        session = data.get("session", {})
+        audio = session.get("audio", {})
+        logger.info(
+            f"[session.updated] output_format={audio.get('output', {}).get('format')} "
+            f"input_format={audio.get('input', {}).get('format')}"
+        )
         await self.default_handler(data)
 
     async def handle_transcription_failed(self, data: Dict[str, Any]) -> None:

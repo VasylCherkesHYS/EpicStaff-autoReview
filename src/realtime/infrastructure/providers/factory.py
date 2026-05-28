@@ -79,7 +79,7 @@ class RealtimeAgentClientFactory:
             return client
 
         # Default: OpenAI
-        return OpenaiRealtimeAgentClient(
+        client = OpenaiRealtimeAgentClient(
             api_key=config.rt_api_key,
             connection_key=config.connection_key,
             on_server_event=on_server_event,
@@ -94,3 +94,5 @@ class RealtimeAgentClientFactory:
             else config.output_audio_format,
             turn_detection_mode=TurnDetectionMode.SERVER_VAD,
         )
+        client.is_twilio = is_twilio
+        return client
