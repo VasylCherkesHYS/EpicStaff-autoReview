@@ -71,7 +71,10 @@ class ConversationService(IChatModeController):
 
     async def execute(self):
         try:
-            await self.client_websocket.accept()
+            subprotocols = self.client_websocket.scope.get("subprotocols", [])
+            await self.client_websocket.accept(
+                subprotocol=subprotocols[0] if subprotocols else None
+            )
 
             rt_agent_client_task = None
             rt_transcription_client_task = None

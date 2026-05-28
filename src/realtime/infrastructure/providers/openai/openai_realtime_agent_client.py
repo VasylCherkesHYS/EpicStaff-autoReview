@@ -107,7 +107,7 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
             return {"type": "audio/pcmu"}
         if audio_format == "g711_alaw":
             return {"type": "audio/pcma"}
-        return {"type": "audio/pcm"}
+        return {"type": "audio/pcm", "rate": 24000}
 
     async def update_session(self, config: Dict[str, Any]) -> None:
         """
@@ -119,9 +119,11 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
         input_audio_transcription = config.get(
             "input_audio_transcription", {"model": "gpt-4o-mini-transcribe"}
         )
-        output_modalities = config.get(
+        raw_modalities = config.get(
             "output_modalities", config.get("modalities", ["audio"])
         )
+        # GA only supports ['text'] or ['audio'], not both combined
+        output_modalities = ["audio"] if "audio" in raw_modalities else raw_modalities
         input_audio_format = config.get("input_audio_format", "pcm16")
         output_audio_format = config.get("output_audio_format", "pcm16")
 
@@ -135,7 +137,11 @@ class OpenaiRealtimeAgentClient(BaseRealtimeAgentClient):
                     "format": self._ga_audio_format(input_audio_format),
                     "turn_detection": turn_detection,
                     "transcription": input_audio_transcription,
-                    "noise_reduction": {"type": "near_field"},
+                    **(
+                        {}
+                        if input_audio_format in ("g711_ulaw", "g711_alaw")
+                        else {"noise_reduction": {"type": "near_field"}}
+                    ),
                 },
                 "output": {
                     "format": self._ga_audio_format(output_audio_format),
