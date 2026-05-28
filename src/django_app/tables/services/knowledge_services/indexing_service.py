@@ -47,7 +47,8 @@ class IndexingService:
 
         Returns:
             For naive: dict with rag_id, rag_type, collection_id, base_rag_type_id,
-                accepted_config_ids, skipped_completed_config_ids.
+                accepted_config_ids, skipped_completed_config_ids,
+                skipped_in_progress_config_ids.
             For graph: dict with rag_id, rag_type, collection_id, base_rag_type_id.
         """
         if rag_type == "naive":
@@ -79,7 +80,8 @@ class IndexingService:
             Dict with:
               rag_id, rag_type, collection_id, base_rag_type_id,
               accepted_config_ids (list[int] | None — None means "whole RAG"),
-              skipped_completed_config_ids (list[int])
+              skipped_completed_config_ids (list[int]),
+              skipped_in_progress_config_ids (list[int])
         """
         try:
             naive_rag = NaiveRag.objects.select_related(
@@ -104,6 +106,7 @@ class IndexingService:
 
         accepted: Optional[List[int]] = None
         skipped_completed: List[int] = []
+        skipped_in_progress: List[int] = []
 
         if document_config_ids:
             configs = list(
@@ -120,18 +123,29 @@ class IndexingService:
                     f"{missing}"
                 )
 
-            completed_status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.COMPLETED
+            DocStatus = NaiveRagDocumentConfig.NaiveRagDocumentStatus
+            in_progress_statuses = {
+                DocStatus.CHUNKING,
+                DocStatus.CHUNKED,
+                DocStatus.INDEXING,
+            }
             accepted = []
             for c in configs:
-                if c["status"] == completed_status:
-                    skipped_completed.append(c["naive_rag_document_id"])
+                cid = c["naive_rag_document_id"]
+                if c["status"] == DocStatus.COMPLETED:
+                    skipped_completed.append(cid)
+                elif c["status"] in in_progress_statuses:
+                    # Guard against double-click race: don't re-queue docs
+                    # that are already being processed.
+                    skipped_in_progress.append(cid)
                 else:
-                    accepted.append(c["naive_rag_document_id"])
+                    accepted.append(cid)
 
             # Preserve user-supplied order
             order = {cid: i for i, cid in enumerate(document_config_ids)}
             accepted.sort(key=lambda x: order[x])
             skipped_completed.sort(key=lambda x: order[x])
+            skipped_in_progress.sort(key=lambda x: order[x])
         else:
             # Whole-RAG indexing — collection must have documents
             document_count = DocumentMetadata.objects.filter(
@@ -147,7 +161,8 @@ class IndexingService:
             f"collection_id={collection.collection_id}, "
             f"embedder={naive_rag.embedder.id}, "
             f"accepted_config_ids={accepted}, "
-            f"skipped_completed_config_ids={skipped_completed}"
+            f"skipped_completed_config_ids={skipped_completed}, "
+            f"skipped_in_progress_config_ids={skipped_in_progress}"
         )
 
         return {
@@ -157,6 +172,7 @@ class IndexingService:
             "base_rag_type_id": base_rag_type.rag_type_id,
             "accepted_config_ids": accepted,
             "skipped_completed_config_ids": skipped_completed,
+            "skipped_in_progress_config_ids": skipped_in_progress,
         }
 
     @staticmethod

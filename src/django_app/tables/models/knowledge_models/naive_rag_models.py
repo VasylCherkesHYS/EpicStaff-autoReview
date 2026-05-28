@@ -53,31 +53,24 @@ class NaiveRag(models.Model):
     indexed_at = models.DateTimeField(null=True, blank=True)
 
     def update_rag_status(self: "NaiveRag"):
-        naive_rag_document_statuses = set(
-            self.naive_rag_configs.values_list("status", flat=True)
-        )
+        doc_statuses = set(self.naive_rag_configs.values_list("status", flat=True))
 
-        NEW = NaiveRag.NaiveRagStatus.NEW
-        PROCESSING = NaiveRag.NaiveRagStatus.PROCESSING
-        WARNING = NaiveRag.NaiveRagStatus.WARNING
-        FAILED = NaiveRag.NaiveRagStatus.FAILED
-        COMPLETED = NaiveRag.NaiveRagStatus.COMPLETED
+        DocStatus = NaiveRagDocumentConfig.NaiveRagDocumentStatus
+        IN_PROGRESS = {DocStatus.CHUNKING, DocStatus.CHUNKED, DocStatus.INDEXING}
 
-        if not naive_rag_document_statuses or naive_rag_document_statuses == {NEW}:
-            current_status = NEW
-        elif naive_rag_document_statuses == {COMPLETED}:
-            current_status = COMPLETED
-        elif naive_rag_document_statuses == {FAILED}:
-            current_status = FAILED
-        elif PROCESSING in naive_rag_document_statuses:
-            current_status = PROCESSING
-        elif (
-            FAILED in naive_rag_document_statuses
-            or WARNING in naive_rag_document_statuses
-        ):
-            current_status = WARNING
+        RagStatus = NaiveRag.NaiveRagStatus
+
+        if not doc_statuses or doc_statuses == {DocStatus.NEW}:
+            current_status = RagStatus.NEW
+        elif doc_statuses & IN_PROGRESS:
+            current_status = RagStatus.PROCESSING
+        elif doc_statuses == {DocStatus.COMPLETED}:
+            current_status = RagStatus.COMPLETED
+        elif doc_statuses == {DocStatus.FAILED}:
+            current_status = RagStatus.FAILED
         else:
-            current_status = WARNING
+            # mix (completed+new / completed+failed / new+failed / ...) → warning
+            current_status = RagStatus.WARNING
 
         self.rag_status = current_status
         self.save(update_fields=["rag_status", "updated_at"])

@@ -83,6 +83,7 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
     onStreamHandlerCodeChange(code: string): void {
         this.streamHandlerCode = code;
         this.codeChange$.next(code);
+        this.notifyExternalChange();
     }
 
     onCodeErrorChange(hasError: boolean): void {
@@ -92,6 +93,7 @@ export class CodeAgentNodePanelComponent extends BaseSidePanel<CodeAgentNodeMode
     onSchemaEditorChange(json: string): void {
         this.outputSchemaText = json;
         this.sidePanelService.triggerAutosave();
+        this.notifyExternalChange();
     }
 
     onSchemaValidChange(isValid: boolean): void {

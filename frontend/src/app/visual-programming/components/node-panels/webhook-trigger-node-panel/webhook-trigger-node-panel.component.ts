@@ -1,16 +1,6 @@
 import { Clipboard, ClipboardModule } from '@angular/cdk/clipboard';
 import { CommonModule } from '@angular/common';
-import {
-    ChangeDetectionStrategy,
-    Component,
-    computed,
-    DestroyRef,
-    inject,
-    input,
-    OnChanges,
-    OnInit,
-    signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnChanges, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CustomInputComponent, SelectComponent, SelectItem } from '@shared/components';
@@ -43,7 +33,6 @@ export class WebhookTriggerNodePanelComponent
     extends BaseSidePanel<WebhookTriggerNodeModel>
     implements OnInit, OnChanges
 {
-    private readonly destroyRef = inject(DestroyRef);
     private readonly ngrokStorageService = inject(NgrokConfigStorageService);
     private readonly clipboard = inject(Clipboard);
     private readonly toastService = inject(ToastService);
@@ -111,6 +100,7 @@ export class WebhookTriggerNodePanelComponent
 
     onPythonCodeChange(code: string): void {
         this.pythonCode = code;
+        this.notifyExternalChange();
     }
 
     onCodeErrorChange(hasError: boolean): void {

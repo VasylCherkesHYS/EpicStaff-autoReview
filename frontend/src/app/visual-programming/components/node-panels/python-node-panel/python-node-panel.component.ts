@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, input, signal } from '@angular/core';
-import { inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { Subject, switchMap } from 'rxjs';
@@ -448,8 +447,6 @@ export class PythonNodePanelComponent extends BaseSidePanel<PythonNodeModel> {
     private initialTestInputValuesSignature: string = '';
     codeEditorHasError: boolean = false;
     private readonly pythonCodeChange$ = new Subject<string>();
-    private readonly destroyRef = inject(DestroyRef);
-
     private readonly formDirtyTick = signal(0);
     public readonly testInputDirty = computed(() => {
         this.formDirtyTick();
@@ -457,7 +454,7 @@ export class PythonNodePanelComponent extends BaseSidePanel<PythonNodeModel> {
         return this.buildTestInputValuesSignature() !== this.initialTestInputValuesSignature;
     });
 
-    public readonly isDirty = computed(() => {
+    public override readonly isDirty = computed(() => {
         this.formDirtyTick();
         if (!this.form) return false;
         return (

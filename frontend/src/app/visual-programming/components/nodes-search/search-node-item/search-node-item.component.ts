@@ -78,7 +78,7 @@ import {
                     }
 
                     .show-in-canvas {
-                        opacity: 1;
+                        display: flex;
                     }
                 }
 
@@ -107,11 +107,15 @@ import {
                     flex: 1;
                     gap: 5px;
                     overflow: hidden;
+                    min-width: 0;
 
                     .node-name {
                         color: var(--white, #fff);
                         font-size: 13px;
                         font-weight: 500;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
                     }
 
                     .node-details {
@@ -131,14 +135,12 @@ import {
                 }
 
                 .show-in-canvas {
-                    position: absolute;
-                    right: 12px;
-                    display: flex;
+                    display: none;
+                    flex-shrink: 0;
+                    margin-left: 8px;
                     align-items: center;
                     justify-content: center;
                     color: var(--accent-color, #685fff);
-                    opacity: 0; /* Hidden by default, only shown on hover */
-                    transition: opacity 0.2s ease;
                     background-color: rgba(104, 95, 255, 0.1);
                     width: 28px;
                     height: 28px;

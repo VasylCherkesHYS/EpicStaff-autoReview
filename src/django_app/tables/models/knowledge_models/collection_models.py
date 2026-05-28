@@ -6,13 +6,14 @@ from loguru import logger
 class SourceCollection(models.Model):
     class SourceCollectionStatus(models.TextChoices):
         """
-        Status of SourceCollection
+        Lifecycle of SourceCollection — only whether the collection has any
+        documents. Per-RAG and per-document indexing statuses live elsewhere
+        (`NaiveRag.rag_status`, `NaiveRagDocumentConfig.status`) and are
+        exposed via `rag_configurations[]` in the API.
         """
 
         EMPTY = "empty"
-        UPLOADING = "uploading"
-        COMPLETED = "completed"
-        WARNING = "warning"
+        NON_EMPTY = "non_empty"
 
     class SourceCollectionOrigin(models.TextChoices):
         """
@@ -83,12 +84,11 @@ class SourceCollection(models.Model):
         super().save(*args, **kwargs)
 
     def update_collection_status(self):
-        """Update collection status based on document statuses"""
-        if not self.documents.exists():
-            self.status = self.SourceCollectionStatus.EMPTY
+        """Set status to EMPTY if no documents, NON_EMPTY otherwise."""
+        if self.documents.exists():
+            self.status = self.SourceCollectionStatus.NON_EMPTY
         else:
-            # TODO: implement status aggregation logic
-            pass
+            self.status = self.SourceCollectionStatus.EMPTY
         self.save(update_fields=["status", "updated_at"])
 
 

@@ -318,24 +318,30 @@ class NaiveRagService:
     @staticmethod
     def get_document_configs_for_naive_rag(
         naive_rag_id: int,
+        document_config_ids: Optional[List[int]] = None,
     ) -> List[NaiveRagDocumentConfig]:
         """
-        Get all document configs for a NaiveRag.
+        Get document configs for a NaiveRag, optionally filtered to a subset.
 
         Args:
             naive_rag_id: ID of NaiveRag
+            document_config_ids: Optional whitelist of naive_rag_document_id.
+                IDs that don't belong to this NaiveRag are silently dropped.
 
         Returns:
-            List of document configs
+            List of document configs (ordered by file_name).
         """
         # Verify NaiveRag exists
         NaiveRagService.get_naive_rag(naive_rag_id)
 
-        return list(
+        qs = (
             NaiveRagDocumentConfig.objects.filter(naive_rag_id=naive_rag_id)
             .select_related("document")
             .order_by("document__file_name")
         )
+        if document_config_ids:
+            qs = qs.filter(naive_rag_document_id__in=document_config_ids)
+        return list(qs)
 
     @staticmethod
     @transaction.atomic
