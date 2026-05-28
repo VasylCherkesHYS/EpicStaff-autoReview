@@ -4,19 +4,30 @@ import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
+    DestroyRef,
     effect,
     ElementRef,
     Inject,
+    inject,
     OnDestroy,
     OnInit,
     signal,
     ViewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { IconButtonComponent, PaginationControlsComponent } from '@shared/components';
-import { catchError, EMPTY, interval, map, merge, Subject, switchMap, takeUntil } from 'rxjs';
+import {
+    ActionDropdownButtonComponent,
+    ActionDropdownItem,
+    IconButtonComponent,
+    PaginationControlsComponent,
+} from '@shared/components';
+import { catchError, EMPTY, finalize, interval, map, merge, Subject, switchMap, takeUntil } from 'rxjs';
 import { NodeGroup } from 'src/app/shared/models/node-group.model';
 
+import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
+import { ToastService } from '../../../../services/notifications/toast.service';
+import { downloadBlob } from '../../../../shared/utils/download-blob.util';
 import { GraphDto } from '../../models/graph.model';
 import {
     GraphSessionLight,
@@ -25,7 +36,6 @@ import {
     isTerminalSessionStatus,
 } from '../../services/flows-sessions.service';
 import { FlowSessionNodeFilterDropdownComponent } from './flow-session-node-filter-dropdown.component';
-import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-filter-dropdown.component';
 import { FlowSessionsTableComponent } from './flow-sessions-table.component';
 
 @Component({
@@ -37,9 +47,9 @@ import { FlowSessionsTableComponent } from './flow-sessions-table.component';
         CommonModule,
         FlowSessionsTableComponent,
         PaginationControlsComponent,
-        FlowSessionStatusFilterDropdownComponent,
         FlowSessionNodeFilterDropdownComponent,
         IconButtonComponent,
+        ActionDropdownButtonComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -57,7 +67,17 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
     private reloadTrigger = signal(0);
     public availableNodeGroups = signal<NodeGroup[]>([]);
     public selectedIds = signal<Set<number>>(new Set());
+    public isExporting = signal(false);
+    public isDeleting = signal(false);
     private cancelLoad$ = new Subject<void>();
+    private readonly destroyRef = inject(DestroyRef);
+    private readonly importExportService = inject(ImportExportService);
+    private readonly toastService = inject(ToastService);
+
+    readonly exportItems: ActionDropdownItem[] = [
+        { label: 'Export as JSON', value: 'json' },
+        { label: 'Export as CSV', value: 'csv' },
+    ];
     private cancelPolling$ = new Subject<void>();
     private destroy$ = new Subject<void>();
     private pendingIds = new Set<number>();
@@ -278,14 +298,26 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
     public onDeleteSelected(ids: number[]): void {
         if (ids.length === 0) return;
 
-        this.graphSessionService.bulkDeleteSessions(ids).subscribe({
-            next: () => {
-                this.reloadAfterDeletion(ids);
-            },
-            error: (err) => {
-                console.error('Failed to bulk delete sessions', err);
-            },
-        });
+        this.isDeleting.set(true);
+        this.graphSessionService
+            .bulkDeleteSessions(ids)
+            .pipe(
+                finalize(() => this.isDeleting.set(false)),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe({
+                next: () => {
+                    this.selectedIds.update((prev) => {
+                        const next = new Set(prev);
+                        ids.forEach((id) => next.delete(id));
+                        return next;
+                    });
+                    this.reloadAfterDeletion(ids);
+                },
+                error: (err) => {
+                    console.error('Failed to bulk delete sessions', err);
+                },
+            });
     }
 
     private reloadAfterDeletion(deletedIds: number[]): void {
@@ -330,6 +362,11 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
         this.currentPage.set(page);
     }
 
+    onPageSizeChange(size: number) {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
+    }
+
     onStatusFilterChange(values: string[]) {
         this.currentPage.set(1);
         this.statusFilter.set(values);
@@ -348,6 +385,9 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
     onNodeFilterChange(value: string | null) {
         this.currentPage.set(1);
         this.nodeFilter.set(value);
+        if (!value) {
+            this.isErrorCauseFilter.set(false);
+        }
     }
 
     public onSelectedIdsChange(ids: Set<number>): void {
@@ -356,6 +396,42 @@ export class FlowSessionsListComponent implements OnInit, OnDestroy {
 
     public onBulkDelete(): void {
         this.onDeleteSelected(Array.from(this.selectedIds()));
-        this.selectedIds.set(new Set());
+    }
+
+    public onExport(format: ExportFormat): void {
+        if (this.selectedIds().size === 0 && this.totalCount === 0) {
+            return;
+        }
+        this.isExporting.set(true);
+        const activeStatuses = this.statusFilter().filter((s) => s !== 'all');
+        const obs$ =
+            this.selectedIds().size > 0
+                ? this.importExportService.bulkExportSessions(Array.from(this.selectedIds()), format)
+                : this.importExportService.exportAll(
+                      {
+                          graph: this.flow.id,
+                          status: activeStatuses.length > 0 ? activeStatuses : undefined,
+                          node_name: this.nodeFilter() ?? undefined,
+                          is_error_cause: this.isErrorCauseFilter() || undefined,
+                      },
+                      format
+                  );
+
+        obs$.pipe(
+            finalize(() => this.isExporting.set(false)),
+            takeUntilDestroyed(this.destroyRef)
+        ).subscribe({
+            next: (blob) => {
+                downloadBlob(blob, `sessions_export_${Date.now()}.${format}`);
+                this.toastService.success('Sessions exported successfully');
+            },
+            error: () => {
+                this.toastService.error('Failed to export sessions');
+            },
+        });
+    }
+
+    public onExportItemSelected(item: ActionDropdownItem): void {
+        this.onExport(item.value as ExportFormat);
     }
 }

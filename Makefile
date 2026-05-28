@@ -118,7 +118,6 @@ prod-setup:
 prod-init:
 	@echo "--- Creating external volumes and networks ---"
 	@docker volume create sandbox_venvs      || true
-	@docker volume create sandbox_executions || true
 	@docker volume create crew_pgdata        || true
 	@docker volume create media_data         || true
 	@docker network create mcp-network       || true

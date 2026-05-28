@@ -43,6 +43,7 @@ export interface SessionOutputFile {
     path: string;
     name: string;
     added_at: string;
+    size?: number;
 }
 
 export interface GraphFileRecord {

@@ -12,15 +12,27 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
-import { AppSvgIconComponent, PaginationControlsComponent } from '@shared/components';
-import { catchError, EMPTY, interval, Subject, switchMap, takeUntil } from 'rxjs';
+import {
+    ActionDropdownButtonComponent,
+    ActionDropdownItem,
+    AppSvgIconComponent,
+    PaginationControlsComponent,
+} from '@shared/components';
+import { catchError, EMPTY, interval, finalize, Observable, Subject, switchMap, takeUntil } from 'rxjs';
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
-import { FlowNameFilterDropdownComponent } from '../../components/flow-sessions-dialog/flow-name-filter-dropdown.component';
+import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
+import { ToastService } from '../../../../services/notifications/toast.service';
+import { downloadBlob } from '../../../../shared/utils/download-blob.util';
 import { FlowSessionsTableComponent } from '../../components/flow-sessions-dialog/flow-sessions-table.component';
 import { GetGraphLightRequest } from '../../models/graph.model';
 import { FlowsApiService } from '../../services/flows-api.service';
-import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../../services/flows-sessions.service';
+import {
+    DurationFilter,
+    GraphSessionLight,
+    GraphSessionService,
+    GraphSessionStatus,
+} from '../../services/flows-sessions.service';
 
 @Component({
     selector: 'app-global-sessions-list',
@@ -28,11 +40,11 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
     imports: [
         CommonModule,
         FlowSessionsTableComponent,
-        FlowNameFilterDropdownComponent,
         PaginationControlsComponent,
         AppSvgIconComponent,
         RouterModule,
         GraphMessagesComponent,
+        ActionDropdownButtonComponent,
     ],
     template: `<div class="global-sessions-wrapper">
         <div class="global-sessions-header">
@@ -46,28 +58,10 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                 <span class="slash">/All sessions</span>
             </div>
         </div>
-        <div
-            class="global-sessions-content"
-            #contentRef
-        >
-            <!-- LEFT PANEL: filters + table + pagination -->
-            <div class="left-panel">
-                <div class="filter-controls">
-                    <app-flow-name-filter-dropdown
-                        [flows]="availableFlows()"
-                        [value]="flowFilter()"
-                        (valueChange)="onFlowFilterChange($event)"
-                    ></app-flow-name-filter-dropdown>
-                    <label class="error-cause-filter">
-                        <span>Show first failed</span>
-                        <div
-                            class="toggle-switch"
-                            [class.active]="isErrorCauseFilter()"
-                            (click)="onIsErrorCauseChange()"
-                        >
-                            <div class="toggle-thumb"></div>
-                        </div>
-                    </label>
+        <div class="global-sessions-content" #contentRef>
+        <div class="left-panel">
+            <div class="filter-controls">
+                <div class="right-actions">
                     <button
                         class="delete-btn"
                         [class.invisible]="selectedIds().size === 0"
@@ -75,6 +69,13 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                     >
                         Delete Selected ({{ selectedIds().size }})
                     </button>
+                    <app-action-dropdown-button
+                            [label]="'Export (' + (selectedIds().size === 0 ? totalCount() : selectedIds().size) + ')'"
+                            [items]="exportItems"
+                            [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)"
+                            (mainClick)="onExport('json')"
+                            (itemClick)="onExportItemSelected($event)"
+                        />
                     <span
                         [class.invisible]="selectedIds().size > 0"
                         class="results-length"
@@ -82,29 +83,37 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                         {{ totalCount() }} Results
                     </span>
                 </div>
-                <div class="table-container">
-                    <app-flow-sessions-table
-                        [sessions]="sessions()"
-                        [showFlowName]="true"
-                        [showDuration]="true"
-                        [sortable]="true"
-                        [sortOrder]="sortOrder()"
-                        [statusFilter]="statusFilter()"
-                        [isLoading]="!isLoaded()"
-                        [showEmptyState]="isLoaded() && sessions().length === 0"
-                        [externalPreview]="true"
-                        [activePreviewId]="previewSession()?.id ?? null"
-                        (deleteSelected)="onDeleteSelected($event)"
-                        (viewSession)="onViewSession($event)"
-                        (stopSession)="onStopSession($event)"
-                        (sortChange)="onSortChange($event)"
-                        (statusFilterChange)="onStatusFilterChange($event)"
-                        (selectedIdsChange)="selectedIds.set($event)"
-                        (previewSession)="onPreviewSession($event)"
-                    ></app-flow-sessions-table>
-                </div>
-                @if (isLoaded() && totalCount() > pageSize()) {
-                    <div class="pagination-container">
+            </div>
+            <div class="table-container">
+                <app-flow-sessions-table
+                    [sessions]="sessions()"
+                    [showFlowName]="true"
+                    [showDuration]="true"
+                    [sortable]="true"
+                    [sortOrder]="sortOrder()"
+                    [statusFilter]="statusFilter()"
+                    [flows]="availableFlows()"
+                    [flowNameFilter]="flowFilter()"
+                    (flowNameFilterChange)="onFlowFilterChange($event)"
+                    [durationFilter]="durationFilter()"
+                    (durationFilterChange)="onDurationFilterChange($event)"
+                    [isLoading]="!isLoaded()"
+                    [showEmptyState]="isLoaded() && sessions().length === 0"
+                    [externalPreview]="true"
+                    [selectedIds]="selectedIds()"
+                    (deleteSelected)="onDeleteSelected($event)"
+                    (viewSession)="onViewSession($event)"
+                    (stopSession)="onStopSession($event)"
+                    (sortChange)="onSortChange($event)"
+                    (statusFilterChange)="onStatusFilterChange($event)"
+                    (previewSession)="onPreviewSession($event)"
+                    [activePreviewId]="previewSession()?.id ?? null"
+                    (selectedIdsChange)="selectedIds.set($event)"
+                ></app-flow-sessions-table>
+            </div>
+
+                <div class="pagination-container">
+                    @if (isLoaded() && totalCount() > pageSize()) {
                         <app-pagination-controls
                             [pageSize]="pageSize()"
                             [totalCount]="totalCount()"
@@ -112,10 +121,21 @@ import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../.
                             [maxPagesToShow]="5"
                             (pageChange)="onPageChange($event)"
                         ></app-pagination-controls>
-                    </div>
-                }
+                    }
+                    <label class="page-size-selector">
+                        <span>Sessions per page</span>
+                        <select
+                            [value]="pageSize()"
+                            (change)="onPageSizeChange(+$any($event.target).value)"
+                        >
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </label>
+                </div>
             </div>
-
+            
             <div
                 class="panel-divider"
                 [class.panel-divider--open]="isPanelOpen()"
@@ -194,6 +214,7 @@ export class GlobalSessionsListComponent {
     public sortOrder = signal<'asc' | 'desc'>('desc');
     public flowFilter = signal<string | null>(null);
     public isErrorCauseFilter = signal<boolean>(false);
+    public durationFilter = signal<DurationFilter | null>(null);
     public selectedIds = signal<Set<number>>(new Set());
     public availableFlows = signal<GetGraphLightRequest[]>([]);
     public totalCount = signal(0);
@@ -203,16 +224,25 @@ export class GlobalSessionsListComponent {
     private resizeStartX = 0;
     private resizeStartWidth = 0;
     public previewSession = signal<GraphSessionLight | null>(null);
+    public isExporting = signal(false);
+    public isDeleting = signal(false);
     private reloadTrigger = signal(0);
     private cancelLoad$ = new Subject<void>();
     private cancelPolling$ = new Subject<void>();
     private static readonly POLL_INTERVAL_MS = 5000;
     private destroyRef = inject(DestroyRef);
 
+    readonly exportItems: ActionDropdownItem[] = [
+        { label: 'Export as JSON', value: 'json' },
+        { label: 'Export as CSV', value: 'csv' },
+    ];
+
     constructor(
         private graphSessionService: GraphSessionService,
         private flowsApiService: FlowsApiService,
-        private router: Router
+        private router: Router,
+        private importExportService: ImportExportService,
+        private toastService: ToastService
     ) {
         effect(() => {
             const page = this.currentPage();
@@ -221,8 +251,9 @@ export class GlobalSessionsListComponent {
             const sort = this.sortOrder();
             const flowName = this.flowFilter();
             const isErrorCause = this.isErrorCauseFilter();
+            const durationFilter = this.durationFilter();
             this.reloadTrigger();
-            this.loadGlobalSessions(size, (page - 1) * size, status, sort, flowName, isErrorCause);
+            this.loadGlobalSessions(size, (page - 1) * size, status, sort, flowName, isErrorCause, durationFilter);
         });
 
         this.flowsApiService
@@ -270,6 +301,11 @@ export class GlobalSessionsListComponent {
         this.currentPage.set(page);
     }
 
+    public onPageSizeChange(size: number): void {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
+    }
+
     public onViewSession(sessionId: number): void {
         const session = this.sessions().find((s) => s.id === sessionId);
         if (session) {
@@ -289,7 +325,6 @@ export class GlobalSessionsListComponent {
 
     public onBulkDelete(): void {
         this.onDeleteSelected(Array.from(this.selectedIds()));
-        this.selectedIds.set(new Set());
     }
 
     public onStatusFilterChange(values: string[]): void {
@@ -338,11 +373,20 @@ export class GlobalSessionsListComponent {
     public onDeleteSelected(ids: number[]): void {
         if (ids.length === 0) return;
 
+        this.isDeleting.set(true);
         this.graphSessionService
             .bulkDeleteSessions(ids)
-            .pipe(takeUntilDestroyed(this.destroyRef))
+            .pipe(
+                finalize(() => this.isDeleting.set(false)),
+                takeUntilDestroyed(this.destroyRef)
+            )
             .subscribe({
                 next: () => {
+                    this.selectedIds.update((prev) => {
+                        const next = new Set(prev);
+                        ids.forEach((id) => next.delete(id));
+                        return next;
+                    });
                     const previewedSession = this.previewSession();
                     if (previewedSession && ids.includes(previewedSession.id)) {
                         this.previewSession.set(null);
@@ -362,20 +406,68 @@ export class GlobalSessionsListComponent {
             });
     }
 
+    public onDurationFilterChange(filter: DurationFilter | null): void {
+        this.durationFilter.set(filter);
+        this.currentPage.set(1);
+    }
+
+    public onExport(format: ExportFormat): void {
+        if (this.selectedIds().size === 0 && this.totalCount() === 0) {
+            return;
+        }
+        this.isExporting.set(true);
+        let obs$: Observable<Blob>;
+
+        if (this.selectedIds().size > 0) {
+            obs$ = this.importExportService.bulkExportSessions(Array.from(this.selectedIds()), format);
+        } else {
+            const activeStatuses = this.statusFilter().filter((s) => s !== 'all');
+            const selectedFlow = this.flowFilter()
+                ? this.availableFlows().find((f) => f.name === this.flowFilter())
+                : null;
+            obs$ = this.importExportService.exportAll(
+                {
+                    graph: selectedFlow?.id,
+                    status: activeStatuses.length > 0 ? activeStatuses : undefined,
+                    is_error_cause: this.isErrorCauseFilter() || undefined,
+                },
+                format
+            );
+        }
+
+        obs$.pipe(
+            finalize(() => this.isExporting.set(false)),
+            takeUntilDestroyed(this.destroyRef)
+        ).subscribe({
+            next: (blob) => {
+                downloadBlob(blob, `sessions_export_${Date.now()}.${format}`);
+                this.toastService.success('Sessions exported successfully');
+            },
+            error: () => {
+                this.toastService.error('Failed to export sessions');
+            },
+        });
+    }
+
+    public onExportItemSelected(item: ActionDropdownItem): void {
+        this.onExport(item.value as ExportFormat);
+    }
+
     private loadGlobalSessions(
         limit: number,
         offset: number,
         status: string[],
         sort: 'asc' | 'desc' = 'desc',
         graphName?: string | null,
-        isErrorCause?: boolean
+        isErrorCause?: boolean,
+        durationFilter?: DurationFilter | null
     ): void {
         this.cancelLoad$.next();
         this.cancelPolling$.next();
         this.isLoaded.set(false);
         const ordering = sort === 'asc' ? 'created_at' : '-created_at';
         this.graphSessionService
-            .getGlobalSessions(limit, offset, status, ordering, graphName, isErrorCause)
+            .getGlobalSessions(limit, offset, status, ordering, graphName, isErrorCause, durationFilter)
             .pipe(takeUntil(this.cancelLoad$), takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (response) => {
@@ -406,7 +498,8 @@ export class GlobalSessionsListComponent {
                             this.statusFilter(),
                             ordering,
                             this.flowFilter(),
-                            this.isErrorCauseFilter()
+                            this.isErrorCauseFilter(),
+                            this.durationFilter()
                         )
                         .pipe(catchError(() => EMPTY));
                 }),

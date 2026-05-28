@@ -56,6 +56,12 @@ export interface GraphSessionLight {
     finished_at: string | null;
 }
 
+export interface DurationFilter {
+    operator: DurationOperator;
+    value: number;
+    value2?: number;
+}
+
 export type SessionStatusesCounts = {
     run: number;
     wait_for_user: number;
@@ -63,6 +69,8 @@ export type SessionStatusesCounts = {
     pending: number;
     stop: number;
 };
+
+export type DurationOperator = 'lessThan' | 'greaterThan' | 'equal' | 'between';
 
 export type GraphSessionStatusesCounts = {
     [graph_id: string]: SessionStatusesCounts;
@@ -143,7 +151,8 @@ export class GraphSessionService {
         offset?: number,
         status?: string[],
         nodeName?: string | null,
-        isErrorCause?: boolean
+        isErrorCause?: boolean,
+        durationFilter?: DurationFilter | null
     ): Observable<ApiGetRequest<GraphSessionLight>>;
 
     getSessionsByGraphId(
@@ -153,7 +162,8 @@ export class GraphSessionService {
         offset?: number,
         status?: string[],
         nodeName?: string | null,
-        isErrorCause?: boolean
+        isErrorCause?: boolean,
+        durationFilter?: DurationFilter | null
     ): Observable<ApiGetRequest<GraphSession | GraphSessionLight>> {
         let params = new HttpParams().set('graph_id', graphId.toString());
 
@@ -163,6 +173,7 @@ export class GraphSessionService {
         if (status !== undefined && !status.includes('all')) params = params.set('status', status.join(','));
         if (nodeName) params = params.set('node_name', nodeName);
         if (isErrorCause) params = params.set('is_error_cause', 'true');
+        if (durationFilter) params = this.applyDurationParams(params, durationFilter);
         if (detailed === false) {
             return this.http.get<ApiGetRequest<GraphSessionLight>>(this.apiUrl, {
                 params,
@@ -222,7 +233,8 @@ export class GraphSessionService {
         status?: string[],
         ordering?: string,
         graphName?: string | null,
-        isErrorCause?: boolean
+        isErrorCause?: boolean,
+        durationFilter?: DurationFilter | null
     ): Observable<ApiGetRequest<GraphSessionLight>> {
         let params = new HttpParams();
         params = params.set('detailed', 'false');
@@ -232,7 +244,22 @@ export class GraphSessionService {
         if (ordering) params = params.set('ordering', ordering);
         if (graphName) params = params.set('graph_name', graphName);
         if (isErrorCause) params = params.set('is_error_cause', 'true');
+        if (durationFilter) params = this.applyDurationParams(params, durationFilter);
 
         return this.http.get<ApiGetRequest<GraphSessionLight>>(this.apiUrl, { params });
+    }
+
+    private applyDurationParams(params: HttpParams, filter: DurationFilter): HttpParams {
+        if (filter.operator === 'lessThan') return params.set('duration_lt', filter.value.toString());
+        if (filter.operator === 'greaterThan') return params.set('duration_gt', filter.value.toString());
+        if (filter.operator === 'equal') {
+            params = params.set('duration_gte', filter.value.toString());
+            params = params.set('duration_lte', filter.value.toString());
+        }
+        if (filter.operator === 'between') {
+            params = params.set('duration_gte', filter.value.toString());
+            if (filter.value2 != null) params = params.set('duration_lte', filter.value2.toString());
+        }
+        return params;
     }
 }

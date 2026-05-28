@@ -4,7 +4,6 @@
     [class.messages-container--compact]="compact"
     #messagesContainer
     (scroll)="onMessagesScroll()"
-    (wheel)="onMessagesWheel($event)"
 >
     <!-- Connection status indicator -->
     <div
@@ -39,7 +38,10 @@
         <!-- Warnings -->
         <app-warning-messages [messages]="warningMessages" />
         @for (entry of visibleMessageEntries; track entry.key; let i = $index) {
-            <div class="message">
+            <div
+                class="message"
+                #messageRow
+            >
                 <app-project-transition *ngIf="entry.shouldShowTransition"></app-project-transition>
 
                 @switch (entry.message.message_data.message_type) {
