@@ -28,7 +28,7 @@ class LabelStrategy(EntityImportExportStrategy):
         self, data, id_mapper, is_main=False, settings: ImportSettings = None, **kwargs
     ):
         if settings is not None and not settings.import_labels:
-            return self.find_existing(data, id_mapper)
+            return None
         return super().import_entity(
             data, id_mapper, is_main, settings=settings, **kwargs
         )
