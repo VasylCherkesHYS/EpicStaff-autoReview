@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "django_filters",
     "corsheaders",
     "django_redis",
+    "channels",
 ]
 
 
@@ -132,6 +133,15 @@ SIMPLE_JWT = {
 }
 
 ROOT_URLCONF = "django_app.urls"
+ASGI_APPLICATION = "django_app.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
+GRAPH_WS_TICKET_TTL_SECONDS = 30
 
 TEMPLATES = [
     {

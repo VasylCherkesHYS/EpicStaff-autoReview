@@ -1,3 +1,4 @@
+from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -38,6 +39,7 @@ from tables.services.rbac.password_recovery_service import PasswordRecoveryServi
 from tables.services.rbac.rbac_exceptions import InvalidRefreshTokenError
 from tables.services.rbac.reset_user_service import ResetUserService
 from tables.services.rbac.sse_ticket_service import SseTicketService
+from tables.graph_collab.ws_auth import WsTicketService
 from tables.throttles import LoginThrottle, PasswordResetRequestThrottle
 
 
@@ -128,6 +130,36 @@ class SseTicketView(APIView):
             )
         ticket, ttl = self._service.issue(request.user)
         return Response({"ticket": ticket, "expires_in": ttl})
+
+
+class WsTicketView(APIView):
+    """
+    Issue a single-use WebSocket ticket bound to the calling user.
+    The client appends `?ticket=<value>` when opening the WS connection
+    because WebSocket connections cannot carry an Authorization header.
+    """
+
+    authentication_classes = [JwtOrApiKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    _service = WsTicketService()
+
+    @extend_schema(
+        summary="Issue a short-lived single-use WebSocket ticket",
+        responses={200: SseTicketResponseSerializer},
+    )
+    def post(self, request):
+        if not getattr(request.user, "is_authenticated", False) or not hasattr(
+            request.user, "email"
+        ):
+            return Response(
+                {"detail": "This endpoint requires a user context."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        ticket = self._service.issue(request.user)
+        return Response(
+            {"ticket": ticket, "expires_in": settings.GRAPH_WS_TICKET_TTL_SECONDS}
+        )
 
 
 class FirstSetupView(APIView):
