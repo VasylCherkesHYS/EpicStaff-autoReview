@@ -370,6 +370,7 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
                             data: { importResult: enriched },
                         });
 
+                        this.labelsStorage.setActiveLabelFilter('all');
                         this.flowStorageService.getFlows(true).subscribe(() => {});
                         this.labelsStorage.loadLabels(true).subscribe(() => {});
                     },
