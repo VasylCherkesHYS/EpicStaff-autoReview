@@ -371,6 +371,7 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
                         });
 
                         this.flowStorageService.getFlows(true).subscribe(() => {});
+                        this.labelsStorage.loadLabels(true).subscribe(() => {});
                     },
                     error: (error) => {
                         const message =
