@@ -1,5 +1,12 @@
 @if (show) {
-    <span class="unsaved-indicator">
+    <span
+        class="unsaved-indicator"
+        title="Unsaved changes"
+        [appCollapseOnOverflow]="true"
+        collapseOnOverflowTarget=".unsaved-text"
+        collapseOnOverflowClass="unsaved-indicator--icon-only"
+        collapseOnOverflowRequireSelector="app-svg-icon"
+    >
         <app-svg-icon
             icon="circle"
             size="10px"
