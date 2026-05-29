@@ -14,7 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { map, switchMap, takeUntil } from 'rxjs/operators';
 import { v4 as uuidv4 } from 'uuid';
 
 import { FlowsApiService } from '../../features/flows/services/flows-api.service';
@@ -189,18 +189,40 @@ export class HeaderComponent implements OnInit, OnDestroy {
                         groups: [],
                     };
                     this.flowsApiService
-                        .createGraph({
-                            name: `${project!.name} Flow`,
-                            description: '',
-                            metadata,
-                            tags: [],
-                        })
-                        .subscribe((response: { id: string | number }) => {
-                            this.router.navigate(['/flows', response.id]);
+                        .getGraphsLight()
+                        .pipe(
+                            map((graphs) =>
+                                this.computeUniqueName(
+                                    `${project!.name} Flow`,
+                                    graphs.map((g) => g.name)
+                                )
+                            ),
+                            switchMap((uniqueName) =>
+                                this.flowsApiService.createGraph({
+                                    name: uniqueName,
+                                    description: '',
+                                    metadata,
+                                    tags: [],
+                                })
+                            ),
+                            takeUntil(this.destroy$)
+                        )
+                        .subscribe({
+                            next: (response) => this.router.navigate(['/flows', response.id]),
+                            error: () => this.toastService.error('Failed to create flow'),
                         });
                 }
                 // If result is false or 'close', the action is cancelled (do nothing)
             });
+    }
+
+    private computeUniqueName(base: string, existingNames: string[]): string {
+        const nameSet = new Set(existingNames);
+        const root = base.replace(/ \(\d+\)$/, '');
+        if (!nameSet.has(root)) return root;
+        let n = 2;
+        while (nameSet.has(`${root} (${n})`)) n++;
+        return `${root} (${n})`;
     }
 
     public onDirtyChange(isDirty: boolean) {
