@@ -1,9 +1,9 @@
 :host {
     display: block;
-    flex: 1 1 200px;
+    flex: 0 1 200px;
     width: auto;
     max-width: 200px;
-    min-width: 0;
+    min-width: 5rem;
 }
 
 .microphone-selector {
