@@ -139,6 +139,7 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
     public onConditionGroupsChange(groups: ConditionGroup[]): void {
         this.conditionGroups.set(this.cloneConditionGroups(groups));
         this.cdr.markForCheck();
+        this.notifyExternalChange();
     }
 
     private cloneConditionGroups(groups: ConditionGroup[]): ConditionGroup[] {
