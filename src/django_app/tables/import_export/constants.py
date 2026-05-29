@@ -26,6 +26,7 @@ DEPENDENCY_ORDER = (
     EntityType.GEMINI_REALTIME_CONFIG,
     EntityType.PYTHON_CODE_TOOL,
     EntityType.MCP_TOOL,
+    EntityType.LABEL,
     EntityType.AGENT,
     EntityType.CREW,
     EntityType.WEBHOOK_TRIGGER,

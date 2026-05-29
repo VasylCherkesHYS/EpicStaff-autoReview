@@ -58,7 +58,9 @@ class AgentStrategy(EntityImportExportStrategy):
             if rt_agent.openai_config_id:
                 deps[EntityType.OPENAI_REALTIME_CONFIG] = [rt_agent.openai_config_id]
             if rt_agent.elevenlabs_config_id:
-                deps[EntityType.ELEVENLABS_REALTIME_CONFIG] = [rt_agent.elevenlabs_config_id]
+                deps[EntityType.ELEVENLABS_REALTIME_CONFIG] = [
+                    rt_agent.elevenlabs_config_id
+                ]
             if rt_agent.gemini_config_id:
                 deps[EntityType.GEMINI_REALTIME_CONFIG] = [rt_agent.gemini_config_id]
         except RealtimeAgent.DoesNotExist:
@@ -69,7 +71,7 @@ class AgentStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: Agent) -> dict:
         return self.serializer_class(instance).data
 
-    def create_entity(self, data: dict, id_mapper: IDMapper) -> Agent:
+    def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Agent:
         llm_config, fcm_llm_config = self._get_llm_configs(data, id_mapper)
         python_tools, mcp_tools = self._get_tools(data, id_mapper)
         realtime_data = data.pop("realtime_agent", None)
@@ -229,17 +231,35 @@ class AgentStrategy(EntityImportExportStrategy):
         old_elevenlabs_id = data.pop("elevenlabs_config", None)
         old_gemini_id = data.pop("gemini_config", None)
 
-        openai_config = OpenAIRealtimeConfig.objects.filter(
-            id=id_mapper.get_or_none(EntityType.OPENAI_REALTIME_CONFIG, old_openai_id)
-        ).first() if old_openai_id else None
+        openai_config = (
+            OpenAIRealtimeConfig.objects.filter(
+                id=id_mapper.get_or_none(
+                    EntityType.OPENAI_REALTIME_CONFIG, old_openai_id
+                )
+            ).first()
+            if old_openai_id
+            else None
+        )
 
-        elevenlabs_config = ElevenLabsRealtimeConfig.objects.filter(
-            id=id_mapper.get_or_none(EntityType.ELEVENLABS_REALTIME_CONFIG, old_elevenlabs_id)
-        ).first() if old_elevenlabs_id else None
+        elevenlabs_config = (
+            ElevenLabsRealtimeConfig.objects.filter(
+                id=id_mapper.get_or_none(
+                    EntityType.ELEVENLABS_REALTIME_CONFIG, old_elevenlabs_id
+                )
+            ).first()
+            if old_elevenlabs_id
+            else None
+        )
 
-        gemini_config = GeminiRealtimeConfig.objects.filter(
-            id=id_mapper.get_or_none(EntityType.GEMINI_REALTIME_CONFIG, old_gemini_id)
-        ).first() if old_gemini_id else None
+        gemini_config = (
+            GeminiRealtimeConfig.objects.filter(
+                id=id_mapper.get_or_none(
+                    EntityType.GEMINI_REALTIME_CONFIG, old_gemini_id
+                )
+            ).first()
+            if old_gemini_id
+            else None
+        )
 
         realtime_agent = RealtimeAgent.objects.create(
             agent=agent,
