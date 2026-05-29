@@ -88,7 +88,7 @@ class TestTelegramTriggerViewSet:
             "node_name": "TelegramWithWebhook",
             "telegram_bot_api_key": "123456:ABC-DEF",
             "graph": graph.id,
-            "webhook_trigger": {"path": trigger.path, "ngrok_webhook_config": None},
+            "webhook_trigger": {"path": trigger.path, "provider_type": None},
             "fields": [
                 {
                     "parent": "message",
