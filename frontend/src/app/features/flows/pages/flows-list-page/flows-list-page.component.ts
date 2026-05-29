@@ -18,6 +18,7 @@ import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } fr
 import { forkJoin, Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
 
+import { EntityTypeResult, ImportResult, ImportResultItem } from '../../../../core/models/import-result.model';
 import { ImportExportService } from '../../../../core/services/import-export.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
@@ -40,18 +41,28 @@ import {
     IncludeExcludeDialogResult,
     IncludeExcludeTab,
 } from '../../components/filter/flows-include-exclude-dialog/flows-include-exclude-dialog.component';
-import {
-    ImportFlowOptions,
-    ImportFlowOptionsDialogComponent,
-} from '../../components/import-flow-options-dialog/import-flow-options-dialog.component';
+import { ImportFlowOptionsPopoverComponent } from '../../components/import-flow-options-popover/import-flow-options-popover.component';
 import { ImportResultDialogComponent } from '../../components/import-result-dialog/import-result-dialog.component';
 import { EMPTY_FLOWS_FILTER, FlowsFilterState } from '../../models/flow-filter.model';
 import { GraphDto } from '../../models/graph.model';
-import { EntityTypeResult, ImportResult, ImportResultItem } from '../../models/import-result.model';
 import { FlowsStorageService } from '../../services/flows-storage.service';
+import { ImportFlowSettingsService } from '../../services/import-flow-settings.service';
 import { LabelsStorageService } from '../../services/labels-storage.service';
 import { parseFilterFromParams, serializeFilterToParams } from '../../utils/flow-filter-url.utils';
 import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flows-label-sidebar.component';
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+type JsonObject = { [key: string]: JsonValue };
+
+interface ImportFileEntity {
+    id?: number | string;
+    name?: string;
+    role?: string;
+    custom_name?: string;
+    [field: string]: JsonValue | undefined;
+}
+
+type ImportFileData = Record<string, ImportFileEntity[]>;
 
 @Component({
     standalone: true,
@@ -67,6 +78,7 @@ import { FlowsLabelSidebarComponent } from './components/flows-label-sidebar/flo
         AppSvgIconComponent,
         FlowsLabelSidebarComponent,
         HideInlineSubtitleOnOverflowDirective,
+        ImportFlowOptionsPopoverComponent,
         OverlayModule,
         FlowsFilterMenuComponent,
     ],
@@ -89,7 +101,10 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
     private importExportService = inject(ImportExportService);
     private toastService = inject(ToastService);
     private labelsStorage = inject(LabelsStorageService);
+    private importFlowSettings = inject(ImportFlowSettingsService);
     private destroyRef = inject(DestroyRef);
+
+    public importOptionsOpen = signal(false);
 
     public selectMode = this.flowStorageService.selectMode;
     public selectedFlowIds = this.flowStorageService.selectedFlowIds;
@@ -322,51 +337,54 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
         RealtimeConfig: ['custom_name'],
     };
 
+    public toggleImportOptions(): void {
+        this.importOptionsOpen.update((v) => !v);
+    }
+
+    public closeImportOptions(): void {
+        this.importOptionsOpen.set(false);
+    }
+
     public onImportClick(): void {
-        const dialogRef = this.dialog.open<ImportFlowOptions | undefined>(ImportFlowOptionsDialogComponent, {
-            width: '400px',
-        });
+        const settings = this.importFlowSettings.settings();
 
-        dialogRef.closed.subscribe((options) => {
-            if (!options) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (event: Event) => {
+            const file = (event.target as HTMLInputElement).files?.[0];
+            if (!file) return;
 
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = (event: Event) => {
-                const file = (event.target as HTMLInputElement).files?.[0];
-                if (!file) return;
+            file.text().then((text: string) => {
+                let fileData: ImportFileData = {};
+                try {
+                    fileData = JSON.parse(text) as ImportFileData;
+                } catch {}
 
-                file.text().then((text: string) => {
-                    let fileData: Record<string, Record<string, unknown>[]> = {};
-                    try {
-                        fileData = JSON.parse(text);
-                    } catch {}
+                this.importExportService.importFlow(file, settings).subscribe({
+                    next: (result) => {
+                        const enriched = this._enrichImportResult(result, fileData);
 
-                    this.importExportService.importFlow(file, options.preserveUuids).subscribe({
-                        next: (result) => {
-                            const enriched = this._enrichImportResult(result as ImportResult, fileData);
+                        this.dialog.open(ImportResultDialogComponent, {
+                            width: '80vw',
+                            data: { importResult: enriched },
+                        });
 
-                            this.dialog.open(ImportResultDialogComponent, {
-                                width: '80vw',
-                                data: { importResult: enriched },
-                            });
-
-                            this.labelsStorage.setActiveLabelFilter('all');
-                            this.flowStorageService.getFlows(true).subscribe(() => {});
-                        },
-                        error: (error) => {
-                            const message =
-                                error?.error?.detail ||
-                                error?.error?.message ||
-                                'Failed to import flow. Please check the file and try again.';
-                            this.toastService.error(message);
-                        },
-                    });
+                        this.labelsStorage.setActiveLabelFilter('all');
+                        this.flowStorageService.getFlows(true).subscribe(() => {});
+                        this.labelsStorage.loadLabels(true).subscribe(() => {});
+                    },
+                    error: (error) => {
+                        const message =
+                            error?.error?.detail ||
+                            error?.error?.message ||
+                            'Failed to import flow. Please check the file and try again.';
+                        this.toastService.error(message);
+                    },
                 });
-            };
-            input.click();
-        });
+            });
+        };
+        input.click();
     }
 
     // Per entity type: which field in the file serves as the display name
@@ -377,15 +395,12 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
         RealtimeConfig: 'custom_name',
     };
 
-    private _enrichImportResult(
-        result: ImportResult,
-        fileData: Record<string, Record<string, unknown>[]>
-    ): ImportResult {
+    private _enrichImportResult(result: ImportResult, fileData: ImportFileData): ImportResult {
         const enriched: ImportResult = {};
 
         for (const [entityType, entityResult] of Object.entries(result) as [string, EntityTypeResult][]) {
             const fields = this.ENTITY_FILE_FIELDS[entityType];
-            const fileEntities: Record<string, unknown>[] | undefined = fileData[entityType];
+            const fileEntities: ImportFileEntity[] | undefined = fileData[entityType];
 
             if (!fields || !fileEntities) {
                 enriched[entityType] = entityResult;
@@ -393,10 +408,11 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
             }
 
             const nameKey = this.ENTITY_NAME_KEY[entityType] ?? 'name';
-            const lookupById = new Map<number | string, Record<string, unknown>>(
-                fileEntities.map((e) => [e['id'] as number | string, e])
-            );
-            const lookupByName = new Map<string, Record<string, unknown>>(
+            const lookupById = new Map<number | string, ImportFileEntity>();
+            for (const e of fileEntities) {
+                if (e.id !== undefined) lookupById.set(e.id, e);
+            }
+            const lookupByName = new Map<string, ImportFileEntity>(
                 fileEntities.map((e) => [String(e[nameKey] ?? ''), e])
             );
 
@@ -405,7 +421,7 @@ export class FlowsListPageComponent implements OnInit, OnDestroy {
                     const baseName = item.name.replace(/\s*\(\d+\)$/, '').trim();
                     const source = lookupById.get(item.id) ?? lookupByName.get(baseName);
                     if (!source) return item;
-                    const extra: Record<string, unknown> = {};
+                    const extra: JsonObject = {};
                     for (const field of fields) {
                         const val = source[field];
                         if (val !== undefined) extra[field] = val;
