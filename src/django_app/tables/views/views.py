@@ -914,41 +914,7 @@ class ProcessRagIndexingView(APIView):
     All business logic is handled by IndexingService.
     """
 
-    @extend_schema(
-        summary="Trigger (re)indexing of a RAG, optionally for a subset of documents",
-        description=(
-            "Starts indexing for a NaiveRag or GraphRag.\n\n"
-            "Body:\n"
-            "- `rag_id` (int, required) — id of the RAG (naive_rag_id / graph_rag_id).\n"
-            '- `rag_type` (`"naive"` | `"graph"`, required).\n'
-            "- `document_config_ids` (int[], optional, **naive only**) — subset "
-            "of `naive_rag_document_id`s to (re)index. Omit / pass empty to "
-            "index the whole RAG. Ignored for `graph`.\n\n"
-            "Status codes:\n"
-            "- **202** — work queued; see `accepted_config_ids` for what was "
-            "actually scheduled.\n"
-            "- **200** — nothing to do (all requested documents are already "
-            "`completed` or are currently being processed).\n"
-            "- **400** — validation error or document ids that don't belong to "
-            "this RAG.\n"
-            "- **404** — RAG not found.\n\n"
-            "Response payload includes `accepted_config_ids`, "
-            "`skipped_completed_config_ids` (already up-to-date) and "
-            "`skipped_in_progress_config_ids` (currently `chunking`/`chunked`/"
-            "`indexing` — protects against double-click race)."
-        ),
-        request=ProcessRagIndexingSerializer,
-        responses={
-            200: OpenApiResponse(
-                description="Nothing to index — all requested documents already up-to-date or in progress"
-            ),
-            202: OpenApiResponse(description="Indexing process accepted and queued"),
-            400: OpenApiResponse(
-                description="Invalid request or RAG not ready for indexing"
-            ),
-            404: OpenApiResponse(description="RAG configuration not found"),
-        },
-    )
+    @extend_schema(**PROCESS_RAG_INDEXING_POST)
     def post(self, request):
         serializer = ProcessRagIndexingSerializer(data=request.data)
         if not serializer.is_valid():
@@ -973,8 +939,7 @@ class ProcessRagIndexingView(APIView):
                 "skipped_in_progress_config_ids", []
             )
 
-            # Subset request with nothing to do → 200, do not publish.
-            if rag_type == "naive" and document_config_ids and not accepted:
+            if rag_type == "naive" and not accepted:
                 return Response(
                     data={
                         "detail": "Nothing to index",

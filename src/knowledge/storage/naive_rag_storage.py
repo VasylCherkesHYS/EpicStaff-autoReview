@@ -203,6 +203,33 @@ class ORMNaiveRagStorage(BaseORMStorage):
             )
             return False
 
+    def mark_document_config_completed(self, naive_rag_document_config_id: int) -> bool:
+        """Set status=completed and snapshot the live chunk params into the
+        indexed_* columns. Called at the single point where chunks+embeddings
+        have just landed atomically — keeps the snapshot in sync with disk."""
+        try:
+            doc_config = self.session.get(
+                NaiveRagDocumentConfig, naive_rag_document_config_id
+            )
+            if not doc_config:
+                logger.warning(
+                    f"NaiveRagDocumentConfig {naive_rag_document_config_id} not found"
+                )
+                return False
+            doc_config.status = "completed"
+            doc_config.indexed_chunk_strategy = doc_config.chunk_strategy
+            doc_config.indexed_chunk_size = doc_config.chunk_size
+            doc_config.indexed_chunk_overlap = doc_config.chunk_overlap
+            doc_config.indexed_additional_params = doc_config.additional_params
+            doc_config.processed_at = datetime.utcnow()
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to mark document config "
+                f"{naive_rag_document_config_id} as completed: {e}"
+            )
+            return False
+
     def mark_document_config_failed(
         self,
         naive_rag_document_config_id: int,

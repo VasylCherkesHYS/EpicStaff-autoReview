@@ -23,53 +23,57 @@ from tables.models.knowledge_models import (
     BaseRagType,
     DocumentMetadata,
     NaiveRag,
-    NaiveRagChunk,
     NaiveRagDocumentConfig,
-    NaiveRagEmbedding,
     NaiveRagPreviewChunk,
     SourceCollection,
 )
 
-CHUNK_PARAM_FIELDS = (
-    "chunk_size",
-    "chunk_overlap",
-    "chunk_strategy",
-    "additional_params",
-)
 
-
-def _apply_chunk_param_changes(config: NaiveRagDocumentConfig, updates: dict) -> bool:
-    """
-    Apply updates to config; if any chunk-param field actually changed, wipe
-    derived data (chunks/embeddings/preview_chunks), reset status to NEW and
-    clear the error triplet.
-
-    Returns True if a real change happened (so callers can update parent rag_status).
-    """
-    changed = any(
-        field in updates and updates[field] != getattr(config, field)
-        for field in CHUNK_PARAM_FIELDS
+def _build_chunk_param_updates(
+    chunk_size: Optional[int],
+    chunk_overlap: Optional[int],
+    chunk_strategy: Optional[str],
+    additional_params: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    pairs = (
+        ("chunk_size", chunk_size),
+        ("chunk_overlap", chunk_overlap),
+        ("chunk_strategy", chunk_strategy),
+        ("additional_params", additional_params),
     )
+    return {k: v for k, v in pairs if v is not None}
 
-    for field, value in updates.items():
-        setattr(config, field, value)
 
-    if changed:
-        config_id = config.naive_rag_document_id
-        NaiveRagChunk.objects.filter(naive_rag_document_config_id=config_id).delete()
-        NaiveRagEmbedding.objects.filter(
-            naive_rag_document_config_id=config_id
-        ).delete()
-        NaiveRagPreviewChunk.objects.filter(
-            naive_rag_document_config_id=config_id
-        ).delete()
-        config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.NEW
-        config.error_message = None
-        config.error_code = None
-        config.failed_at = None
+def _validate_chunk_param_updates(
+    config: NaiveRagDocumentConfig, updates: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """Per-field + cross-field validation. Empty list = OK. Callers either
+    raise (single-update) or collect (bulk-update)."""
+    errors: List[Dict[str, Any]] = []
+    for field in ("chunk_size", "chunk_overlap"):
+        if field in updates:
+            errors.extend(NaiveRagService.validate_field_value(field, updates[field]))
+    if "chunk_strategy" in updates:
+        errors.extend(
+            NaiveRagService.validate_field_value(
+                "chunk_strategy", updates["chunk_strategy"], config
+            )
+        )
 
-    config.save()
-    return changed
+    final_size = updates.get("chunk_size", config.chunk_size)
+    final_overlap = updates.get("chunk_overlap", config.chunk_overlap)
+    if final_overlap >= final_size:
+        errors.append(
+            {
+                "field": "chunk_overlap",
+                "value": final_overlap,
+                "reason": (
+                    f"chunk_overlap ({final_overlap}) must be less than "
+                    f"chunk_size ({final_size})"
+                ),
+            }
+        )
+    return errors
 
 
 class NaiveRagService:
@@ -222,97 +226,31 @@ class NaiveRagService:
         chunk_strategy: Optional[str] = None,
         additional_params: Optional[Dict[str, Any]] = None,
     ) -> NaiveRagDocumentConfig:
-        """
-        Update existing document config.
-        Only updates provided fields.
-
-        Args:
-            config_id: ID of config to update
-            naive_rag_id: ID of NaiveRag (for validation)
-            chunk_size: New chunk size (optional)
-            chunk_overlap: New overlap (optional)
-            chunk_strategy: New strategy (optional)
-            additional_params: New additional params (optional)
-
-        Returns:
-            Updated config
-
-        Raises:
-            DocumentConfigNotFoundException: If config not found or doesn't belong to naive_rag
-        """
+        """Update one document config. Raises InvalidChunkParametersException
+        on validation errors, DocumentConfigNotFoundException on bad id/RAG."""
         try:
             config = NaiveRagDocumentConfig.objects.select_related(
                 "document", "naive_rag"
-            ).get(
-                naive_rag_document_id=config_id,
-            )
+            ).get(naive_rag_document_id=config_id)
         except NaiveRagDocumentConfig.DoesNotExist:
             raise DocumentConfigNotFoundException(config_id)
 
-        # Validate config belongs to the specified naive_rag
         if config.naive_rag_id != naive_rag_id:
             raise DocumentConfigNotFoundException(
                 f"Config {config_id} does not belong to NaiveRag {naive_rag_id}"
             )
 
-        # Build update dict
-        updates = {}
-
-        if chunk_size is not None:
-            updates["chunk_size"] = chunk_size
-
-        if chunk_overlap is not None:
-            updates["chunk_overlap"] = chunk_overlap
-
-        if chunk_strategy is not None:
-            updates["chunk_strategy"] = chunk_strategy
-
-        if additional_params is not None:
-            updates["additional_params"] = additional_params
-
-        # Validate each field individually (structured errors)
-        final_chunk_size = updates.get("chunk_size", config.chunk_size)
-        final_chunk_overlap = updates.get("chunk_overlap", config.chunk_overlap)
-
-        errors = []
-
-        if chunk_size is not None:
-            errors.extend(
-                NaiveRagService.validate_field_value("chunk_size", chunk_size)
-            )
-
-        if chunk_overlap is not None:
-            errors.extend(
-                NaiveRagService.validate_field_value("chunk_overlap", chunk_overlap)
-            )
-
-        if chunk_strategy is not None:
-            errors.extend(
-                NaiveRagService.validate_field_value(
-                    "chunk_strategy", chunk_strategy, config
-                )
-            )
-
-        # Cross-field validation: chunk_overlap must be less than chunk_size
-        if final_chunk_overlap >= final_chunk_size:
-            errors.append(
-                {
-                    "field": "chunk_overlap",
-                    "value": final_chunk_overlap,
-                    "reason": f"chunk_overlap ({final_chunk_overlap}) must be less than chunk_size ({final_chunk_size})",
-                }
-            )
-
+        updates = _build_chunk_param_updates(
+            chunk_size, chunk_overlap, chunk_strategy, additional_params
+        )
+        errors = _validate_chunk_param_updates(config, updates)
         if errors:
             raise InvalidChunkParametersException(errors=errors)
 
-        changed = _apply_chunk_param_changes(config, updates)
-
-        if changed:
+        if config.apply_param_updates(updates):
             config.naive_rag.update_rag_status()
 
         logger.info(f"Updated document config {config_id}")
-
         return config
 
     @staticmethod
@@ -320,18 +258,9 @@ class NaiveRagService:
         naive_rag_id: int,
         document_config_ids: Optional[List[int]] = None,
     ) -> List[NaiveRagDocumentConfig]:
-        """
-        Get document configs for a NaiveRag, optionally filtered to a subset.
-
-        Args:
-            naive_rag_id: ID of NaiveRag
-            document_config_ids: Optional whitelist of naive_rag_document_id.
-                IDs that don't belong to this NaiveRag are silently dropped.
-
-        Returns:
-            List of document configs (ordered by file_name).
-        """
-        # Verify NaiveRag exists
+        """Document configs for a NaiveRag, ordered by file_name. When
+        document_config_ids is given, IDs not belonging to this RAG are
+        silently dropped (silent-drop is intentional for the polling GET)."""
         NaiveRagService.get_naive_rag(naive_rag_id)
 
         qs = (
@@ -564,121 +493,58 @@ class NaiveRagService:
         chunk_strategy: Optional[str] = None,
         additional_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        Bulk update multiple document configs with partial success support.
-        Updates valid configs and collects errors for invalid ones.
-
-        Args:
-            naive_rag_id: ID of NaiveRag (for validation)
-            config_ids: List of config IDs to update
-            chunk_size: New chunk size (optional)
-            chunk_overlap: New overlap (optional)
-            chunk_strategy: New strategy (optional)
-            additional_params: New additional params (optional)
-
-        Returns:
-            Dict with:
-                - updated_count: Number of successfully updated configs
-                - failed_count: Number of failed configs
-                - configs: List of all configs with their current DB values
-                - config_errors: Dict mapping config_id to list of error dicts
-        """
+        """Update many configs with partial-success semantics: valid ones get
+        applied, invalid ones collect structured errors. Returns
+        {updated_count, failed_count, configs, config_errors}."""
         if not config_ids:
             raise InvalidChunkParametersException("config_ids list cannot be empty")
 
-        # Verify NaiveRag exists
         NaiveRagService.get_naive_rag(naive_rag_id)
 
-        # Get all configs that belong to this naive_rag
         configs = list(
             NaiveRagDocumentConfig.objects.filter(
                 naive_rag_id=naive_rag_id, naive_rag_document_id__in=config_ids
             ).select_related("document")
         )
 
-        found_ids = {config.naive_rag_document_id for config in configs}
-        missing_ids = set(config_ids) - found_ids
-
+        missing_ids = set(config_ids) - {c.naive_rag_document_id for c in configs}
         if missing_ids:
             raise DocumentConfigNotFoundException(
                 f"Configs not found or don't belong to NaiveRag {naive_rag_id}: {sorted(missing_ids)}"
             )
 
-        # Build update dict
-        updates = {}
-        if chunk_size is not None:
-            updates["chunk_size"] = chunk_size
-        if chunk_overlap is not None:
-            updates["chunk_overlap"] = chunk_overlap
-        if chunk_strategy is not None:
-            updates["chunk_strategy"] = chunk_strategy
-        if additional_params is not None:
-            updates["additional_params"] = additional_params
-
+        updates = _build_chunk_param_updates(
+            chunk_size, chunk_overlap, chunk_strategy, additional_params
+        )
         if not updates:
             raise InvalidChunkParametersException(
                 "At least one field must be provided for update"
             )
 
-        # Process each config individually
         updated_count = 0
         failed_count = 0
-        config_errors = {}
+        config_errors: Dict[int, List[Dict[str, Any]]] = {}
         any_actual_change = False
 
         for config in configs:
-            errors = []
-
-            # Determine final values for this config
-            final_chunk_size = updates.get("chunk_size", config.chunk_size)
-            final_chunk_overlap = updates.get("chunk_overlap", config.chunk_overlap)
-
-            # Validate each field individually
-            if chunk_size is not None:
-                errors.extend(
-                    NaiveRagService.validate_field_value("chunk_size", chunk_size)
-                )
-
-            if chunk_overlap is not None:
-                errors.extend(
-                    NaiveRagService.validate_field_value("chunk_overlap", chunk_overlap)
-                )
-
-            if chunk_strategy is not None:
-                errors.extend(
-                    NaiveRagService.validate_field_value(
-                        "chunk_strategy", chunk_strategy, config
-                    )
-                )
-
-            # Validate chunk_overlap < chunk_size with final values
-            if final_chunk_overlap >= final_chunk_size:
-                errors.append(
-                    {
-                        "field": "chunk_overlap",
-                        "value": final_chunk_overlap,
-                        "reason": f"chunk_overlap ({final_chunk_overlap}) must be less than chunk_size ({final_chunk_size})",
-                    }
-                )
-
-            # If there are errors don't update config
+            errors = _validate_chunk_param_updates(config, updates)
             if errors:
                 config_errors[config.naive_rag_document_id] = errors
                 failed_count += 1
-            else:
-                try:
-                    if _apply_chunk_param_changes(config, updates):
-                        any_actual_change = True
-                    updated_count += 1
-                except Exception as e:
-                    config_errors[config.naive_rag_document_id] = [
-                        {
-                            "field": "general",
-                            "value": None,
-                            "reason": f"Failed to save config: {str(e)}",
-                        }
-                    ]
-                    failed_count += 1
+                continue
+            try:
+                if config.apply_param_updates(updates):
+                    any_actual_change = True
+                updated_count += 1
+            except Exception as e:
+                config_errors[config.naive_rag_document_id] = [
+                    {
+                        "field": "general",
+                        "value": None,
+                        "reason": f"Failed to save config: {str(e)}",
+                    }
+                ]
+                failed_count += 1
 
         if any_actual_change:
             NaiveRag.objects.get(naive_rag_id=naive_rag_id).update_rag_status()
@@ -767,7 +633,6 @@ class NaiveRagService:
         except NaiveRagDocumentConfig.DoesNotExist:
             raise DocumentConfigNotFoundException(config_id)
 
-        # Validate config belongs to the specified naive_rag
         if config.naive_rag_id != naive_rag_id:
             raise DocumentConfigNotFoundException(
                 f"Config {config_id} does not belong to NaiveRag {naive_rag_id}"

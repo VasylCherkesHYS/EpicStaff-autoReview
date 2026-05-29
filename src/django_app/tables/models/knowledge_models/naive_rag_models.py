@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 import uuid
 
 from pgvector.django import VectorField
@@ -7,6 +8,15 @@ from pgvector.django import VectorField
 from ..embedding_models import EmbeddingConfig
 from .collection_models import BaseRagType, DocumentMetadata
 from ..crew_models import Agent
+
+
+_CHUNK_PARAM_FIELDS = (
+    "chunk_size",
+    "chunk_overlap",
+    "chunk_strategy",
+    "additional_params",
+)
+_SNAPSHOT_FIELD_PAIRS = tuple((f"indexed_{f}", f) for f in _CHUNK_PARAM_FIELDS)
 
 
 class NaiveRag(models.Model):
@@ -97,22 +107,16 @@ class NaiveRagDocumentConfig(models.Model):
         CSV = "csv"
 
     class NaiveRagDocumentStatus(models.TextChoices):
-        """
-        Status flow: new → chunking → chunked → indexing → completed
-        Error states: failed, warning (can occur at any step)
-        """
-
+        # Flow: new → chunking → chunked → indexing → completed. failed/warning at any step.
         NEW = "new"
         CHUNKING = "chunking"
-        CHUNKED = "chunked"  # Preview chunks created
+        CHUNKED = "chunked"
         INDEXING = "indexing"
-        COMPLETED = "completed"  # Indexed chunks created
+        COMPLETED = "completed"
         WARNING = "warning"
         FAILED = "failed"
 
     class DocumentErrorCode(models.TextChoices):
-        """Machine-readable category of the last failure on this document."""
-
         CHUNKING_FAILED = "chunking_failed"
         EMBEDDING_FAILED = "embedding_failed"
         EMBEDDER_AUTH = "embedder_auth"
@@ -120,6 +124,10 @@ class NaiveRagDocumentConfig(models.Model):
         UNKNOWN = "unknown"
 
     ERROR_MESSAGE_MAX_LENGTH = 2000
+
+    # Statuses meaning "a worker is actively touching this row right now".
+    # CHUNKED is NOT here — it means "preview ready, awaiting user action".
+    IN_PROGRESS_STATUSES = frozenset({"chunking", "indexing"})
 
     naive_rag_document_id = models.AutoField(primary_key=True)
 
@@ -164,6 +172,20 @@ class NaiveRagDocumentConfig(models.Model):
     )
     failed_at = models.DateTimeField(null=True, blank=True)
 
+    # Snapshot of chunk params that produced the currently-stored
+    # chunks/embeddings. NULL ⇒ never indexed with current params.
+    # Written only on success; consulted by IndexingService to short-circuit
+    # no-op reindex requests.
+    indexed_chunk_strategy = models.CharField(
+        max_length=20,
+        choices=ChunkStrategy.choices,
+        null=True,
+        blank=True,
+    )
+    indexed_chunk_size = models.PositiveIntegerField(null=True, blank=True)
+    indexed_chunk_overlap = models.PositiveIntegerField(null=True, blank=True)
+    indexed_additional_params = models.JSONField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
 
@@ -174,6 +196,66 @@ class NaiveRagDocumentConfig(models.Model):
     @property
     def total_embeddings(self):
         return self.embeddings.count()
+
+    @classmethod
+    def format_error_message(cls, exc: BaseException) -> str:
+        raw = f"{type(exc).__name__}: {exc}"
+        n = cls.ERROR_MESSAGE_MAX_LENGTH
+        return raw if len(raw) <= n else raw[: n - 1] + "…"
+
+    def is_snapshot_current(self) -> bool:
+        return all(
+            getattr(self, snap) is not None
+            and getattr(self, snap) == getattr(self, live)
+            for snap, live in _SNAPSHOT_FIELD_PAIRS
+        )
+
+    def _clear_error(self) -> None:
+        self.error_message = None
+        self.error_code = None
+        self.failed_at = None
+
+    def apply_param_updates(self, updates: dict) -> bool:
+        """Apply chunk-param `updates` in place. If any param really changed:
+        drop the stale preview and — unless a worker is actively running —
+        realign `status` to COMPLETED (snapshot still current, e.g. revert)
+        or NEW (snapshot stale). Returns True iff anything changed."""
+        changed = any(
+            f in updates and updates[f] != getattr(self, f) for f in _CHUNK_PARAM_FIELDS
+        )
+        for f, v in updates.items():
+            setattr(self, f, v)
+        if not changed:
+            self.save()
+            return False
+
+        NaiveRagPreviewChunk.objects.filter(
+            naive_rag_document_config_id=self.naive_rag_document_id
+        ).delete()
+
+        if self.status not in self.IN_PROGRESS_STATUSES:
+            S = self.NaiveRagDocumentStatus
+            self.status = S.COMPLETED if self.is_snapshot_current() else S.NEW
+            self._clear_error()
+
+        self.save()
+        return True
+
+    def start_attempt(self, new_status) -> None:
+        """Begin a chunking/indexing attempt: flip status and clear stale error."""
+        self.status = new_status
+        self._clear_error()
+        self.save(update_fields=["status", "error_message", "error_code", "failed_at"])
+
+    def mark_failed(self, error_code, exc: BaseException) -> str:
+        """Persist FAILED + code + truncated message + timestamp. Returns the message."""
+        message = self.format_error_message(exc)
+        self.status = self.NaiveRagDocumentStatus.FAILED
+        self.error_code = error_code
+        self.error_message = message
+        self.failed_at = timezone.now()
+        self.save(update_fields=["status", "error_code", "error_message", "failed_at"])
+        return message
 
     class Meta:
         indexes = [

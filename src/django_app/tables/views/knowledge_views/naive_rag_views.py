@@ -1,8 +1,5 @@
 import asyncio
 import uuid
-from typing import List, Optional
-
-from django.utils import timezone
 
 from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
@@ -79,6 +76,14 @@ from tables.swagger_schemas.knowledge_schemas.naive_rag_schemas import (
 
 
 redis_service = RedisService()
+
+
+def _parse_int_csv(raw: str | None) -> list[int] | None:
+    """Parse a comma-separated `?ids=1,2,3` query param into a list of ints.
+    Returns None if the param is missing/blank. Raises ValueError on garbage."""
+    if not raw:
+        return None
+    return [int(x) for x in raw.split(",") if x.strip()]
 
 
 class NaiveRagViewSet(viewsets.GenericViewSet):
@@ -422,58 +427,16 @@ class NaiveRagDocumentConfigViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(
-        summary="List document statuses inside a NaiveRag",
-        description=(
-            "Returns documents attached to this NaiveRag with their current "
-            "indexing status, chunk parameters and the latest error (if any).\n\n"
-            "Pass `?ids=10,11,42` to fetch a subset — useful when polling only "
-            "the documents you just submitted to `/api/process-rag-indexing/` "
-            "instead of the whole RAG. IDs that don't belong to this NaiveRag "
-            "are silently ignored.\n\n"
-            "Each item exposes: `naive_rag_document_id`, `file_name`, "
-            "`chunk_strategy`, `chunk_size`, `chunk_overlap`, `additional_params`, "
-            "`status`, `total_chunks`, `total_embeddings`, `created_at`, "
-            '`processed_at`. When `status == "failed"` the response also '
-            "includes `error_message`, `error_code`, `failed_at`."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="ids",
-                location=OpenApiParameter.QUERY,
-                description=(
-                    "Comma-separated list of `naive_rag_document_id`s to return. "
-                    "Omit to get all docs in this RAG. Example: `?ids=10,11,42`."
-                ),
-                required=False,
-                type=str,
-            ),
-        ],
-        responses={
-            200: OpenApiResponse(
-                description="List of document configs with statuses for this NaiveRag"
-            ),
-            400: OpenApiResponse(description="Invalid `ids` query param"),
-            404: OpenApiResponse(description="NaiveRag not found"),
-        },
-    )
+    @extend_schema(**NAIVE_RAG_DOCUMENT_CONFIGS_GET)
     @action(detail=False, methods=["get"])
     def list_configs(self, request, naive_rag_id=None):
-        """
-        List document configs for a NaiveRag.
-
-        URL: GET /api/naive-rag/{naive_rag_id}/document-configs/[?ids=10,11,42]
-        """
-        ids_param = request.query_params.get("ids")
-        id_filter: Optional[List[int]] = None
-        if ids_param:
-            try:
-                id_filter = [int(x) for x in ids_param.split(",") if x.strip()]
-            except ValueError:
-                return Response(
-                    {"error": "ids must be a comma-separated list of integers"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        try:
+            id_filter = _parse_int_csv(request.query_params.get("ids"))
+        except ValueError:
+            return Response(
+                {"error": "ids must be a comma-separated list of integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             configs = NaiveRagService.get_document_configs_for_naive_rag(
@@ -499,22 +462,7 @@ class NaiveRagDocumentConfigViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(
-        summary="Get a single document status inside a NaiveRag",
-        description=(
-            "Returns one document config by id with its current indexing status, "
-            "chunk parameters and the latest error (if any). Use this when "
-            "polling a specific document after a targeted reindex.\n\n"
-            "Fields: `naive_rag_document_id`, `file_name`, `chunk_strategy`, "
-            "`chunk_size`, `chunk_overlap`, `additional_params`, `status`, "
-            "`total_chunks`, `total_embeddings`, `created_at`, `processed_at`. "
-            'When `status == "failed"`: `error_message`, `error_code`, `failed_at`.'
-        ),
-        responses={
-            200: OpenApiResponse(description="Document config with status"),
-            404: OpenApiResponse(description="Document config or NaiveRag not found"),
-        },
-    )
+    @extend_schema(**NAIVE_RAG_DOCUMENT_CONFIG_GET)
     def retrieve(self, request, pk=None, naive_rag_id=None):
         try:
             config = self.get_object()
@@ -604,7 +552,6 @@ class NaiveRagChunkViewSet(ReadOnlyModelViewSet):
 class ProcessNaiveRagDocumentChunkingView(APIView):
     @extend_schema(**NAIVE_RAG_DOCUMENT_CONFIGS_PROCESS_CHUNKING_POST)
     def post(self, request, naive_rag_id: int, document_config_id: int):
-        # Validate document config exists and belongs to naive_rag
         try:
             config = NaiveRagDocumentConfig.objects.select_related(
                 "naive_rag", "document"
@@ -622,31 +569,23 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
             )
 
         chunking_job_id = str(uuid.uuid4())
-
-        # Start of a new attempt — clear any stale error and flip to CHUNKING.
-        config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING
-        config.error_message = None
-        config.error_code = None
-        config.failed_at = None
-        config.save(
-            update_fields=["status", "error_message", "error_code", "failed_at"]
-        )
+        # Preview against a still-current index is an inspection — don't flip
+        # status to CHUNKING (would falsely advertise "indexing in progress").
+        if not config.is_snapshot_current():
+            config.start_attempt(NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING)
 
         logger.info(
             f"Starting chunking job {chunking_job_id} for config {document_config_id}"
         )
 
         try:
-            # Publish and wait for response
             response = async_to_sync(redis_service.publish_and_wait_for_chunking)(
                 rag_type="naive",
                 document_config_id=document_config_id,
                 chunking_job_id=chunking_job_id,
                 timeout=CHUNKING_TIMEOUT,
             )
-
             config.refresh_from_db()
-
             return Response(
                 {
                     "chunking_job_id": chunking_job_id,
@@ -664,7 +603,6 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
             logger.warning(
                 f"Chunking timeout for job {chunking_job_id}, config {document_config_id}"
             )
-            # Return partial success - chunking may still complete in background
             return Response(
                 {
                     "chunking_job_id": chunking_job_id,
@@ -681,18 +619,9 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
 
         except Exception as e:
             logger.error(f"Chunking error for job {chunking_job_id}: {e}")
-            raw = f"{type(e).__name__}: {e}"
-            max_len = NaiveRagDocumentConfig.ERROR_MESSAGE_MAX_LENGTH
-            error_message = raw if len(raw) <= max_len else raw[: max_len - 1] + "…"
-
-            config.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.FAILED
-            config.error_code = NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED
-            config.error_message = error_message
-            config.failed_at = timezone.now()
-            config.save(
-                update_fields=["status", "error_code", "error_message", "failed_at"]
+            message = config.mark_failed(
+                NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED, e
             )
-
             return Response(
                 {
                     "chunking_job_id": chunking_job_id,
@@ -700,7 +629,7 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
                     "document_config_id": document_config_id,
                     "status": "failed",
                     "chunk_count": None,
-                    "message": error_message,
+                    "message": message,
                     "elapsed_time": None,
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

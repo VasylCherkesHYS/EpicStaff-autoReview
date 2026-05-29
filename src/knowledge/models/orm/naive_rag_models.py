@@ -133,6 +133,29 @@ class NaiveRagDocumentConfig(Base):
     error_code = Column(String(32), nullable=True)
     failed_at = Column(DateTime, nullable=True)
 
+    # Snapshot of chunk params that produced the currently-stored
+    # chunks/embeddings. NULL ⇒ never indexed with current params.
+    indexed_chunk_strategy = Column(String(20), nullable=True)
+    indexed_chunk_size = Column(Integer, nullable=True)
+    indexed_chunk_overlap = Column(Integer, nullable=True)
+    indexed_additional_params = Column(JSON, nullable=True)
+
+    _SNAPSHOT_FIELD_PAIRS = (
+        ("indexed_chunk_strategy", "chunk_strategy"),
+        ("indexed_chunk_size", "chunk_size"),
+        ("indexed_chunk_overlap", "chunk_overlap"),
+        ("indexed_additional_params", "additional_params"),
+    )
+
+    def is_snapshot_current(self) -> bool:
+        """True iff every indexed_* snapshot field is populated AND equals
+        the live chunk-param. Mirror of Django-side predicate."""
+        return all(
+            getattr(self, snap) is not None
+            and getattr(self, snap) == getattr(self, live)
+            for snap, live in self._SNAPSHOT_FIELD_PAIRS
+        )
+
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
 
