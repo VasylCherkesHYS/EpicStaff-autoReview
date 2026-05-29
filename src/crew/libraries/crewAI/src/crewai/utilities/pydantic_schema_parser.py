@@ -1,6 +1,10 @@
-from typing import Dict, List, Type, Union, get_args, get_origin
+from typing import Any, Dict, List, Type, Union, get_args, get_origin
 
 from pydantic import BaseModel
+
+
+def _type_name(t) -> str:
+    return getattr(t, "__name__", None) or repr(t).replace("typing.", "")
 
 
 class PydanticSchemaParser(BaseModel):
@@ -27,12 +31,14 @@ class PydanticSchemaParser(BaseModel):
         origin = get_origin(field_type)
 
         if origin in {list, List}:
-            list_item_type = get_args(field_type)[0]
+            args = get_args(field_type)
+            list_item_type = args[0] if args else Any
             return self._format_list_type(list_item_type, depth)
 
         if origin in {dict, Dict}:
-            key_type, value_type = get_args(field_type)
-            return f"Dict[{key_type.__name__}, {value_type.__name__}]"
+            args = get_args(field_type)
+            key_type, value_type = (args[0], args[1]) if len(args) == 2 else (Any, Any)
+            return f"Dict[{_type_name(key_type)}, {_type_name(value_type)}]"
 
         if origin is Union:
             return self._format_union_type(field_type, depth)
@@ -40,16 +46,16 @@ class PydanticSchemaParser(BaseModel):
         if isinstance(field_type, type) and issubclass(field_type, BaseModel):
             nested_schema = self._get_model_schema(field_type, depth)
             nested_indent = " " * 4 * depth
-            return f"{field_type.__name__}\n{nested_indent}{{\n{nested_schema}\n{nested_indent}}}"
+            return f"{_type_name(field_type)}\n{nested_indent}{{\n{nested_schema}\n{nested_indent}}}"
 
-        return field_type.__name__
+        return _type_name(field_type)
 
     def _format_list_type(self, list_item_type, depth: int) -> str:
         if isinstance(list_item_type, type) and issubclass(list_item_type, BaseModel):
             nested_schema = self._get_model_schema(list_item_type, depth + 1)
             nested_indent = " " * 4 * (depth)
             return f"List[\n{nested_indent}{{\n{nested_schema}\n{nested_indent}}}\n{nested_indent}]"
-        return f"List[{list_item_type.__name__}]"
+        return f"List[{_type_name(list_item_type)}]"
 
     def _format_union_type(self, field_type, depth: int) -> str:
         args = get_args(field_type)
@@ -78,15 +84,17 @@ class PydanticSchemaParser(BaseModel):
     def _get_field_type_for_annotation(self, annotation, depth: int) -> str:
         origin = get_origin(annotation)
         if origin in {list, List}:
-            list_item_type = get_args(annotation)[0]
+            args = get_args(annotation)
+            list_item_type = args[0] if args else Any
             return self._format_list_type(list_item_type, depth)
         if origin in {dict, Dict}:
-            key_type, value_type = get_args(annotation)
-            return f"Dict[{key_type.__name__}, {value_type.__name__}]"
+            args = get_args(annotation)
+            key_type, value_type = (args[0], args[1]) if len(args) == 2 else (Any, Any)
+            return f"Dict[{_type_name(key_type)}, {_type_name(value_type)}]"
         if origin is Union:
             return self._format_union_type(annotation, depth)
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):
             nested_schema = self._get_model_schema(annotation, depth)
             nested_indent = " " * 4 * depth
-            return f"{annotation.__name__}\n{nested_indent}{{\n{nested_schema}\n{nested_indent}}}"
-        return annotation.__name__
+            return f"{_type_name(annotation)}\n{nested_indent}{{\n{nested_schema}\n{nested_indent}}}"
+        return _type_name(annotation)

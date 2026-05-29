@@ -1,5 +1,6 @@
+import copy
 import json
-from typing import Type
+from typing import Any, Type
 from pathlib import Path
 import re
 import sys
@@ -14,14 +15,49 @@ from datamodel_code_generator.parser.base import title_to_class_name
 from datamodel_code_generator import DataModelType
 
 
+def _ensure_array_items(node: Any) -> None:
+    if not isinstance(node, dict):
+        return
+
+    node_type = node.get("type")
+    is_array = node_type == "array" or (
+        isinstance(node_type, list) and "array" in node_type
+    )
+
+    if is_array and not node.get("items"):
+        node["items"] = {"type": "string"}
+
+    for value in node.get("properties", {}).values():
+        _ensure_array_items(value)
+
+    if isinstance(node.get("items"), dict):
+        _ensure_array_items(node["items"])
+
+    for value in node.get("definitions", {}).values():
+        _ensure_array_items(value)
+
+    for value in node.get("$defs", {}).values():
+        _ensure_array_items(value)
+
+    for keyword in ("oneOf", "anyOf", "allOf"):
+        for subschema in node.get(keyword) or []:
+            _ensure_array_items(subschema)
+
+    if isinstance(node.get("additionalProperties"), dict):
+        _ensure_array_items(node["additionalProperties"])
+
+
 def generate_model_from_schema(schema_dict: dict) -> Type[BaseModel]:
-    class_name = title_to_class_name(schema_dict["title"])
-    module_name = make_module_name(f"{schema_dict['title']}_{uuid.uuid4().hex[:6]}")
+    normalized = copy.deepcopy(schema_dict)
+    _ensure_array_items(normalized)
+
+    class_name = title_to_class_name(normalized["title"])
+    module_name = make_module_name(f"{normalized['title']}_{uuid.uuid4().hex[:6]}")
     with TemporaryDirectory() as temporary_directory_name:
         temporary_directory = Path(temporary_directory_name)
         output = Path(temporary_directory / "model.py")
         generate(
-            json.dumps(schema_dict),
+            json.dumps(normalized),
             input_file_type=InputFileType.JsonSchema,
             output=output,
             # set up the output model types
