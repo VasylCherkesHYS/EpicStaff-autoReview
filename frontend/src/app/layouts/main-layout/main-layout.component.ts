@@ -110,8 +110,7 @@ export class MainLayoutComponent implements OnInit {
                 }
             });
 
-        if (1) {
-            // if (sessionStorage.getItem('start_quickstart_tour') === '1') {
+        if (sessionStorage.getItem('start_quickstart_tour') === '1') {
             sessionStorage.removeItem('start_quickstart_tour');
             queueMicrotask(() => void this.tourService.startQuickStartTour());
         }
