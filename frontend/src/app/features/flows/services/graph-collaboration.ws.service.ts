@@ -8,7 +8,6 @@ export interface EditorInfo {
     user_id: number;
     display_name: string | null;
     avatar_url?: string | null;
-    email?: string | null;
 }
 
 type ServerMessage = 
@@ -36,7 +35,7 @@ export type GraphSavedMessage    = {
 };
 type WsErrorMessage = { type: 'error'; code: string; message: string };
 
-type ClientMessage = { type: 'user_editing' };
+type ClientMessage = { type: 'graph_modified' };
 
 type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting';
 
@@ -59,5 +58,89 @@ export class GraphCollaborationWsService {
 
     public graphSaved$ = new Subject<GraphSavedMessage>();
     public graphModified$ = new Subject<GraphModifiedMessage>();
+
+    public connect(graphId: number) {
+        if (this.currentGraphId === graphId && this.socket) return;
+        this.cleanUp();
+        this.currentGraphId = graphId;
+        this.isManualDisconnect = false;
+        this.openConnection();
+    }
+
+    public disconnect(): void {
+        this.isManualDisconnect = true;
+        this.cleanUp();
+    }
+
+    private openConnection(): void {
+        this.connectionStatus.set('connecting');
+
+        this.wsTicketService.fetchTicket().subscribe({
+            next: (ticket) => this.openSocket(ticket),
+            error: (err) => {
+                console.error('Failed to fetch WS ticket:', err);
+                this.handleConnectionLoss();
+            }
+        });
+    }
+
+    private openSocket(ticket: string): void {
+        const wsBase = this.configService.apiUrl
+            .replace(/\/api\/$/, '')
+            .replace(/^http/, 'ws');
+        const url = `${wsBase}/ws/graphs/${this.currentGraphId}/edit/?ticket=${encodeURIComponent(ticket)}`;
+        this.socket = new WebSocket(url);
+
+        this.socket.onopen = () => {
+            this.reconnectAttempts = 0;
+            this.connectionStatus.set('connected');
+            console.log('[WS] Connected to graph', this.currentGraphId);
+        };
+
+        this.socket.onmessage = (event: MessageEvent) => {
+            try {
+                const message = JSON.parse(event.data as string) as ServerMessage;
+                this.handleMessage(message);
+            } catch {
+                console.error('[WS] Failed to parse message:', event.data);
+            }
+        }
+
+        this.socket.onclose = (event) => {
+            console.log('[WS] Closed, code:', event.code);
+            this.socket = null;
+            if (!this.isManualDisconnect) {
+                this.handleConnectionLoss();
+            }
+        }
+
+        this.socket.onerror = (err) => {
+            console.error('[WS] Error:', err)
+        }
+
+    }
+
+    private handleConnectionLoss(): void {
+        this.connectionStatus.set('reconnecting')
+    }
+
+    private handleMessage(_message: ServerMessage): void {
+        //TODO!
+    }
+
+    private cleanUp():void {
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+        if (this.socket) {
+            this.socket.close();
+            this.socket = null;
+        }
+        this.reconnectAttempts = 0;
+        this.currentGraphId = null;
+        this.editors.set([]);
+        this.connectionStatus.set('disconnected');
+    }
 
 }
