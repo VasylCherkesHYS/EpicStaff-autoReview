@@ -2,7 +2,12 @@ from rest_framework import serializers
 from django.db.models import Model
 from django.db import transaction
 
-from tables.models.webhook_models import WebhookTrigger
+from tables.models.webhook_models import (
+    LocalhostWebhookConfig,
+    NgrokWebhookConfig,
+    ProviderType,
+    WebhookTrigger,
+)
 from tables.models.python_models import PythonCode
 from tables.models import Agent, PythonCodeTool, ToolConfig, McpTool
 
@@ -248,10 +253,40 @@ class ToolsConnectionMixin:
 
 
 class WebhookCreationMixin:
+    @transaction.atomic
     def _get_or_create_webhook_trigger(self, data):
         path = data.get("path")
-        ngrok_conf = data.get("ngrok_webhook_config")
+        provider_type = data.get("provider_type")
 
-        return WebhookTrigger.objects.get_or_create(
-            path=path, ngrok_webhook_config=ngrok_conf
-        )
+        try:
+            trigger = WebhookTrigger.objects.get(path=path)
+            created = False
+        except WebhookTrigger.DoesNotExist:
+            trigger = WebhookTrigger.objects.create(
+                path=path, provider_type=provider_type
+            )
+            created = True
+
+        if not created and trigger.provider_type != provider_type:
+            # Provider changed — delete the old config to avoid orphan
+            if trigger.provider_type == ProviderType.NGROK:
+                NgrokWebhookConfig.objects.filter(trigger=trigger).delete()
+            elif trigger.provider_type == ProviderType.LOCALHOST:
+                LocalhostWebhookConfig.objects.filter(trigger=trigger).delete()
+            trigger.provider_type = provider_type
+            trigger.save(update_fields=["provider_type"])
+
+        if provider_type == ProviderType.NGROK:
+            ngrok_data = data.get("ngrok_config")
+            if ngrok_data:
+                NgrokWebhookConfig.objects.update_or_create(
+                    trigger=trigger, defaults=ngrok_data
+                )
+        elif provider_type == ProviderType.LOCALHOST:
+            localhost_data = data.get("localhost_config")
+            if localhost_data:
+                LocalhostWebhookConfig.objects.update_or_create(
+                    trigger=trigger, defaults=localhost_data
+                )
+
+        return trigger, created

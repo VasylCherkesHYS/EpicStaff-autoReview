@@ -60,6 +60,7 @@ from tables.exceptions import (
 )
 from tables.services.rbac.authentication import IsAuthenticatedOrApiKey
 from tables.serializers.graph_bulk_save_serializers import GraphBulkSaveInputSerializer
+from tables.serializers.base_serializers import WebhookTriggerNestedSerializer
 from tables.services.graph_bulk_save_service import GraphBulkSaveService
 from tables.graph_versioning.services import GraphVersioningService
 from tables.graph_versioning.serializers import (
@@ -186,8 +187,6 @@ from tables.models.tag_models import AgentTag, CrewTag, GraphTag
 from tables.models.label_models import Label
 from tables.models.vector_models import MemoryDatabase
 from tables.models.webhook_models import (
-    LocalhostWebhookConfig,
-    NgrokWebhookConfig,
     VoiceSettings,
     WebhookTrigger,
     RealtimeChannel,
@@ -225,8 +224,6 @@ from tables.serializers.model_serializers import (
     LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
-    LocalhostWebhookConfigModelSerializer,
-    NgrokWebhookConfigModelSerializer,
     ProviderSerializer,
     PythonCodeResultSerializer,
     PythonCodeSerializer,
@@ -257,7 +254,6 @@ from tables.serializers.model_serializers import (
     ToolConfigSerializer,
     VoiceSettingsSerializer,
     WebhookTriggerNodeSerializer,
-    WebhookTriggerSerializer,
     ScheduleTriggerNodeSerializer,
     TelegramTriggerNodeSerializer,
     TelegramTriggerNodeFieldSerializer,
@@ -1330,7 +1326,10 @@ class GeminiRealtimeConfigViewSet(viewsets.ModelViewSet):
 
 
 class RealtimeChannelViewSet(viewsets.ModelViewSet):
-    queryset = RealtimeChannel.objects.select_related("twilio").all()
+    queryset = RealtimeChannel.objects.select_related(
+        "twilio__webhook_trigger__ngrok",
+        "twilio__webhook_trigger__localhost",
+    ).all()
     serializer_class = RealtimeChannelSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["realtime_agent", "channel_type", "is_active", "token"]
@@ -1338,7 +1337,9 @@ class RealtimeChannelViewSet(viewsets.ModelViewSet):
 
 
 class TwilioChannelViewSet(viewsets.ModelViewSet):
-    queryset = TwilioChannel.objects.all()
+    queryset = TwilioChannel.objects.select_related(
+        "webhook_trigger__ngrok", "webhook_trigger__localhost"
+    )
     serializer_class = TwilioChannelSerializer
 
     def create(self, request, *args, **kwargs):
@@ -1601,9 +1602,27 @@ class WebhookTriggerNodeViewSet(
 
 
 class WebhookTriggerViewSet(viewsets.ModelViewSet):
-    queryset = WebhookTrigger.objects.all()
-    serializer_class = WebhookTriggerSerializer
+    queryset = WebhookTrigger.objects.select_related("ngrok", "localhost")
+    serializer_class = WebhookTriggerNestedSerializer
     filter_backends = [DjangoFilterBackend]
+
+    def _wait_for_tunnel_url(self, trigger):
+        from tables.services.webhook_trigger_service import WebhookTriggerService
+        from tables.models.webhook_models import ProviderType
+
+        service = WebhookTriggerService()
+        if trigger.provider_type == ProviderType.NGROK:
+            service.wait_for_tunnel_url(trigger)
+        elif trigger.provider_type == ProviderType.LOCALHOST:
+            service.wait_for_localhost_tunnel_url(trigger)
+
+    def perform_create(self, serializer):
+        trigger = serializer.save()
+        self._wait_for_tunnel_url(trigger)
+
+    def perform_update(self, serializer):
+        trigger = serializer.save()
+        self._wait_for_tunnel_url(trigger)
 
 
 class TelegramTriggerNodeViewSet(
@@ -1632,44 +1651,6 @@ class GraphNoteViewSet(
 ):
     queryset = GraphNote.objects.all()
     serializer_class = GraphNoteSerializer
-
-
-class LocalhostWebhookConfigViewSet(ModelViewSet):
-    queryset = LocalhostWebhookConfig.objects.all()
-    serializer_class = LocalhostWebhookConfigModelSerializer
-
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        instance = LocalhostWebhookConfig.objects.get(pk=response.data["id"])
-        WebhookTriggerService().wait_for_localhost_tunnel_url(instance)
-        response.data = self.get_serializer(instance).data
-        return response
-
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        instance = LocalhostWebhookConfig.objects.get(pk=response.data["id"])
-        WebhookTriggerService().wait_for_localhost_tunnel_url(instance)
-        response.data = self.get_serializer(instance).data
-        return response
-
-
-class NgrokWebhookConfigViewSet(ModelViewSet):
-    queryset = NgrokWebhookConfig.objects.all()
-    serializer_class = NgrokWebhookConfigModelSerializer
-
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        instance = NgrokWebhookConfig.objects.get(pk=response.data["id"])
-        WebhookTriggerService().wait_for_tunnel_url(instance)
-        response.data = self.get_serializer(instance).data
-        return response
-
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        instance = NgrokWebhookConfig.objects.get(pk=response.data["id"])
-        WebhookTriggerService().wait_for_tunnel_url(instance)
-        response.data = self.get_serializer(instance).data
-        return response
 
 
 class LabelViewSet(viewsets.ModelViewSet):
@@ -1790,7 +1771,7 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
 
         try:
             channel = RealtimeChannel.objects.select_related(
-                "twilio__ngrok_config"
+                "twilio__webhook_trigger__ngrok", "twilio__webhook_trigger__localhost"
             ).get(token=channel_token)
         except RealtimeChannel.DoesNotExist:
             logger.warning(
@@ -1816,29 +1797,31 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
             f"configure-webhook: using stored credentials for account_sid={account_sid}"
         )
 
-        ngrok = twilio.ngrok_config
-        logger.info(f"configure-webhook: ngrok={ngrok}")
-        if not ngrok:
+        webhook_trigger = twilio.webhook_trigger
+        logger.info(f"configure-webhook: webhook_trigger={webhook_trigger}")
+        if not webhook_trigger or not webhook_trigger.provider_type:
             logger.warning(
-                f"configure-webhook: no ngrok tunnel configured for channel {channel.id}"
+                f"configure-webhook: no webhook trigger configured for channel {channel.id}"
             )
             return Response(
-                {"error": "No ngrok tunnel configured for this channel"},
+                {"error": "No webhook trigger configured for this channel"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         from tables.services.webhook_trigger_service import WebhookTriggerService
 
-        tunnel_url = WebhookTriggerService().get_tunnel_url(ngrok)
-        if not tunnel_url and ngrok.domain:
-            tunnel_url = f"https://{ngrok.domain}"
+        tunnel_url = WebhookTriggerService().get_tunnel_url_for_trigger(webhook_trigger)
+        if not tunnel_url:
+            active_config = webhook_trigger.get_active_config()
+            if active_config:
+                tunnel_url = active_config.get_webhook_url()
         logger.info(f"configure-webhook: tunnel_url={tunnel_url}")
         if not tunnel_url:
             logger.warning(
-                f"configure-webhook: ngrok tunnel {ngrok.id} has no live URL and no domain"
+                f"configure-webhook: webhook trigger {webhook_trigger.id} has no live URL and no domain"
             )
             return Response(
-                {"error": "Ngrok tunnel is not running and has no domain configured"},
+                {"error": "Webhook tunnel is not running and has no domain configured"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

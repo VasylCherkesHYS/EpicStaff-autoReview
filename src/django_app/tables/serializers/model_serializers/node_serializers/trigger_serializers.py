@@ -13,7 +13,7 @@ from tables.validators.schedule_trigger_validator import (
     ScheduleTriggerValidator,
 )
 from tables.services.schedule_trigger_service import ScheduleTriggerService
-from tables.models.webhook_models import WebhookTrigger
+from tables.models.webhook_models import WebhookTrigger, ProviderType
 from tables.serializers.base_serializer import (
     BaseGraphEntityMixin,
     ContentHashWritableMixin,
@@ -57,6 +57,18 @@ class WebhookTriggerNodeSerializer(
             self._webhook_trigger_id = None
         return super().to_internal_value(data)
 
+    def _wait_for_tunnel_url(self, webhook_trigger):
+        """After create/update, poll Redis for the tunnel URL if a config is present."""
+        from tables.services.webhook_trigger_service import WebhookTriggerService
+
+        if webhook_trigger is None:
+            return
+        service = WebhookTriggerService()
+        if webhook_trigger.provider_type == ProviderType.NGROK:
+            service.wait_for_tunnel_url(webhook_trigger)
+        elif webhook_trigger.provider_type == ProviderType.LOCALHOST:
+            service.wait_for_localhost_tunnel_url(webhook_trigger)
+
     def create(self, validated_data):
         webhook_trigger_data = validated_data.pop("webhook_trigger", None)
         wt_id = getattr(self, "_webhook_trigger_id", None)
@@ -66,9 +78,9 @@ class WebhookTriggerNodeSerializer(
                 id=wt_id
             ).first()
         elif webhook_trigger_data:
-            validated_data["webhook_trigger"], _ = self._get_or_create_webhook_trigger(
-                webhook_trigger_data
-            )
+            trigger, _ = self._get_or_create_webhook_trigger(webhook_trigger_data)
+            validated_data["webhook_trigger"] = trigger
+            self._wait_for_tunnel_url(trigger)
 
         return self._create_with_python_code(WebhookTriggerNode, validated_data)
 
@@ -85,6 +97,7 @@ class WebhookTriggerNodeSerializer(
                     webhook_trigger_data
                 )
                 instance.webhook_trigger = webhook_trigger_instance
+                self._wait_for_tunnel_url(webhook_trigger_instance)
             else:
                 instance.webhook_trigger = None
 
