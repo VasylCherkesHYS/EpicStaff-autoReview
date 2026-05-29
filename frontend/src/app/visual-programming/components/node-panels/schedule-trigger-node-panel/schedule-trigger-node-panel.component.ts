@@ -4,7 +4,6 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
-    DestroyRef,
     effect,
     inject,
     input,
@@ -78,7 +77,6 @@ export class ScheduleTriggerNodePanelComponent extends BaseSidePanel<ScheduleTri
     private readonly refreshedCurrentRuns = signal<number | undefined>(undefined);
     private readonly stopPolling$ = new Subject<void>();
 
-    private destroyRef = inject(DestroyRef);
     private readonly cdr = inject(ChangeDetectorRef);
     private readonly flowsApiService = inject(FlowsApiService);
     private readonly flowService = inject(FlowService);
@@ -183,6 +181,12 @@ export class ScheduleTriggerNodePanelComponent extends BaseSidePanel<ScheduleTri
     startDateTimeDirty = signal(false);
     endDateTimeDirty = signal(false);
     scheduleDirty = signal(false);
+
+    public override readonly isDirty = computed(() => {
+        this.dirtyCheckTick();
+        if (!this.form) return false;
+        return this.scheduleDirty() || this.form.get('node_name')?.value !== this.initialNodeName;
+    });
 
     toggleDay(value: WeekdayCode): void {
         const current = this.repeatDays();
