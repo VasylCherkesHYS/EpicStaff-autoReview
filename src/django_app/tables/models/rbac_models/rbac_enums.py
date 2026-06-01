@@ -4,6 +4,7 @@ from django.db import models
 
 
 class ResourceType(models.TextChoices):
+    ORGANIZATIONS = "organizations", "Organizations"
     FLOWS = "flows", "Flows"
     AGENTS = "agents", "Agents"
     TOOLS = "tools", "Tools"
