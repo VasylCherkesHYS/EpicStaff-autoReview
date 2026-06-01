@@ -120,12 +120,66 @@ export class GraphCollaborationWsService {
 
     }
 
-    private handleConnectionLoss(): void {
-        this.connectionStatus.set('reconnecting')
+    private handleMessage(message: ServerMessage): void {
+        switch (message.type) {
+            case 'presence_state':
+                this.editors.set(message.editors);
+                break;
+            case 'user_joined':
+                this.editors.update((editors) => {
+                    const exists = editors.some((e) => e.user_id === message.editor.user_id);
+                    return exists ? editors : [...editors, message.editor]
+                });
+                break;
+            case 'user_left':
+                this.editors.update((editors) =>
+                editors.filter((e) => e.user_id !== message.user_id)
+                );
+                break;
+            case 'graph_modified':
+                this.graphModified$.next(message);
+                break;
+            case 'graph_saved':
+                this.graphSaved$.next(message);
+                break;
+            case 'error':
+                console.error(`[WS] Server error [${message.code}]: ${message.message}`);
+                break;
+        }
     }
 
-    private handleMessage(_message: ServerMessage): void {
-        //TODO!
+    private handleConnectionLoss(): void {
+        this.connectionStatus.set('reconnecting');
+        this.socket = null;
+
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error(`[WS] Max reconnect attempts reached. Giving up.`)
+            this.connectionStatus.set('disconnected');
+            return;
+        }
+
+        this.reconnectAttempts++;
+        const delay = this.calculateReconnectDelay();
+
+        this.reconnectTimeout = window.setTimeout(() => {
+            if (!this.isManualDisconnect && this.currentGraphId !== null) {
+                this.openConnection();
+            }
+        }, delay);
+
+    }
+
+    private calculateReconnectDelay(): number {
+        return Math.min(
+            this.baseReconnectDelayMs * Math.pow(2, this.reconnectAttempts - 1),
+            this.maxReconnectDelayMs
+        );
+    }
+
+    public sendUserEditing(): void {
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            this.socket?.send(JSON.stringify({type: 'graph_modified'}))
+        }
     }
 
     private cleanUp():void {
