@@ -278,9 +278,7 @@ FRONTEND_PASSWORD_RESET_PATH = os.getenv(
 
 SSE_TICKET_TTL_SECONDS = 30
 
-DEFAULT_ORGANIZATION_NAME = os.getenv(
-    "DEFAULT_ORGANIZATION_NAME", "Default Organization"
-)
+DEFAULT_ORGANIZATION_NAME = os.getenv("DEFAULT_ORGANIZATION_NAME", "Organization")
 
 # Story 6 — User profile
 PASSWORD_CHANGE_TICKET_TTL_SECONDS = int(
@@ -357,5 +355,6 @@ SPECTACULAR_SETTINGS = {
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.hooks.postprocess_schema_enums",
         "django_app.spectacular_hooks.assign_tags_postprocessing_hook",
+        "django_app.spectacular_hooks.add_org_header_postprocessing_hook",
     ],
 }
