@@ -9,7 +9,6 @@ from tables.models.graph_models import (
     Edge,
     EndNode,
     FileExtractorNode,
-    LLMNode,
     GraphNote,
     PythonNode,
     ScheduleTriggerNode,
@@ -25,7 +24,6 @@ from tables.serializers.graph_bulk_save_serializers import (
     DecisionTableNodeBulkSerializer,
     EndNodeBulkSerializer,
     FileExtractorNodeBulkSerializer,
-    LLMNodeBulkSerializer,
     GraphNoteBulkSerializer,
     PythonNodeBulkSerializer,
     ScheduleTriggerNodeBulkSerializer,
@@ -109,12 +107,6 @@ NODE_TYPE_REGISTRY: list[NodeTypeConfig] = [
         "audio_transcription_node_ids",
         AudioTranscriptionNode,
         AudioTranscriptionNodeBulkSerializer,
-    ),
-    NodeTypeConfig(
-        "llm_node_list",
-        "llm_node_ids",
-        LLMNode,
-        LLMNodeBulkSerializer,
     ),
     NodeTypeConfig(
         "start_node_list",

@@ -20,7 +20,6 @@ from tables.views.model_view_sets import (
     FileExtractorNodeViewSet,
     AudioTranscriptionNodeViewSet,
     CodeAgentNodeViewSet,
-    LLMNodeViewSet,
     StartNodeModelViewSet,
     RealtimeConfigModelViewSet,
     RealtimeSessionItemViewSet,
@@ -156,7 +155,6 @@ router.register(r"crewnodes", CrewNodeViewSet)
 router.register(r"pythonnodes", PythonNodeViewSet)
 router.register(r"file-extractor-nodes", FileExtractorNodeViewSet)
 router.register(r"audio-transcription-nodes", AudioTranscriptionNodeViewSet)
-router.register(r"llmnodes", LLMNodeViewSet)
 router.register(r"startnodes", StartNodeModelViewSet)
 router.register(r"endnodes", EndNodeModelViewSet)
 router.register(r"subgraph-nodes", SubGraphNodeModelViewSet)
