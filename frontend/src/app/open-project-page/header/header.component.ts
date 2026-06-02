@@ -14,8 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
-import { v4 as uuidv4 } from 'uuid';
+import { switchMap, takeUntil } from 'rxjs/operators';
 
 import { FlowsApiService } from '../../features/flows/services/flows-api.service';
 import { RunGraphService } from '../../features/flows/services/run-graph-session.service';
@@ -164,42 +163,50 @@ export class HeaderComponent implements OnInit, OnDestroy {
                 type: 'info',
             })
             .subscribe((result) => {
-                // Only proceed if result is exactly true (user clicked confirm)
                 if (result === true) {
                     const project = this.project;
-                    const nodeId = uuidv4();
-                    const node = {
-                        id: nodeId,
-                        backendId: null,
-                        position: { x: 200, y: 200 },
-                        ports: null,
-                        parentId: null,
-                        type: NodeType.PROJECT,
-                        node_name: `${project!.name} (#1)`,
-                        data: project,
-                        color: NODE_COLORS[NodeType.PROJECT],
-                        icon: NODE_ICONS[NodeType.PROJECT],
-                        input_map: {},
-                        output_variable_path: null,
-                        size: { width: 330, height: 60 },
-                    };
-                    const metadata = {
-                        nodes: [node],
-                        connections: [],
-                        groups: [],
-                    };
                     this.flowsApiService
                         .createGraph({
                             name: `${project!.name} Flow`,
                             description: '',
-                            metadata,
+                            metadata: { connections: [], groups: [] },
                             tags: [],
                         })
-                        .subscribe((response: { id: string | number }) => {
-                            this.router.navigate(['/flows', response.id]);
+                        .pipe(
+                            switchMap((response) => {
+                                const savePayload = {
+                                    crew_node_list: [
+                                        {
+                                            graph: response.id,
+                                            crew_id: project!.id,
+                                            node_name: `${project!.name} (#1)`,
+                                            metadata: {
+                                                position: { x: 200, y: 200 },
+                                                color: NODE_COLORS[NodeType.PROJECT],
+                                                icon: NODE_ICONS[NodeType.PROJECT],
+                                                size: { width: 330, height: 60 },
+                                            },
+                                            input_map: {},
+                                            output_variable_path: null,
+                                            stream_config: {},
+                                        },
+                                    ],
+                                    python_node_list: [],
+                                    start_node_list: [],
+                                    connections: [],
+                                };
+                                return this.flowsApiService.bulkSaveGraph(response.id, savePayload);
+                            })
+                        )
+                        .subscribe({
+                            next: (saved) => {
+                                this.router.navigate(['/flows', saved.id]);
+                            },
+                            error: () => {
+                                this.toastService.error('Failed to create flow');
+                            },
                         });
                 }
-                // If result is false or 'close', the action is cancelled (do nothing)
             });
     }
 
