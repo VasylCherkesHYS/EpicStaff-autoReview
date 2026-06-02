@@ -13,6 +13,8 @@ import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg
 import { Spinner2Component } from '../../../../../../shared/components/spinner-type2/spinner.component';
 import { CollapseOnOverflowDirective } from '../../../../../../shared/directives/collapse-on-overflow.directive';
 import { SaveDropdownComponent } from './save-dropdown/save-dropdown.component';
+import { EditorInfo } from 'src/app/features/flows/services/graph-collaboration.ws.service';
+import { GraphPresenceIndicatorsComponent } from './presence-indicator/graph-presence-indicators.component';
 
 @Component({
     selector: 'app-flow-header',
@@ -26,6 +28,7 @@ import { SaveDropdownComponent } from './save-dropdown/save-dropdown.component';
         OverlayModule,
         CollapseOnOverflowDirective,
         SaveDropdownComponent,
+        GraphPresenceIndicatorsComponent
     ],
     templateUrl: './flow-header.component.html',
     styleUrls: ['./flow-header.component.scss'],
@@ -39,6 +42,7 @@ export class FlowHeaderComponent {
     @Input() isSaving = false;
     @Input() isRunning = false;
     @Input() hasUnsavedChanges = false;
+    @Input() editors: EditorInfo[] = [];
     @Output() save = new EventEmitter<void>();
     @Output() back = new EventEmitter<void>();
     @Output() viewSessions = new EventEmitter<void>();

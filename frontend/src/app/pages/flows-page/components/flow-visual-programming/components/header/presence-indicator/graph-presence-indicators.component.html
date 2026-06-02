@@ -1,0 +1,20 @@
+<div class="presence-indicators">
+    @for(editor of visibleEditors(); track editor.user_id) {
+        <div class="avatar"
+            [style.background-color]="getColor(editor.user_id)"
+            [matTooltip]="getTooltip(editor)"
+            matTooltipPosition="below"
+        >   
+            {{ getInitials(editor) }}
+        </div>
+    }
+    @if (hiddenCount() > 0) {
+        <div
+            class="avatar avatar--overflow"
+            [matTooltip]="hiddenTooltip()"
+            matTooltipPosition="below"
+        >
+            +{{ hiddenCount() }}
+        </div>
+    }
+</div>
