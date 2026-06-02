@@ -165,7 +165,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
                 type: 'info',
             })
             .subscribe((result) => {
-                // Only proceed if result is exactly true (user clicked confirm)
                 if (result === true) {
                     const project = this.project;
                     const node: ProjectNodeModel = this.nodeFactoryService.createNode(NodeType.PROJECT, {
@@ -201,7 +200,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
                             error: () => this.toastService.error('Failed to create flow'),
                         });
                 }
-                // If result is false or 'close', the action is cancelled (do nothing)
             });
     }
 
