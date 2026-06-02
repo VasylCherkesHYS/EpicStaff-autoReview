@@ -42,6 +42,7 @@ export class DynamicTableComponent implements OnInit {
     // Feature flags
     allowRowDrag = input<boolean>(true);
     allowColumnDrag = input<boolean>(true);
+    allowRowRemove = input<boolean>(true);
     showHeader = input<boolean>(true);
 
     // Constraints
@@ -105,7 +106,13 @@ export class DynamicTableComponent implements OnInit {
 
     // Column resize
     colWidths = signal<Record<string, number>>({});
-    actionColWidth = computed(() => (this.rowNavigable() !== null && !this.navigateCellKey() ? 68 : 36));
+    actionColWidth = computed(() => {
+        const hasNavigate = this.rowNavigable() !== null && !this.navigateCellKey();
+        const hasRemove = this.allowRowRemove();
+        if (hasNavigate && hasRemove) return 68;
+        if (hasNavigate || hasRemove) return 36;
+        return 8;
+    });
     tableMinWidth = computed(() => {
         const spacers = (this.allowRowDrag() ? 36 : 0) + this.actionColWidth();
         return this.columns().reduce((sum, col) => sum + this.getColWidth(col.key), spacers);

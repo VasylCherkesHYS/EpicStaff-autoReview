@@ -3,8 +3,15 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, output, si
 
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { DynamicTableComponent } from '../../../../../../shared/components/dynamic-table/dynamic-table.component';
-import { TableRow } from '../../../../../../shared/components/dynamic-table/dynamic-table.models';
-import { createCellExtraValidators, VariableInputType, VariableSectionConfig } from '../parameters-table.config';
+import { TableColumnDef, TableRow } from '../../../../../../shared/components/dynamic-table/dynamic-table.models';
+import {
+    createCellExtraValidators,
+    VALUE_EDITOR_COLUMN_DEFS,
+    VariableInputType,
+    VariableSectionConfig,
+} from '../parameters-table.config';
+
+export type VariableSectionMode = 'rows' | 'array-values';
 
 @Component({
     selector: 'app-variable-section',
@@ -23,6 +30,8 @@ export class VariableSectionComponent {
     rowDropListConnectedTo = input<string[]>([]);
     rowSyncRevision = input<number>(0);
 
+    mode = input<VariableSectionMode>('rows');
+
     rowsChange = output<Record<string, unknown>[]>();
     navigateRow = output<{ row: TableRow; rowIndex: number; sectionType: VariableInputType }>();
     crossListDrop = output<CdkDragDrop<unknown[]>>();
@@ -32,13 +41,30 @@ export class VariableSectionComponent {
 
     readonly cellExtraValidators = computed(() => createCellExtraValidators(this.config().inputType));
 
-    readonly isObjectRow = (row: TableRow): boolean => row.data['type'] === 'object';
+    readonly isArrayValuesMode = computed(() => this.mode() === 'array-values');
+
+    private readonly indexRevision = signal(0);
+    readonly effectiveRowSyncRevision = computed(() => this.rowSyncRevision() + this.indexRevision());
+
+    readonly effectiveColumnDefs = computed<TableColumnDef[]>(() => {
+        const base = this.config().columnDefs;
+        return this.isArrayValuesMode() ? [...VALUE_EDITOR_COLUMN_DEFS] : [...base];
+    });
+
+    readonly isNavigableRow = (row: TableRow): boolean => {
+        const t = row.data['type'];
+        return t === 'object' || t === 'array';
+    };
 
     readonly isCellDisabled = (row: TableRow, colKey: string): boolean => {
-        if (colKey !== 'default_value') {
-            return false;
+        if (this.isArrayValuesMode() && colKey === 'name') {
+            return true;
         }
-        return row.data['type'] === 'object';
+        if (colKey === 'default_value') {
+            const t = row.data['type'];
+            return t === 'object' || t === 'array';
+        }
+        return false;
     };
 
     constructor() {
@@ -65,6 +91,16 @@ export class VariableSectionComponent {
     }
 
     onRowsChange(rows: Record<string, unknown>[]): void {
+        if (this.isArrayValuesMode()) {
+            const structuralChange = rows.some((r, i) => String(r['name'] ?? '') !== String(i));
+            const reindexed = structuralChange ? rows.map((r, i) => ({ ...r, name: String(i) })) : rows;
+            this.rows.set(reindexed);
+            if (structuralChange) {
+                this.indexRevision.update((n) => n + 1);
+            }
+            this.rowsChange.emit(reindexed);
+            return;
+        }
         this.rows.set(rows);
         this.rowsChange.emit(rows);
     }

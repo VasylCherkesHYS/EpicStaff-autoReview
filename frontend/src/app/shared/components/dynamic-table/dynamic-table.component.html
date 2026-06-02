@@ -245,14 +245,16 @@
                                             />
                                         </button>
                                     }
-                                    <button
-                                        type="button"
-                                        class="dt__remove-btn"
-                                        (click)="removeRow(row._id)"
-                                        title="Remove row"
-                                    >
-                                        <i class="ti ti-x"></i>
-                                    </button>
+                                    @if (allowRowRemove()) {
+                                        <button
+                                            type="button"
+                                            class="dt__remove-btn"
+                                            (click)="removeRow(row._id)"
+                                            title="Remove row"
+                                        >
+                                            <i class="ti ti-x"></i>
+                                        </button>
+                                    }
                                 </div>
                             </td>
                         </tr>

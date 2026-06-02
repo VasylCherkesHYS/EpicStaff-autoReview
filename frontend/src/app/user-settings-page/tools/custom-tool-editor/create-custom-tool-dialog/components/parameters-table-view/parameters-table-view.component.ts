@@ -21,14 +21,20 @@ import {
     VariableInputType,
     variableToRowData,
 } from '../parameters-table.config';
-import { VariableSectionComponent } from '../variable-section/variable-section.component';
+import { VariableSectionComponent, VariableSectionMode } from '../variable-section/variable-section.component';
 import { BreadcrumbItem, VariablesBreadcrumbComponent } from '../variables-breadcrumb/variables-breadcrumb.component';
+
+export type DrillStepKind = 'object' | 'array';
 
 export interface DrillStep {
     sectionType: VariableInputType;
+    /** Index into the currently-displayed rows when this step was created. Always 0 for steps inside an array sub-view (only one synthesized row). */
     rowIndex: number;
     label: string;
+    kind: DrillStepKind;
 }
+
+const ITEM_ROW_NAME = 'item';
 
 @Component({
     selector: 'app-parameters-table-view',
@@ -45,7 +51,6 @@ export class ParametersTableViewComponent implements OnInit {
 
     readonly VARIABLE_SECTIONS = VARIABLE_SECTIONS;
 
-    /** Stable ids for `cdkDropList` on parameter tables (cross-section row drag). */
     readonly parameterRowDropConnectedIds = ['ptv-user', 'ptv-agent', 'ptv-mixed'] as const;
 
     readonly parameterRowSyncRevision = signal(0);
@@ -60,7 +65,13 @@ export class ParametersTableViewComponent implements OnInit {
 
     public readonly crumbs = computed<BreadcrumbItem[]>(() => {
         const stack = this.drillStack();
-        return [{ icon: 'home', label: '' }, ...stack.map((step) => ({ icon: 'brackets', label: step.label }))];
+        return [
+            { icon: 'home', label: '' },
+            ...stack.map((step) => ({
+                icon: step.kind === 'array' ? 'square-brackets' : 'brackets',
+                label: step.label,
+            })),
+        ];
     });
 
     public readonly isDrilling = computed(() => this.drillStack().length > 0);
@@ -75,11 +86,15 @@ export class ParametersTableViewComponent implements OnInit {
         return sectionType ? this.getSectionConfig(sectionType) : null;
     });
 
-    public readonly currentDrillRows = computed<Record<string, unknown>[]>(() =>
-        this.getVariablesAtPath(this.currentSectionType(), this.drillPath()).map(variableToRowData)
-    );
+    public readonly currentDrillMode = computed<VariableSectionMode>(() => {
+        const stack = this.drillStack();
+        const last = stack[stack.length - 1];
+        return last?.kind === 'array' ? 'array-values' : 'rows';
+    });
 
-    private readonly drillPath = computed<number[]>(() => this.drillStack().map((step) => step.rowIndex));
+    public readonly currentDrillRows = computed<Record<string, unknown>[]>(() =>
+        this.getVariablesAtCurrentDrill().map(variableToRowData)
+    );
 
     public readonly externalDuplicatesByType = computed<Record<VariableInputType, Map<string, Set<string>>>>(() => {
         const userNames = this.collectNames(this.userVariables());
@@ -100,13 +115,10 @@ export class ParametersTableViewComponent implements OnInit {
     }
 
     isValid(): boolean {
-        // 1. Visible-cell check (so red borders / inline errors stay accurate).
         if (!this.sectionRefs().every((section) => section.isValid())) {
             return false;
         }
 
-        // 2. Walk the entire data model (including invisible nested children
-        //    after a drill-out) and re-check name validity + sibling uniqueness.
         const user = this.userVariables();
         const agent = this.agentVariables();
         const mixed = this.mixedVariables();
@@ -114,7 +126,6 @@ export class ParametersTableViewComponent implements OnInit {
             return false;
         }
 
-        // 3. Top-level names must be unique across all 3 sections combined.
         const topNames = [...user, ...agent, ...mixed].map((v) => v.name?.trim()).filter(Boolean) as string[];
         if (new Set(topNames).size !== topNames.length) {
             return false;
@@ -189,7 +200,10 @@ export class ParametersTableViewComponent implements OnInit {
     }
 
     onNavigate(event: { row: TableRow; rowIndex: number; sectionType: VariableInputType }): void {
-        const label = String(event.row.data['name'] ?? 'Object');
+        const rowType = event.row.data['type'];
+        const kind: DrillStepKind = rowType === 'array' ? 'array' : 'object';
+        const baseLabel = String(event.row.data['name'] ?? '');
+        const label = baseLabel || (kind === 'array' ? ITEM_ROW_NAME : 'Object');
         const wasDrilling = this.isDrilling();
         this.drillStack.update((stack) => [
             ...stack,
@@ -197,10 +211,9 @@ export class ParametersTableViewComponent implements OnInit {
                 sectionType: stack.length > 0 ? stack[0].sectionType : event.sectionType,
                 rowIndex: event.rowIndex,
                 label,
+                kind,
             },
         ]);
-        // Same <app-variable-section> instance is reused across drill levels; force the
-        // inner dynamic-table to resync from the new initialRows.
         if (wasDrilling) {
             this.parameterRowSyncRevision.update((n) => n + 1);
         }
@@ -222,10 +235,12 @@ export class ParametersTableViewComponent implements OnInit {
             return;
         }
 
-        const nextChildren = rows.map((data) => rowDataToVariable(data, sectionType));
-        const path = this.drillPath();
+        const stack = this.drillStack();
+
+        const children = rows.map((data) => rowDataToVariable(data, sectionType));
+
         const roots = this.getSectionVariables(sectionType);
-        const updatedRoots = this.setChildrenAtPath(roots, path, nextChildren);
+        const updatedRoots = setStackOnRoots(roots, stack, children);
         this.setSectionVariables(sectionType, updatedRoots);
 
         this.emitAll();
@@ -270,17 +285,17 @@ export class ParametersTableViewComponent implements OnInit {
         const valid: DrillStep[] = [];
 
         for (const step of stack) {
-            if (step.sectionType !== sectionType) {
-                break;
-            }
+            if (step.sectionType !== sectionType) break;
+
             const target = cursor[step.rowIndex];
-            if (!target || target.type !== 'object') {
-                break;
-            }
+            if (!target) break;
+            if (target.type !== step.kind) break;
+
             valid.push({
                 sectionType,
                 rowIndex: step.rowIndex,
-                label: String(target.name ?? step.label ?? 'Object'),
+                label: String(target.name ?? (step.kind === 'array' ? ITEM_ROW_NAME : 'Object')),
+                kind: step.kind,
             });
             cursor = Array.isArray(target.children) ? target.children : [];
         }
@@ -288,46 +303,22 @@ export class ParametersTableViewComponent implements OnInit {
         return valid;
     }
 
-    private getVariablesAtPath(sectionType: VariableInputType | null, path: number[]): ToolVariable[] {
-        if (!sectionType || path.length === 0) {
-            return [];
+    private getVariablesAtCurrentDrill(): ToolVariable[] {
+        const stack = this.drillStack();
+        if (stack.length === 0) return [];
+
+        const sectionType = stack[0].sectionType;
+        let cursor: ToolVariable[] = this.getSectionVariables(sectionType);
+
+        for (let i = 0; i < stack.length; i++) {
+            const target = cursor[stack[i].rowIndex];
+            if (!target) return [];
+            const children = Array.isArray(target.children) ? target.children : [];
+            if (i === stack.length - 1) return children;
+            cursor = children;
         }
 
-        let cursor = this.getSectionVariables(sectionType);
-
-        for (const index of path) {
-            const target = cursor[index];
-            if (!target || target.type !== 'object') {
-                return [];
-            }
-            cursor = Array.isArray(target.children) ? target.children : [];
-        }
-
-        return cursor;
-    }
-
-    private setChildrenAtPath(vars: ToolVariable[], path: number[], nextChildren: ToolVariable[]): ToolVariable[] {
-        if (path.length === 0) {
-            return vars;
-        }
-
-        const [index, ...rest] = path;
-
-        return vars.map((variable, currentIndex) => {
-            if (currentIndex !== index) {
-                return variable;
-            }
-
-            const currentChildren = Array.isArray(variable.children) ? variable.children : [];
-            if (rest.length === 0) {
-                return { ...variable, children: nextChildren };
-            }
-
-            return {
-                ...variable,
-                children: this.setChildrenAtPath(currentChildren, rest, nextChildren),
-            };
-        });
+        return [];
     }
 
     private emitAll(): void {
@@ -380,4 +371,24 @@ export class ParametersTableViewComponent implements OnInit {
         for (const v of b) result.add(v);
         return result;
     }
+}
+
+// --- module-local helpers ---
+
+function setStackOnRoots(roots: ToolVariable[], stack: DrillStep[], children: ToolVariable[]): ToolVariable[] {
+    if (stack.length === 0) return roots;
+    const [first, ...rest] = stack;
+    return roots.map((variable, i) => (i === first.rowIndex ? setChildrenAtPath(variable, rest, children) : variable));
+}
+
+function setChildrenAtPath(variable: ToolVariable, rest: DrillStep[], children: ToolVariable[]): ToolVariable {
+    if (rest.length === 0) {
+        return { ...variable, children };
+    }
+    const cur = Array.isArray(variable.children) ? variable.children : [];
+    const [next, ...rest2] = rest;
+    return {
+        ...variable,
+        children: cur.map((c, i) => (i === next.rowIndex ? setChildrenAtPath(c, rest2, children) : c)),
+    };
 }

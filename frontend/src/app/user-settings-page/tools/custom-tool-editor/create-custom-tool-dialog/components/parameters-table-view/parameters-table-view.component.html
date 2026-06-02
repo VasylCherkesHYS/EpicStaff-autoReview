@@ -22,6 +22,7 @@
         @if (currentDrillSectionConfig(); as cfg) {
             <app-variable-section
                 [config]="cfg"
+                [mode]="currentDrillMode()"
                 [initialRows]="currentDrillRows()"
                 [rowDropListId]="null"
                 [rowDropListConnectedTo]="[]"

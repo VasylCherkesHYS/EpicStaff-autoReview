@@ -1,10 +1,10 @@
 <div
     class="section__drop-target"
     cdkDropList
-    [id]="rows().length === 0 ? (rowDropListId() ?? '') : ''"
+    [id]="rows().length === 0 && !isArrayValuesMode() ? (rowDropListId() ?? '') : ''"
     [cdkDropListData]="rows()"
-    [cdkDropListConnectedTo]="rows().length === 0 ? rowDropListConnectedTo() : []"
-    [cdkDropListDisabled]="rows().length > 0 || !rowDropListId()"
+    [cdkDropListConnectedTo]="rows().length === 0 && !isArrayValuesMode() ? rowDropListConnectedTo() : []"
+    [cdkDropListDisabled]="isArrayValuesMode() || rows().length > 0 || !rowDropListId()"
     (cdkDropListEntered)="onEmptySectionDropEnter()"
     (cdkDropListExited)="onEmptySectionDropExit()"
     (cdkDropListDropped)="onCrossListDrop($any($event))"
@@ -14,7 +14,7 @@
         [class.section__header--with-table]="rows().length > 0"
     >
         <app-svg-icon
-            [icon]="config().icon"
+            [icon]="isArrayValuesMode() ? 'square-brackets' : config().icon"
             size="1rem"
             class="section__icon"
         />
@@ -23,7 +23,7 @@
             type="button"
             class="section__add-btn"
             (click)="addRow()"
-            title="Add row"
+            [title]="isArrayValuesMode() ? 'Add element' : 'Add row'"
         >
             <app-svg-icon
                 icon="plus"
@@ -37,17 +37,19 @@
         title=""
         [icon]="null"
         [showHeader]="false"
-        [columnDefs]="config().columnDefs"
+        [columnDefs]="effectiveColumnDefs()"
         [initialRows]="rows()"
         [allowColumnDrag]="false"
-        [rowNavigable]="isObjectRow"
+        [allowRowDrag]="true"
+        [allowRowRemove]="true"
+        [rowNavigable]="isNavigableRow"
         [navigateCellKey]="'default_value'"
         [isCellDisabled]="isCellDisabled"
         [externalDuplicates]="externalDuplicates()"
         [getCellExtraValidators]="cellExtraValidators()"
-        [rowDropListId]="rows().length > 0 ? rowDropListId() : null"
-        [rowDropListConnectedTo]="rows().length > 0 ? rowDropListConnectedTo() : []"
-        [rowSyncRevision]="rowSyncRevision()"
+        [rowDropListId]="!isArrayValuesMode() && rows().length > 0 ? rowDropListId() : null"
+        [rowDropListConnectedTo]="!isArrayValuesMode() && rows().length > 0 ? rowDropListConnectedTo() : []"
+        [rowSyncRevision]="effectiveRowSyncRevision()"
         (rowsChange)="onRowsChange($event)"
         (navigateRow)="onNavigate($event)"
         (crossListDrop)="onCrossListDrop($any($event))"
