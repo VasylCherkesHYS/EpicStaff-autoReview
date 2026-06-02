@@ -437,6 +437,7 @@ def build_graph_global_params(
                 "dynamic_search_max_level",
                 calc_global_dynamic_search_max_level(docs),
             ),
+            dynamic_search_num_repeats=_pick(custom, "dynamic_search_num_repeats", 1),
             **token_fields,
         ),
         clamped,
@@ -477,6 +478,12 @@ def build_graph_drift_params(
             "local_search_llm_max_gen_tokens": _pick(
                 custom, "local_search_llm_max_gen_tokens", None
             ),
+            "reduce_max_completion_tokens": _pick(
+                custom, "reduce_max_completion_tokens", None
+            ),
+            "local_search_llm_max_gen_completion_tokens": _pick(
+                custom, "local_search_llm_max_gen_completion_tokens", None
+            ),
         },
         default_budget,
         is_trusted,
@@ -499,6 +506,10 @@ def build_graph_drift_params(
             local_search_top_k_relationships=_pick(
                 custom, "local_search_top_k_relationships", calc_top_k(chunks)
             ),
+            reduce_temperature=_pick(custom, "reduce_temperature", 0.0),
+            local_search_temperature=_pick(custom, "local_search_temperature", 0.0),
+            local_search_top_p=_pick(custom, "local_search_top_p", 1.0),
+            local_search_n=_pick(custom, "local_search_n", 1),
             **token_fields,
         ),
         clamped,
