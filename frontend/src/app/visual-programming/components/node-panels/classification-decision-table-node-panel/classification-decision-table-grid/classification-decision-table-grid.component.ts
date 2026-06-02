@@ -943,15 +943,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 this.getRowSpan(params, `field_${fieldName}`, (d) => d?.field_expressions?.[fieldName] || ''),
             cellStyle: (params: RowSpanParams<ConditionGroup>) => {
                 const locked = this.isRowLocked(params.data as ConditionGroup);
-                const base = locked
+                return locked
                     ? { fontSize: '13px', fontFamily: 'monospace', color: '#888888' }
                     : { fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' };
-                return this.getSpanCellStyle(
-                    params,
-                    `field_${fieldName}`,
-                    (d) => d?.field_expressions?.[fieldName] || '',
-                    base
-                );
             },
             valueGetter: (params: ValueGetterParams<ConditionGroup>) => {
                 if (this.isRowLocked(params.data as ConditionGroup)) return '*';
@@ -1049,12 +1043,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             cellEditorParams: () => ({ variables: this.collectExpressionVariables() }),
             rowSpan: (params: RowSpanParams<ConditionGroup>) =>
                 this.getRowSpan(params, 'expression', (d) => d?.expression || ''),
-            cellStyle: (params: RowSpanParams<ConditionGroup>) =>
-                this.getSpanCellStyle(params, 'expression', (d) => d?.expression || '', {
-                    fontSize: '13px',
-                    fontFamily: 'monospace',
-                    color: '#d4d4d4',
-                }),
+            cellStyle: () => ({ fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' }),
             valueGetter: (params: ValueGetterParams<ConditionGroup>) =>
                 toDisplayExpression(params.data?.expression ?? ''),
             valueSetter: (params: ValueSetterParams<ConditionGroup>) => {
@@ -1405,24 +1394,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         return span;
     }
 
-    private isCellMerged(params: RowSpanParams<ConditionGroup>, colId: string, idx: number): boolean {
-        const ug = this.unmergedGroup();
-        if (ug && ug.colId === colId && idx >= ug.startRow && idx <= ug.endRow) return false;
-        const val = this.getMergeableValue(params, colId);
-
-        const bounds = this.getHierarchicalBounds(params, colId, idx);
-        const prevNode = idx > bounds.start ? params.api?.getDisplayedRowAtIndex(idx - 1) : null;
-        const nextNode = idx < bounds.end ? params.api?.getDisplayedRowAtIndex(idx + 1) : null;
-        return (
-            !!(prevNode && val === this.getMergeableValueFromData(prevNode.data, colId)) ||
-            !!(nextNode && val === this.getMergeableValueFromData(nextNode.data, colId))
-        );
-    }
-
-    private getMergeableValue(params: RowSpanParams<ConditionGroup>, colId: string): string {
-        return this.getMergeableValueFromData(params.data, colId);
-    }
-
     private getMergeableValueFromData(data: ConditionGroup | undefined, colId: string): string {
         if (!data) return '';
         if (colId === 'expression') return data.expression || '';
@@ -1435,121 +1406,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             return data.field_manipulations?.[field] || '';
         }
         return '';
-    }
-
-    private static hashStr(s: string): number {
-        let h = 0;
-        for (let i = 0; i < s.length; i++) {
-            h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-        }
-        return h;
-    }
-
-    // ── NEW COLORING SYSTEM ──
-    // Leftmost column: evenly spaced hues per group (including empty groups).
-    // Next columns: blend parent hue with own value's hash hue.
-    // Empty cells: inherit left color, no own hue contribution.
-    // Non-merged non-empty cells: no color; breaks chain for columns to the right.
-    // Color lightens going right.
-
-    private getColumnGroupInfo(
-        params: RowSpanParams<ConditionGroup>,
-        colId: string
-    ): { groupIdx: number; totalGroups: number } {
-        const totalRows = params.api?.getDisplayedRowCount?.() ?? 0;
-        const idx = params.node?.rowIndex ?? 0;
-        let groupIdx = 0;
-        let totalGroups = 0;
-        let prevVal: string | null = null;
-        for (let r = 0; r < totalRows; r++) {
-            const node = params.api?.getDisplayedRowAtIndex(r);
-            const val = node ? this.getMergeableValueFromData(node.data, colId) : '';
-            if (prevVal === null || val !== prevVal) {
-                totalGroups++;
-                if (r <= idx) groupIdx = totalGroups - 1;
-            }
-            prevVal = val;
-        }
-        return { groupIdx, totalGroups };
-    }
-
-    private computeCellBg(params: RowSpanParams<ConditionGroup>, colId: string, idx: number): string {
-        const mergeableCols = this.getMergeableColIds();
-        const colIndex = mergeableCols.indexOf(colId);
-        if (colIndex < 0) return '';
-
-        let hue = 0;
-        let depth = 0;
-
-        for (let i = 0; i <= colIndex; i++) {
-            const col = mergeableCols[i];
-            const val = this.getMergeableValue(params, col);
-            const merged = this.isCellMerged(params, col, idx);
-
-            // Non-merged non-empty cell: no color, breaks chain
-            if (val !== '' && !merged) return '';
-
-            if (i === 0) {
-                // Leftmost column: evenly spaced hues for all groups (including empty)
-                const info = this.getColumnGroupInfo(params, col);
-                hue = info.totalGroups > 1 ? (info.groupIdx * 360) / info.totalGroups : 200; // single-group fallback
-                depth++;
-            } else if (val !== '') {
-                // Non-leftmost with value: blend parent hue with value hash
-                const valHash = ClassificationDecisionTableGridComponent.hashStr(val);
-                const valHue = ((Math.abs(valHash) * 0.618033988749895) % 1) * 360;
-                hue = hue * 0.6 + valHue * 0.4; // weighted blend toward parent
-                depth++;
-            }
-            // Empty non-leftmost: just inherit (hue unchanged, depth unchanged)
-        }
-
-        // Lightens going right: saturation decreases, lightness increases
-        const sat = Math.max(18 - depth * 2, 6);
-        const lit = Math.min(13 + depth * 2, 22);
-        return `hsl(${((hue % 360) + 360) % 360}, ${sat}%, ${lit}%)`;
-    }
-
-    private getSpanCellStyle(
-        params: RowSpanParams<ConditionGroup>,
-        colId: string,
-        getValue: (data: ConditionGroup | undefined) => string,
-        baseStyle: Record<string, string>
-    ): Record<string, string> {
-        const style: Record<string, string> = { ...baseStyle };
-        const idx = params.node?.rowIndex ?? 0;
-        const ug = this.unmergedGroup();
-        if (ug && ug.colId === colId && idx >= ug.startRow && idx <= ug.endRow) return style;
-        const cur = getValue(params.data) || '';
-
-        const bounds = this.getHierarchicalBounds(params, colId, idx);
-        const prevNode = idx > bounds.start ? params.api?.getDisplayedRowAtIndex(idx - 1) : null;
-        const nextNode = idx < bounds.end ? params.api?.getDisplayedRowAtIndex(idx + 1) : null;
-        const matchesAbove = prevNode ? cur === (getValue(prevNode.data) || '') : false;
-        const matchesBelow = nextNode ? cur === (getValue(nextNode.data) || '') : false;
-        const isMerged = matchesAbove || matchesBelow;
-
-        // Compute background color
-        const bg = this.computeCellBg(params, colId, idx);
-        if (bg) {
-            style['backgroundColor'] = bg;
-        }
-
-        // Merged cell layout
-        if (isMerged) {
-            style['display'] = 'flex';
-            style['alignItems'] = 'center';
-        }
-
-        // Separator border at top of spanning cell (group boundary)
-        // For empty cells: also add border when this is the first row of the hierarchical bounds
-        // (group boundary even if the cell above is also empty but in a different parent group)
-        const isGroupStart = !matchesAbove && matchesBelow;
-        const isEmptyBoundsStart = cur === '' && isMerged && idx === bounds.start && idx > 0;
-        if (isGroupStart || isEmptyBoundsStart) {
-            style['borderTop'] = '2px solid rgba(255, 255, 255, 0.18)';
-        }
-        return style;
     }
 
     private findMergeGroup(colId: string, rowIndex: number): { startRow: number; endRow: number } {
