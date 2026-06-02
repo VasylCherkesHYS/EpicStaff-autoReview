@@ -13,8 +13,9 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
+import { computeUniqueName } from '@shared/utils';
 import { Subject } from 'rxjs';
-import { switchMap, takeUntil } from 'rxjs/operators';
+import { map, switchMap, takeUntil } from 'rxjs/operators';
 
 import { FlowsApiService } from '../../features/flows/services/flows-api.service';
 import { RunGraphService } from '../../features/flows/services/run-graph-session.service';
@@ -25,9 +26,9 @@ import { ButtonComponent } from '../../shared/components/buttons/button/button.c
 import { ConfirmationDialogService } from '../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { SaveWithIndicatorComponent } from '../../shared/components/save-with-indicator/save-with-indicator.component';
 import { UnsavedIndicatorComponent } from '../../shared/components/unsaved-indicator/unsaved-indicator.component';
-import { NODE_COLORS } from '../../visual-programming/core/enums/node-config';
-import { NODE_ICONS } from '../../visual-programming/core/enums/node-config';
 import { NodeType } from '../../visual-programming/core/enums/node-type';
+import { ProjectNodeModel } from '../../visual-programming/core/models/node.model';
+import { NodeFactoryService } from '../../visual-programming/services/node-factory.service';
 import { ProjectStateService } from '../services/project-state.service';
 import { EditTitleDialogComponent } from './edit-name-dialog/edit-title-dialog.component';
 
@@ -65,7 +66,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
         private toastService: ToastService,
         private cdr: ChangeDetectorRef,
         private flowsApiService: FlowsApiService,
-        private confirmationDialog: ConfirmationDialogService
+        private confirmationDialog: ConfirmationDialogService,
+        private nodeFactoryService: NodeFactoryService
     ) {}
 
     ngOnInit(): void {
@@ -165,46 +167,37 @@ export class HeaderComponent implements OnInit, OnDestroy {
             .subscribe((result) => {
                 if (result === true) {
                     const project = this.project;
+                    const node: ProjectNodeModel = this.nodeFactoryService.createNode(NodeType.PROJECT, {
+                        data: project!,
+                        position: { x: 200, y: 200 },
+                    }) as ProjectNodeModel;
+                    const metadata = {
+                        nodes: [node],
+                        connections: [],
+                        groups: [],
+                    };
                     this.flowsApiService
-                        .createGraph({
-                            name: `${project!.name} Flow`,
-                            description: '',
-                            metadata: { connections: [], groups: [] },
-                            tags: [],
-                        })
+                        .getGraphsLight()
                         .pipe(
-                            switchMap((response) => {
-                                const savePayload = {
-                                    crew_node_list: [
-                                        {
-                                            graph: response.id,
-                                            crew_id: project!.id,
-                                            node_name: `${project!.name} (#1)`,
-                                            metadata: {
-                                                position: { x: 200, y: 200 },
-                                                color: NODE_COLORS[NodeType.PROJECT],
-                                                icon: NODE_ICONS[NodeType.PROJECT],
-                                                size: { width: 330, height: 60 },
-                                            },
-                                            input_map: {},
-                                            output_variable_path: null,
-                                            stream_config: {},
-                                        },
-                                    ],
-                                    python_node_list: [],
-                                    start_node_list: [],
-                                    connections: [],
-                                };
-                                return this.flowsApiService.bulkSaveGraph(response.id, savePayload);
-                            })
+                            map((graphs) =>
+                                computeUniqueName(
+                                    `${project!.name} Flow`,
+                                    graphs.map((g) => g.name)
+                                )
+                            ),
+                            switchMap((uniqueName) =>
+                                this.flowsApiService.createGraph({
+                                    name: uniqueName,
+                                    description: '',
+                                    metadata,
+                                    tags: [],
+                                })
+                            ),
+                            takeUntil(this.destroy$)
                         )
                         .subscribe({
-                            next: (saved) => {
-                                this.router.navigate(['/flows', saved.id]);
-                            },
-                            error: () => {
-                                this.toastService.error('Failed to create flow');
-                            },
+                            next: (response) => this.router.navigate(['/flows', response.id]),
+                            error: () => this.toastService.error('Failed to create flow'),
                         });
                 }
             });
