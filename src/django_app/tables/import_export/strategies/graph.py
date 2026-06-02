@@ -87,6 +87,7 @@ class GraphStrategy(EntityImportExportStrategy):
         serializer.is_valid(raise_exception=True)
         graph = serializer.save()
 
+        # TODO: rbac refactor
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.get_or_create(graph=graph, organization=organization)
 

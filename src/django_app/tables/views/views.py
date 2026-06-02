@@ -450,7 +450,7 @@ class RunSession(APIView):
             )
 
         graph_id = graph.id
-
+        # TODO: rbac refactor
         graph_organization = GraphOrganization.objects.filter(
             graph__id=graph_id
         ).first()
@@ -485,7 +485,7 @@ class RunSession(APIView):
                     },
                     status=status.HTTP_404_NOT_FOUND,
                 )
-
+            # TODO: rbac refactor
             graph_organization_user, _ = GraphOrganizationUser.objects.get_or_create(
                 organization_user=membership,
                 graph=graph,

@@ -822,6 +822,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         created_graph = serializer.save()
+        # TODO: rbac refactor
         # TODO: RESOLVE BY X-Organization-Id header
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.create(graph=created_graph, organization=organization)
@@ -1347,13 +1348,13 @@ class McpToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-# TODO: refactor for rbac
+# TODO: rbac refactor
 class GraphOrganizationViewSet(viewsets.ModelViewSet):
     queryset = GraphOrganization.objects.all()
     serializer_class = GraphOrganizationSerializer
 
 
-# TODO: refactor for rbac
+# TODO: rbac refactor
 class GraphOrganizationUserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GraphOrganizationUser.objects.all()
     serializer_class = GraphOrganizationUserSerializer

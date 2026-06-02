@@ -61,6 +61,7 @@ class StartNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer)
             setattr(instance, attr, value)
         instance.save()
 
+        # TODO: rbac refactor
         graph_organization = GraphOrganization.objects.filter(
             graph=instance.graph
         ).first()

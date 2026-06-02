@@ -666,6 +666,7 @@ class ConverterService(metaclass=SingletonMeta):
 
         storage_org_prefix = None
         if python_node.use_storage and graph_id is not None:
+            # TODO: rbac refactor
             graph_org = GraphOrganization.objects.filter(graph_id=graph_id).first()
             if graph_org is not None:
                 storage_org_prefix = f"org_{graph_org.organization_id}"

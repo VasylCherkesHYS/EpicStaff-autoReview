@@ -105,7 +105,7 @@ class SessionManagerService(metaclass=SingletonMeta):
         variables = self._get_actual_variables(variables)
 
         time_to_live = Graph.objects.get(pk=graph_id).time_to_live
-        # TODO: replace with
+        # TODO: rbac refactor, replace with
         # request.user + org context instead of email lookup.
         graph_user = GraphOrganizationUser.objects.filter(
             organization_user__user__email=username, graph_id=graph_id

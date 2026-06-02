@@ -22,6 +22,7 @@ class PersistentVariablesService:
             self._set_by_path(result, path, value)
         return result
 
+    # TODO: rbac refactor
     def sync_graph_organization(
         self,
         graph_organization: GraphOrganization,

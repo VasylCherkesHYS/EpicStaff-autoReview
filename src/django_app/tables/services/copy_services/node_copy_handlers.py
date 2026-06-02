@@ -37,7 +37,7 @@ def copy_start_node(graph: Graph, node: StartNode) -> StartNode:
         variables=node.variables,
         metadata=node.metadata,
     )
-
+    # TODO: rbac refactor
     source_org = GraphOrganization.objects.filter(graph=node.graph).first()
     if source_org:
         service = PersistentVariablesService()
