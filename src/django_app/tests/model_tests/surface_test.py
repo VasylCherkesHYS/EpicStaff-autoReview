@@ -1,11 +1,16 @@
 import pytest
 
+from tables.exceptions import SurfaceValidationError
 from tables.models.agent_models import Surface, InlineSurface
 from tables.models.mcp_models import McpTool
 from tables.models.python_models import PythonCodeTool, PythonCode
 from tables.models.knowledge_models.collection_models import SourceCollection
 from tables.models.graph_models import StorageFile
 from tables.models.rbac_models import Organization
+from tables.serializers.model_serializers.surface_serializers import (
+    InlineSurfaceWriteSerializer,
+    SurfaceWriteSerializer,
+)
 from tables.services.surface_service import SurfaceService
 
 
@@ -296,3 +301,145 @@ def test_combine_empty_instructions_skipped(org):
     result = SurfaceService.combine(surface_a, surface_b)
 
     assert result.additional_instructions == "only"
+
+
+# ---------------------------------------------------------------------------
+# SurfaceWriteSerializer — allow/deny conflict validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_surface_write_serializer_rejects_python_tool_in_both_allow_and_deny(
+    org, py_tool_a
+):
+    serializer = SurfaceWriteSerializer(
+        data={
+            "name": "conflict-surface",
+            "allowed_python_tools": [py_tool_a.pk],
+            "disabled_python_tools": [py_tool_a.pk],
+        },
+        context={"organization": org},
+    )
+
+    with pytest.raises(SurfaceValidationError) as exc_info:
+        serializer.is_valid(raise_exception=True)
+
+    assert "disabled_python_tools" in exc_info.value.detail
+    assert str(py_tool_a.pk) in str(exc_info.value.detail["disabled_python_tools"])
+
+
+@pytest.mark.django_db
+def test_surface_write_serializer_rejects_mcp_tool_in_both_allow_and_deny(
+    org, mcp_tool_a
+):
+    serializer = SurfaceWriteSerializer(
+        data={
+            "name": "conflict-mcp-surface",
+            "allowed_mcp_tools": [mcp_tool_a.pk],
+            "disabled_mcp_tools": [mcp_tool_a.pk],
+        },
+        context={"organization": org},
+    )
+
+    with pytest.raises(SurfaceValidationError) as exc_info:
+        serializer.is_valid(raise_exception=True)
+
+    assert "disabled_mcp_tools" in exc_info.value.detail
+    assert str(mcp_tool_a.pk) in str(exc_info.value.detail["disabled_mcp_tools"])
+
+
+@pytest.mark.django_db
+def test_surface_write_serializer_rejects_knowledge_collection_in_both_allow_and_deny(
+    org, collection_a
+):
+    serializer = SurfaceWriteSerializer(
+        data={
+            "name": "conflict-kn-surface",
+            "allowed_knowledge_collections": [collection_a.pk],
+            "disabled_knowledge_collections": [collection_a.pk],
+        },
+        context={"organization": org},
+    )
+
+    with pytest.raises(SurfaceValidationError) as exc_info:
+        serializer.is_valid(raise_exception=True)
+
+    assert "disabled_knowledge_collections" in exc_info.value.detail
+    assert str(collection_a.pk) in str(
+        exc_info.value.detail["disabled_knowledge_collections"]
+    )
+
+
+@pytest.mark.django_db
+def test_surface_write_serializer_rejects_storage_file_in_both_allow_and_deny(
+    org, storage_file_a
+):
+    serializer = SurfaceWriteSerializer(
+        data={
+            "name": "conflict-st-surface",
+            "allowed_storage_files": [storage_file_a.pk],
+            "disabled_storage_files": [storage_file_a.pk],
+        },
+        context={"organization": org},
+    )
+
+    with pytest.raises(SurfaceValidationError) as exc_info:
+        serializer.is_valid(raise_exception=True)
+
+    assert "disabled_storage_files" in exc_info.value.detail
+    assert str(storage_file_a.pk) in str(
+        exc_info.value.detail["disabled_storage_files"]
+    )
+
+
+@pytest.mark.django_db
+def test_surface_write_serializer_passes_when_no_allow_deny_overlap(
+    org, py_tool_a, py_tool_b
+):
+    serializer = SurfaceWriteSerializer(
+        data={
+            "name": "no-conflict-surface",
+            "allowed_python_tools": [py_tool_a.pk],
+            "disabled_python_tools": [py_tool_b.pk],
+        },
+        context={"organization": org},
+    )
+
+    assert serializer.is_valid() is True
+
+
+# ---------------------------------------------------------------------------
+# InlineSurfaceWriteSerializer — allow/deny conflict validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_inline_surface_write_serializer_rejects_python_tool_in_both_allow_and_deny(
+    py_tool_a,
+):
+    serializer = InlineSurfaceWriteSerializer(
+        data={
+            "allowed_python_tools": [py_tool_a.pk],
+            "disabled_python_tools": [py_tool_a.pk],
+        },
+    )
+
+    with pytest.raises(SurfaceValidationError) as exc_info:
+        serializer.is_valid(raise_exception=True)
+
+    assert "disabled_python_tools" in exc_info.value.detail
+    assert str(py_tool_a.pk) in str(exc_info.value.detail["disabled_python_tools"])
+
+
+@pytest.mark.django_db
+def test_inline_surface_write_serializer_passes_when_no_allow_deny_overlap(
+    py_tool_a, py_tool_b
+):
+    serializer = InlineSurfaceWriteSerializer(
+        data={
+            "allowed_python_tools": [py_tool_a.pk],
+            "disabled_python_tools": [py_tool_b.pk],
+        },
+    )
+
+    assert serializer.is_valid() is True

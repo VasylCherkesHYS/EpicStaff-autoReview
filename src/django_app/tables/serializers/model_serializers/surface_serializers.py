@@ -6,6 +6,7 @@ from tables.models.knowledge_models.collection_models import SourceCollection
 from tables.models.mcp_models import McpTool
 from tables.models.python_models import PythonCodeTool
 from tables.services.surface_service import SurfaceService
+from tables.validators.surface_validator import SurfaceValidator
 
 
 class SurfaceReadSerializer(serializers.ModelSerializer):
@@ -79,6 +80,7 @@ class SurfaceWriteSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        SurfaceValidator.validate_no_allow_deny_conflicts(attrs)
         SurfaceService.validate_surface_data(
             instance=self.instance,
             organization=self.context["organization"],
@@ -161,3 +163,7 @@ class InlineSurfaceWriteSerializer(serializers.ModelSerializer):
             "allowed_storage_files",
             "disabled_storage_files",
         ]
+
+    def validate(self, attrs):
+        SurfaceValidator.validate_no_allow_deny_conflicts(attrs)
+        return attrs
