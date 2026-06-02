@@ -5,7 +5,7 @@ import { ButtonComponent, CustomInputComponent, ValidationErrorsComponent } from
 import { CatalogResponse, GetRoleResponse } from '@shared/models';
 import { rolePermissionsToSet } from '@shared/utils';
 
-import { RolesCatalogService } from '../../services/roles-catalog.service';
+import { PermissionsService } from '../../../../services/auth/permissions.service';
 import { PermissionsTableComponent } from '../permissions-table/permissions-table.component';
 
 export interface CreateRoleDialogData {
@@ -28,7 +28,7 @@ export interface CreateRoleDialogData {
 export class CreateRoleDialogComponent {
     private dialogRef = inject(DialogRef);
     private dialogData = inject<CreateRoleDialogData>(DIALOG_DATA, { optional: true });
-    private rolesCatalogService = inject(RolesCatalogService);
+    private rolesCatalogService = inject(PermissionsService);
 
     readonly isEditMode = !!this.dialogData?.role;
 

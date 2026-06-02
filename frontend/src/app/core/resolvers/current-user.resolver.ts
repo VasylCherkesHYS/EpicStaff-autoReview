@@ -3,15 +3,16 @@ import { ResolveFn } from '@angular/router';
 import { GetMeResponse } from '@shared/models';
 import { forkJoin, map, of } from 'rxjs';
 
-import { RolesCatalogService } from '../../features/role-base-access/services/roles-catalog.service';
+import { PermissionsService } from '../../services/auth/permissions.service';
 import { ProfileService } from '../../services/auth/profile.service';
 
 export const currentUserResolver: ResolveFn<GetMeResponse | null> = () => {
     const profileService = inject(ProfileService);
-    const rolesCatalogService = inject(RolesCatalogService);
+    const rolesCatalogService = inject(PermissionsService);
 
     const cached = profileService.currentUserSignal();
-    if (cached) {
+    // Only skip bootstrap when both user AND permissions are already hydrated
+    if (cached && rolesCatalogService.active() !== null) {
         rolesCatalogService.loadCatalog().subscribe();
         return of(cached);
     }

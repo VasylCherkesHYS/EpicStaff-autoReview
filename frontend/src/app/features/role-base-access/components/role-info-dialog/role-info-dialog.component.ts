@@ -4,7 +4,7 @@ import { AppSvgIconComponent } from '@shared/components';
 import { CatalogResponse, GetRoleResponse } from '@shared/models';
 import { rolePermissionsToSet } from '@shared/utils';
 
-import { RolesCatalogService } from '../../services/roles-catalog.service';
+import { PermissionsService } from '../../../../services/auth/permissions.service';
 import { PermissionsTableComponent } from '../permissions-table/permissions-table.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
@@ -17,7 +17,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 })
 export class RoleInfoDialogComponent {
     private dialogRef = inject(DialogRef);
-    private rolesCatalogService = inject(RolesCatalogService);
+    private rolesCatalogService = inject(PermissionsService);
 
     readonly role = inject<GetRoleResponse>(DIALOG_DATA);
     readonly catalog = computed<CatalogResponse | null>(() => this.rolesCatalogService.catalog());

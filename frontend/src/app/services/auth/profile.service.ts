@@ -9,7 +9,7 @@ import {
     UpdateMeRequest,
     UserRole,
 } from '@shared/models';
-import { Observable, of, switchMap } from 'rxjs';
+import { map, Observable, of, switchMap } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
 import { ROLE_LABELS } from '../../features/role-base-access/constants/role-labels.constant';
@@ -46,38 +46,21 @@ export class ProfileService {
         return highestRole !== null ? (ROLE_LABELS[highestRole] ?? '—') : '—';
     });
 
-    // TODO will be replaced with directive with migration to permission-verify logic
-    canManageOrgs = computed(() => {
-        const currentUser = this.currentUserSignal();
-        if (!currentUser) return false;
-
-        return currentUser.is_superadmin;
-    });
-
-    canManageUsers = computed(() => {
-        const currentUser = this.currentUserSignal();
-        if (!currentUser) return false;
-
-        return currentUser.is_superadmin || currentUser.memberships.some(({ role }) => role.id === UserRole.ORG_ADMIN);
-    });
-
-    canManageRoles = computed(() => {
-        const currentUser = this.currentUserSignal();
-        if (!currentUser) return false;
-
-        return currentUser.is_superadmin;
-    });
-
     /** Simple single fetch — use for refreshing profile data mid-session. */
     getCurrentUser(): Observable<GetMeResponse> {
         return this.http.get<GetMeResponse>(this.baseUrl).pipe(tap((user) => this.setUser(user)));
     }
 
-    /** Two-phase bootstrap: fetches profile, picks active org, re-fetches with org header
-     *  to hydrate active_permissions. Called once by the route resolver on app load. */
+    /** Bootstrap: picks active org, then fetches active permissions.
+     *  Reuses cached profile if already fetched; otherwise fetches profile first.
+     *  Called once by the route resolver on app load. */
     bootstrapUser(): Observable<GetMeResponse> {
-        return this.http.get<GetMeResponse>(this.baseUrl).pipe(
-            tap((user) => this.setUser(user)),
+        const cachedUser = this.currentUserSignal();
+        const user$ = cachedUser
+            ? of(cachedUser)
+            : this.http.get<GetMeResponse>(this.baseUrl).pipe(tap((u) => this.setUser(u)));
+
+        return user$.pipe(
             switchMap((user) => {
                 if (user.memberships.length === 0) {
                     this.permissionsService.setActivePermissions(null);
@@ -89,13 +72,8 @@ export class ProfileService {
                 const orgId = stillValid ? cachedId! : user.memberships[0].organization.id;
                 this.activeOrgService.set(orgId);
 
-                // Re-fetch with X-Organization-Id header now attached by the interceptor
-                return this.http.get<GetMeResponse>(this.baseUrl).pipe(
-                    tap((fullUser) => {
-                        this.setUser(fullUser);
-                        this.permissionsService.setActivePermissions(fullUser.active_permissions);
-                    })
-                );
+                // Fetch active permissions with X-Organization-Id header now attached by the interceptor
+                return this.permissionsService.loadActivePermissions().pipe(map(() => user));
             })
         );
     }

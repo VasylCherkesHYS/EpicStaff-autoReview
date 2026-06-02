@@ -14,6 +14,7 @@ export type ResourceCode =
     | 'secrets';
 
 export interface ActivePermissions {
+    org_id: number;
     is_superadmin: boolean;
     role: { id: number; name: string } | null;
     permissions: '*' | Record<ResourceCode, ActionCode[]>;
