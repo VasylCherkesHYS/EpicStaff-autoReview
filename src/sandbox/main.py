@@ -31,20 +31,21 @@ async def init():
 async def listen_redis():
     logger.info(f"Subscribed to channel '{task_channel}' for code execution tasks.")
 
-    pubsub = await redis_service.async_subscribe(task_channel)
-
-    async for message in pubsub.listen():
-        if message["type"] == "message":
-            try:
-                logger.info(f"Received message: {message['data']}")
-
-                data = json.loads(message["data"])
-                code_task_data = CodeTaskData(**data)
-
-                asyncio.create_task(run(code_task_data=code_task_data))
-
-            except Exception as e:
-                logger.error(f"Error processing message: {e}")
+    while True:
+        try:
+            pubsub = await redis_service.async_subscribe(task_channel)
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        logger.info(f"Received message: {message['data']}")
+                        data = json.loads(message["data"])
+                        code_task_data = CodeTaskData(**data)
+                        asyncio.create_task(run(code_task_data=code_task_data))
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+        except Exception as e:
+            logger.error(f"Redis listener disconnected, reconnecting in 1s: {e}")
+            await asyncio.sleep(1)
 
 
 async def run(code_task_data: CodeTaskData):
