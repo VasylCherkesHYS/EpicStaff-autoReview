@@ -33,6 +33,7 @@ class VariableTypeInput(StrEnum):
 
 
 class VariableType(StrEnum):
+    ANY = "any"
     STRING = "string"
     NUMBER = "number"
     BOOLEAN = "boolean"
@@ -51,6 +52,14 @@ class BaseNestedVariable(BaseModel, ABC):
     @abstractmethod
     def python_type(self):
         """Variable in Python type"""
+
+
+class AnyNestedVariable(BaseNestedVariable):
+    type: Literal[VariableType.ANY] = VariableType.ANY
+
+    @property
+    def python_type(self):
+        return Any
 
 
 class StringNestedVariable(BaseNestedVariable):
@@ -103,6 +112,7 @@ class ArrayNestedVariable(BaseNestedVariable):
 
 NestedVariable = Annotated[
     Union[
+        AnyNestedVariable,
         StringNestedVariable,
         NumberNestedVariable,
         BooleanNestedVariable,
@@ -119,6 +129,10 @@ class BaseVariable(BaseModel):
     required: bool = False
 
     model_config = ConfigDict(frozen=True)
+
+
+class AnyVariable(BaseVariable, AnyNestedVariable):
+    pass
 
 
 class StringVariable(BaseVariable, StringNestedVariable):
@@ -143,6 +157,7 @@ class ArrayVariable(BaseVariable, ArrayNestedVariable):
 
 Variable = Annotated[
     Union[
+        AnyVariable,
         StringVariable,
         NumberVariable,
         BooleanVariable,
