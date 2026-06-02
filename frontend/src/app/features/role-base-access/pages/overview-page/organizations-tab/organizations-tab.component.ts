@@ -71,7 +71,7 @@ export class OrganizationsTabComponent implements OnInit {
         { key: 'members', label: 'Members', width: '1fr' },
         { key: 'created', label: 'Created', width: '1.5fr' },
         { key: 'status', label: 'Status', width: '1.5fr', filterItems: STATUS_ITEMS },
-        { key: 'actions', label: 'Actions', width: '1fr', align: 'center' },
+        { key: 'actions', label: 'Actions', width: '130px', align: 'center' },
     ];
 
     organizations = this.organizationStorage.organizations;

@@ -9,11 +9,13 @@ import {
     UpdateMeRequest,
     UserRole,
 } from '@shared/models';
-import { Observable } from 'rxjs';
+import { Observable, of, switchMap } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
 import { ROLE_LABELS } from '../../features/role-base-access/constants/role-labels.constant';
 import { ConfigService } from '../config';
+import { ActiveOrgService } from './active-org.service';
+import { PermissionsService } from './permissions.service';
 
 @Injectable({
     providedIn: 'root',
@@ -21,6 +23,8 @@ import { ConfigService } from '../config';
 export class ProfileService {
     private readonly http = inject(HttpClient);
     private readonly configService = inject(ConfigService);
+    private readonly activeOrgService = inject(ActiveOrgService);
+    private readonly permissionsService = inject(PermissionsService);
 
     private get baseUrl(): string {
         return `${this.configService.apiUrl}profile/`;
@@ -64,8 +68,36 @@ export class ProfileService {
         return currentUser.is_superadmin;
     });
 
+    /** Simple single fetch — use for refreshing profile data mid-session. */
     getCurrentUser(): Observable<GetMeResponse> {
         return this.http.get<GetMeResponse>(this.baseUrl).pipe(tap((user) => this.setUser(user)));
+    }
+
+    /** Two-phase bootstrap: fetches profile, picks active org, re-fetches with org header
+     *  to hydrate active_permissions. Called once by the route resolver on app load. */
+    bootstrapUser(): Observable<GetMeResponse> {
+        return this.http.get<GetMeResponse>(this.baseUrl).pipe(
+            tap((user) => this.setUser(user)),
+            switchMap((user) => {
+                if (user.memberships.length === 0) {
+                    this.permissionsService.setActivePermissions(null);
+                    return of(user);
+                }
+
+                const cachedId = this.activeOrgService.activeOrgId();
+                const stillValid = cachedId !== null && user.memberships.some((m) => m.organization.id === cachedId);
+                const orgId = stillValid ? cachedId! : user.memberships[0].organization.id;
+                this.activeOrgService.set(orgId);
+
+                // Re-fetch with X-Organization-Id header now attached by the interceptor
+                return this.http.get<GetMeResponse>(this.baseUrl).pipe(
+                    tap((fullUser) => {
+                        this.setUser(fullUser);
+                        this.permissionsService.setActivePermissions(fullUser.active_permissions);
+                    })
+                );
+            })
+        );
     }
 
     updateCurrentUser(dto: UpdateMeRequest): Observable<GetMeResponse> {

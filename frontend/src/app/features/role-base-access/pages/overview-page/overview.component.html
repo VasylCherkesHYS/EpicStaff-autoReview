@@ -14,6 +14,7 @@
                 </h1>
             </div>
         </div>
+        <!--        TODO use permissions for checking-->
         <nav class="overview-tabs">
             @if (currentUserService.canManageOrgs()) {
                 <a
@@ -52,6 +53,20 @@
                         icon="profile"
                     />
                     Users
+                </a>
+            }
+            @if (currentUserService.canManageRoles()) {
+                <span class="tab-divider">/</span>
+                <a
+                    routerLink="roles"
+                    routerLinkActive="active"
+                    class="overview-tab"
+                >
+                    <app-svg-icon
+                        size="18px"
+                        icon="briefcase"
+                    />
+                    Roles
                 </a>
             }
         </nav>

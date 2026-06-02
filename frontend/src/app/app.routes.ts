@@ -273,6 +273,13 @@ export const routes: Routes = [
                                         (m) => m.UsersTabComponent
                                     ),
                             },
+                            {
+                                path: 'roles',
+                                loadComponent: () =>
+                                    import('./features/role-base-access/pages/overview-page/roles-tab/roles-tab.component').then(
+                                        (m) => m.RolesTabComponent
+                                    ),
+                            },
                         ],
                     },
                     {

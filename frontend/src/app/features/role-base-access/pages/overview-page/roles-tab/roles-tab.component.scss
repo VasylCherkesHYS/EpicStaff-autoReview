@@ -2,23 +2,17 @@
 
 @include shared.tab-base;
 
-.org-cell {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-
-.org-name {
+.role-name {
     font-size: 14px;
+    font-weight: 500;
     color: var(--text);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.user-role {
-    font-size: 10px;
+.description-text {
+    font-size: 14px;
     color: var(--text-secondary-60);
     white-space: nowrap;
     overflow: hidden;

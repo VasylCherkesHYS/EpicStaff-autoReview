@@ -12,6 +12,7 @@ import {
     SelectItem,
     TableRow,
 } from '@shared/components';
+import { getRelativeTime } from '@shared/utils';
 import { finalize } from 'rxjs/operators';
 
 import { ProfileService } from '../../../../../services/auth/profile.service';
@@ -90,7 +91,7 @@ export class UsersTabComponent implements OnInit {
         { key: 'organization', label: 'ORGANIZATION', width: '1.5fr', filterItems: this.orgFilterItems() },
         { key: 'lastActive', label: 'LAST ACTIVE', width: '1.5fr' },
         { key: 'status', label: 'STATUS', width: '1.5fr', filterItems: STATUS_ITEMS },
-        { key: 'actions', label: 'ACTIONS', width: '1fr', align: 'center' },
+        { key: 'actions', label: 'ACTIONS', width: '130px', align: 'center' },
     ]);
 
     ngOnInit(): void {
@@ -100,18 +101,6 @@ export class UsersTabComponent implements OnInit {
     formatDate(date: unknown): string {
         if (!(date instanceof Date)) return '';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    getRelativeTime(date: unknown): string {
-        if (!(date instanceof Date)) return '';
-        const diffMs = Date.now() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        if (diffMins < 60) return `${diffMins} m ago`;
-        const diffHours = Math.floor(diffMins / 60);
-        if (diffHours < 24) return `${diffHours} h ago`;
-        const diffDays = Math.floor(diffHours / 24);
-        if (diffDays < 30) return `${diffDays} d ago`;
-        return `${Math.floor(diffDays / 30)} m ago`;
     }
 
     statusLabel(status: string): string {
@@ -194,4 +183,6 @@ export class UsersTabComponent implements OnInit {
             status: user.isActive ? 'online' : 'offline',
         };
     }
+
+    protected readonly getRelativeTime = getRelativeTime;
 }
