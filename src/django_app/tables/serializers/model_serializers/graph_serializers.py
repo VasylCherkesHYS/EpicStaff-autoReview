@@ -12,7 +12,6 @@ from tables.serializers.model_serializers.node_serializers.basic_node_serializer
     CrewNodeSerializer,
     EdgeSerializer,
     FileExtractorNodeSerializer,
-    LLMNodeSerializer,
     PythonNodeSerializer,
     SubGraphNodeSerializer,
 )
@@ -145,7 +144,6 @@ class GraphSerializer(serializers.ModelSerializer):
     )
     edge_list = EdgeSerializer(many=True, read_only=True)
     conditional_edge_list = ConditionalEdgeSerializer(many=True, read_only=True)
-    llm_node_list = LLMNodeSerializer(many=True, read_only=True)
     webhook_trigger_node_list = WebhookTriggerNodeSerializer(many=True, read_only=True)
     start_node_list = StartNodeSerializer(many=True, read_only=True)
     decision_table_node_list = DecisionTableNodeSerializer(many=True, read_only=True)
@@ -177,7 +175,6 @@ class GraphSerializer(serializers.ModelSerializer):
             "audio_transcription_node_list",
             "edge_list",
             "conditional_edge_list",
-            "llm_node_list",
             "webhook_trigger_node_list",
             "decision_table_node_list",
             "subgraph_node_list",
