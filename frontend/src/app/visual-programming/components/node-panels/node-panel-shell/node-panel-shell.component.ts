@@ -152,7 +152,10 @@ export class NodePanelShellComponent {
         form?: { invalid: boolean };
         onSaveClick?: () => void;
     } | null>(null);
-    protected readonly showSaveButton = computed(() => this.panelInstanceSig()?.isDirty?.() ?? false);
+    protected readonly showSaveButton = computed(() => {
+        const panel = this.panelInstanceSig();
+        return (panel?.isDirty?.() ?? false) && !!panel?.onSaveClick;
+    });
     private previousNodeId: string | null = null;
     private isUpdatingNode = false;
     private isAutosaving = false;
@@ -266,7 +269,7 @@ export class NodePanelShellComponent {
         if (
             this.panelInstance &&
             typeof this.panelInstance.onSave === 'function' &&
-            this.panelInstanceSig()?.isDirty?.()
+            (this.panelInstanceSig()?.isDirty?.() ?? true)
         ) {
             const updatedNode = this.panelInstance.onSave();
             if (updatedNode) {
@@ -281,7 +284,7 @@ export class NodePanelShellComponent {
         if (
             this.panelInstance &&
             typeof this.panelInstance.onSave === 'function' &&
-            this.panelInstanceSig()?.isDirty?.()
+            (this.panelInstanceSig()?.isDirty?.() ?? true)
         ) {
             const updatedNode = this.panelInstance.onSave();
             if (updatedNode) {
