@@ -749,12 +749,25 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
         const currentTestKeys = new Set(testValues.map((item) => item.key?.trim() ?? '').filter((k) => k !== ''));
 
         const removedKeys = new Set<string>();
-        snapshotKeys.forEach((k) => {
-            if (!currentTestKeys.has(k)) removedKeys.add(k);
+        snapshot.forEach((item) => {
+            const k = item.key?.trim() ?? '';
+            if (k !== '' && !currentTestKeys.has(k)) removedKeys.add(k);
         });
-        const addedKeys = new Set<string>();
-        currentTestKeys.forEach((k) => {
-            if (!snapshotKeys.has(k)) addedKeys.add(k);
+
+        // A rename surfaces as removed(old)+added(new); positional zip lets the new key
+        // inherit the original value instead of resetting to the 'variables.' placeholder.
+        const removedSnapshotValues = snapshot
+            .map((item) => ({ key: item.key?.trim() ?? '', value: item.value ?? '' }))
+            .filter((item) => item.key !== '' && removedKeys.has(item.key));
+
+        const addedKeys: string[] = [];
+        const seenAdded = new Set<string>();
+        testValues.forEach((item) => {
+            const k = item.key?.trim() ?? '';
+            if (k !== '' && !snapshotKeys.has(k) && !seenAdded.has(k)) {
+                seenAdded.add(k);
+                addedKeys.push(k);
+            }
         });
 
         let changed = false;
@@ -767,15 +780,16 @@ export class InputMapComponent implements OnInit, OnChanges, OnDestroy {
             }
         }
 
-        for (const newKey of addedKeys) {
+        addedKeys.forEach((newKey, idx) => {
+            const inheritedValue = removedSnapshotValues[idx]?.value ?? 'variables.';
             this.pairs.push(
                 this.fb.group({
                     key: [newKey],
-                    value: ['variables.'],
+                    value: [inheritedValue],
                 })
             );
             changed = true;
-        }
+        });
 
         this.attachKeyMirroringToAllPairs();
 
