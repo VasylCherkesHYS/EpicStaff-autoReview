@@ -15,6 +15,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from django.core.management.utils import get_random_secret_key
 from dotenv import find_dotenv, load_dotenv
 from loguru import logger
@@ -117,6 +118,7 @@ REST_FRAMEWORK = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_headers, "x-organization-id")
 
 JWT_SECRET = os.getenv("JWT_SECRET", SECRET_KEY)
 
