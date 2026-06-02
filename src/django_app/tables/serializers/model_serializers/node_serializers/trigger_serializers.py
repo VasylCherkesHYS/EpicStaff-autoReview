@@ -18,7 +18,11 @@ from tables.serializers.base_serializer import (
     BaseGraphEntityMixin,
     ContentHashWritableMixin,
 )
-from tables.serializers.utils.mixins import NestedPythonCodeMixin, WebhookCreationMixin
+from tables.serializers.utils.mixins import (
+    NestedPythonCodeMixin,
+    WebhookCreationMixin,
+    WebhookTriggerIntRefMixin,
+)
 from tables.serializers.base_serializers import (
     WebhookTriggerNestedSerializer,
 )
@@ -27,6 +31,7 @@ from tables.serializers.base_serializers import (
 class WebhookTriggerNodeSerializer(
     BaseGraphEntityMixin,
     NestedPythonCodeMixin,
+    WebhookTriggerIntRefMixin,
     WebhookCreationMixin,
     serializers.ModelSerializer,
 ):
@@ -44,21 +49,7 @@ class WebhookTriggerNodeSerializer(
             "webhook_trigger",
         ] + BaseGraphEntityMixin.Meta.common_fields
 
-    def to_internal_value(self, data):
-        # COMMIT_COMMENTS: Accept webhook_trigger as int FK ID (sent by frontend
-        # after loading from backend) in addition to nested dict — prevents
-        # validation error when the frontend round-trips the serialized data.
-        wt = data.get("webhook_trigger")
-        if isinstance(wt, int):
-            self._webhook_trigger_id = wt
-            data = data.copy()
-            data["webhook_trigger"] = None
-        else:
-            self._webhook_trigger_id = None
-        return super().to_internal_value(data)
-
     def _wait_for_tunnel_url(self, webhook_trigger):
-        """After create/update, poll Redis for the tunnel URL if a config is present."""
         from tables.services.webhook_trigger_service import WebhookTriggerService
 
         if webhook_trigger is None:
@@ -71,35 +62,26 @@ class WebhookTriggerNodeSerializer(
 
     def create(self, validated_data):
         webhook_trigger_data = validated_data.pop("webhook_trigger", None)
-        wt_id = getattr(self, "_webhook_trigger_id", None)
-
-        if wt_id:
-            validated_data["webhook_trigger"] = WebhookTrigger.objects.filter(
-                id=wt_id
-            ).first()
-        elif webhook_trigger_data:
-            trigger, _ = self._get_or_create_webhook_trigger(webhook_trigger_data)
-            validated_data["webhook_trigger"] = trigger
-            self._wait_for_tunnel_url(trigger)
+        if not self._apply_webhook_trigger_fk_to_create(validated_data):
+            if webhook_trigger_data:
+                trigger, _ = self._get_or_create_webhook_trigger(webhook_trigger_data)
+                validated_data["webhook_trigger"] = trigger
+                self._wait_for_tunnel_url(trigger)
 
         return self._create_with_python_code(WebhookTriggerNode, validated_data)
 
     def update(self, instance, validated_data):
-        wt_id = getattr(self, "_webhook_trigger_id", None)
-        if wt_id:
-            instance.webhook_trigger = WebhookTrigger.objects.filter(id=wt_id).first()
-            validated_data.pop("webhook_trigger", None)
-        elif "webhook_trigger" in validated_data:
-            webhook_trigger_data = validated_data.pop("webhook_trigger")
-
-            if webhook_trigger_data:
-                webhook_trigger_instance, _ = self._get_or_create_webhook_trigger(
-                    webhook_trigger_data
-                )
-                instance.webhook_trigger = webhook_trigger_instance
-                self._wait_for_tunnel_url(webhook_trigger_instance)
-            else:
-                instance.webhook_trigger = None
+        if not self._apply_webhook_trigger_fk_to_update(instance, validated_data):
+            if "webhook_trigger" in validated_data:
+                webhook_trigger_data = validated_data.pop("webhook_trigger")
+                if webhook_trigger_data:
+                    trigger, _ = self._get_or_create_webhook_trigger(
+                        webhook_trigger_data
+                    )
+                    instance.webhook_trigger = trigger
+                    self._wait_for_tunnel_url(trigger)
+                else:
+                    instance.webhook_trigger = None
 
         return super().update(instance, validated_data)
 
@@ -119,7 +101,10 @@ class TelegramTriggerNodeFieldSerializer(
 
 
 class TelegramTriggerNodeSerializer(
-    ContentHashWritableMixin, WebhookCreationMixin, serializers.ModelSerializer
+    ContentHashWritableMixin,
+    WebhookTriggerIntRefMixin,
+    WebhookCreationMixin,
+    serializers.ModelSerializer,
 ):
     webhook_trigger = WebhookTriggerNestedSerializer(required=False, allow_null=True)
     fields = TelegramTriggerNodeFieldSerializer(many=True)
@@ -137,18 +122,13 @@ class TelegramTriggerNodeSerializer(
 
     def create(self, validated_data):
         fields_data = validated_data.pop("fields", [])
-
         webhook_trigger_data = validated_data.pop("webhook_trigger", None)
-        webhook_trigger_instance = None
+        if not self._apply_webhook_trigger_fk_to_create(validated_data):
+            if webhook_trigger_data:
+                trigger, _ = self._get_or_create_webhook_trigger(webhook_trigger_data)
+                validated_data["webhook_trigger"] = trigger
 
-        if webhook_trigger_data:
-            webhook_trigger_instance, _ = self._get_or_create_webhook_trigger(
-                webhook_trigger_data
-            )
-
-        node = TelegramTriggerNode.objects.create(
-            webhook_trigger=webhook_trigger_instance, **validated_data
-        )
+        node = TelegramTriggerNode.objects.create(**validated_data)
         for item in fields_data:
             TelegramTriggerNodeField.objects.create(telegram_trigger_node=node, **item)
 
@@ -156,17 +136,15 @@ class TelegramTriggerNodeSerializer(
 
     def update(self, instance, validated_data):
         fields_data = validated_data.pop("fields", None)
-
-        if "webhook_trigger" in validated_data:
-            webhook_trigger_data = validated_data.pop("webhook_trigger")
-
-            webhook_trigger_instance = None
-            if webhook_trigger_data:
-                webhook_trigger_instance, _ = self._get_or_create_webhook_trigger(
-                    webhook_trigger_data
-                )
-
-            instance.webhook_trigger = webhook_trigger_instance
+        if not self._apply_webhook_trigger_fk_to_update(instance, validated_data):
+            if "webhook_trigger" in validated_data:
+                webhook_trigger_data = validated_data.pop("webhook_trigger")
+                webhook_trigger_instance = None
+                if webhook_trigger_data:
+                    webhook_trigger_instance, _ = self._get_or_create_webhook_trigger(
+                        webhook_trigger_data
+                    )
+                instance.webhook_trigger = webhook_trigger_instance
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

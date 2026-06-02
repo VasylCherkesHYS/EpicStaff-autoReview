@@ -290,3 +290,50 @@ class WebhookCreationMixin:
                 )
 
         return trigger, created
+
+
+class WebhookTriggerIntRefMixin:
+    """Accept webhook_trigger as an integer PK in addition to a nested dict.
+
+    Stores the raw PK in _webhook_trigger_id during to_internal_value so that
+    create/update can resolve it without re-running nested validation.
+    """
+
+    def to_internal_value(self, data):
+        wt = data.get("webhook_trigger")
+        if isinstance(wt, int):
+            self._webhook_trigger_id = wt
+            data = data.copy()
+            data["webhook_trigger"] = None
+        else:
+            self._webhook_trigger_id = None
+        return super().to_internal_value(data)
+
+    def _apply_webhook_trigger_fk_to_create(self, validated_data: dict) -> bool:
+        """Set validated_data['webhook_trigger'] from int PK if one was supplied.
+
+        Returns True if the PK branch was taken so callers can skip the
+        nested-dict branch.
+        """
+        wt_id = getattr(self, "_webhook_trigger_id", None)
+        if wt_id:
+            validated_data["webhook_trigger"] = WebhookTrigger.objects.filter(
+                id=wt_id
+            ).first()
+            return True
+        return False
+
+    def _apply_webhook_trigger_fk_to_update(
+        self, instance, validated_data: dict
+    ) -> bool:
+        """Set instance.webhook_trigger from int PK if one was supplied.
+
+        Returns True if the PK branch was taken so callers can skip the
+        nested-dict branch.
+        """
+        wt_id = getattr(self, "_webhook_trigger_id", None)
+        if wt_id:
+            instance.webhook_trigger = WebhookTrigger.objects.filter(id=wt_id).first()
+            validated_data.pop("webhook_trigger", None)
+            return True
+        return False
