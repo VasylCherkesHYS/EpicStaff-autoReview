@@ -3,10 +3,21 @@ from crewai import LLM
 from src.shared.models import LLMData
 
 
+_NO_TEMPERATURE_PATTERNS = ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4")
+
+
+def _strip_unsupported_params(llm_config: dict) -> dict:
+    model = (llm_config.get("model") or "").lower()
+    if any(p in model for p in _NO_TEMPERATURE_PATTERNS):
+        llm_config.pop("temperature", None)
+        llm_config.pop("top_p", None)
+    return llm_config
+
+
 def parse_llm(llm: LLMData, **kwargs):
     llm_config = {**llm.config.model_dump()}
     llm_config.update(kwargs)
-    return LLM(**llm_config)
+    return LLM(**_strip_unsupported_params(llm_config))
 
 
 def parse_memory_llm(memory_llm: LLMData):
@@ -16,15 +27,16 @@ def parse_memory_llm(memory_llm: LLMData):
     model = config.get("model")
     api_key = config.get("api_key")
     max_tokens = config.get("max_tokens")
+    inner = {
+        "model": model,
+        "temperature": 0.0,
+        "api_key": api_key,
+        "max_tokens": max_tokens,
+    }
     memory_llm_config = {
         "llm": {
             "provider": provider,
-            "config": {
-                "model": model,
-                "temperature": 0.0,
-                "api_key": api_key,
-                "max_tokens": max_tokens,
-            },
+            "config": _strip_unsupported_params(inner),
         }
     }
     return memory_llm_config
