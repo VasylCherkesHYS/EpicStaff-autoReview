@@ -298,7 +298,7 @@ class GraphBasicSearchConfigInputSerializer(serializers.Serializer):
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum context tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
 
 
@@ -345,7 +345,13 @@ class GraphLocalSearchConfigInputSerializer(serializers.Serializer):
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum context tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
+    )
+    community_level = serializers.IntegerField(
+        required=False,
+        min_value=0,
+        max_value=10,
+        help_text="Max Leiden community-hierarchy level (adaptive, not user-editable)",
     )
 
 
@@ -378,13 +384,13 @@ class GraphGlobalSearchConfigInputSerializer(serializers.Serializer):
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum context tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum context tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
     data_max_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum data tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum data tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
     map_max_length = serializers.IntegerField(
         required=False,
@@ -444,7 +450,7 @@ class GraphDriftSearchConfigInputSerializer(serializers.Serializer):
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum data tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum data tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
     reduce_max_tokens = serializers.IntegerField(
         required=False,
@@ -464,13 +470,13 @@ class GraphDriftSearchConfigInputSerializer(serializers.Serializer):
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum primer LLM tokens (100 to MAX_TOKEN_FIELD_VALUE)",
+        help_text=f"Maximum primer LLM tokens (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
     local_search_max_data_tokens = serializers.IntegerField(
         required=False,
         min_value=100,
         max_value=MAX_TOKEN_FIELD_VALUE,
-        help_text="Maximum context tokens for local search (100-100000)",
+        help_text=f"Maximum context tokens for local search (100 to {MAX_TOKEN_FIELD_VALUE})",
     )
     local_search_llm_max_gen_tokens = serializers.IntegerField(
         required=False,
@@ -510,6 +516,12 @@ class GraphDriftSearchConfigInputSerializer(serializers.Serializer):
         min_value=1,
         max_value=10,
         help_text="Number of drift search steps to take (1-10)",
+    )
+    community_level = serializers.IntegerField(
+        required=False,
+        min_value=0,
+        max_value=10,
+        help_text="Max Leiden community-hierarchy level (adaptive, not user-editable)",
     )
     # Local search tuning
     local_search_text_unit_prop = serializers.FloatField(

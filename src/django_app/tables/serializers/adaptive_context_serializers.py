@@ -7,10 +7,16 @@ of the request body is still performed by the Pydantic models in
 duplicating the Pydantic invariants in two places.
 """
 
+from typing import get_args
+
 from rest_framework import serializers
 
+from src.shared.models.adaptive_context import GraphSearchMethod
 
-GRAPH_SEARCH_METHODS = ("basic", "local", "global_search", "drift_search")
+
+# Single source of truth: the Pydantic `GraphSearchMethod` Literal. Deriving the
+# DRF choices from it keeps Swagger and runtime validation from drifting apart.
+GRAPH_SEARCH_METHODS = get_args(GraphSearchMethod)
 
 
 class CollectionMetricsSerializer(serializers.Serializer):

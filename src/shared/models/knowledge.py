@@ -36,6 +36,7 @@ class GraphRagLocalSearchParams(BaseModel):
     top_k_entities: int = 10
     top_k_relationships: int = 10
     max_context_tokens: int = 12000
+    community_level: int = 2
 
 
 class GraphRagGlobalSearchParams(BaseModel):
@@ -73,6 +74,7 @@ class GraphRagDriftSearchParams(BaseModel):
     drift_k_followups: int = 20
     primer_folds: int = 5
     n_depth: int = 3
+    community_level: int = 2
     # Local search tuning
     local_search_text_unit_prop: float = 0.9
     local_search_community_prop: float = 0.1
