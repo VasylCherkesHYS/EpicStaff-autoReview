@@ -188,7 +188,7 @@ class TestFormulas:
         ],
     )
     def test_dynamic_search_max_level_anchors(self, docs, expected):
-        assert svc.calc_global_dynamic_search_max_level(docs) == expected
+        assert svc.calc_community_level(docs) == expected
 
     @pytest.mark.parametrize(
         "chunks,expected",
@@ -375,6 +375,22 @@ class TestRegistry:
     def test_get_graph_strategy_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown graph search method"):
             svc.get_graph_strategy("nope")
+
+    def test_method_list_single_source_of_truth(self):
+        """All four method-list sources must agree with the canonical
+        GraphSearchMethod Literal (guards 2.2 — single source of truth)."""
+        from typing import get_args
+
+        from src.shared.models.adaptive_context import GraphSearchMethod
+        from tables.models.knowledge_models.graphrag_models import AgentGraphRag
+        from tables.serializers.adaptive_context_serializers import (
+            GRAPH_SEARCH_METHODS,
+        )
+
+        canonical = set(get_args(GraphSearchMethod))
+        assert set(GRAPH_SEARCH_METHODS) == canonical
+        assert {s.method_name for s in svc.GRAPH_SEARCH_METHOD_REGISTRY} == canonical
+        assert {v for v, _ in AgentGraphRag.SearchMethod.choices} == canonical
 
 
 # ---------------------------------------------------------------------------

@@ -108,13 +108,11 @@ class NaiveRagSuggestParamsView(APIView):
             )
             suggested, clamped = build_naive_params(metrics, req.user_custom_params)
         except (CollectionNotFoundException, LLMConfigNotFoundException) as exc:
-            # These exceptions inherit non-404 status_code from base classes;
-            # override here because semantically they are 404 (resource missing).
-            return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:
+            return Response({"error": str(exc)}, status=exc.status_code)
+        except Exception:
             logger.exception("Unexpected error in NaiveRagSuggestParamsView")
             return Response(
-                {"error": f"An unexpected error occurred: {exc}"},
+                {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -147,18 +145,30 @@ class GraphRagSuggestParamsView(APIView):
                 metrics, ctx, is_trusted, req.user_custom_params
             )
         except (CollectionNotFoundException, LLMConfigNotFoundException) as exc:
-            # See NaiveRagSuggestParamsView.post for status-code rationale.
-            return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": str(exc)}, status=exc.status_code)
         except (
             NoGraphRagForCollectionException,
             GraphRagIndexNotReadyException,
-            GraphRagArtifactMissingException,
         ) as exc:
+            # User-actionable, no sensitive detail — safe to surface verbatim.
             return Response({"error": str(exc)}, status=exc.status_code)
-        except Exception as exc:
+        except GraphRagArtifactMissingException as exc:
+            # Server/deployment fault: the message embeds an on-disk path. Log
+            # the full detail, return a generic message to the client.
+            logger.error(f"GraphRag artifact missing: {exc}")
+            return Response(
+                {
+                    "error": (
+                        "GraphRAG index artifacts are missing on the server. "
+                        "Contact an administrator."
+                    )
+                },
+                status=exc.status_code,
+            )
+        except Exception:
             logger.exception("Unexpected error in GraphRagSuggestParamsView")
             return Response(
-                {"error": f"An unexpected error occurred: {exc}"},
+                {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

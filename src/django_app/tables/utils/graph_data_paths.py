@@ -1,39 +1,15 @@
 """Resolve filesystem paths for GraphRag output artefacts (parquet files).
 
-This module mirrors the path-resolution logic from
-`src/knowledge/rag/graph_rag/graph_rag_file_manager.py` for the django_app
-deployment. The two services are deployed as separate containers and do
-not import each other; they agree on the on-disk layout via a shared
-volume + the `GRAPH_DATA_DIR` env var.
-
-The django_app side is read-only — it only needs to *locate* the parquet
-files that the knowledge worker writes during indexing.
+The on-disk layout contract lives in `src.shared.utils.graph_data_paths`,
+shared with the knowledge worker that writes these files. This module only
+adds the django_app-specific, read-only path helpers on top of it.
 """
 
-import os
 from pathlib import Path
 
+from src.shared.utils.graph_data_paths import resolve_graph_data_dir
 
-def _find_src_dir() -> Path:
-    """Walk up from this file to locate the project's `src/` directory."""
-    for parent in Path(__file__).resolve().parents:
-        if parent.name == "src":
-            return parent
-    return Path.cwd()
-
-
-def resolve_graph_data_dir() -> Path:
-    """Return the base directory under which `graph_rag_{id}/output/` lives.
-
-    Resolution order matches the knowledge worker
-    (`GraphRagFileManager._resolve_base_dir`):
-      1. `GRAPH_DATA_DIR` env var (Docker volume mount).
-      2. `<src>/knowledge/graph_data` (local dev fallback).
-    """
-    env_dir = os.environ.get("GRAPH_DATA_DIR")
-    if env_dir:
-        return Path(env_dir).resolve()
-    return (_find_src_dir() / "knowledge" / "graph_data").resolve()
+__all__ = ["resolve_graph_data_dir", "text_units_parquet_path"]
 
 
 def text_units_parquet_path(graph_rag_id: int) -> Path:

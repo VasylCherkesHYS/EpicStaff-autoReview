@@ -57,6 +57,7 @@ export const GRAPH_LOCAL_DEFAULTS: GraphLocalSearchConfig = {
     max_context_tokens: 12000,
     top_k_entities: 10,
     top_k_relationships: 10,
+    community_level: 2,
 };
 
 export const GRAPH_GLOBAL_DEFAULTS: GraphGlobalSearchConfig = {
@@ -97,6 +98,7 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
     local_search_n: 1,
     local_search_llm_max_gen_tokens: null,
     local_search_llm_max_gen_completion_tokens: null,
+    community_level: 2,
 };
 
 @Component({
@@ -392,6 +394,7 @@ export class RagTabComponent implements OnInit {
                 configs?.top_k_relationships ?? GRAPH_LOCAL_DEFAULTS.top_k_relationships,
                 [Validators.required, Validators.min(1), Validators.max(100)],
             ],
+            community_level: [configs?.community_level ?? GRAPH_LOCAL_DEFAULTS.community_level],
         });
     }
 
@@ -518,6 +521,7 @@ export class RagTabComponent implements OnInit {
                 configs?.local_search_llm_max_gen_completion_tokens ??
                     GRAPH_DRIFT_DEFAULTS.local_search_llm_max_gen_completion_tokens,
             ],
+            community_level: [configs?.community_level ?? GRAPH_DRIFT_DEFAULTS.community_level],
         });
     }
 

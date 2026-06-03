@@ -9,7 +9,9 @@ from graphrag.config.models.graph_rag_config import GraphRagConfig
 from loguru import logger
 from src.shared.models import (
     BaseKnowledgeSearchMessageResponse,
+    GraphRagDriftSearchParams,
     GraphRagGlobalSearchParams,
+    GraphRagLocalSearchParams,
     GraphRagSearchConfig,
     KnowledgeChunkResponse,
 )
@@ -18,6 +20,9 @@ from rag.base_rag_strategy import BaseRAGStrategy
 from rag.graph_rag.graph_rag_config_builder import GraphRagConfigBuilder
 from rag.graph_rag.graph_rag_file_manager import GraphRagFileManager
 from settings import UnitOfWork
+
+
+DEFAULT_RESPONSE_TYPE = "Multiple Paragraphs"
 
 
 class GraphRAGStrategy(BaseRAGStrategy):
@@ -258,6 +263,7 @@ class GraphRAGStrategy(BaseRAGStrategy):
                     root_folder=root_folder,
                     graphrag_config=graphrag_config,
                     query=query,
+                    search_params=search_params,
                 )
             elif search_method == "global_search":
                 logger.info(f"Running global search for graph_rag_id: {graph_rag_id}")
@@ -273,6 +279,7 @@ class GraphRAGStrategy(BaseRAGStrategy):
                     root_folder=root_folder,
                     graphrag_config=graphrag_config,
                     query=query,
+                    search_params=search_params,
                 )
             else:
                 logger.info(f"Running basic search for graph_rag_id: {graph_rag_id}")
@@ -341,6 +348,7 @@ class GraphRAGStrategy(BaseRAGStrategy):
         root_folder: Path,
         graphrag_config: GraphRagConfig,
         query: str,
+        search_params: GraphRagLocalSearchParams,
     ) -> tuple:
         """
         Run local search using entities, communities, community_reports,
@@ -367,8 +375,8 @@ class GraphRAGStrategy(BaseRAGStrategy):
                 text_units=text_units,
                 relationships=relationships,
                 covariates=covariates,
-                community_level=2,
-                response_type="Multiple Paragraphs",
+                community_level=search_params.community_level,
+                response_type=DEFAULT_RESPONSE_TYPE,
                 query=query,
             )
         )
@@ -396,9 +404,9 @@ class GraphRAGStrategy(BaseRAGStrategy):
                 entities=entities,
                 communities=communities,
                 community_reports=community_reports,
-                community_level=2,
+                community_level=search_params.dynamic_search_max_level,
                 dynamic_community_selection=search_params.dynamic_community_selection,
-                response_type="Multiple Paragraphs",
+                response_type=DEFAULT_RESPONSE_TYPE,
                 query=query,
             )
         )
@@ -408,6 +416,7 @@ class GraphRAGStrategy(BaseRAGStrategy):
         root_folder: Path,
         graphrag_config: GraphRagConfig,
         query: str,
+        search_params: GraphRagDriftSearchParams,
     ) -> tuple:
         """
         Run drift search using entities, communities, community_reports,
@@ -427,8 +436,8 @@ class GraphRAGStrategy(BaseRAGStrategy):
                 community_reports=community_reports,
                 text_units=text_units,
                 relationships=relationships,
-                community_level=2,
-                response_type="Multiple Paragraphs",
+                community_level=search_params.community_level,
+                response_type=DEFAULT_RESPONSE_TYPE,
                 query=query,
             )
         )

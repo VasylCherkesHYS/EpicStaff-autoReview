@@ -32,6 +32,7 @@ export interface GraphLocalSearchConfig {
     max_context_tokens: number;
     top_k_entities: number;
     top_k_relationships: number;
+    community_level: number;
 }
 
 export interface GraphGlobalSearchConfig {
@@ -72,6 +73,7 @@ export interface GraphDriftSearchConfig {
     local_search_n: number;
     local_search_llm_max_gen_tokens: number | null;
     local_search_llm_max_gen_completion_tokens: number | null;
+    community_level: number;
 }
 
 export interface SuggestCollectionMetrics {

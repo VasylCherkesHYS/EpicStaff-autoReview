@@ -324,6 +324,11 @@ class GraphRagLocalSearchConfig(models.Model):
         help_text="The maximum tokens.",
     )
 
+    community_level = models.IntegerField(
+        default=2,
+        help_text="Max Leiden community-hierarchy level to include in context.",
+    )
+
     class Meta:
         db_table = "graph_rag_local_search_config"
 
@@ -497,6 +502,11 @@ class GraphRagDriftSearchConfig(models.Model):
     n_depth = models.IntegerField(
         default=3,
         help_text="The number of drift search steps to take.",
+    )
+
+    community_level = models.IntegerField(
+        default=2,
+        help_text="Max Leiden community-hierarchy level to include in context.",
     )
 
     # Local search tuning

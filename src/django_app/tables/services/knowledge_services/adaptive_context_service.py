@@ -7,11 +7,11 @@ Naive and Graph RAG.
 
 import math
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, get_args
 
 from pydantic import BaseModel
 
-from src.shared.models.adaptive_context import CollectionMetrics
+from src.shared.models.adaptive_context import CollectionMetrics, GraphSearchMethod
 from src.shared.models.knowledge import (
     GraphRagBasicSearchParams,
     GraphRagDriftSearchParams,
@@ -49,6 +49,9 @@ def _lerp_buckets(
     elif value >= anchors[-1][0]:
         result = anchors[-1][1]
     else:
+        # `value` is strictly inside the anchor range, so one segment below
+        # always matches and overwrites this. Kept only as a safety net against
+        # an UnboundLocalError if anchors were ever malformed (unsorted/empty).
         result = anchors[-1][1]
         for (x0, y0), (x1, y1) in zip(anchors, anchors[1:]):
             if x0 <= value <= x1:
@@ -125,8 +128,13 @@ def calc_global_dynamic_search_threshold(total_documents: int) -> int:
     return 1 if total_documents <= 50 else 2
 
 
-def calc_global_dynamic_search_max_level(total_documents: int) -> int:
-    """Max community-tree depth for dynamic global search.
+def calc_community_level(total_documents: int) -> int:
+    """Max Leiden community-tree depth to include, driven by corpus size.
+
+    Shared by global search's `dynamic_search_max_level` and the static
+    `community_level` used by local / global / drift search — both express
+    "how deep into the community hierarchy to go", which scales with corpus
+    size the same way.
 
     Tiny corpora (≤5 docs) have a flat or near-flat community structure
     — depth 1 is enough. Depth grows with corpus size to capture nested
@@ -380,6 +388,9 @@ def build_graph_local_params(
             top_k_relationships=_pick(
                 custom, "top_k_relationships", calc_top_k(chunks)
             ),
+            community_level=_pick(
+                custom, "community_level", calc_community_level(docs)
+            ),
             **token_fields,
         ),
         clamped,
@@ -435,7 +446,7 @@ def build_graph_global_params(
             dynamic_search_max_level=_pick(
                 custom,
                 "dynamic_search_max_level",
-                calc_global_dynamic_search_max_level(docs),
+                calc_community_level(docs),
             ),
             dynamic_search_num_repeats=_pick(custom, "dynamic_search_num_repeats", 1),
             **token_fields,
@@ -498,6 +509,9 @@ def build_graph_drift_params(
             ),
             primer_folds=_pick(custom, "primer_folds", calc_drift_primer_folds(docs)),
             n_depth=_pick(custom, "n_depth", calc_drift_n_depth(docs)),
+            community_level=_pick(
+                custom, "community_level", calc_community_level(docs)
+            ),
             local_search_text_unit_prop=text_unit,
             local_search_community_prop=community,
             local_search_top_k_mapped_entities=_pick(
@@ -552,6 +566,13 @@ GRAPH_SEARCH_METHOD_REGISTRY: list[SearchMethodStrategy] = [
         "drift_search", build_graph_drift_params, GraphRagDriftSearchParams
     ),
 ]
+
+# Fail fast at import time if the registry and the canonical `GraphSearchMethod`
+# Literal (the API contract) ever drift apart — e.g., a method added to one but
+# not the other.
+assert {s.method_name for s in GRAPH_SEARCH_METHOD_REGISTRY} == set(
+    get_args(GraphSearchMethod)
+), "GRAPH_SEARCH_METHOD_REGISTRY is out of sync with GraphSearchMethod Literal"
 
 
 def get_graph_strategy(method_name: str) -> SearchMethodStrategy:

@@ -57,10 +57,12 @@ class TablesConfig(AppConfig):
         )
         if is_web_server:
             from tables.utils.llm_context_windows import (
-                start_periodic_litellm_refresh,
+                start_litellm_refresh_if_owner,
             )
 
-            start_periodic_litellm_refresh()
+            # Elect a single owner across gunicorn workers: only one process
+            # fetches from GitHub daily; the rest read the shared snapshot.
+            start_litellm_refresh_if_owner()
 
         redis_service = RedisService()
         converter_service = ConverterService()
