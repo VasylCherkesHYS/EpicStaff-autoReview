@@ -122,6 +122,7 @@ class GraphLightBaseSerializer(serializers.ModelSerializer):
             "label_ids",
             "created_at",
             "updated_at",
+            "save_version",
         ]
 
 
