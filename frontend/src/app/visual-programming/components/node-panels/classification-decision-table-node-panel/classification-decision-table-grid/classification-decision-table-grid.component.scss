@@ -667,6 +667,14 @@
     }
 }
 
+// Flex-center content in spanned (merged) expression/field cells so that
+// row-spanning cells render their content vertically centered.
+:host ::ng-deep .ag-cell.ag-cell-value[col-id='expression'],
+:host ::ng-deep .ag-cell.ag-cell-value[col-id^='field_'] {
+    display: flex;
+    align-items: center;
+}
+
 :host ::ng-deep .ag-header-cell[col-id='selection'] {
     border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
