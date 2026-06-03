@@ -36,6 +36,7 @@ drf-spectacular = "^0.29.0"
 simplejwt = "^2.0.1"
 apscheduler = "^3.10.4"
 channels = "^4.1"
+channels-redis = "^4.3.0"
 
 
 [tool.pytest.ini_options]
