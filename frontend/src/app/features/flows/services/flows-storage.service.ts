@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError, delay, shareReplay, switchMap, tap } from 'rxjs/operators';
+import { catchError, delay, shareReplay, tap } from 'rxjs/operators';
 
 import { SearchFilterChange } from '../../../shared/components/filters-list/filters-list.component';
 import { CreateGraphDtoRequest, GetGraphLightRequest, GraphDto, UpdateGraphDtoRequest } from '../models/graph.model';
@@ -186,21 +186,16 @@ export class FlowsStorageService {
         );
     }
 
-    public patchUpdateFlow(id: number, updateData: Partial<GraphDto>): Observable<GraphDto> {
-        // Always fetch from API (not cache) to get the full GraphDto with save_version.
-        // The cache holds light objects (GetGraphLightRequest) that don't have save_version,
-        // and the backend requires save_version in every PUT/PATCH request.
-        return this.flowsApiService.getGraphById(id).pipe(
-            switchMap((currentFlow: GraphDto) => {
-                const updatedPayload: UpdateGraphDtoRequest = {
-                    id: currentFlow.id,
-                    name: updateData.name || currentFlow.name,
-                    description: updateData.description !== undefined ? updateData.description : (currentFlow.description || ''),
-                    metadata: updateData.metadata || currentFlow.metadata,
-                    tags: updateData.tags || currentFlow.tags || [],
-                    save_version: currentFlow.save_version,
-                };
-                return this.updateFlow(updatedPayload);
+    public patchUpdateFlow(id: number, updateData: Partial<GraphDto>, saveVersion: number): Observable<GraphDto> {
+        return this.flowsApiService.patchGraph(id, { ...updateData, save_version: saveVersion }).pipe(
+            tap((updatedFlow) => {
+                const currentFlows = this.flowsSignal();
+                const index = currentFlows.findIndex((f) => f.id === updatedFlow.id);
+                if (index !== -1) {
+                    const updatedFlowsList = [...currentFlows];
+                    updatedFlowsList[index] = { ...currentFlows[index], ...updatedFlow };
+                    this.flowsSignal.set(updatedFlowsList);
+                }
             })
         );
     }
