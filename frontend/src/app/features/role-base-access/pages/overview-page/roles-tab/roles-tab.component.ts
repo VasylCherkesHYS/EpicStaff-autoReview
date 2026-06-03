@@ -10,6 +10,7 @@ import {
     SearchComponent,
     TableRow,
 } from '@shared/components';
+import { EMPTY, switchMap } from 'rxjs';
 
 import { ToastService } from '../../../../../services/notifications';
 import { RoleInfoDialogComponent } from '../../../components/role-info-dialog/role-info-dialog.component';
@@ -88,16 +89,13 @@ export class RolesTabComponent implements OnInit {
                 confirmText: 'Delete',
                 cancelText: 'Cancel',
             })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((confirmed) => {
-                if (confirmed !== true) return;
-                this.rolesService
-                    .deleteRole(id)
-                    .pipe(takeUntilDestroyed(this.destroyRef))
-                    .subscribe({
-                        next: () => this.toast.success('Role deleted successfully'),
-                        error: (e) => this.toast.error(e.error?.message),
-                    });
+            .pipe(
+                switchMap((confirmed) => (confirmed === true ? this.rolesService.deleteRole(id) : EMPTY)),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe({
+                next: () => this.toast.success('Role deleted successfully'),
+                error: (e) => this.toast.error(e.error?.message),
             });
     }
 }

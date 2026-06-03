@@ -20,7 +20,6 @@ interface CatalogGroup {
 })
 export class PermissionsTableComponent {
     catalog = input.required<CatalogResponse>();
-    /** Flat set of "resource_type:action" keys, e.g. "roles:create" */
     selectedPermissions = input.required<Set<string>>();
     readonly = input(false);
 
