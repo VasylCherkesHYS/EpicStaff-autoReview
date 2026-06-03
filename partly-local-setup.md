@@ -52,7 +52,7 @@ cd src
 
 Create required Docker volumes:
 ```powershell
-docker volume create sandbox_venvs; docker volume create sandbox_executions; docker volume create crew_pgdata; docker volume create crew_config
+docker volume create sandbox_venvs; docker volume create crew_pgdata; docker volume create crew_config
 ```
 
 Start the core infrastructure containers:

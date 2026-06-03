@@ -1,12 +1,14 @@
 .configure {
     display: flex;
     height: 100%;
+    overflow: auto;
 
     .files-section {
         display: flex;
         flex-direction: column;
         height: 100%;
         width: 645px;
+        flex-shrink: 0;
         border-right: 1px solid var(--color-divider-subtle);
 
         .files-header {
@@ -56,6 +58,8 @@
 
     .params-section {
         height: 100%;
+        flex-shrink: 0;
         width: calc(100% - 645px);
+        min-width: 500px;
     }
 }
