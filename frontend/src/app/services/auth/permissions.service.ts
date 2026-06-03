@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { ActionCode, ActivePermissions, CatalogResponse, ResourceCode } from '@shared/models';
+import { StorageService } from '@shared/services';
 import { Observable, of, tap } from 'rxjs';
 
 import { ConfigService } from '../config';
@@ -8,7 +9,7 @@ import { ConfigService } from '../config';
 @Injectable({
     providedIn: 'root',
 })
-export class PermissionsService {
+export class PermissionsService implements StorageService {
     private readonly http = inject(HttpClient);
     private readonly configService = inject(ConfigService);
 
@@ -58,5 +59,10 @@ export class PermissionsService {
         return this.http
             .get<ActivePermissions>(`${this.baseUrl}me/`)
             .pipe(tap((permissions) => this._active.set(permissions)));
+    }
+
+    clear(): void {
+        this._active.set(null);
+        this._catalog.set(null);
     }
 }
