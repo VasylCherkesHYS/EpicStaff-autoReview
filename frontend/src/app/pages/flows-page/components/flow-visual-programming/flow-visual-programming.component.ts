@@ -359,8 +359,12 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 this.toastService.success('Node saved');
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning('This graph was modified by another user. Please refresh to see the latest changes.');
+                } else {
+                    this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             })
         );
