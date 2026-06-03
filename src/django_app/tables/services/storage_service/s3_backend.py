@@ -63,6 +63,22 @@ class S3StorageBackend(AbstractStorageBackend):
                 keys.append(self._strip_prefix(obj["Key"]))
         return keys
 
+    def list_all_objects(self, prefix: str) -> list[tuple[str, int, str]]:
+        full_prefix = self._full_path(prefix)
+        if not full_prefix.endswith("/"):
+            full_prefix += "/"
+        paginator = self.client.get_paginator("list_objects_v2")
+        objects = []
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=full_prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith("/"):
+                    continue
+                if key.split("/")[-1] == ".keep":
+                    continue
+                objects.append((key, obj["Size"], obj["LastModified"].isoformat()))
+        return objects
+
     def list_(self, prefix: str) -> list[FileListItem]:
         full_prefix = self._full_path(prefix)
         if full_prefix and not full_prefix.endswith("/"):

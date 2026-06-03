@@ -45,6 +45,24 @@ class LocalStorageBackend(AbstractStorageBackend):
                 keys.append(str(entry.relative_to(self.base_path)))
         return keys
 
+    def list_all_objects(self, prefix: str) -> list[tuple[str, int, str]]:
+        directory = self._resolve(prefix)
+        if not directory.exists() or not directory.is_dir():
+            return []
+        objects = []
+        for entry in directory.rglob("*"):
+            if not entry.is_file():
+                continue
+            if entry.name == ".keep":
+                continue
+            stat = entry.stat()
+            key = str(entry.relative_to(self.base_path)).replace("\\", "/")
+            modified = datetime.fromtimestamp(
+                stat.st_mtime, tz=timezone.utc
+            ).isoformat()
+            objects.append((key, stat.st_size, modified))
+        return objects
+
     def list_(self, prefix: str) -> list[FileListItem]:
         directory = self._resolve(prefix)
         if not directory.exists() or not directory.is_dir():

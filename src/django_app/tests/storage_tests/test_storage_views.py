@@ -251,7 +251,9 @@ class TestRemoveFromGraph:
 
         org = Organization.objects.get(name="Default Organization")
         graph = Graph.objects.create(name="test-graph")
-        storage_file = StorageFile.objects.create(org=org, path="file.txt")
+        storage_file = StorageFile.objects.create(
+            org=org, path="file.txt", name="file.txt"
+        )
         GraphStorageFile.objects.create(graph=graph, storage_file=storage_file)
 
         resp = auth_client.delete(
@@ -274,7 +276,9 @@ class TestGraphFiles:
 
         org = Organization.objects.get(name="Default Organization")
         graph = Graph.objects.create(name="test-graph")
-        storage_file = StorageFile.objects.create(org=org, path="attached.txt")
+        storage_file = StorageFile.objects.create(
+            org=org, path="attached.txt", name="attached.txt"
+        )
         GraphStorageFile.objects.create(graph=graph, storage_file=storage_file)
 
         resp = auth_client.get("/api/storage/graph-files/", {"graph_id": graph.id})
@@ -405,3 +409,40 @@ class TestSearch:
     def test_search_rejects_limit_over_max(self, auth_client, mock_manager):
         resp = auth_client.get("/api/storage/search/", {"q": "rep", "limit": 999})
         assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+
+class TestSandboxMutationFeedsListing:
+    """
+    Verifies that calling StorageFileSync.on_upload (the code path that the
+    sandbox Redis mutation handler uses) results in the file appearing in a
+    real DB-backed list_ call.
+    """
+
+    def test_on_upload_then_list_returns_file(self, auth_client):
+        from tables.models import Organization
+        from tables.services.storage_service.db_sync import StorageFileSync
+        from tables.services.storage_service.local_backend import LocalStorageBackend
+        from tables.services.storage_service.manager import StorageManager
+        from unittest.mock import patch
+
+        # Use a real local backend with a real manager (no mock_manager fixture here).
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            backend = LocalStorageBackend(root=tmpdir, organization_prefix="")
+            manager = StorageManager(backend)
+
+            with patch(
+                "tables.views.storage_views.get_storage_manager",
+                return_value=manager,
+            ):
+                # Trigger _resolve_context to create the default org.
+                resp = auth_client.get("/api/storage/list/", {"path": ""})
+                org = Organization.objects.get(name="Default Organization")
+
+                StorageFileSync.on_upload(org.id, "gen/out.txt")
+
+                resp = auth_client.get("/api/storage/list/", {"path": "gen"})
+                assert resp.status_code == 200
+                names = [item["name"] for item in resp.data["items"]]
+                assert "out.txt" in names

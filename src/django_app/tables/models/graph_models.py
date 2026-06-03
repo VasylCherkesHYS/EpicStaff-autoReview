@@ -670,17 +670,54 @@ class GraphVersion(SoftDeleteMixin, models.Model):
 
 
 class StorageFile(models.Model):
+    ITEM_TYPE_CHOICES = [("file", "file"), ("folder", "folder")]
+
     org = models.ForeignKey(
-        "Organization", on_delete=models.CASCADE, related_name="storage_files"
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="storage_files",
+        help_text="Organization that owns this storage entry.",
     )
     path = models.CharField(
-        max_length=1000, help_text="Org-relative path, never starts with '/'"
+        max_length=1000,
+        help_text="Org-relative path, never starts with '/'. Folders end with '/'.",
     )
     name = models.CharField(
-        max_length=255, help_text="Last path segment, denormalized for search"
+        max_length=255, help_text="Last path segment, denormalized for search."
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    item_type = models.CharField(
+        max_length=6,
+        choices=ITEM_TYPE_CHOICES,
+        default="file",
+        help_text="Whether this row represents a file or a folder.",
+    )
+    size = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="File size in bytes. NULL for folders or when size is unknown.",
+    )
+    s3_modified = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="LastModified timestamp from the storage backend. NULL when unknown.",
+    )
+    is_system = models.BooleanField(
+        default=False,
+        help_text="True for files written by the platform itself (e.g. session outputs). Not filtered yet.",
+    )
+    parent_path = models.CharField(
+        max_length=1000,
+        default="",
+        help_text="Immediate parent directory path ending in '/', or '' for root entries. Enables single-level listing.",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when this DB row was first created.",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp of the last update to this row.",
+    )
 
     class Meta:
         constraints = [
@@ -688,7 +725,10 @@ class StorageFile(models.Model):
                 fields=["org", "path"], name="unique_storage_file_per_org"
             )
         ]
-        indexes = [models.Index(fields=["org", "path"])]
+        indexes = [
+            models.Index(fields=["org", "path"]),
+            models.Index(fields=["org", "parent_path"]),
+        ]
 
 
 class GraphStorageFile(models.Model):

@@ -9,6 +9,7 @@ from tables.models import StorageFile
 from tables.services.storage_service.dataclasses import (
     ArchiveUploadResult,
     FileInfo,
+    FolderInfo,
     FileUploadResult,
     TreeNode,
     UploadResult,
@@ -78,7 +79,7 @@ class TestDelegation:
         args = mock_backend.upload.call_args[0]
         assert args[0] == f"org_{org.id}/docs/f.txt"
         assert result.path == "docs/f.txt"
-        patch_sync.on_upload.assert_called_once_with(org.id, "docs/f.txt")
+        patch_sync.on_upload.assert_called_once_with(org.id, "docs/f.txt", size=10)
 
     def test_delete_delegates_to_backend_and_syncs(
         self, storage_manager, mock_backend, org, org_user, patch_sync
@@ -116,16 +117,18 @@ class TestDelegation:
         patch_sync.on_copy.assert_called_once_with(org.id, ["dest/a.txt", "dest/b.txt"])
 
     def test_info_strips_org_prefix_from_result_path(
-        self, storage_manager, mock_backend, org, org_user
+        self, storage_manager, org, org_user
     ):
-        mock_backend.info.return_value = FileInfo(
+        StorageFile.objects.create(
+            org=org,
+            path="docs/f.txt",
             name="f.txt",
-            path=f"org_{org.id}/docs/f.txt",
+            item_type="file",
+            parent_path="docs/",
             size=5,
-            content_type="text/plain",
-            modified="2024-01-01T00:00:00Z",
         )
         result = storage_manager.info("testuser", org.id, "docs/f.txt")
+        assert isinstance(result, FileInfo)
         assert result.path == "docs/f.txt"
 
     def test_decorated_method_raises_permission_denied_for_non_member(
@@ -268,38 +271,36 @@ class TestCrossOrg:
 
 @pytest.mark.django_db
 class TestListTreeManager:
-    def test_list_tree_builds_org_key_and_strips_prefix(
-        self, storage_manager, mock_backend, org, org_user
-    ):
-        mock_backend.list_tree.return_value = (
-            TreeNode(
-                name="reports",
-                path=f"org_{org.id}/reports/",
-                type="folder",
-                size=0,
-                modified=None,
-                children=[
-                    TreeNode(
-                        name="q1.pdf",
-                        path=f"org_{org.id}/reports/q1.pdf",
-                        type="file",
-                        size=10,
-                        modified="2024-01-01T00:00:00Z",
-                        children=None,
-                    ),
-                ],
-            ),
-            False,
+    @pytest.fixture
+    def db_manager(self, local_backend, org, org_user):
+        """Manager backed by a LocalStorageBackend (no mock) with DB rows seeded."""
+        from tables.models import StorageFile
+
+        StorageFile.objects.bulk_create(
+            [
+                StorageFile(
+                    org=org,
+                    path="reports/",
+                    name="reports",
+                    item_type="folder",
+                    parent_path="",
+                ),
+                StorageFile(
+                    org=org,
+                    path="reports/q1.pdf",
+                    name="q1.pdf",
+                    item_type="file",
+                    size=10,
+                    parent_path="reports/",
+                ),
+            ]
         )
-        root, truncated = storage_manager.list_tree(
-            "testuser",
-            org.id,
-            "reports",
-            max_depth=None,
-        )
-        mock_backend.list_tree.assert_called_once()
-        called_prefix = mock_backend.list_tree.call_args.args[0]
-        assert called_prefix == f"org_{org.id}/reports"
+        from tables.services.storage_service.manager import StorageManager
+
+        return StorageManager(local_backend)
+
+    def test_list_tree_builds_tree_from_db_rows(self, db_manager, org, org_user):
+        root, truncated = db_manager.list_tree("testuser", org.id, "reports")
         assert root.path == "reports/"
         assert root.children[0].path == "reports/q1.pdf"
         assert truncated is False
@@ -312,23 +313,169 @@ class TestListTreeManager:
 
 
 @pytest.mark.django_db
+class TestListManager:
+    @pytest.fixture
+    def db_manager(self, local_backend, org, org_user):
+        from tables.models import StorageFile
+        from tables.services.storage_service.manager import StorageManager
+        from django.utils import timezone
+
+        modified = timezone.now()
+        StorageFile.objects.bulk_create(
+            [
+                StorageFile(
+                    org=org,
+                    path="docs/",
+                    name="docs",
+                    item_type="folder",
+                    parent_path="",
+                    size=None,
+                    s3_modified=None,
+                ),
+                StorageFile(
+                    org=org,
+                    path="root.txt",
+                    name="root.txt",
+                    item_type="file",
+                    parent_path="",
+                    size=42,
+                    s3_modified=modified,
+                ),
+                StorageFile(
+                    org=org,
+                    path="docs/inner.txt",
+                    name="inner.txt",
+                    item_type="file",
+                    parent_path="docs/",
+                    size=7,
+                    s3_modified=modified,
+                ),
+            ]
+        )
+        return StorageManager(local_backend)
+
+    def test_list_root_returns_folder_and_file(self, db_manager, org, org_user):
+        items = db_manager.list_("testuser", org.id, "")
+        names = {i.name for i in items}
+        assert "docs" in names
+        assert "root.txt" in names
+
+    def test_folder_is_not_empty_when_it_has_children(self, db_manager, org, org_user):
+        items = db_manager.list_("testuser", org.id, "")
+        docs = next(i for i in items if i.name == "docs")
+        assert docs.is_empty is False
+
+    def test_file_is_empty_false(self, db_manager, org, org_user):
+        items = db_manager.list_("testuser", org.id, "")
+        txt = next(i for i in items if i.name == "root.txt")
+        assert txt.is_empty is False
+        assert txt.size == 42
+
+    def test_folder_modified_is_none_when_s3_modified_null(
+        self, db_manager, org, org_user
+    ):
+        items = db_manager.list_("testuser", org.id, "")
+        docs = next(i for i in items if i.name == "docs")
+        assert docs.modified is None
+
+    def test_list_with_prefix_returns_only_direct_children(
+        self, db_manager, org, org_user
+    ):
+        items = db_manager.list_("testuser", org.id, "docs")
+        assert len(items) == 1
+        assert items[0].name == "inner.txt"
+
+
+@pytest.mark.django_db
+class TestInfoManager:
+    @pytest.fixture
+    def db_manager(self, local_backend, org, org_user):
+        from tables.models import StorageFile
+        from tables.services.storage_service.manager import StorageManager
+        from django.utils import timezone
+
+        modified = timezone.now()
+        StorageFile.objects.bulk_create(
+            [
+                StorageFile(
+                    org=org,
+                    path="docs/",
+                    name="docs",
+                    item_type="folder",
+                    parent_path="",
+                    size=None,
+                    s3_modified=modified,
+                ),
+                StorageFile(
+                    org=org,
+                    path="docs/note.txt",
+                    name="note.txt",
+                    item_type="file",
+                    parent_path="docs/",
+                    size=99,
+                    s3_modified=modified,
+                ),
+            ]
+        )
+        return StorageManager(local_backend)
+
+    def test_info_returns_file_info_for_file_path(self, db_manager, org, org_user):
+        result = db_manager.info("testuser", org.id, "docs/note.txt")
+        assert isinstance(result, FileInfo)
+        assert result.name == "note.txt"
+        assert result.size == 99
+
+    def test_info_returns_folder_info_for_folder_path(self, db_manager, org, org_user):
+        result = db_manager.info("testuser", org.id, "docs")
+        assert isinstance(result, FolderInfo)
+        assert result.path == "docs/"
+
+    def test_info_raises_for_missing_path(self, db_manager, org, org_user):
+        with pytest.raises(FileNotFoundError):
+            db_manager.info("testuser", org.id, "nonexistent.txt")
+
+
+@pytest.mark.django_db
 class TestSearchManager:
     @pytest.fixture
     def seeded(self, org, second_org, org_user):
         StorageFile.objects.bulk_create(
             [
                 StorageFile(
-                    org=org, path="reports/q1_report.pdf", name="q1_report.pdf"
+                    org=org,
+                    path="reports/q1_report.pdf",
+                    name="q1_report.pdf",
+                    item_type="file",
                 ),
                 StorageFile(
-                    org=org, path="reports/q2_report.pdf", name="q2_report.pdf"
+                    org=org,
+                    path="reports/q2_report.pdf",
+                    name="q2_report.pdf",
+                    item_type="file",
                 ),
-                StorageFile(org=org, path="archive/note.txt", name="note.txt"),
                 StorageFile(
-                    org=org, path="other/report_draft.md", name="report_draft.md"
+                    org=org,
+                    path="archive/note.txt",
+                    name="note.txt",
+                    item_type="file",
                 ),
                 StorageFile(
-                    org=second_org, path="reports/q1_report.pdf", name="q1_report.pdf"
+                    org=org,
+                    path="other/report_draft.md",
+                    name="report_draft.md",
+                    item_type="file",
+                ),
+                StorageFile(
+                    org=second_org,
+                    path="reports/q1_report.pdf",
+                    name="q1_report.pdf",
+                    item_type="file",
+                ),
+                StorageFile(
+                    org=org,
+                    path="reports/",
+                    name="reports",
+                    item_type="folder",
                 ),
             ]
         )
@@ -357,6 +504,11 @@ class TestSearchManager:
     ):
         _, total = storage_manager.search("testuser", org.id, q="q1_report")
         assert total == 1
+
+    def test_search_excludes_folder_rows(self, storage_manager, org, org_user, seeded):
+        results, total = storage_manager.search("testuser", org.id, q="reports")
+        names = [r["name"] for r in results]
+        assert "reports" not in names
 
     def test_search_pagination(self, storage_manager, org, org_user, seeded):
         page1, total = storage_manager.search(

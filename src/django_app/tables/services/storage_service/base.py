@@ -154,3 +154,16 @@ class AbstractStorageBackend(ABC):
         self, prefix: str, max_depth: int | None = None, max_entries: int = 50_000
     ) -> tuple[TreeNode, bool]:
         """Return (root_node, truncated). Root path ends with '/'."""
+
+    @abstractmethod
+    def list_all_objects(self, prefix: str) -> list[tuple[str, int, str]]:
+        """
+        Recursively list all file objects under prefix.
+
+        Returns a list of (key, size, modified_iso) tuples where:
+          - key: full storage key as returned by the backend (not stripped)
+          - size: file size in bytes
+          - modified_iso: ISO-8601 datetime string (UTC)
+
+        Folder marker keys (ending in '/') and '.keep' files are excluded.
+        """

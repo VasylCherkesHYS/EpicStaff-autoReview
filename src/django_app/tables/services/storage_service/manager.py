@@ -1,5 +1,6 @@
 import dataclasses
 import io
+import mimetypes
 import os
 import tarfile
 import zipfile
@@ -22,7 +23,7 @@ from tables.services.storage_service.db_sync import StorageFileSync
 from tables.services.storage_service.decorators import check_permission
 from tables.services.storage_service.enums import StorageAction
 
-from tables.models import OrganizationUser
+from tables.models import OrganizationUser, StorageFile
 
 
 _DOCUMENT_EXTENSIONS = frozenset(
@@ -118,7 +119,47 @@ class StorageManager:
     def list_(
         self, user_name: str, org_id: int, prefix: str = ""
     ) -> list[FileListItem]:
-        return self._backend.list_(self._build_storage_key(org_id, prefix))
+        norm = (prefix.rstrip("/") + "/") if prefix else ""
+        rows = list(StorageFile.objects.filter(org_id=org_id, parent_path=norm))
+
+        folder_paths = [row.path for row in rows if row.item_type == "folder"]
+        non_empty: set[str] = set()
+
+        if folder_paths:
+            non_empty = set(
+                StorageFile.objects.filter(
+                    org_id=org_id, parent_path__in=folder_paths
+                ).values_list("parent_path", flat=True)
+            )
+
+        items = []
+        for row in rows:
+            if row.item_type == "folder":
+                items.append(
+                    FileListItem(
+                        name=row.name,
+                        type="folder",
+                        size=row.size or 0,
+                        modified=row.s3_modified.isoformat()
+                        if row.s3_modified
+                        else None,
+                        is_empty=row.path not in non_empty,
+                    )
+                )
+            else:
+                items.append(
+                    FileListItem(
+                        name=row.name,
+                        type="file",
+                        size=row.size or 0,
+                        modified=row.s3_modified.isoformat()
+                        if row.s3_modified
+                        else None,
+                        is_empty=False,
+                    )
+                )
+
+        return items
 
     @check_permission
     def upload(
@@ -128,7 +169,7 @@ class StorageManager:
             self._build_storage_key(org_id, path), file_object
         )
         relative_path = self._strip_org_prefix(org_id, result.path)
-        StorageFileSync.on_upload(org_id, relative_path)
+        StorageFileSync.on_upload(org_id, relative_path, size=result.size)
         return UploadResult(path=relative_path, size=result.size)
 
     @check_permission
@@ -143,6 +184,7 @@ class StorageManager:
     @check_permission
     def mkdir(self, user_name: str, org_id: int, path: str) -> None:
         self._backend.mkdir(self._build_storage_key(org_id, path))
+        StorageFileSync.on_mkdir(org_id, path)
 
     @check_permission
     def move(
@@ -177,10 +219,32 @@ class StorageManager:
 
     @check_permission
     def info(self, user_name: str, org_id: int, path: str) -> FileInfo | FolderInfo:
-        result = self._backend.info(self._build_storage_key(org_id, path))
-        return dataclasses.replace(
-            result, path=self._strip_org_prefix(org_id, result.path)
-        )
+        clean_path = path.rstrip("/")
+        try:
+            row = StorageFile.objects.get(org_id=org_id, path=clean_path)
+            content_type, _ = mimetypes.guess_type(row.name)
+            return FileInfo(
+                name=row.name,
+                path=row.path,
+                size=row.size or 0,
+                content_type=content_type or "application/octet-stream",
+                modified=(row.s3_modified or row.created_at).isoformat(),
+            )
+        except StorageFile.DoesNotExist:
+            pass
+
+        folder_path = clean_path + "/"
+        try:
+            row = StorageFile.objects.get(org_id=org_id, path=folder_path)
+            return FolderInfo(
+                name=row.name,
+                path=row.path,
+                modified=(row.s3_modified or row.created_at).isoformat(),
+            )
+        except StorageFile.DoesNotExist:
+            pass
+
+        raise FileNotFoundError(f"File does not exist: {path}")
 
     @check_permission
     def exists(self, user_name: str, org_id: int, path: str) -> bool:
@@ -264,7 +328,7 @@ class StorageManager:
             self._build_storage_key(org_id, destination), file_object
         )
         relative_path = self._strip_org_prefix(org_id, result.path)
-        StorageFileSync.on_upload(org_id, relative_path)
+        StorageFileSync.on_upload(org_id, relative_path, size=result.size)
         return FileUploadResult(type="file", path=relative_path, size=result.size)
 
     @check_permission
@@ -276,19 +340,122 @@ class StorageManager:
         max_depth: int | None = None,
         max_entries: int = 50_000,
     ) -> tuple[TreeNode, bool]:
-        root, truncated = self._backend.list_tree(
-            self._build_storage_key(org_id, prefix), max_depth, max_entries
-        )
-        return self._strip_tree_org_prefix(org_id, root), truncated
+        norm = (prefix.rstrip("/") + "/") if prefix else ""
+        root_name = prefix.rstrip("/").split("/")[-1] if prefix else ""
 
-    def _strip_tree_org_prefix(self, org_id: int, node: TreeNode) -> TreeNode:
-        stripped_path = self._strip_org_prefix(org_id, node.path)
-        children = (
-            None
-            if node.children is None
-            else [self._strip_tree_org_prefix(org_id, child) for child in node.children]
-        )
-        return dataclasses.replace(node, path=stripped_path, children=children)
+        root_dict: dict = {
+            "name": root_name,
+            "path": norm,
+            "type": "folder",
+            "size": 0,
+            "modified": None,
+            "children_map": {},
+        }
+        nodes_by_path: dict[str, dict] = {norm: root_dict}
+        truncated = False
+        count = 0
+
+        rows = StorageFile.objects.filter(
+            org_id=org_id, path__startswith=norm
+        ).order_by("path")
+
+        for row in rows:
+            if row.path == norm:
+                continue
+
+            rel = row.path[len(norm) :]
+            parts = rel.rstrip("/").split("/") if rel.rstrip("/") else []
+            depth = len(parts)
+
+            is_folder = row.item_type == "folder"
+
+            if max_depth is not None and depth > max_depth:
+                parts = parts[:max_depth]
+                depth = max_depth
+                is_folder = True
+
+            cur_path = norm
+            parent = nodes_by_path[cur_path]
+            broken = False
+
+            for segment in parts[:-1]:
+                cur_path = cur_path + segment + "/"
+                if cur_path not in nodes_by_path:
+                    if count >= max_entries:
+                        truncated = True
+                        broken = True
+                        break
+                    node = {
+                        "name": segment,
+                        "path": cur_path,
+                        "type": "folder",
+                        "size": 0,
+                        "modified": None,
+                        "children_map": {},
+                    }
+                    nodes_by_path[cur_path] = node
+                    parent["children_map"][segment] = node
+                    count += 1
+                parent = nodes_by_path[cur_path]
+
+            if broken:
+                break
+
+            leaf_name = parts[-1] if parts else ""
+            if not leaf_name:
+                continue
+
+            leaf_path = cur_path + leaf_name + ("/" if is_folder else "")
+            if leaf_path in nodes_by_path:
+                continue
+
+            if count >= max_entries:
+                truncated = True
+                break
+
+            if is_folder:
+                node = {
+                    "name": leaf_name,
+                    "path": leaf_path,
+                    "type": "folder",
+                    "size": 0,
+                    "modified": row.s3_modified.isoformat()
+                    if row.s3_modified
+                    else None,
+                    "children_map": {},
+                }
+            else:
+                node = {
+                    "name": leaf_name,
+                    "path": leaf_path,
+                    "type": "file",
+                    "size": row.size or 0,
+                    "modified": row.s3_modified.isoformat()
+                    if row.s3_modified
+                    else None,
+                    "children_map": None,
+                }
+
+            nodes_by_path[leaf_path] = node
+            parent["children_map"][leaf_name] = node
+            count += 1
+
+        def build(node_dict: dict) -> TreeNode:
+            children = (
+                None
+                if node_dict["children_map"] is None
+                else [build(child) for child in node_dict["children_map"].values()]
+            )
+            return TreeNode(
+                name=node_dict["name"],
+                path=node_dict["path"],
+                type=node_dict["type"],
+                size=node_dict["size"],
+                modified=node_dict["modified"],
+                children=children,
+            )
+
+        return build(root_dict), truncated
 
     @check_permission
     def search(
@@ -301,9 +468,9 @@ class StorageManager:
         offset: int = 0,
     ) -> tuple[list[dict], int]:
         """Substring search on filename within an org."""
-        from tables.models import StorageFile
-
-        qs = StorageFile.objects.filter(org_id=org_id, name__icontains=q)
+        qs = StorageFile.objects.filter(
+            org_id=org_id, name__icontains=q, item_type="file"
+        )
 
         if path:
             qs = qs.filter(path__startswith=path.rstrip("/") + "/")
