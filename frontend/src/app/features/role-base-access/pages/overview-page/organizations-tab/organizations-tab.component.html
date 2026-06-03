@@ -61,6 +61,7 @@
                     @for (admin of row['admins']; track admin.id) {
                         <app-user-avatar
                             appOverflowItem
+                            [appOverflowLabel]="admin.display_name || admin.email"
                             [name]="admin.display_name || admin.email"
                             [avatarUrl]="admin.avatar_url"
                         />
@@ -68,6 +69,8 @@
                     <span
                         appOverflowBadge
                         class="overflow-badge"
+                        [matTooltip]="adminOverflow.hiddenLabels()"
+                        matTooltipPosition="above"
                         >+{{ adminOverflow.overflowCount() }}</span
                     >
                 </div>
