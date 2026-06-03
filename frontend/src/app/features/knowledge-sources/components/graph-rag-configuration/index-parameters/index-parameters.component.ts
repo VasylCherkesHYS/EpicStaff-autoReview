@@ -131,7 +131,6 @@ export class AppGraphRagParametersComponent implements OnInit {
 
             this.patchingFromJson = true;
             this.form.patchValue(patch);
-            this.formValue.set(this.form.value);
             this.patchingFromJson = false;
         } catch {
             // invalid JSON, ignore
