@@ -1,3 +1,4 @@
+import { Dialog } from '@angular/cdk/dialog';
 import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
@@ -5,9 +6,11 @@ import {
     Component,
     computed,
     DestroyRef,
+    ElementRef,
     inject,
     input,
     signal,
+    ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -16,6 +19,11 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 
+import { ToastService } from '../../../../services/notifications/toast.service';
+import {
+    ActionDropdownButtonComponent,
+    ActionDropdownItem,
+} from '../../../../shared/components/action-dropdown-button/action-dropdown-button.component';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ConfirmationDialogService } from '../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { CustomInputComponent } from '../../../../shared/components/form-input/form-input.component';
@@ -35,6 +43,11 @@ import { BaseSidePanel } from '../../../core/models/node-panel.abstract';
 import { FlowService } from '../../../services/flow.service';
 import { SidePanelService } from '../../../services/side-panel.service';
 import { InputMapComponent } from '../../input-map/input-map.component';
+import { CdtExportData, CdtExportImportService } from './cdt-export-import.service';
+import {
+    CdtImportPreviewDialogComponent,
+    CdtImportPreviewResult,
+} from './cdt-import-preview-dialog/cdt-import-preview-dialog.component';
 import { ClassificationDecisionTableGridComponent } from './classification-decision-table-grid/classification-decision-table-grid.component';
 
 type TabType = 'table' | 'precomputation' | 'postcomputation' | 'prompts';
@@ -52,6 +65,7 @@ type TabType = 'table' | 'precomputation' | 'postcomputation' | 'prompts';
         CodeEditorComponent,
         HelpTooltipComponent,
         AppSvgIconComponent,
+        ActionDropdownButtonComponent,
     ],
     templateUrl: './classification-decision-table-node-panel.component.html',
     styleUrls: ['./classification-decision-table-node-panel.component.scss'],
@@ -96,6 +110,11 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
     private readonly codeChange$ = new Subject<void>();
     private sidePanelService = inject(SidePanelService);
     private readonly confirmationDialogService = inject(ConfirmationDialogService);
+    private readonly cdtExportImportService = inject(CdtExportImportService);
+    private readonly dialog = inject(Dialog);
+    private readonly toastService = inject(ToastService);
+
+    @ViewChild('importFileInput') private importFileInput?: ElementRef<HTMLInputElement>;
 
     // Sub-FormGroups for InputMapComponent in pre/post tabs.
     public preInputForm!: FormGroup;
@@ -525,6 +544,194 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
         const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const highlighted = escaped.replace(/\{[^}]+\}/g, (match) => `<span class="var-token">${match}</span>`);
         return this.sanitizer.bypassSecurityTrustHtml(highlighted);
+    }
+
+    // ── Export / Import ──
+
+    readonly exportFormatItems: ActionDropdownItem[] = [
+        { label: 'JSON', value: 'json' },
+        { label: 'CSV', value: 'csv' },
+    ];
+
+    public onExportItemSelected(item: ActionDropdownItem): void {
+        if (item.value === 'csv') {
+            this.exportAsCsv();
+        } else {
+            this.exportAsJson();
+        }
+    }
+
+    public exportAsJson(): void {
+        const data = this.collectExportData();
+        const content = this.cdtExportImportService.exportToJson(data);
+        this.cdtExportImportService.downloadFile(content, this.buildFileName('json'), 'application/json');
+        this.toastService.success('CDT configuration exported as JSON.');
+    }
+
+    public exportAsCsv(): void {
+        const data = this.collectExportData();
+        const content = this.cdtExportImportService.exportToCsv(data);
+        this.cdtExportImportService.downloadFile(content, this.buildFileName('csv'), 'text/csv');
+        this.toastService.success('CDT configuration exported as CSV.');
+    }
+
+    public onImportClick(): void {
+        this.confirmationDialogService
+            .confirm({
+                title: 'Replace CDT Configuration',
+                message:
+                    'This will completely replace all CDT configuration and conditions. All current data will be lost. Proceed?',
+                confirmText: 'Continue',
+                cancelText: 'Cancel',
+                type: 'danger',
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((result) => {
+                if (result === true) {
+                    this.importFileInput?.nativeElement.click();
+                }
+            });
+    }
+
+    public onImportFileSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        // Reset so selecting the same file again re-triggers change.
+        input.value = '';
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const content = typeof reader.result === 'string' ? reader.result : '';
+            this.handleImportContent(content, file.name);
+        };
+        reader.onerror = () => {
+            this.showImportErrors(['Could not read the selected file.']);
+        };
+        reader.readAsText(file);
+    }
+
+    private handleImportContent(content: string, fileName: string): void {
+        const isJson = fileName.toLowerCase().endsWith('.json') || content.trimStart().startsWith('{');
+        const result = isJson
+            ? this.cdtExportImportService.parseJson(content)
+            : this.cdtExportImportService.parseCsv(content);
+
+        if ('errors' in result) {
+            this.showImportErrors(result.errors);
+            return;
+        }
+
+        this.openImportPreview(result.data);
+    }
+
+    private openImportPreview(data: CdtExportData): void {
+        const dialogRef = this.dialog.open<CdtImportPreviewResult>(CdtImportPreviewDialogComponent, {
+            data,
+            panelClass: 'cdt-import-preview-panel',
+            hasBackdrop: true,
+        });
+
+        dialogRef.closed.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((outcome) => {
+            if (outcome === 'confirm') {
+                this.applyImportedData(data);
+            }
+        });
+    }
+
+    private showImportErrors(errors: string[]): void {
+        const list = errors.map((error) => `• ${error}`).join('<br>');
+        this.confirmationDialogService
+            .confirm({
+                title: 'Import Failed',
+                message: `The file could not be imported:<br><br>${list}`,
+                confirmText: 'OK',
+                cancelText: 'Close',
+                type: 'danger',
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe();
+    }
+
+    /**
+     * Applies parsed import data to the panel state atomically: signals replace
+     * condition groups and prompts with NEW references (OnPush-safe), the reactive
+     * form is patched, code-editor backing fields are updated, and autosave fires once.
+     */
+    private applyImportedData(data: CdtExportData): void {
+        this.conditionGroups.set(this.cdtExportImportService.toConditionGroups(data));
+        this.prompts.set(this.cdtExportImportService.toPromptRecord(data));
+
+        this.preCode = data.pre_python_code?.code ?? '';
+        this.postCode = data.post_python_code?.code ?? '';
+
+        this.form.patchValue(
+            {
+                node_name: data.node_name ?? '',
+                pre_computation_code: this.preCode,
+                pre_output_variable_path: data.pre_output_variable_path ?? '',
+                pre_libraries: (data.pre_python_code?.libraries ?? []).join(', '),
+                post_computation_code: this.postCode,
+                post_output_variable_path: data.post_output_variable_path ?? '',
+                post_libraries: (data.post_python_code?.libraries ?? []).join(', '),
+                default_llm_config: data.default_llm_config ?? null,
+            },
+            { emitEvent: false }
+        );
+
+        this.replaceInputMap('pre_input_map', data.pre_input_map ?? {});
+        this.replaceInputMap('post_input_map', data.post_input_map ?? {});
+        this.preInputMapVersion.update((v) => v + 1);
+
+        this.cdr.markForCheck();
+        this.sidePanelService.triggerAutosave();
+        this.toastService.success('CDT configuration imported successfully.');
+    }
+
+    private collectExportData(): CdtExportData {
+        return this.cdtExportImportService.buildExportData({
+            nodeName: this.form.value.node_name ?? '',
+            preCode: this.preCode,
+            preLibraries: this.parseLibraries(this.form.value.pre_libraries),
+            preInputMap: this.serializeInputMap('pre_input_map'),
+            preOutputVariablePath: this.form.value.pre_output_variable_path || null,
+            postCode: this.postCode,
+            postLibraries: this.parseLibraries(this.form.value.post_libraries),
+            postInputMap: this.serializeInputMap('post_input_map'),
+            postOutputVariablePath: this.form.value.post_output_variable_path || null,
+            defaultLlmConfig: this.form.value.default_llm_config ?? null,
+            conditionGroups: this.conditionGroups(),
+            prompts: this.prompts(),
+        });
+    }
+
+    private buildFileName(extension: string): string {
+        const base = (this.form.value.node_name || 'classification-decision-table')
+            .toString()
+            .trim()
+            .replace(/[^a-z0-9-_]+/gi, '-')
+            .replace(/^-+|-+$/g, '')
+            .toLowerCase();
+        return `${base || 'cdt'}.${extension}`;
+    }
+
+    /** Rebuilds a main-form input_map FormArray from an imported record and mirrors it to the sub-form. */
+    private replaceInputMap(arrayName: string, map: Record<string, string>): void {
+        const arr = this.form.get(arrayName) as FormArray;
+        arr.clear({ emitEvent: false });
+        const entries = Object.entries(map);
+        if (entries.length > 0) {
+            entries.forEach(([key, value]) => {
+                arr.push(this.fb.group({ key: [key], value: [value] }), { emitEvent: false });
+            });
+        } else {
+            arr.push(this.fb.group({ key: [''], value: ['variables.'] }), { emitEvent: false });
+        }
+
+        const subForm = arrayName === 'pre_input_map' ? this.preInputForm : this.postInputForm;
+        this.seedSubFormInputMap(subForm, arr);
     }
 
     // ── Code editor handlers ──

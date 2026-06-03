@@ -62,8 +62,8 @@ import { FlowModel } from '../../../../visual-programming/core/models/flow.model
 import { NodeModel } from '../../../../visual-programming/core/models/node.model';
 import { FlowGraphComponent } from '../../../../visual-programming/flow-graph/flow-graph.component';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
-import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
+import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import {
     createStartNode,
     hasStartNode,

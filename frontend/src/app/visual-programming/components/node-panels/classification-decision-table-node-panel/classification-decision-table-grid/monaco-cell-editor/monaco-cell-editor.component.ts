@@ -1,15 +1,19 @@
-import {
-    Component,
-    ChangeDetectionStrategy,
-    ChangeDetectorRef,
-    NgZone,
-    AfterViewInit,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ICellEditorAngularComp } from 'ag-grid-angular';
 import { ICellEditorParams } from 'ag-grid-community';
+import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
+
+interface MonacoEditor {
+    addCommand(keybinding: number, handler: () => void): void;
+    focus(): void;
+}
+
+interface MonacoNamespace {
+    KeyCode: Record<string, number>;
+    KeyMod: Record<string, number>;
+}
 
 @Component({
     selector: 'app-monaco-cell-editor',
@@ -26,32 +30,34 @@ import { ICellEditorParams } from 'ag-grid-community';
             ></ngx-monaco-editor>
         </div>
     `,
-    styles: [`
-        :host {
-            display: block;
-        }
-        .monaco-cell-editor {
-            width: 500px;
-            height: 200px;
-            border: 1px solid rgba(104, 95, 255, 0.5);
-            border-radius: 6px;
-            overflow: hidden;
-            background: #1e1e1e;
-        }
-        .cell-monaco-editor {
-            width: 100%;
-            height: 100%;
-        }
-        ::ng-deep .monaco-cell-editor .editor-container {
-            height: 100% !important;
-        }
-    `],
+    styles: [
+        `
+            :host {
+                display: block;
+            }
+            .monaco-cell-editor {
+                width: 500px;
+                height: 200px;
+                border: 1px solid rgba(104, 95, 255, 0.5);
+                border-radius: 6px;
+                overflow: hidden;
+                background: #1e1e1e;
+            }
+            .cell-monaco-editor {
+                width: 100%;
+                height: 100%;
+            }
+            ::ng-deep .monaco-cell-editor .editor-container {
+                height: 100% !important;
+            }
+        `,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MonacoCellEditorComponent implements ICellEditorAngularComp, AfterViewInit {
     public value: string = '';
     private params!: ICellEditorParams;
-    private monacoEditor: any;
+    private monacoEditor: MonacoEditor | null = null;
 
     public editorOptions = {
         theme: 'vs-dark',
@@ -81,7 +87,7 @@ export class MonacoCellEditorComponent implements ICellEditorAngularComp, AfterV
 
     constructor(
         private readonly cdr: ChangeDetectorRef,
-        private readonly zone: NgZone,
+        private readonly zone: NgZone
     ) {}
 
     agInit(params: ICellEditorParams): void {
@@ -89,7 +95,7 @@ export class MonacoCellEditorComponent implements ICellEditorAngularComp, AfterV
         this.value = params.value || '';
     }
 
-    getValue(): any {
+    getValue(): string | null {
         return this.value || null;
     }
 
@@ -108,24 +114,19 @@ export class MonacoCellEditorComponent implements ICellEditorAngularComp, AfterV
         this.cdr.markForCheck();
     }
 
-    onEditorInit(editor: any): void {
+    onEditorInit(editor: MonacoEditor): void {
         this.monacoEditor = editor;
+        const monaco = (window as unknown as { monaco: MonacoNamespace }).monaco;
 
         // Add Escape key binding to close editor without saving
-        editor.addCommand(
-            (window as any).monaco.KeyCode.Escape,
-            () => {
-                this.params.stopEditing(true);
-            }
-        );
+        editor.addCommand(monaco.KeyCode['Escape'], () => {
+            this.params.stopEditing(true);
+        });
 
         // Add Ctrl/Cmd+Enter to confirm and close
-        editor.addCommand(
-            (window as any).monaco.KeyMod.CtrlCmd | (window as any).monaco.KeyCode.Enter,
-            () => {
-                this.params.stopEditing(false);
-            }
-        );
+        editor.addCommand(monaco.KeyMod['CtrlCmd'] | monaco.KeyCode['Enter'], () => {
+            this.params.stopEditing(false);
+        });
 
         // Focus the editor
         setTimeout(() => editor.focus(), 50);
