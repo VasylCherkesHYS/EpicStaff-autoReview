@@ -71,5 +71,6 @@ export class ToggleSwitchComponent implements ControlValueAccessor {
 
     setDisabledState(isDisabled: boolean): void {
         this.cvaDisabled = isDisabled;
+        this.cdr.markForCheck();
     }
 }
