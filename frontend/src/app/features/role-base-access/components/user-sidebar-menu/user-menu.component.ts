@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, model } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppSvgIconComponent } from '@shared/components';
+import { HasPermissionDirective } from '@shared/directives';
 import { FullMembership, GetMeResponse } from '@shared/models';
 import { EMPTY } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -13,7 +14,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 @Component({
     selector: 'app-user-menu',
-    imports: [CommonModule, AppSvgIconComponent, UserAvatarComponent, OrgAvatarComponent],
+    imports: [CommonModule, AppSvgIconComponent, UserAvatarComponent, OrgAvatarComponent, HasPermissionDirective],
     templateUrl: './user-menu.component.html',
     styleUrls: ['./user-menu.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,35 +1,46 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { GetMeResponse, UserRole } from '@shared/models';
-import { map, of } from 'rxjs';
+import { ActionCode, ResourceCode } from '@shared/models';
+import { map } from 'rxjs';
 
+import { PermissionsService } from '../../services/auth/permissions.service';
 import { ProfileService } from '../../services/auth/profile.service';
 
-function resolveUser(currentUserService: ProfileService) {
-    const cached = currentUserService.currentUserSignal();
-    return cached ? of(cached) : currentUserService.getCurrentUser();
-}
-
-/** Allows SuperAdmins and OrgAdmins. Redirects Members/Viewers away from workspace. */
+/**
+ * Parent guard for /workspace. Runs bootstrapUser() so that permissions are set
+ * before any child tab guards execute. Blocks users with no workspace access at all.
+ */
 export const workspaceGuard: CanActivateFn = () => {
-    const currentUserService = inject(ProfileService);
+    const profileService = inject(ProfileService);
+    const permissionsService = inject(PermissionsService);
     const router = inject(Router);
 
-    return resolveUser(currentUserService).pipe(
-        map((user: GetMeResponse) => {
-            const isSuperAdmin = user.is_superadmin;
-            const isOrgAdmin = user.memberships.some((m) => m.role.id === UserRole.ORG_ADMIN);
-            return isSuperAdmin || isOrgAdmin ? true : router.parseUrl('/projects/my');
+    return profileService.bootstrapUser().pipe(
+        map(() => {
+            const hasAccess =
+                permissionsService.isSuperadmin ||
+                permissionsService.can('organizations', 'read') ||
+                permissionsService.can('users', 'read') ||
+                permissionsService.can('roles', 'read');
+            return hasAccess ? true : router.parseUrl('/projects/my');
         })
     );
 };
 
-/** Allows only SuperAdmins. Redirects OrgAdmins to /workspace/users. */
+/** /workspace/main — superadmins only. */
 export const superAdminGuard: CanActivateFn = () => {
-    const currentUserService = inject(ProfileService);
+    const permissionsService = inject(PermissionsService);
     const router = inject(Router);
+    return permissionsService.isSuperadmin ? true : router.parseUrl('/workspace/users');
+};
 
-    return resolveUser(currentUserService).pipe(
-        map((user: GetMeResponse) => (user.is_superadmin ? true : router.parseUrl('/workspace/users')))
-    );
+/**
+ * Generic permission guard. Reads [ResourceCode, ActionCode] from route.data['permission'].
+ * Redirects to /workspace/users on failure.
+ */
+export const permissionGuard: CanActivateFn = (route) => {
+    const permissionsService = inject(PermissionsService);
+    const router = inject(Router);
+    const [resource, action] = route.data['permission'] as [ResourceCode, ActionCode];
+    return permissionsService.can(resource, action) ? true : router.parseUrl('/workspace/users');
 };

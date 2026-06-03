@@ -54,7 +54,7 @@
                 </div>
             } @else if (row['admins']?.length > 1) {
                 <div
-                    class="admins-cell"
+                    class="badges-cell"
                     appOverflowItems
                     #adminOverflow="overflowItems"
                 >
@@ -141,7 +141,7 @@
                         (click)="onReactivateOrganization(row)"
                     >
                         <app-svg-icon
-                            icon="play-outline"
+                            icon="play"
                             size="16px"
                         />
                     </button>
