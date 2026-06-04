@@ -239,6 +239,24 @@ def test_admin_org_roles_member_denied(auth_client, member_user, db):
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
+@pytest.mark.django_db
+def test_admin_role_detail_non_int_pk_returns_404(auth_client, member_user):
+    response = auth_client(member_user).get("/api/admin/roles/test/")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["code"] == "role_not_found"
+
+
+@pytest.mark.django_db
+def test_admin_org_roles_nonexistent_org_returns_404(auth_client, superadmin_user):
+    # Superadmin bypasses the membership gate, so a non-existent (but
+    # well-formed) org id must 404 rather than silently return the built-ins.
+    response = auth_client(superadmin_user).get(
+        "/api/admin/organizations/999999/roles/"
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["code"] == "organization_not_found"
+
+
 # ---- Built-in immutability guard ----
 
 
