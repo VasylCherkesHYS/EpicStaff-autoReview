@@ -2,7 +2,6 @@ import { Dialog, DialogRef } from '@angular/cdk/dialog';
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import {
     AppSvgIconComponent,
     AppTableCellDirective,
@@ -19,11 +18,7 @@ import { GetOrganizationResponse } from '@shared/models';
 import { finalize } from 'rxjs';
 
 import { ToastService } from '../../../../../services/notifications';
-import {
-    OverflowBadgeDirective,
-    OverflowItemDirective,
-    OverflowItemsDirective,
-} from '../../../../../shared/directives/overflow-items.directive';
+import { AdminsCellComponent } from '../../../components/admins-cell/admins-cell.component';
 import { CreateOrganizationDialogComponent } from '../../../components/create-organization-dialog/create-organization-dialog.component';
 import { OrgAvatarComponent } from '../../../components/org-avatar/org-avatar.component';
 import { StatusBadgeComponent } from '../../../components/status-badge/status-badge.component';
@@ -49,10 +44,7 @@ const STATUS_ITEMS: SelectItem[] = [
         StatusBadgeComponent,
         OrgAvatarComponent,
         UserAvatarComponent,
-        OverflowItemsDirective,
-        OverflowItemDirective,
-        OverflowBadgeDirective,
-        MatTooltipModule,
+        AdminsCellComponent,
         DatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
