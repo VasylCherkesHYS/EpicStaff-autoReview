@@ -1,18 +1,32 @@
 import { Clipboard, ClipboardModule } from '@angular/cdk/clipboard';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnChanges, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CustomInputComponent, SelectComponent, SelectItem } from '@shared/components';
-import { NgrokConfigStorageService } from '@shared/services';
 import { startWith } from 'rxjs';
 
-import { ToastService } from '../../../../services/notifications';
 import { CodeEditorComponent } from '../../../../user-settings-page/tools/custom-tool-editor/code-editor/code-editor.component';
 import { WebhookTriggerNodeModel } from '../../../core/models/node.model';
 import { BaseSidePanel } from '../../../core/models/node-panel.abstract';
+import {
+    WebhookProviderType,
+    WebhookTriggerModel,
+} from '../../../core/models/webhook-trigger.model';
 
 export const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
+
+export const WEBHOOK_PROVIDER_ITEMS: SelectItem[] = [
+    { name: '— None —', value: null },
+    { name: 'Ngrok', value: 'ngrok' },
+    { name: 'Localhost', value: 'localhost' },
+];
+
+export const WEBHOOK_REGION_ITEMS: SelectItem[] = [
+    { name: 'Europe (eu)', value: 'eu' },
+    { name: 'United States (us)', value: 'us' },
+    { name: 'Asia/Pacific (ap)', value: 'ap' },
+];
 
 @Component({
     standalone: true,
@@ -29,69 +43,30 @@ export const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
     styleUrls: ['webhook-trigger-node-panel.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WebhookTriggerNodePanelComponent
-    extends BaseSidePanel<WebhookTriggerNodeModel>
-    implements OnInit, OnChanges
-{
-    private readonly ngrokStorageService = inject(NgrokConfigStorageService);
+export class WebhookTriggerNodePanelComponent extends BaseSidePanel<WebhookTriggerNodeModel> implements OnInit {
     private readonly clipboard = inject(Clipboard);
-    private readonly toastService = inject(ToastService);
 
     public override readonly isExpanded = input<boolean>(false);
 
     public readonly isCodeEditorFullWidth = signal<boolean>(true);
-    ngrokConfigsLoading = signal<boolean>(false);
     webhookPath = signal<string | null>(null);
-    ngrokConfigId = signal<number | null | undefined>(null);
-    loadingTunnel = signal<boolean>(false);
-    ngrokConfigs = this.ngrokStorageService.configs;
+    providerType = signal<WebhookProviderType | null>(null);
+
+    readonly providerItems = WEBHOOK_PROVIDER_ITEMS;
+    readonly regionItems = WEBHOOK_REGION_ITEMS;
 
     pythonCode: string = '';
     initialPythonCode: string = '';
     codeEditorHasError: boolean = false;
 
-    selectedNgrokConfigUrl = computed<string | null>(() => {
-        const config = this.ngrokConfigs().find((c) => c.id === this.ngrokConfigId());
-
-        if (!config || !config.webhook_full_url) return null;
-
-        return this.normalizeWebhookBase(config.webhook_full_url);
-    });
-    webhookUrlDisplay = computed<string | null>(() => {
-        const configUrl = this.selectedNgrokConfigUrl();
-        const path = this.webhookPath();
-
-        if (!configUrl || !path) return null;
-
-        return configUrl + path;
-    });
-    ngrokConfigSelectItems = computed<SelectItem[]>(() => {
-        return this.ngrokStorageService.configs().map((c) => ({ name: c.name, value: c.id }));
-    });
+    liveUrl = computed<string | null>(() => this.node().data.webhook_trigger?.live_url ?? null);
 
     constructor() {
         super();
     }
 
     ngOnInit() {
-        this.getNgrokConfigs();
-    }
-
-    ngOnChanges() {
-        const id = this.node().data.webhook_trigger?.ngrok_webhook_config;
-        this.ngrokConfigId.set(id);
-    }
-
-    private getNgrokConfigs(): void {
-        this.ngrokConfigsLoading.set(true);
-        this.ngrokStorageService
-            .getConfigs()
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-                next: () => {},
-                error: () => this.toastService.error('Failed to load Ngrok configs.'),
-                complete: () => this.ngrokConfigsLoading.set(false),
-            });
+        this.providerType.set(this.node().data.webhook_trigger?.provider_type ?? null);
     }
 
     get activeColor(): string {
@@ -107,25 +82,26 @@ export class WebhookTriggerNodePanelComponent
         this.codeEditorHasError = hasError;
     }
 
-    onNgrokConfigChanged(value: unknown): void {
-        if (value == null) {
-            this.ngrokConfigId.set(null);
-            return;
-        }
-
-        const numericValue = typeof value === 'number' ? value : Number(value);
-        this.ngrokConfigId.set(Number.isFinite(numericValue) ? numericValue : null);
+    onProviderTypeChanged(value: unknown): void {
+        this.providerType.set((value as WebhookProviderType | null) ?? null);
     }
 
     initializeForm(): FormGroup {
+        const trigger = this.node().data.webhook_trigger;
         const form = this.fb.group({
             node_name: [this.node().node_name, this.createNodeNameValidators()],
             libraries: [this.node().data.python_code.libraries?.join(', ') || ''],
             webhook_trigger_path: [
-                this.node().data.webhook_trigger?.path || null,
+                trigger?.path || null,
                 [Validators.required, Validators.pattern(WEBHOOK_NAME_PATTERN)],
             ],
-            ngrok_webhook_config: [this.node().data.webhook_trigger?.ngrok_webhook_config || null],
+            provider_type: [trigger?.provider_type ?? null],
+            ngrok_name: [trigger?.ngrok_config?.name ?? ''],
+            ngrok_auth_token: [trigger?.ngrok_config?.auth_token ?? ''],
+            ngrok_domain: [trigger?.ngrok_config?.domain ?? ''],
+            ngrok_region: [trigger?.ngrok_config?.region ?? 'eu'],
+            localhost_name: [trigger?.localhost_config?.name ?? ''],
+            localhost_domain: [trigger?.localhost_config?.domain ?? ''],
         });
         form.get('webhook_trigger_path')
             ?.valueChanges.pipe(
@@ -135,6 +111,9 @@ export class WebhookTriggerNodePanelComponent
             .subscribe((value: string | null) => {
                 this.webhookPath.set(value);
             });
+        form.get('provider_type')
+            ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((value: WebhookProviderType | null) => this.providerType.set(value));
         this.pythonCode = this.node().data.python_code.code || '';
         this.initialPythonCode = this.pythonCode;
         return form;
@@ -148,14 +127,7 @@ export class WebhookTriggerNodePanelComponent
                   .filter((lib: string) => lib.length > 0)
             : [];
 
-        const webhookTriggerPath = this.form.value.webhook_trigger_path;
-
-        const webhook_trigger = webhookTriggerPath
-            ? {
-                  path: webhookTriggerPath,
-                  ngrok_webhook_config: this.form.value.ngrok_webhook_config,
-              }
-            : null;
+        const webhook_trigger = this.buildWebhookTrigger();
 
         return {
             ...this.node(),
@@ -175,16 +147,39 @@ export class WebhookTriggerNodePanelComponent
         };
     }
 
-    private normalizeWebhookBase(tunnelUrl: string): string {
-        if (!tunnelUrl) {
-            return '';
+    private buildWebhookTrigger(): WebhookTriggerModel | null {
+        const v = this.form.value;
+        const path = (v.webhook_trigger_path ?? '').trim();
+        if (!path) {
+            return null;
         }
-        const sanitized = tunnelUrl.endsWith('/') ? tunnelUrl.slice(0, -1) : tunnelUrl;
-        return `${sanitized}/webhooks/`;
+        const provider = (v.provider_type as WebhookProviderType | null) ?? null;
+        const existingId = this.node().data.webhook_trigger?.id;
+        return {
+            ...(existingId ? { id: existingId } : {}),
+            path,
+            provider_type: provider,
+            ngrok_config:
+                provider === 'ngrok'
+                    ? {
+                          name: v.ngrok_name,
+                          auth_token: v.ngrok_auth_token,
+                          domain: v.ngrok_domain || null,
+                          region: v.ngrok_region || 'eu',
+                      }
+                    : null,
+            localhost_config:
+                provider === 'localhost'
+                    ? {
+                          name: v.localhost_name,
+                          domain: v.localhost_domain || null,
+                      }
+                    : null,
+        };
     }
 
     getWebhookNameErrorMessage(): string {
-        const control = this.form?.get('webhookName');
+        const control = this.form?.get('webhook_trigger_path');
         if (!control || control.valid || !control.errors) {
             return '';
         }
@@ -195,7 +190,7 @@ export class WebhookTriggerNodePanelComponent
     }
 
     copyWebhookUrl(): void {
-        const url = this.webhookUrlDisplay();
+        const url = this.liveUrl();
         if (!url) return;
 
         this.clipboard.copy(url);

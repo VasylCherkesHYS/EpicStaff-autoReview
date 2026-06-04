@@ -7,7 +7,6 @@ import { CONFIGURE_MODELS_TABS } from '../../constants/configure-models-tabs.con
 import { ConfigureModelsTabId } from '../../enums/configure-models-tab-id.enum';
 import { DefaultLlmsSectionComponent } from '../default-llms-section/default-llms-section.component';
 import { LlmLibrarySectionComponent } from '../llm-library-section/llm-library-section.component';
-import { AppNgrokSectionComponent } from '../ngrok-config-section/ngrok-config-section.component';
 import { QuickstartSectionComponent } from '../quickstart-section/quickstart-section.component';
 import { VoiceSettingsSectionComponent } from '../voice-settings-section/voice-settings-section.component';
 
@@ -18,7 +17,6 @@ import { VoiceSettingsSectionComponent } from '../voice-settings-section/voice-s
         DefaultLlmsSectionComponent,
         QuickstartSectionComponent,
         LlmLibrarySectionComponent,
-        AppNgrokSectionComponent,
         VoiceSettingsSectionComponent,
         AppSvgIconComponent,
     ],

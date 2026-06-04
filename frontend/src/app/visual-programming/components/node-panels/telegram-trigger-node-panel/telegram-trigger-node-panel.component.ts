@@ -1,5 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnChanges, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
@@ -7,10 +7,8 @@ import {
     CustomInputComponent,
     JsonEditorComponent,
     SelectComponent,
-    SelectItem,
 } from '@shared/components';
 import { MATERIAL_FORMS } from '@shared/material-forms';
-import { NgrokConfigStorageService } from '@shared/services';
 import { startWith } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
@@ -19,14 +17,21 @@ import {
     TelegramTriggerNodeField,
 } from '../../../../pages/flows-page/components/flow-visual-programming/models/telegram-trigger.model';
 import { WebhookStatus } from '../../../../pages/flows-page/components/flow-visual-programming/models/webhook.model';
-import { ToastService } from '../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
 import { TELEGRAM_TRIGGER_FIELDS } from '../../../core/constants/telegram-trigger-fields';
 import { TelegramTriggerNodeModel } from '../../../core/models/node.model';
 import { BaseSidePanel } from '../../../core/models/node-panel.abstract';
+import {
+    WebhookProviderType,
+    WebhookTriggerModel,
+} from '../../../core/models/webhook-trigger.model';
 import { TelegramTriggerEditingDialogComponent } from '../../telegram-trigger-editing-dialog/telegram-trigger-editing-dialog.component';
-import { WEBHOOK_NAME_PATTERN } from '../webhook-trigger-node-panel/webhook-trigger-node-panel.component';
+import {
+    WEBHOOK_NAME_PATTERN,
+    WEBHOOK_PROVIDER_ITEMS,
+    WEBHOOK_REGION_ITEMS,
+} from '../webhook-trigger-node-panel/webhook-trigger-node-panel.component';
 
 @Component({
     selector: 'app-telegram-trigger-node-panel',
@@ -46,31 +51,23 @@ import { WEBHOOK_NAME_PATTERN } from '../webhook-trigger-node-panel/webhook-trig
 })
 export class TelegramTriggerNodePanelComponent
     extends BaseSidePanel<TelegramTriggerNodeModel>
-    implements OnInit, OnChanges
+    implements OnInit
 {
     public override readonly isExpanded = input<boolean>(false);
 
     private dialog = inject(Dialog);
-    private toastService = inject(ToastService);
-    private ngrokStorageService = inject(NgrokConfigStorageService);
 
-    ngrokConfigs = this.ngrokStorageService.configs;
-    ngrokConfigsLoading = signal<boolean>(false);
-    ngrokConfigId = signal<number | null | undefined>(null);
     selectedFields = signal<DisplayedTelegramField[]>([]);
     webhookPath = signal<string | null>(null);
+    providerType = signal<WebhookProviderType | null>(null);
 
-    selectedNgrokConfigValid = computed<boolean>(() => {
-        const config = this.ngrokConfigs().find((c) => c.id === this.ngrokConfigId());
+    readonly providerItems = WEBHOOK_PROVIDER_ITEMS;
+    readonly regionItems = WEBHOOK_REGION_ITEMS;
 
-        if (!config || !config.webhook_full_url) return false;
-
-        return true;
-    });
     webhookStatusDisplay = computed<WebhookStatus>(() => {
-        const configValid = this.selectedNgrokConfigValid();
+        const provider = this.providerType();
         const path = this.webhookPath();
-        if (!configValid || !path) return WebhookStatus.FAIL;
+        if (!provider || !path) return WebhookStatus.FAIL;
         return WebhookStatus.SUCCESS;
     });
 
@@ -81,9 +78,6 @@ export class TelegramTriggerNodePanelComponent
         }, {});
 
         return JSON.stringify(checkedItemsObj, null, 2);
-    });
-    ngrokConfigSelectItems = computed<SelectItem[]>(() => {
-        return this.ngrokStorageService.configs().map((c) => ({ name: c.name, value: c.id }));
     });
 
     editorOptions: Record<string, unknown> = {
@@ -106,24 +100,7 @@ export class TelegramTriggerNodePanelComponent
     }
 
     ngOnInit() {
-        this.getNgrokConfigs();
-    }
-
-    ngOnChanges() {
-        const id = this.node().data.webhook_trigger?.ngrok_webhook_config;
-        this.ngrokConfigId.set(id);
-    }
-
-    private getNgrokConfigs(): void {
-        this.ngrokConfigsLoading.set(true);
-        this.ngrokStorageService
-            .getConfigs()
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-                next: () => {},
-                error: () => this.toastService.error('Failed to load Ngrok configs.'),
-                complete: () => this.ngrokConfigsLoading.set(false),
-            });
+        this.providerType.set(this.node().data.webhook_trigger?.provider_type ?? null);
     }
 
     private setSelectedFields(nodeFields: TelegramTriggerNodeField[]): void {
@@ -143,14 +120,21 @@ export class TelegramTriggerNodePanelComponent
 
     initializeForm(): FormGroup {
         this.setSelectedFields(this.node().data.fields);
+        const trigger = this.node().data.webhook_trigger;
         const form = this.fb.group({
             node_name: [this.node().node_name, this.createNodeNameValidators()],
             telegram_bot_api_key: [this.node().data.telegram_bot_api_key || '', Validators.required],
             webhook_trigger_path: [
-                this.node().data.webhook_trigger?.path || null,
+                trigger?.path || null,
                 [Validators.required, Validators.pattern(WEBHOOK_NAME_PATTERN)],
             ],
-            ngrok_webhook_config: [this.node().data.webhook_trigger?.ngrok_webhook_config || null],
+            provider_type: [trigger?.provider_type ?? null],
+            ngrok_name: [trigger?.ngrok_config?.name ?? ''],
+            ngrok_auth_token: [trigger?.ngrok_config?.auth_token ?? ''],
+            ngrok_domain: [trigger?.ngrok_config?.domain ?? ''],
+            ngrok_region: [trigger?.ngrok_config?.region ?? 'eu'],
+            localhost_name: [trigger?.localhost_config?.name ?? ''],
+            localhost_domain: [trigger?.localhost_config?.domain ?? ''],
             fields: [this.node().data.fields || []],
         });
         form.get('webhook_trigger_path')
@@ -161,20 +145,14 @@ export class TelegramTriggerNodePanelComponent
             .subscribe((value: string | null) => {
                 this.webhookPath.set(value);
             });
+        form.get('provider_type')
+            ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((value: WebhookProviderType | null) => this.providerType.set(value));
 
         return form;
     }
 
     createUpdatedNode(): TelegramTriggerNodeModel {
-        const webhookTriggerPath = this.form.value.webhook_trigger_path;
-
-        const webhook_trigger = webhookTriggerPath
-            ? {
-                  path: webhookTriggerPath,
-                  ngrok_webhook_config: this.form.value.ngrok_webhook_config,
-              }
-            : null;
-
         return {
             ...this.node(),
             node_name: this.form.value.node_name,
@@ -182,9 +160,40 @@ export class TelegramTriggerNodePanelComponent
             data: {
                 ...this.node().data,
                 telegram_bot_api_key: this.form.value.telegram_bot_api_key,
-                webhook_trigger,
+                webhook_trigger: this.buildWebhookTrigger(),
                 fields: this.form.value.fields,
             },
+        };
+    }
+
+    private buildWebhookTrigger(): WebhookTriggerModel | null {
+        const v = this.form.value;
+        const path = (v.webhook_trigger_path ?? '').trim();
+        if (!path) {
+            return null;
+        }
+        const provider = (v.provider_type as WebhookProviderType | null) ?? null;
+        const existingId = this.node().data.webhook_trigger?.id;
+        return {
+            ...(existingId ? { id: existingId } : {}),
+            path,
+            provider_type: provider,
+            ngrok_config:
+                provider === 'ngrok'
+                    ? {
+                          name: v.ngrok_name,
+                          auth_token: v.ngrok_auth_token,
+                          domain: v.ngrok_domain || null,
+                          region: v.ngrok_region || 'eu',
+                      }
+                    : null,
+            localhost_config:
+                provider === 'localhost'
+                    ? {
+                          name: v.localhost_name,
+                          domain: v.localhost_domain || null,
+                      }
+                    : null,
         };
     }
 
@@ -228,14 +237,8 @@ export class TelegramTriggerNodePanelComponent
         control?.setValue(items);
     }
 
-    onNgrokConfigChanged(value: unknown): void {
-        if (value == null) {
-            this.ngrokConfigId.set(null);
-            return;
-        }
-
-        const numericValue = typeof value === 'number' ? value : Number(value);
-        this.ngrokConfigId.set(Number.isFinite(numericValue) ? numericValue : null);
+    onProviderTypeChanged(value: unknown): void {
+        this.providerType.set((value as WebhookProviderType | null) ?? null);
     }
 
     get activeColor(): string {
