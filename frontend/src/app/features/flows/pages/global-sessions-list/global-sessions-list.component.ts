@@ -18,7 +18,7 @@ import {
     AppSvgIconComponent,
     PaginationControlsComponent,
 } from '@shared/components';
-import { finalize, Observable, Subject, takeUntil } from 'rxjs';
+import { catchError, EMPTY, interval, finalize, Observable, Subject, switchMap, takeUntil } from 'rxjs';
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
@@ -107,6 +107,7 @@ import {
                     (sortChange)="onSortChange($event)"
                     (statusFilterChange)="onStatusFilterChange($event)"
                     (previewSession)="onPreviewSession($event)"
+                    [activePreviewId]="previewSession()?.id ?? null"
                     (selectedIdsChange)="selectedIds.set($event)"
                 ></app-flow-sessions-table>
             </div>
@@ -227,6 +228,8 @@ export class GlobalSessionsListComponent {
     public isDeleting = signal(false);
     private reloadTrigger = signal(0);
     private cancelLoad$ = new Subject<void>();
+    private cancelPolling$ = new Subject<void>();
+    private static readonly POLL_INTERVAL_MS = 5000;
     private destroyRef = inject(DestroyRef);
 
     readonly exportItems: ActionDropdownItem[] = [
@@ -264,7 +267,11 @@ export class GlobalSessionsListComponent {
     }
 
     public togglePanel(): void {
+        const closing = this.isPanelOpen();
         this.isPanelOpen.update((v) => !v);
+        if (closing) {
+            this.previewSession.set(null);
+        }
     }
 
     public startResize(event: MouseEvent): void {
@@ -333,6 +340,7 @@ export class GlobalSessionsListComponent {
     public onPreviewSession(sessionId: number | null): void {
         if (sessionId === null) {
             this.previewSession.set(null);
+            this.isPanelOpen.set(false);
             return;
         }
         const session = this.sessions().find((s) => s.id === sessionId) ?? null;
@@ -379,6 +387,12 @@ export class GlobalSessionsListComponent {
                         ids.forEach((id) => next.delete(id));
                         return next;
                     });
+                    const previewedSession = this.previewSession();
+                    if (previewedSession && ids.includes(previewedSession.id)) {
+                        this.previewSession.set(null);
+                        this.isPanelOpen.set(false);
+                    }
+
                     const remaining = this.sessions().filter((s) => !ids.includes(s.id));
                     if (remaining.length === 0 && this.currentPage() > 1) {
                         this.currentPage.set(this.currentPage() - 1);
@@ -449,6 +463,7 @@ export class GlobalSessionsListComponent {
         durationFilter?: DurationFilter | null
     ): void {
         this.cancelLoad$.next();
+        this.cancelPolling$.next();
         this.isLoaded.set(false);
         const ordering = sort === 'asc' ? 'created_at' : '-created_at';
         this.graphSessionService
@@ -459,6 +474,7 @@ export class GlobalSessionsListComponent {
                     this.sessions.set(response.results);
                     this.totalCount.set(response.count);
                     this.isLoaded.set(true);
+                    this.startBackgroundRefresh();
                 },
                 error: () => {
                     this.totalCount.set(0);
@@ -467,6 +483,32 @@ export class GlobalSessionsListComponent {
                     this.pageSize.set(10);
                     this.currentPage.set(1);
                 },
+            });
+    }
+
+    private startBackgroundRefresh(): void {
+        interval(GlobalSessionsListComponent.POLL_INTERVAL_MS)
+            .pipe(
+                switchMap(() => {
+                    const ordering = this.sortOrder() === 'asc' ? 'created_at' : '-created_at';
+                    return this.graphSessionService
+                        .getGlobalSessions(
+                            this.pageSize(),
+                            (this.currentPage() - 1) * this.pageSize(),
+                            this.statusFilter(),
+                            ordering,
+                            this.flowFilter(),
+                            this.isErrorCauseFilter(),
+                            this.durationFilter()
+                        )
+                        .pipe(catchError(() => EMPTY));
+                }),
+                takeUntil(this.cancelPolling$),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe((response) => {
+                this.sessions.set(response.results);
+                this.totalCount.set(response.count);
             });
     }
 }
