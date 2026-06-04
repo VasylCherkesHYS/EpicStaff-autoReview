@@ -144,7 +144,6 @@ from tables.models.graph_models import (
     EndNode,
     GraphOrganization,
     GraphOrganizationUser,
-    LLMNode,
     GraphNote,
     TelegramTriggerNode,
     TelegramTriggerNodeField,
@@ -209,7 +208,6 @@ from tables.serializers.model_serializers import (
     GraphSerializer,
     GraphSessionMessageSerializer,
     LabelSerializer,
-    LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
     NgrokWebhookConfigModelSerializer,
@@ -242,6 +240,7 @@ from tables.serializers.serializers import (
 )
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
+from tables.import_export.services.import_service import ImportSettings
 from tables.services.redis_service import RedisService
 from tables.swagger_schemas.twilio_schemas import (
     TWILIO_PHONE_NUMBERS_GET,
@@ -784,10 +783,6 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     queryset=ConditionalEdge.objects.select_related("python_code"),
                 ),
                 Prefetch(
-                    "llm_node_list",
-                    queryset=LLMNode.objects.select_related("llm_config"),
-                ),
-                Prefetch(
                     "webhook_trigger_node_list",
                     queryset=WebhookTriggerNode.objects.all(),
                 ),
@@ -851,9 +846,14 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
+        vd = file_serializer.validated_data
         data = self.import_export_service.import_entity(
-            file_serializer.validated_data["file"],
-            preserve_uuids=file_serializer.validated_data["preserve_uuids"],
+            vd["file"],
+            settings=ImportSettings(
+                preserve_uuids=vd["preserve_uuids"],
+                replace_existing=vd["replace_existing"],
+                import_labels=vd["import_labels"],
+            ),
         )
         return Response(data, status=status.HTTP_200_OK)
 
@@ -1034,13 +1034,6 @@ class AudioTranscriptionNodeViewSet(
 ):
     queryset = AudioTranscriptionNode.objects.all()
     serializer_class = AudioTranscriptionNodeSerializer
-
-
-class LLMNodeViewSet(
-    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
-):
-    queryset = LLMNode.objects.all()
-    serializer_class = LLMNodeSerializer
 
 
 class CodeAgentNodeViewSet(IdempotentNodeCreateMixin, viewsets.ModelViewSet):

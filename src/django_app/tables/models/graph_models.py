@@ -141,13 +141,6 @@ class AudioTranscriptionNode(BaseNode):
     )
 
 
-class LLMNode(BaseNode):
-    graph = models.ForeignKey(
-        "Graph", on_delete=models.CASCADE, related_name="llm_node_list"
-    )
-    llm_config = models.ForeignKey("LLMConfig", blank=False, on_delete=models.CASCADE)
-
-
 class EndNode(BaseGraphEntity, BaseGlobalNode):
     # TODO: can be OneToOne field
     graph = models.ForeignKey(

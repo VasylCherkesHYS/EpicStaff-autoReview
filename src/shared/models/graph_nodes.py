@@ -3,7 +3,6 @@ from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from .ai_providers import LLMData
 from .agents import CrewData
 from .tools import PythonCodeData
 
@@ -38,15 +37,6 @@ class FileExtractorNodeData(BaseModel):
 
 class AudioTranscriptionNodeData(BaseModel):
     node_name: str
-    input_map: dict[str, Any]
-    output_variable_path: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class LLMNodeData(BaseModel):
-    node_name: str
-    llm_data: LLMData
     input_map: dict[str, Any]
     output_variable_path: str | None = None
 
@@ -180,7 +170,6 @@ class GraphData(BaseModel):
     file_extractor_node_list: list[FileExtractorNodeData] = []
     audio_transcription_node_list: list[AudioTranscriptionNodeData] = []
     subgraph_node_list: list[SubGraphNodeData] = []
-    llm_node_list: list[LLMNodeData] = []
     code_agent_node_list: list[CodeAgentNodeData] = []
     edge_list: list[EdgeData] = []
     conditional_edge_list: list[ConditionalEdgeData] = []
