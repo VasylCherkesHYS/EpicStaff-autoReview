@@ -127,6 +127,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     public isLoaded = signal<boolean>(false);
     public showContextMenu = signal(false);
+    public hoveredNodeId = signal<string | null>(null);
+
+    public getNodeZIndex(node: NodeModel): number {
+        if (this.hoveredNodeId() === node.id) return 1000;
+        // Upper nodes (smaller y) get higher z-index so their ports stay accessible
+        return Math.max(2, 500 - Math.floor(Math.max(0, node.position?.y ?? 0) / 10));
+    }
 
     private readonly destroy$ = new Subject<void>();
     public showVariables = signal<boolean>(false);
@@ -740,6 +747,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (normalizedNode.type === NodeType.TABLE) {
             this.resolveOverlapsForNode(normalizedNode.id);
         }
+        this.cd.detectChanges();
         this.sidePanelService.clearSelection();
     }
 
@@ -750,6 +758,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (normalizedNode.type === NodeType.TABLE) {
             this.resolveOverlapsForNode(normalizedNode.id);
         }
+        this.cd.detectChanges();
     }
 
     public flushOpenSidePanelState(): void {
