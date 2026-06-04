@@ -64,57 +64,12 @@
             <span class="dialog__section-label">Webhook Tunnel</span>
         </div>
 
-        <div>
-            <app-custom-input
-                label="Webhook Path"
-                formControlName="webhook_path"
-                placeholder="e.g. twilio-voice"
-                tooltipText="URL-safe identifier for the webhook path"
-            />
-        </div>
-
-        <app-select
-            label="Provider"
-            formControlName="provider_type"
-            [items]="providerItems"
-            placeholder="Select a provider"
-            tooltipText="Tunnel provider that exposes the voice endpoint to Twilio"
-        />
-
-        @if (providerType() === 'ngrok') {
-            <div>
-                <app-custom-input label="Tunnel Name" formControlName="ngrok_name" placeholder="e.g. my-tunnel" />
-            </div>
-            <div>
-                <app-custom-input
-                    type="password"
-                    label="Ngrok Auth Token"
-                    formControlName="ngrok_auth_token"
-                    placeholder="From dashboard.ngrok.com"
-                />
-            </div>
-            <div>
-                <app-custom-input
-                    label="Custom Domain"
-                    formControlName="ngrok_domain"
-                    placeholder="(optional) myapp.ngrok.io"
-                />
-            </div>
-            <app-select label="Region" formControlName="ngrok_region" [items]="regionItems" />
-        }
-
-        @if (providerType() === 'localhost') {
-            <div>
-                <app-custom-input label="Name" formControlName="localhost_name" placeholder="e.g. local" />
-            </div>
-            <div>
-                <app-custom-input
-                    label="Local Domain / URL"
-                    formControlName="localhost_domain"
-                    placeholder="e.g. localhost:8000"
-                />
-            </div>
-        }
+        <app-webhook-trigger-field
+            formControlName="webhook_trigger"
+            [pathRequired]="false"
+            [allowLocalhost]="false"
+            (triggerResolved)="onTriggerResolved($event)"
+        ></app-webhook-trigger-field>
 
         @if (liveUrl()) {
             <p class="dialog__field-hint">Live URL: {{ liveUrl() }}</p>

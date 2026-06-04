@@ -6,7 +6,7 @@ import {
     ButtonComponent,
     CustomInputComponent,
     JsonEditorComponent,
-    SelectComponent,
+    WebhookTriggerFieldComponent,
 } from '@shared/components';
 import { MATERIAL_FORMS } from '@shared/material-forms';
 import { startWith } from 'rxjs';
@@ -22,16 +22,8 @@ import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip
 import { TELEGRAM_TRIGGER_FIELDS } from '../../../core/constants/telegram-trigger-fields';
 import { TelegramTriggerNodeModel } from '../../../core/models/node.model';
 import { BaseSidePanel } from '../../../core/models/node-panel.abstract';
-import {
-    WebhookProviderType,
-    WebhookTriggerModel,
-} from '../../../core/models/webhook-trigger.model';
+import { WebhookTriggerWrite } from '../../../core/models/webhook-trigger.model';
 import { TelegramTriggerEditingDialogComponent } from '../../telegram-trigger-editing-dialog/telegram-trigger-editing-dialog.component';
-import {
-    WEBHOOK_NAME_PATTERN,
-    WEBHOOK_PROVIDER_ITEMS,
-    WEBHOOK_REGION_ITEMS,
-} from '../webhook-trigger-node-panel/webhook-trigger-node-panel.component';
 
 @Component({
     selector: 'app-telegram-trigger-node-panel',
@@ -45,31 +37,21 @@ import {
         AppSvgIconComponent,
         MATERIAL_FORMS,
         JsonEditorComponent,
-        SelectComponent,
+        WebhookTriggerFieldComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TelegramTriggerNodePanelComponent
-    extends BaseSidePanel<TelegramTriggerNodeModel>
-    implements OnInit
-{
+export class TelegramTriggerNodePanelComponent extends BaseSidePanel<TelegramTriggerNodeModel> implements OnInit {
     public override readonly isExpanded = input<boolean>(false);
 
     private dialog = inject(Dialog);
 
     selectedFields = signal<DisplayedTelegramField[]>([]);
-    webhookPath = signal<string | null>(null);
-    providerType = signal<WebhookProviderType | null>(null);
+    webhookConfigured = signal<boolean>(false);
 
-    readonly providerItems = WEBHOOK_PROVIDER_ITEMS;
-    readonly regionItems = WEBHOOK_REGION_ITEMS;
-
-    webhookStatusDisplay = computed<WebhookStatus>(() => {
-        const provider = this.providerType();
-        const path = this.webhookPath();
-        if (!provider || !path) return WebhookStatus.FAIL;
-        return WebhookStatus.SUCCESS;
-    });
+    webhookStatusDisplay = computed<WebhookStatus>(() =>
+        this.webhookConfigured() ? WebhookStatus.SUCCESS : WebhookStatus.FAIL
+    );
 
     jsonValues = computed(() => {
         const checkedItemsObj = this.selectedFields().reduce<Record<string, unknown>>((acc, field) => {
@@ -100,7 +82,13 @@ export class TelegramTriggerNodePanelComponent
     }
 
     ngOnInit() {
-        this.providerType.set(this.node().data.webhook_trigger?.provider_type ?? null);
+        this.webhookConfigured.set(this.isConfigured(this.node().data.webhook_trigger));
+    }
+
+    private isConfigured(value: WebhookTriggerWrite | null): boolean {
+        if (value == null) return false;
+        if (typeof value === 'number') return true;
+        return !!value.path && !!value.provider_type;
     }
 
     private setSelectedFields(nodeFields: TelegramTriggerNodeField[]): void {
@@ -120,34 +108,18 @@ export class TelegramTriggerNodePanelComponent
 
     initializeForm(): FormGroup {
         this.setSelectedFields(this.node().data.fields);
-        const trigger = this.node().data.webhook_trigger;
         const form = this.fb.group({
             node_name: [this.node().node_name, this.createNodeNameValidators()],
             telegram_bot_api_key: [this.node().data.telegram_bot_api_key || '', Validators.required],
-            webhook_trigger_path: [
-                trigger?.path || null,
-                [Validators.required, Validators.pattern(WEBHOOK_NAME_PATTERN)],
-            ],
-            provider_type: [trigger?.provider_type ?? null],
-            ngrok_name: [trigger?.ngrok_config?.name ?? ''],
-            ngrok_auth_token: [trigger?.ngrok_config?.auth_token ?? ''],
-            ngrok_domain: [trigger?.ngrok_config?.domain ?? ''],
-            ngrok_region: [trigger?.ngrok_config?.region ?? 'eu'],
-            localhost_name: [trigger?.localhost_config?.name ?? ''],
-            localhost_domain: [trigger?.localhost_config?.domain ?? ''],
+            webhook_trigger: [this.node().data.webhook_trigger ?? null],
             fields: [this.node().data.fields || []],
         });
-        form.get('webhook_trigger_path')
+        form.get('webhook_trigger')
             ?.valueChanges.pipe(
-                startWith(form.get('webhook_trigger_path')?.value ?? ''),
+                startWith(form.get('webhook_trigger')?.value ?? null),
                 takeUntilDestroyed(this.destroyRef)
             )
-            .subscribe((value: string | null) => {
-                this.webhookPath.set(value);
-            });
-        form.get('provider_type')
-            ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((value: WebhookProviderType | null) => this.providerType.set(value));
+            .subscribe((value) => this.webhookConfigured.set(this.isConfigured(value as WebhookTriggerWrite | null)));
 
         return form;
     }
@@ -160,40 +132,9 @@ export class TelegramTriggerNodePanelComponent
             data: {
                 ...this.node().data,
                 telegram_bot_api_key: this.form.value.telegram_bot_api_key,
-                webhook_trigger: this.buildWebhookTrigger(),
+                webhook_trigger: this.form.value.webhook_trigger ?? null,
                 fields: this.form.value.fields,
             },
-        };
-    }
-
-    private buildWebhookTrigger(): WebhookTriggerModel | null {
-        const v = this.form.value;
-        const path = (v.webhook_trigger_path ?? '').trim();
-        if (!path) {
-            return null;
-        }
-        const provider = (v.provider_type as WebhookProviderType | null) ?? null;
-        const existingId = this.node().data.webhook_trigger?.id;
-        return {
-            ...(existingId ? { id: existingId } : {}),
-            path,
-            provider_type: provider,
-            ngrok_config:
-                provider === 'ngrok'
-                    ? {
-                          name: v.ngrok_name,
-                          auth_token: v.ngrok_auth_token,
-                          domain: v.ngrok_domain || null,
-                          region: v.ngrok_region || 'eu',
-                      }
-                    : null,
-            localhost_config:
-                provider === 'localhost'
-                    ? {
-                          name: v.localhost_name,
-                          domain: v.localhost_domain || null,
-                      }
-                    : null,
         };
     }
 
@@ -209,7 +150,6 @@ export class TelegramTriggerNodePanelComponent
     }
 
     onEditing(): void {
-        this.form.value.fields;
         const dialog = this.dialog.open(TelegramTriggerEditingDialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
@@ -235,10 +175,6 @@ export class TelegramTriggerNodePanelComponent
     private updateFieldsControl(items: TelegramTriggerNodeField[]) {
         const control = this.form.get('fields');
         control?.setValue(items);
-    }
-
-    onProviderTypeChanged(value: unknown): void {
-        this.providerType.set((value as WebhookProviderType | null) ?? null);
     }
 
     get activeColor(): string {

@@ -9,6 +9,7 @@ import { DefaultLlmsSectionComponent } from '../default-llms-section/default-llm
 import { LlmLibrarySectionComponent } from '../llm-library-section/llm-library-section.component';
 import { QuickstartSectionComponent } from '../quickstart-section/quickstart-section.component';
 import { VoiceSettingsSectionComponent } from '../voice-settings-section/voice-settings-section.component';
+import { WebhookTriggersSectionComponent } from '../webhook-triggers-section/webhook-triggers-section.component';
 
 @Component({
     selector: 'app-configure-models-dialog',
@@ -17,6 +18,7 @@ import { VoiceSettingsSectionComponent } from '../voice-settings-section/voice-s
         DefaultLlmsSectionComponent,
         QuickstartSectionComponent,
         LlmLibrarySectionComponent,
+        WebhookTriggersSectionComponent,
         VoiceSettingsSectionComponent,
         AppSvgIconComponent,
     ],

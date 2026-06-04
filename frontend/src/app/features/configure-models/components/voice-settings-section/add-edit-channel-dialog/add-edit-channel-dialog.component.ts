@@ -4,15 +4,21 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ButtonComponent, CustomInputComponent, SelectComponent, SelectItem } from '@shared/components';
+import {
+    ButtonComponent,
+    CustomInputComponent,
+    SelectComponent,
+    SelectItem,
+    WebhookTriggerFieldComponent,
+} from '@shared/components';
 import { WebhookTriggerService } from '@shared/services';
 import { Observable, of, switchMap } from 'rxjs';
 
 import { RealtimeChannel, TwilioChannel } from '../../../../../shared/models/realtime-voice/realtime-channel.model';
 import { RealtimeChannelService, TwilioPhoneNumber } from '../../../../../shared/services/realtime-channel.service';
 import {
-    WebhookProviderType,
     WebhookTriggerModel,
+    WebhookTriggerWrite,
 } from '../../../../../visual-programming/core/models/webhook-trigger.model';
 import { GetAgentRequest } from '../../../../staff/models/agent.model';
 import { AgentsService } from '../../../../staff/services/staff.service';
@@ -26,7 +32,14 @@ export interface AddEditChannelDialogData {
     selector: 'app-add-edit-channel-dialog',
     templateUrl: './add-edit-channel-dialog.component.html',
     styleUrls: ['./add-edit-channel-dialog.component.scss'],
-    imports: [ReactiveFormsModule, CustomInputComponent, SelectComponent, ButtonComponent, NgIf],
+    imports: [
+        ReactiveFormsModule,
+        CustomInputComponent,
+        SelectComponent,
+        ButtonComponent,
+        NgIf,
+        WebhookTriggerFieldComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddEditChannelDialogComponent implements OnInit {
@@ -43,7 +56,8 @@ export class AddEditChannelDialogComponent implements OnInit {
     errorMessage = signal<string | null>(null);
 
     private savedChannel = signal<RealtimeChannel | null>(this.data.channel);
-    providerType = signal<WebhookProviderType | null>(null);
+    /** The trigger model resolved by the field (picked existing, or inline draft). */
+    private resolvedTrigger = signal<WebhookTriggerModel | null>(this.data.channel?.twilio?.webhook_trigger ?? null);
     liveUrl = signal<string | null>(this.data.channel?.twilio?.webhook_trigger?.live_url ?? null);
 
     private agents = signal<GetAgentRequest[]>([]);
@@ -59,18 +73,6 @@ export class AddEditChannelDialogComponent implements OnInit {
         ...this.agents().map((a) => ({ name: a.role, value: a.id })),
     ]);
 
-    readonly providerItems: SelectItem[] = [
-        { name: '— None —', value: null },
-        { name: 'Ngrok', value: 'ngrok' },
-        { name: 'Localhost', value: 'localhost' },
-    ];
-
-    readonly regionItems: SelectItem[] = [
-        { name: 'Europe (eu)', value: 'eu' },
-        { name: 'United States (us)', value: 'us' },
-        { name: 'Asia/Pacific (ap)', value: 'ap' },
-    ];
-
     phoneNumberItems = computed<SelectItem[]>(() => [
         { name: '— None —', value: null },
         ...this.phoneNumbers().map((p) => ({
@@ -84,7 +86,6 @@ export class AddEditChannelDialogComponent implements OnInit {
     ngOnInit(): void {
         const ch = this.data.channel;
         const tw = ch?.twilio;
-        const trigger = tw?.webhook_trigger ?? null;
 
         this.form = this.fb.group({
             name: [ch?.name ?? '', Validators.required],
@@ -93,21 +94,8 @@ export class AddEditChannelDialogComponent implements OnInit {
             account_sid: [tw?.account_sid ?? ''],
             auth_token: [tw?.auth_token ?? ''],
             phone_number: [tw?.phone_number ?? ''],
-            webhook_path: [trigger?.path ?? ''],
-            provider_type: [trigger?.provider_type ?? null],
-            ngrok_name: [trigger?.ngrok_config?.name ?? ''],
-            ngrok_auth_token: [trigger?.ngrok_config?.auth_token ?? ''],
-            ngrok_domain: [trigger?.ngrok_config?.domain ?? ''],
-            ngrok_region: [trigger?.ngrok_config?.region ?? 'eu'],
-            localhost_name: [trigger?.localhost_config?.name ?? ''],
-            localhost_domain: [trigger?.localhost_config?.domain ?? ''],
+            webhook_trigger: [(tw?.webhook_trigger ?? null) as WebhookTriggerWrite | null],
         });
-
-        this.providerType.set(trigger?.provider_type ?? null);
-        this.form
-            .get('provider_type')!
-            .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((value: WebhookProviderType | null) => this.providerType.set(value));
 
         this.agentsService
             .getAgentsWithRealtimeConfig()
@@ -134,6 +122,11 @@ export class AddEditChannelDialogComponent implements OnInit {
                 this.onSubmit();
             }
         });
+    }
+
+    onTriggerResolved(trigger: WebhookTriggerModel | null): void {
+        this.resolvedTrigger.set(trigger);
+        this.liveUrl.set(trigger?.live_url ?? null);
     }
 
     onSubmit(): void {
@@ -224,14 +217,13 @@ export class AddEditChannelDialogComponent implements OnInit {
             return;
         }
 
-        // Upsert the inline WebhookTrigger first (write = int PK on TwilioChannel),
-        // then attach its id to the Twilio channel.
-        this.upsertWebhookTrigger(existingTwilio?.webhook_trigger ?? null)
+        // Resolve the webhook trigger first (write = int PK on TwilioChannel), then attach its id.
+        this.resolveWebhookTrigger()
             .pipe(
                 switchMap((trigger) => {
                     this.liveUrl.set(trigger?.live_url ?? null);
                     const webhookTriggerId = trigger?.id ?? null;
-                    return existingTwilio
+                    const obs = existingTwilio
                         ? this.channelService.updateTwilioChannel({
                               channel: existingTwilio.channel,
                               account_sid: accountSid,
@@ -246,15 +238,16 @@ export class AddEditChannelDialogComponent implements OnInit {
                               phone_number: phoneNumber || null,
                               webhook_trigger: webhookTriggerId,
                           });
+                    return obs.pipe(switchMap((twilio) => of({ twilio, trigger })));
                 }),
                 takeUntilDestroyed(this.destroyRef)
             )
             .subscribe({
-                next: (twilio) => {
+                next: ({ twilio, trigger }) => {
                     const cur = this.savedChannel();
                     if (cur) this.savedChannel.set({ ...cur, twilio });
                     this.channelService.channelsChanged$.next();
-                    this.configureWebhookAndClose(channelToken, phoneNumber);
+                    this.configureWebhookAndClose(channelToken, phoneNumber, trigger);
                 },
                 error: (err: HttpErrorResponse) => {
                     this.errorMessage.set(
@@ -266,53 +259,29 @@ export class AddEditChannelDialogComponent implements OnInit {
     }
 
     /**
-     * Create or update the inline WebhookTrigger from the form values.
-     * Resolves to `null` when no provider/path is configured (channel has no tunnel).
+     * Resolve the chosen webhook trigger to a persisted model:
+     * - `null` → no tunnel.
+     * - `number` → existing trigger referenced by id (already loaded by the field, else fetch).
+     * - object → inline create/update.
      */
-    private upsertWebhookTrigger(existing: WebhookTriggerModel | null): Observable<WebhookTriggerModel | null> {
-        const payload = this.buildWebhookTriggerPayload();
-        if (!payload) {
-            return of(null);
+    private resolveWebhookTrigger(): Observable<WebhookTriggerModel | null> {
+        const value = this.form.value.webhook_trigger as WebhookTriggerWrite | null;
+        if (value == null) return of(null);
+        if (typeof value === 'number') {
+            const resolved = this.resolvedTrigger();
+            return resolved && resolved.id === value ? of(resolved) : this.webhookTriggerService.getById(value);
         }
-        return existing?.id
-            ? this.webhookTriggerService.update(existing.id, payload)
-            : this.webhookTriggerService.create(payload);
+        return value.id
+            ? this.webhookTriggerService.update(value.id, value)
+            : this.webhookTriggerService.create(value);
     }
 
-    private buildWebhookTriggerPayload(): WebhookTriggerModel | null {
-        const v = this.form.value;
-        const provider = v.provider_type as WebhookProviderType | null;
-        const path = (v.webhook_path ?? '').trim();
-        if (!provider || !path) {
-            return null;
-        }
-        if (provider === 'ngrok') {
-            return {
-                path,
-                provider_type: 'ngrok',
-                ngrok_config: {
-                    name: v.ngrok_name,
-                    auth_token: v.ngrok_auth_token,
-                    domain: v.ngrok_domain || null,
-                    region: v.ngrok_region || 'eu',
-                },
-                localhost_config: null,
-            };
-        }
-        return {
-            path,
-            provider_type: 'localhost',
-            ngrok_config: null,
-            localhost_config: {
-                name: v.localhost_name,
-                domain: v.localhost_domain || null,
-            },
-        };
-    }
-
-    private configureWebhookAndClose(channelToken: string, phoneNumber: string): void {
-        const hasTunnel = this.form.get('provider_type')?.value && this.form.get('webhook_path')?.value;
-        if (!phoneNumber || !hasTunnel) {
+    private configureWebhookAndClose(
+        channelToken: string,
+        phoneNumber: string,
+        trigger: WebhookTriggerModel | null
+    ): void {
+        if (!phoneNumber || !trigger) {
             this.dialogRef.close(true);
             return;
         }
@@ -331,7 +300,7 @@ export class AddEditChannelDialogComponent implements OnInit {
                 error: (err: HttpErrorResponse) => {
                     this.errorMessage.set(
                         this.formatBackendError(err) ??
-                            'Channel saved but webhook configuration on Twilio failed. Check your ngrok tunnel.'
+                            'Channel saved but webhook configuration on Twilio failed. Check your tunnel.'
                     );
                     this.isSubmitting.set(false);
                 },

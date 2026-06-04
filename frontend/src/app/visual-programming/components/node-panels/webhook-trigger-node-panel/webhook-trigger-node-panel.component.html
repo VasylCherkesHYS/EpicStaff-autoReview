@@ -20,89 +20,34 @@
                         [errorMessage]="getNodeNameErrorMessage()"
                     ></app-custom-input>
 
-                    <app-custom-input
-                        label="Webhook trigger path"
-                        tooltipText="Only enter the webhook name. The base URL is shown below."
-                        formControlName="webhook_trigger_path"
-                        placeholder="Enter webhook path"
-                        [required]="true"
+                    <app-webhook-trigger-field
+                        formControlName="webhook_trigger"
                         [activeColor]="activeColor"
-                        [errorMessage]="getWebhookNameErrorMessage()"
-                    ></app-custom-input>
+                    ></app-webhook-trigger-field>
 
-                    <div>
-                        <app-select
-                            label="Provider"
-                            tooltipText="Tunnel provider that exposes this webhook."
-                            formControlName="provider_type"
-                            [items]="providerItems"
-                            (changed)="onProviderTypeChanged($event)"
-                        />
-
-                        @if (providerType() === 'ngrok') {
-                            <app-custom-input
-                                label="Tunnel Name"
-                                formControlName="ngrok_name"
-                                placeholder="e.g. my-tunnel"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
-                            <app-custom-input
-                                type="password"
-                                label="Ngrok Auth Token"
-                                formControlName="ngrok_auth_token"
-                                placeholder="From dashboard.ngrok.com"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
-                            <app-custom-input
-                                label="Custom Domain"
-                                formControlName="ngrok_domain"
-                                placeholder="(optional) myapp.ngrok.io"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
-                            <app-select label="Region" formControlName="ngrok_region" [items]="regionItems" />
-                        }
-
-                        @if (providerType() === 'localhost') {
-                            <app-custom-input
-                                label="Name"
-                                formControlName="localhost_name"
-                                placeholder="e.g. local"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
-                            <app-custom-input
-                                label="Local Domain / URL"
-                                formControlName="localhost_domain"
-                                placeholder="e.g. localhost:8000"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
-                        }
-
+                    @if (liveUrl(); as url) {
                         <div class="webhook-url-display">
-                            @if (liveUrl(); as url) {
+                            <span
+                                class="webhook-url-text"
+                                [style.color]="activeColor"
+                            >
+                                {{ url }}
+                            </span>
+                            <button
+                                type="button"
+                                class="copy-button"
+                                (click)="copyWebhookUrl()"
+                                [disabled]="!url"
+                                aria-label="Copy webhook URL"
+                            >
                                 <span
-                                    class="webhook-url-text"
-                                    [style.color]="activeColor"
-                                >
-                                    {{ url }}
-                                </span>
-                                <button
-                                    type="button"
-                                    class="copy-button"
-                                    (click)="copyWebhookUrl()"
-                                    [disabled]="!url"
-                                    aria-label="Copy webhook URL"
-                                >
-                                    <span
-                                        class="copy-icon"
-                                        aria-hidden="true"
-                                    ></span>
-                                    <span>Copy</span>
-                                </button>
-                            } @else {
-                                <div class="webhook-url-placeholder">Live URL appears after saving.</div>
-                            }
+                                    class="copy-icon"
+                                    aria-hidden="true"
+                                ></span>
+                                <span>Copy</span>
+                            </button>
                         </div>
-                    </div>
+                    }
 
                     <app-custom-input
                         label="Libraries"

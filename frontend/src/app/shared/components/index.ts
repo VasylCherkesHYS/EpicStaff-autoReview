@@ -43,6 +43,7 @@ export * from './round-button/round-button.component';
 export * from './search/search.component';
 export * from './select/select.component';
 export * from './slider-with-stepper/slider-with-stepper.component';
+export * from './webhook-trigger-field/webhook-trigger-field.component';
 export * from './spinner/spinner.component';
 export * from './spinner-type2/spinner.component';
 export * from './status-badge/status-badge.component';
