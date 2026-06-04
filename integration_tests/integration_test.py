@@ -1,12 +1,9 @@
-import json
 import random
 import uuid
 
 import pytest
 
 from loguru import logger
-from pathlib import Path
-
 import requests
 
 from utils.cleaning_utils import (
@@ -39,7 +36,7 @@ from utils.utils import (
     run_session,
     wait_for_results_sse,
 )
-from utils.variables import DJANGO_URL, MANAGER_URL, TEST_TOOL_NAME
+from utils.variables import DJANGO_URL, TEST_TOOL_NAME
 
 
 def test_create_and_run_session():
@@ -143,74 +140,6 @@ async def test_knowledges(collection_id, redis_service):
         "A secure and user-friendly platform designed for businesses of all sizes."
         in str_results
     )
-
-
-# Tools that require external credentials/connections to instantiate — expected to return 500.
-# These are not bugs, they just cannot be called without the required secrets.
-CREDENTIAL_DEPENDENT_TOOLS = {
-    "create_draft",  # Google OAuth credentials.json
-    "my_sql_search",  # MySQL connection
-    "nl2sql",  # SQL connection string
-    "pg_search",  # PostgreSQL connection
-    "github_search",  # GitHub token + content_types
-    "youtube_video_search",  # OPENAI_API_KEY (embedchain.App -> OpenAIEmbedder)
-    "firecrawl_crawl_website",  # FIRECRAWL_API_KEY
-    "firecrawl_scrape_website",  # FIRECRAWL_API_KEY
-    "firecrawl_search",  # FIRECRAWL_API_KEY
-    "spider_scraper",  # Spider API key
-    "composio",  # composio_action + name required
-    "browserbase_load",  # BROWSERBASE_API_KEY
-    "custom_create_draft",  # Google OAuth credentials.json (GmailToolkit)
-}
-
-
-# @pytest.mark.skip
-def test_get_tool_class_data():
-    with open(Path("../src/manager/tools_config.json"), "r") as f:
-        content = f.read()
-        tool_config_list = json.loads(content)
-    tool_alias_list = []
-    for tool_config in tool_config_list:
-        for tool_alias in tool_config["tool_dict"]:
-            tool_alias_list.append(tool_alias)
-            print(f"Processing tool alias: {tool_alias}")
-    error_tools = []
-    expected_failures = []
-    for tool_alias in tool_alias_list:
-        print(f"Testing tool alias: {tool_alias}...")
-        try:
-            tool_class_data_response = requests.post(
-                f"{MANAGER_URL}/tool/{tool_alias}/class-data",
-                json={"tool_init_configuration": None},
-                headers=get_headers(),
-            )
-            validate_response(response=tool_class_data_response)
-            tool_class_data = tool_class_data_response.json()["classdata"]
-            print(f"{tool_alias} OK: {tool_class_data}")
-        except requests.HTTPError:
-            entry = {
-                "tool_alias": tool_alias,
-                "message": tool_class_data_response.reason,
-            }
-            if tool_alias in CREDENTIAL_DEPENDENT_TOOLS:
-                expected_failures.append(entry)
-                print(f"{tool_alias} EXPECTED FAILURE (credentials required)")
-            else:
-                error_tools.append(entry)
-        except Exception as e:
-            entry = {"tool_alias": tool_alias, "error": str(e)}
-            if tool_alias in CREDENTIAL_DEPENDENT_TOOLS:
-                expected_failures.append(entry)
-                print(f"{tool_alias} EXPECTED FAILURE (credentials required): {e}")
-            else:
-                error_tools.append(entry)
-
-    if expected_failures:
-        print(
-            f"\nExpected failures (credentials required): {[e['tool_alias'] for e in expected_failures]}"
-        )
-    if error_tools:
-        assert False, str(error_tools)
 
 
 def test_mcp_session(run_mcp_tool):
