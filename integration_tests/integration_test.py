@@ -26,7 +26,6 @@ from utils.utils import (
     create_end_node,
     create_graph,
     create_llm_config,
-    create_llm_node,
     create_mcp_tool,
     create_python_code_tool,
     create_python_node,
@@ -82,15 +81,6 @@ def test_create_and_run_session():
         },
         output_variable_path="variables",
     )
-    llm_node_id = create_llm_node(
-        llm_config_id=config_id,
-        node_name="llm_node1",
-        graph_id=graph_id,
-        input_map={
-            "query": "variables.query",
-        },
-        output_variable_path="variables",
-    )
     start_node_id = create_start_node(graph_id=graph_id)
     hash_message_node_id = create_hash_message_python_node(graph_id=graph_id)
     option_1_node_id = create_option_1_python_node(graph_id=graph_id)
@@ -105,7 +95,7 @@ def test_create_and_run_session():
         graph=graph_id,
     )
     create_user_name_conditional_edge(source_node_id=user_crew_node_id, graph=graph_id)
-    create_edge(start_node_id=option_1_node_id, end_node_id=llm_node_id, graph=graph_id)
+    create_edge(start_node_id=option_1_node_id, end_node_id=end_node_id, graph=graph_id)
     create_edge(
         start_node_id=option_2_node_id, end_node_id=author_crew_node_id, graph=graph_id
     )
@@ -115,7 +105,6 @@ def test_create_and_run_session():
     create_edge(
         start_node_id=wiki_crew_node_id, end_node_id=end_node_id, graph=graph_id
     )
-    create_edge(start_node_id=llm_node_id, end_node_id=end_node_id, graph=graph_id)
 
     # Run sessions
     session1 = run_session(

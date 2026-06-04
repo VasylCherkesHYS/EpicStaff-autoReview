@@ -4,6 +4,7 @@
     height: 100%;
     width: 100%;
     min-width: 0;
+    isolation: isolate;
 }
 
 app-flow-header {

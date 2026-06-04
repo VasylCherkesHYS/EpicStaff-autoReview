@@ -143,7 +143,8 @@ services:
       DB_MANAGER_PASSWORD: ${DB_MANAGER_PASSWORD}
       CREW_SAVEFILES_PATH: ${CREW_SAVEFILES_PATH}
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
@@ -257,6 +258,9 @@ services:
       DB_CREW_USER: ${DB_CREW_USER}
       DB_CREW_PASSWORD: ${DB_CREW_PASSWORD}
       MAX_CONCURRENT_SESSIONS: ${MAX_CONCURRENT_SESSIONS}
+      DEFAULT_RAG_SEARCH_TIMEOUT: ${DEFAULT_RAG_SEARCH_TIMEOUT}
+      NAIVE_RAG_SEARCH_TIMEOUT: ${NAIVE_RAG_SEARCH_TIMEOUT}
+      GRAPH_RAG_SEARCH_TIMEOUT: ${GRAPH_RAG_SEARCH_TIMEOUT}
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
@@ -291,7 +295,6 @@ services:
       STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME:-epicstaff}
     volumes:
       - sandbox_venvs:${BASE_VENV_PATH}
-      - sandbox_executions:${OUTPUT_PATH}
       - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -447,6 +450,7 @@ services:
       - DOMAIN_NAME=${DOMAIN_NAME}
       - SSL_ENABLE=${SSL_ENABLE}
       - FRONTEND_INTERNAL_PORT=80
+      - WEBHOOK_PORT=${WEBHOOK_PORT:-8051}
     volumes:
       - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -492,8 +496,6 @@ services:
 
 volumes:
   sandbox_venvs:
-    external: true
-  sandbox_executions:
     external: true
   crew_pgdata:
     external: true

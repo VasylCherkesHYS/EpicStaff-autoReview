@@ -224,7 +224,6 @@ services:
       - OUTPUT_PATH=/home/user/root/app/executions/
     volumes:
       - sandbox_venvs:/home/user/root/app/venvs/
-      - sandbox_executions:/home/user/root/app/executions/
       - sandbox_savefiles:/home/user/root/app/savefiles/
     networks:
       - backend-network
@@ -283,7 +282,6 @@ services:
 
 volumes:
   sandbox_venvs:
-  sandbox_executions:
   crew_pgdata:
   sandbox_savefiles:
 

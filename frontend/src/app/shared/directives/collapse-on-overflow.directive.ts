@@ -10,13 +10,13 @@ export class CollapseOnOverflowDirective implements AfterViewInit, OnDestroy {
     @Input() public collapseOnOverflowClass = 'is-collapsed';
     @Input() public collapseOnOverflowRequireSelector = '';
     @Input() public collapseOnOverflowCheckExternalClip = true;
-
     @Output() public collapseOnOverflowChange = new EventEmitter<boolean>();
 
     private resizeObserver: ResizeObserver | null = null;
     private mutationObserver: MutationObserver | null = null;
     private frameId: number | null = null;
     private collapsed = false;
+    private suspendResizeReactionUntil = 0;
 
     constructor(
         private readonly hostRef: ElementRef<HTMLElement>,
@@ -27,7 +27,12 @@ export class CollapseOnOverflowDirective implements AfterViewInit, OnDestroy {
         this.ngZone.runOutsideAngular(() => {
             const host = this.hostRef.nativeElement;
 
-            this.resizeObserver = new ResizeObserver(() => this.scheduleEvaluate());
+            this.resizeObserver = new ResizeObserver(() => {
+                if (performance.now() < this.suspendResizeReactionUntil) {
+                    return;
+                }
+                this.scheduleEvaluate();
+            });
             this.resizeObserver.observe(host);
 
             this.observeAncestorResizes(host);
@@ -112,11 +117,14 @@ export class CollapseOnOverflowDirective implements AfterViewInit, OnDestroy {
 
     private setCollapsed(next: boolean): void {
         const host = this.hostRef.nativeElement;
-        host.classList.toggle(this.collapseOnOverflowClass, next);
 
         if (this.collapsed === next) {
+            host.classList.toggle(this.collapseOnOverflowClass, next);
             return;
         }
+
+        host.classList.toggle(this.collapseOnOverflowClass, next);
+        this.suspendResizeReactionUntil = performance.now() + 80;
 
         this.collapsed = next;
         this.ngZone.run(() => {
