@@ -1,0 +1,109 @@
+from drf_spectacular.utils import OpenApiResponse, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
+from tables.swagger_schemas.common_schemas import UNAUTHORIZED_401_RESPONSE
+
+TWILIO_PHONE_NUMBERS_GET = dict(
+    summary="Return the list of incoming phone numbers from Twilio.",
+    description="Fetches up to 100 incoming phone numbers associated with the configured Twilio account. "
+    "Requires Twilio Account SID and Auth Token to be set in Voice Settings. "
+    "Each number includes its SID, phone number, friendly name, and currently configured voice URL.",
+    responses={
+        200: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="List of incoming phone numbers returned successfully.",
+            examples=[
+                OpenApiExample(
+                    "Phone numbers list",
+                    value=[
+                        {
+                            "sid": "PNxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                            "phone_number": "+15551234567",
+                            "friendly_name": "My Twilio Number",
+                            "voice_url": "https://example.com/voice",
+                        }
+                    ],
+                    response_only=True,
+                ),
+            ],
+        ),
+        400: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Bad Request - Twilio credentials are missing.",
+            examples=[
+                OpenApiExample(
+                    "Missing credentials",
+                    value={"error": "Twilio Account SID and Auth Token are required"},
+                    response_only=True,
+                ),
+            ],
+        ),
+        401: UNAUTHORIZED_401_RESPONSE,
+        502: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Bad Gateway - Twilio API request failed.",
+            examples=[
+                OpenApiExample(
+                    "Twilio API error",
+                    value={"error": "Unable to reach Twilio API"},
+                    response_only=True,
+                ),
+            ],
+        ),
+    },
+)
+
+TWILIO_CONFIGURE_WEBHOOK_POST = dict(
+    summary="Set the VoiceUrl on a Twilio phone number to the configured voice stream URL.",
+    description="Configures the webhook on the specified Twilio phone number (by SID) to point at the "
+    "application's voice stream endpoint. Derives the webhook URL from the configured ngrok tunnel — "
+    "the WSS voice stream URL is converted to an HTTPS URL. "
+    "Requires Twilio credentials and an active ngrok tunnel to be set up in Voice Settings.",
+    responses={
+        200: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Webhook URL configured successfully.",
+            examples=[
+                OpenApiExample(
+                    "Webhook configured",
+                    value={"webhook_url": "https://example.com/voice"},
+                    response_only=True,
+                ),
+            ],
+        ),
+        400: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Bad Request - Missing or invalid input.",
+            examples=[
+                OpenApiExample(
+                    "Missing phone_sid",
+                    value={"error": "phone_sid is required"},
+                    response_only=True,
+                ),
+                OpenApiExample(
+                    "Missing Twilio credentials",
+                    value={"error": "Twilio Account SID and Auth Token are required"},
+                    response_only=True,
+                ),
+                OpenApiExample(
+                    "No voice stream URL",
+                    value={
+                        "error": "No voice stream URL configured — set up an ngrok tunnel first"
+                    },
+                    response_only=True,
+                ),
+            ],
+        ),
+        401: UNAUTHORIZED_401_RESPONSE,
+        502: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Bad Gateway - Twilio API request failed.",
+            examples=[
+                OpenApiExample(
+                    "Twilio API error",
+                    value={"error": "Unable to reach Twilio API"},
+                    response_only=True,
+                ),
+            ],
+        ),
+    },
+)

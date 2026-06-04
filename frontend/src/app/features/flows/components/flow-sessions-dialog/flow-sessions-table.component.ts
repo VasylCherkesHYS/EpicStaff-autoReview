@@ -16,7 +16,9 @@ import { CheckboxComponent, IconButtonComponent, LoadingSpinnerComponent } from 
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { GraphDto } from '../../models/graph.model';
-import { GraphSessionLight, GraphSessionStatus, isTerminalSessionStatus } from '../../services/flows-sessions.service';
+import { DurationFilter, GraphSessionLight, GraphSessionStatus, isTerminalSessionStatus } from '../../services/flows-sessions.service';
+import { DurationFilterDropdownComponent } from './duration-filter-dropdown.component';
+import { FlowNameFilterDropdownComponent } from './flow-name-filter-dropdown.component';
 import { FlowSessionStatusBadgeComponent } from './flow-session-status-badge.component';
 import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-filter-dropdown.component';
 @Component({
@@ -30,13 +32,15 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
         IconButtonComponent,
         GraphMessagesComponent,
         FlowSessionStatusFilterDropdownComponent,
+        FlowNameFilterDropdownComponent,
+        DurationFilterDropdownComponent,
     ],
     template: `
         <div class="sessions-table-wrapper">
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 5%">
+                        <th>
                             <app-checkbox
                                 [checked]="areAllSelected()"
                                 [disabled]="isLoading || sessions.length === 0"
@@ -44,35 +48,41 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                                 id="select-all-checkbox"
                             ></app-checkbox>
                         </th>
-                        <th style="width: 5%">ID</th>
-                        <th style="width: 10%">
+                        <th>ID</th>
+                        <th>
                             <app-flow-session-status-filter-dropdown
                                 [value]="statusFilter"
                                 (valueChange)="statusFilterChange.emit($event)"
                             >
                             </app-flow-session-status-filter-dropdown>
                         </th>
-                        <th
-                            *ngIf="showFlowName"
-                            style="width: 40%"
-                        >
-                            Flow Name
+                        <th *ngIf="showFlowName">
+                            <app-flow-name-filter-dropdown
+                                [flows]="flows"
+                                [value]="flowNameFilter"
+                                (valueChange)="flowNameFilterChange.emit($event)"
+                            ></app-flow-name-filter-dropdown>
                         </th>
                         <th
                             [class.sortable]="sortable"
                             (click)="sortable && toggleSort()"
-                            [style.width]="showFlowName ? '15%' : '35%'"
                         >
                             Created At
                             @if (sortable) {
                                 <span class="sort-icon">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
                             }
                         </th>
-                        <th [style.width]="showFlowName ? '10%' : '20%'">
-                            {{ showDuration ? 'Duration' : 'Finished At' }}
+                        <th>
+                            @if (showDuration) {
+                                <app-duration-filter-dropdown
+                                    [value]="durationFilter"
+                                    (valueChange)="durationFilterChange.emit($event)"
+                                ></app-duration-filter-dropdown>
+                            } @else {
+                                Finished At
+                            }
                         </th>
                         <th
-                            [style.width]="showFlowName ? '15%' : '25%'"
                             style="text-align: center"
                             class="actions"
                         >
@@ -107,7 +117,7 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                         </tr>
                     } @else {
                         <ng-container *ngFor="let session of sessions; trackBy: trackById">
-                            <tr [class.row-expanded]="expandedSessionId() === session.id">
+                            <tr [class.row-expanded]="!externalPreview && expandedSessionId() === session.id">
                                 <td>
                                     <app-checkbox
                                         [checked]="isSelected(session.id)"
@@ -177,7 +187,7 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                             </tr>
 
                             <tr
-                                *ngIf="expandedSessionId() === session.id"
+                                *ngIf="!externalPreview && expandedSessionId() === session.id"
                                 class="preview-row"
                             >
                                 <td
@@ -214,13 +224,22 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     @Input() statusFilter: string[] = ['all'];
 
     @Input() selectedIds: Set<number> = new Set();
+    @Input() flows: { id: number; name: string }[] = [];
+    @Input() flowNameFilter: string | null = null;
+    @Input() durationFilter: DurationFilter | null = null;
+
+    @Input() externalPreview: boolean = false;
+    @Input() activePreviewId: number | null = null;
 
     @Output() deleteSelected = new EventEmitter<number[]>();
     @Output() viewSession = new EventEmitter<number>();
     @Output() stopSession = new EventEmitter<number>();
     @Output() sortChange = new EventEmitter<'asc' | 'desc'>();
     @Output() statusFilterChange = new EventEmitter<string[]>();
+    @Output() flowNameFilterChange = new EventEmitter<string | null>();
+    @Output() durationFilterChange = new EventEmitter<DurationFilter | null>();
     @Output() selectedIdsChange = new EventEmitter<Set<number>>();
+    @Output() previewSession = new EventEmitter<number | null>();
 
     public expandedSessionId = signal<number | null>(null);
 
@@ -236,6 +255,10 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     public ngOnChanges(changes: SimpleChanges): void {
         if (changes['sessions'] || changes['showDuration']) {
             this.manageDurationInterval();
+        }
+        if (changes['activePreviewId'] && this.externalPreview) {
+            this.expandedSessionId.set(this.activePreviewId);
+            this.cdr.markForCheck();
         }
     }
 
@@ -261,7 +284,11 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     }
 
     public togglePreview(sessionId: number): void {
-        this.expandedSessionId.update((current) => (current === sessionId ? null : sessionId));
+        const newId = this.expandedSessionId() === sessionId ? null : sessionId;
+        this.expandedSessionId.set(newId);
+        if (this.externalPreview) {
+            this.previewSession.emit(newId);
+        }
         this.cdr.markForCheck();
     }
 

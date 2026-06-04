@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           REPO_ROOT="$(pwd)"
-          docker compose -f "$REPO_ROOT/$COMPOSE_FILE" config --format json > "$REPO_ROOT/compose.json"
+          docker compose --env-file "$REPO_ROOT/src/.env.example" -f "$REPO_ROOT/$COMPOSE_FILE" config --format json > "$REPO_ROOT/compose.json"
           ls -la "$REPO_ROOT/compose.json"
 
       - name: Generate matrix (python)

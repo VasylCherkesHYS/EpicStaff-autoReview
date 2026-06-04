@@ -1,4 +1,5 @@
-import { Component, effect, inject, input } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
 
 import { UniqueNodeNameValidatorService } from '../../services/unique-node-name.validator';
@@ -12,12 +13,26 @@ import { NodeModel } from './node.model';
 export abstract class BaseSidePanel<T extends NodeModel> {
     protected fb = inject(FormBuilder);
     protected uniqueNameValidator = inject(UniqueNodeNameValidatorService);
+    protected destroyRef = inject(DestroyRef);
     private lastInitializedNodeId: string | null = null;
 
     node = input.required<T>();
     isExpanded = input<boolean>(false);
 
     public form!: FormGroup;
+
+    protected readonly dirtyCheckTick = signal(0);
+    private initialNodeSnapshot = '';
+
+    public readonly isDirty = computed(() => {
+        this.dirtyCheckTick();
+        if (!this.form) return false;
+        try {
+            return JSON.stringify(this.createUpdatedNode()) !== this.initialNodeSnapshot;
+        } catch {
+            return false;
+        }
+    });
 
     constructor() {
         effect(() => {
@@ -32,6 +47,12 @@ export abstract class BaseSidePanel<T extends NodeModel> {
 
             this.form = this.initializeForm();
             this.lastInitializedNodeId = node.id;
+
+            this.initialNodeSnapshot = JSON.stringify(this.createUpdatedNode());
+
+            this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+                this.dirtyCheckTick.update((v) => v + 1);
+            });
         });
     }
 
@@ -44,6 +65,8 @@ export abstract class BaseSidePanel<T extends NodeModel> {
             return null;
         }
         const updatedNode = this.createUpdatedNode();
+        this.initialNodeSnapshot = JSON.stringify(updatedNode);
+        this.dirtyCheckTick.update((v) => v + 1);
         return updatedNode;
     }
 
@@ -52,10 +75,17 @@ export abstract class BaseSidePanel<T extends NodeModel> {
         if (!this.form) return null;
         if (this.form.invalid) return null;
         try {
-            return this.createUpdatedNode();
+            const updatedNode = this.createUpdatedNode();
+            this.initialNodeSnapshot = JSON.stringify(updatedNode);
+            this.dirtyCheckTick.update((v) => v + 1);
+            return updatedNode;
         } catch {
             return null;
         }
+    }
+
+    protected notifyExternalChange(): void {
+        this.dirtyCheckTick.update((v) => v + 1);
     }
 
     protected createNodeNameValidators(additionalValidators: ValidatorFn[] = []): ValidatorFn[] {

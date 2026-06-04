@@ -275,3 +275,6 @@ CLAUDE.local.md
 pyrightconfig.json
 /scripts/python-notices-partial.md
 /scripts/.tmp_notices_venv/
+
+# Manager Logs
+src/manager/logs/*

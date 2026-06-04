@@ -5,6 +5,7 @@
     justify-content: space-between;
     height: 5rem;
     width: 100%;
+    min-width: 0;
     padding: 0 3rem;
     background-color: transparent; // No background color
 
@@ -12,7 +13,12 @@
     .title-section {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 0.5rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        margin-right: 1.5rem;
 
         .title {
             font-size: 24px;
@@ -22,6 +28,9 @@
             display: flex;
             align-items: center;
             white-space: nowrap;
+            min-width: 200px;
+            overflow: hidden;
+            flex: 1 1 auto;
 
             .project-prefix {
                 color: rgba(255, 255, 255, 0.6);
@@ -31,6 +40,7 @@
                 align-items: center;
                 gap: 0.5rem;
                 position: relative;
+                flex-shrink: 0;
 
                 .back-arrow {
                     margin-top: 3px;
@@ -47,6 +57,7 @@
             .separator {
                 color: rgba(255, 255, 255, 0.4);
                 margin: 0 0.5rem;
+                flex-shrink: 0;
             }
 
             .project-name {
@@ -55,6 +66,8 @@
                 align-items: flex-start;
                 color: var(--color-text-primary, #d9d9de);
                 max-width: 500px;
+                min-width: 0;
+                overflow: hidden;
 
                 &__text {
                     white-space: nowrap;
@@ -74,12 +87,26 @@
                 }
             }
         }
+
+        app-unsaved-indicator {
+            display: flex;
+            flex: 0 0 auto;
+        }
     }
 
     // Right side action buttons
     .action-buttons {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.5rem;
+        min-width: 0;
+        max-width: 100%;
+
+        > app-button,
+        > app-save-with-indicator {
+            min-width: 2.5rem;
+            flex: 0 1 auto;
+            max-width: 100%;
+        }
     }
 }
