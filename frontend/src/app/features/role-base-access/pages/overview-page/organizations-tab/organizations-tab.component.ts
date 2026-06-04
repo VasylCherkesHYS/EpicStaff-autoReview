@@ -22,7 +22,6 @@ import { AdminsCellComponent } from '../../../components/admins-cell/admins-cell
 import { CreateOrganizationDialogComponent } from '../../../components/create-organization-dialog/create-organization-dialog.component';
 import { OrgAvatarComponent } from '../../../components/org-avatar/org-avatar.component';
 import { StatusBadgeComponent } from '../../../components/status-badge/status-badge.component';
-import { UserAvatarComponent } from '../../../components/user-avatar/user-avatar.component';
 import { OrganizationsStorageService } from '../../../services/admin/organizations-storage.service';
 
 const STATUS_ITEMS: SelectItem[] = [
@@ -43,7 +42,6 @@ const STATUS_ITEMS: SelectItem[] = [
         LoadingSpinnerComponent,
         StatusBadgeComponent,
         OrgAvatarComponent,
-        UserAvatarComponent,
         AdminsCellComponent,
         DatePipe,
     ],
