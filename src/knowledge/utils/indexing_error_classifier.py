@@ -7,14 +7,13 @@ text."""
 
 from __future__ import annotations
 
+from src.shared.models import DocumentErrorCode, format_error_message
+
 
 class IndexingErrorClassifier:
-    ERROR_MESSAGE_MAX_LENGTH = 2000
-
-    CHUNKING_FAILED = "chunking_failed"
-    EMBEDDING_FAILED = "embedding_failed"
-    EMBEDDER_AUTH = "embedder_auth"
-    EMBEDDER_RATE_LIMIT = "embedder_rate_limit"
+    # Error-code values and message formatting come from src.shared (single source).
+    CHUNKING_FAILED = DocumentErrorCode.CHUNKING_FAILED.value
+    EMBEDDING_FAILED = DocumentErrorCode.EMBEDDING_FAILED.value
 
     @classmethod
     def for_chunking(cls, exc: BaseException) -> tuple[str, str]:
@@ -22,36 +21,13 @@ class IndexingErrorClassifier:
 
     @classmethod
     def for_embedding(cls, exc: BaseException) -> tuple[str, str]:
-        name = type(exc).__name__.lower()
-        if "auth" in name or "permissiondenied" in name:
-            return cls.EMBEDDER_AUTH, cls.format_message(exc)
-        if "ratelimit" in name or "toomanyrequests" in name or "quota" in name:
-            return cls.EMBEDDER_RATE_LIMIT, cls.format_message(exc)
-
-        status = cls._http_status(exc)
-        if status in (401, 403):
-            return cls.EMBEDDER_AUTH, cls.format_message(exc)
-        if status == 429:
-            return cls.EMBEDDER_RATE_LIMIT, cls.format_message(exc)
-
+        # We deliberately do NOT guess auth / rate-limit from exception names or
+        # HTTP status here — that heuristic was brittle across providers (a new
+        # provider with different exception names silently fell through). Embedder
+        # credential/connectivity problems are validated at model-connection time
+        # via test requests; here any embedding failure is just EMBEDDING_FAILED.
         return cls.EMBEDDING_FAILED, cls.format_message(exc)
 
     @classmethod
     def format_message(cls, exc: BaseException) -> str:
-        text = f"{type(exc).__name__}: {exc}".strip()
-        if len(text) <= cls.ERROR_MESSAGE_MAX_LENGTH:
-            return text
-        return text[: cls.ERROR_MESSAGE_MAX_LENGTH - 1] + "…"
-
-    @staticmethod
-    def _http_status(exc: BaseException) -> int | None:
-        for attr in ("status_code", "http_status", "code"):
-            value = getattr(exc, attr, None)
-            if isinstance(value, int):
-                return value
-        response = getattr(exc, "response", None)
-        if response is not None:
-            sc = getattr(response, "status_code", None)
-            if isinstance(sc, int):
-                return sc
-        return None
+        return format_error_message(exc)

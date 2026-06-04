@@ -15,6 +15,11 @@ from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
 
+from src.shared.models import (
+    CHUNK_PARAM_FIELDS as _CHUNK_PARAM_FIELDS,
+    is_snapshot_current as _is_snapshot_current,
+)
+
 from .base_models import Base
 
 
@@ -140,21 +145,12 @@ class NaiveRagDocumentConfig(Base):
     indexed_chunk_overlap = Column(Integer, nullable=True)
     indexed_additional_params = Column(JSON, nullable=True)
 
-    _SNAPSHOT_FIELD_PAIRS = (
-        ("indexed_chunk_strategy", "chunk_strategy"),
-        ("indexed_chunk_size", "chunk_size"),
-        ("indexed_chunk_overlap", "chunk_overlap"),
-        ("indexed_additional_params", "additional_params"),
-    )
-
     def is_snapshot_current(self) -> bool:
-        """True iff every indexed_* snapshot field is populated AND equals
-        the live chunk-param. Mirror of Django-side predicate."""
-        return all(
-            getattr(self, snap) is not None
-            and getattr(self, snap) == getattr(self, live)
-            for snap, live in self._SNAPSHOT_FIELD_PAIRS
-        )
+        """True iff every indexed_* snapshot field is populated AND equals the
+        live chunk-param. Uses the shared single-source rule."""
+        live = {f: getattr(self, f) for f in _CHUNK_PARAM_FIELDS}
+        indexed = {f: getattr(self, f"indexed_{f}") for f in _CHUNK_PARAM_FIELDS}
+        return _is_snapshot_current(live, indexed)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)

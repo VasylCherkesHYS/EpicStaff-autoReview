@@ -960,6 +960,12 @@ class ProcessRagIndexingView(APIView):
                 document_config_ids=accepted if rag_type == "naive" else None,
             )
 
+            # Reflect "processing" immediately so polling clients don't briefly
+            # see the stale pre-dispatch status before the worker starts.
+            IndexingService.mark_indexing_dispatched(
+                indexing_data["rag_id"], indexing_data["rag_type"]
+            )
+
             return Response(
                 data={
                     "detail": "Indexing process accepted",

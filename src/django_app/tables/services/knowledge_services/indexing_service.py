@@ -131,9 +131,7 @@ class IndexingService:
     @staticmethod
     def _mark_snapshot_completed(c: NaiveRagDocumentConfig) -> None:
         c.status = NaiveRagDocumentConfig.NaiveRagDocumentStatus.COMPLETED
-        c.error_message = None
-        c.error_code = None
-        c.failed_at = None
+        c._clear_error()
         c.processed_at = timezone.now()
         c.save(
             update_fields=[
@@ -185,6 +183,21 @@ class IndexingService:
             "collection_id": collection.collection_id,
             "base_rag_type_id": base_rag_type.rag_type_id,
         }
+
+    @staticmethod
+    def mark_indexing_dispatched(rag_id: int, rag_type: str) -> None:
+        """Optimistically flag the RAG as PROCESSING the moment work is handed to
+        the worker, so polling clients see a consistent status immediately
+        instead of the stale pre-dispatch status until the worker picks the job
+        up. Uses .update() to set the column directly (no status recompute)."""
+        if rag_type == "naive":
+            NaiveRag.objects.filter(naive_rag_id=rag_id).update(
+                rag_status=NaiveRag.NaiveRagStatus.PROCESSING
+            )
+        elif rag_type == "graph":
+            GraphRag.objects.filter(graph_rag_id=rag_id).update(
+                rag_status=GraphRag.GraphRagStatus.PROCESSING
+            )
 
     @staticmethod
     def get_rag_status(rag_id: int, rag_type: str) -> str:

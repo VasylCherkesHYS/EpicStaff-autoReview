@@ -4,32 +4,32 @@ import uuid
 
 from pgvector.django import VectorField
 
+from src.shared.models.knowledge_status import (
+    DocumentStatus as _DocStatus,
+    RagStatus as _RagStatus,
+    DocumentErrorCode as _ErrorCode,
+    CHUNK_PARAM_FIELDS as _CHUNK_PARAM_FIELDS,
+    RACE_GUARD_IN_PROGRESS as _RACE_GUARD_IN_PROGRESS,
+    compute_rag_status as _compute_rag_status,
+    summarize_rag_error as _summarize_rag_error,
+    is_snapshot_current as _is_snapshot_current,
+    format_error_message as _format_error_message,
+)
 
 from ..embedding_models import EmbeddingConfig
 from .collection_models import BaseRagType, DocumentMetadata
 from ..crew_models import Agent
 
 
-_CHUNK_PARAM_FIELDS = (
-    "chunk_size",
-    "chunk_overlap",
-    "chunk_strategy",
-    "additional_params",
-)
-_SNAPSHOT_FIELD_PAIRS = tuple((f"indexed_{f}", f) for f in _CHUNK_PARAM_FIELDS)
-
-
 class NaiveRag(models.Model):
     class NaiveRagStatus(models.TextChoices):
-        """
-        Status of document in SourceCollection
-        """
+        """Aggregate RAG status. Values sourced from src.shared (single source)."""
 
-        NEW = "new"
-        PROCESSING = "processing"
-        COMPLETED = "completed"
-        WARNING = "warning"
-        FAILED = "failed"
+        NEW = _RagStatus.NEW.value
+        PROCESSING = _RagStatus.PROCESSING.value
+        COMPLETED = _RagStatus.COMPLETED.value
+        WARNING = _RagStatus.WARNING.value
+        FAILED = _RagStatus.FAILED.value
 
     naive_rag_id = models.AutoField(primary_key=True)
     base_rag_type = models.ForeignKey(
@@ -63,27 +63,17 @@ class NaiveRag(models.Model):
     indexed_at = models.DateTimeField(null=True, blank=True)
 
     def update_rag_status(self: "NaiveRag"):
-        doc_statuses = set(self.naive_rag_configs.values_list("status", flat=True))
-
-        DocStatus = NaiveRagDocumentConfig.NaiveRagDocumentStatus
-        IN_PROGRESS = {DocStatus.CHUNKING, DocStatus.CHUNKED, DocStatus.INDEXING}
-
-        RagStatus = NaiveRag.NaiveRagStatus
-
-        if not doc_statuses or doc_statuses == {DocStatus.NEW}:
-            current_status = RagStatus.NEW
-        elif doc_statuses & IN_PROGRESS:
-            current_status = RagStatus.PROCESSING
-        elif doc_statuses == {DocStatus.COMPLETED}:
-            current_status = RagStatus.COMPLETED
-        elif doc_statuses == {DocStatus.FAILED}:
-            current_status = RagStatus.FAILED
-        else:
-            # mix (completed+new / completed+failed / new+failed / ...) → warning
-            current_status = RagStatus.WARNING
-
-        self.rag_status = current_status
-        self.save(update_fields=["rag_status", "updated_at"])
+        """Recompute aggregate status from per-document statuses via the shared
+        single-source rule (see src.shared.models.knowledge_status). Stamps
+        indexed_at when the RAG reaches COMPLETED."""
+        doc_statuses = list(self.naive_rag_configs.values_list("status", flat=True))
+        self.rag_status = _compute_rag_status(doc_statuses)
+        self.error_message = _summarize_rag_error(doc_statuses)
+        update_fields = ["rag_status", "error_message", "updated_at"]
+        if self.rag_status == self.NaiveRagStatus.COMPLETED:
+            self.indexed_at = timezone.now()
+            update_fields.append("indexed_at")
+        self.save(update_fields=update_fields)
 
 
 class NaiveRagDocumentConfig(models.Model):
@@ -108,26 +98,28 @@ class NaiveRagDocumentConfig(models.Model):
 
     class NaiveRagDocumentStatus(models.TextChoices):
         # Flow: new → chunking → chunked → indexing → completed. failed/warning at any step.
-        NEW = "new"
-        CHUNKING = "chunking"
-        CHUNKED = "chunked"
-        INDEXING = "indexing"
-        COMPLETED = "completed"
-        WARNING = "warning"
-        FAILED = "failed"
+        # Values sourced from src.shared (single source of truth).
+        NEW = _DocStatus.NEW.value
+        CHUNKING = _DocStatus.CHUNKING.value
+        CHUNKED = _DocStatus.CHUNKED.value
+        INDEXING = _DocStatus.INDEXING.value
+        COMPLETED = _DocStatus.COMPLETED.value
+        WARNING = _DocStatus.WARNING.value
+        FAILED = _DocStatus.FAILED.value
 
     class DocumentErrorCode(models.TextChoices):
-        CHUNKING_FAILED = "chunking_failed"
-        EMBEDDING_FAILED = "embedding_failed"
-        EMBEDDER_AUTH = "embedder_auth"
-        EMBEDDER_RATE_LIMIT = "embedder_rate_limit"
-        UNKNOWN = "unknown"
+        CHUNKING_FAILED = _ErrorCode.CHUNKING_FAILED.value
+        EMBEDDING_FAILED = _ErrorCode.EMBEDDING_FAILED.value
+        EMBEDDER_AUTH = _ErrorCode.EMBEDDER_AUTH.value
+        EMBEDDER_RATE_LIMIT = _ErrorCode.EMBEDDER_RATE_LIMIT.value
+        UNKNOWN = _ErrorCode.UNKNOWN.value
 
     ERROR_MESSAGE_MAX_LENGTH = 2000
 
-    # Statuses meaning "a worker is actively touching this row right now".
+    # Race-guard: "a worker is actively touching this row right now".
     # CHUNKED is NOT here — it means "preview ready, awaiting user action".
-    IN_PROGRESS_STATUSES = frozenset({"chunking", "indexing"})
+    # Distinct from the aggregation set used by compute_rag_status.
+    IN_PROGRESS_STATUSES = _RACE_GUARD_IN_PROGRESS
 
     naive_rag_document_id = models.AutoField(primary_key=True)
 
@@ -199,16 +191,12 @@ class NaiveRagDocumentConfig(models.Model):
 
     @classmethod
     def format_error_message(cls, exc: BaseException) -> str:
-        raw = f"{type(exc).__name__}: {exc}"
-        n = cls.ERROR_MESSAGE_MAX_LENGTH
-        return raw if len(raw) <= n else raw[: n - 1] + "…"
+        return _format_error_message(exc)
 
     def is_snapshot_current(self) -> bool:
-        return all(
-            getattr(self, snap) is not None
-            and getattr(self, snap) == getattr(self, live)
-            for snap, live in _SNAPSHOT_FIELD_PAIRS
-        )
+        live = {f: getattr(self, f) for f in _CHUNK_PARAM_FIELDS}
+        indexed = {f: getattr(self, f"indexed_{f}") for f in _CHUNK_PARAM_FIELDS}
+        return _is_snapshot_current(live, indexed)
 
     def _clear_error(self) -> None:
         self.error_message = None
@@ -223,11 +211,11 @@ class NaiveRagDocumentConfig(models.Model):
         changed = any(
             f in updates and updates[f] != getattr(self, f) for f in _CHUNK_PARAM_FIELDS
         )
+        if not changed:
+            # Nothing to persist — the live values already equal `updates`.
+            return False
         for f, v in updates.items():
             setattr(self, f, v)
-        if not changed:
-            self.save()
-            return False
 
         NaiveRagPreviewChunk.objects.filter(
             naive_rag_document_config_id=self.naive_rag_document_id

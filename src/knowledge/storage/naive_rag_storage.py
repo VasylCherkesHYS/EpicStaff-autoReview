@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Union
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import delete, select
@@ -73,6 +73,37 @@ class ORMNaiveRagStorage(BaseORMStorage):
 
         except Exception as e:
             logger.error(f"Failed to update NaiveRag {naive_rag_id} status: {e}")
+            return False
+
+    def set_error_message(
+        self, naive_rag_id: int, error_message: Optional[str]
+    ) -> bool:
+        """Set (or clear, with None) the RAG-level error_message. Mirrors GraphRag."""
+        try:
+            naive_rag = self.session.get(NaiveRag, naive_rag_id)
+            if not naive_rag:
+                logger.warning(f"NaiveRag {naive_rag_id} not found")
+                return False
+            naive_rag.error_message = error_message
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to set error_message for NaiveRag {naive_rag_id}: {e}"
+            )
+            return False
+
+    def set_indexed_at(self, naive_rag_id: int) -> bool:
+        """Set indexed_at=now() for a NaiveRag. Called when indexing completes
+        (mirrors GraphRag). Aware UTC to match Django (USE_TZ=True)."""
+        try:
+            naive_rag = self.session.get(NaiveRag, naive_rag_id)
+            if not naive_rag:
+                logger.warning(f"NaiveRag {naive_rag_id} not found")
+                return False
+            naive_rag.indexed_at = datetime.now(timezone.utc)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set indexed_at for NaiveRag {naive_rag_id}: {e}")
             return False
 
     # ==================== Document Config Operations ====================
@@ -221,7 +252,8 @@ class ORMNaiveRagStorage(BaseORMStorage):
             doc_config.indexed_chunk_size = doc_config.chunk_size
             doc_config.indexed_chunk_overlap = doc_config.chunk_overlap
             doc_config.indexed_additional_params = doc_config.additional_params
-            doc_config.processed_at = datetime.utcnow()
+            # Aware UTC to match Django (USE_TZ=True / timestamptz columns).
+            doc_config.processed_at = datetime.now(timezone.utc)
             return True
         except Exception as e:
             logger.error(
@@ -252,7 +284,8 @@ class ORMNaiveRagStorage(BaseORMStorage):
             doc_config.status = "failed"
             doc_config.error_code = error_code
             doc_config.error_message = error_message
-            doc_config.failed_at = datetime.utcnow()
+            # Aware UTC to match Django (USE_TZ=True / timestamptz columns).
+            doc_config.failed_at = datetime.now(timezone.utc)
             return True
         except Exception as e:
             logger.error(
