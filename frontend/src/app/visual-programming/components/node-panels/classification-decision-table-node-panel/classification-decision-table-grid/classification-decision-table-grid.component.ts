@@ -2257,6 +2257,13 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         let insertIdx = overIdx > sourceIdx ? overIdx - 1 : overIdx;
         if (!insertBefore) insertIdx += 1;
         next.splice(insertIdx, 0, moved);
+        const prev = next[insertIdx - 1];
+        const after = next[insertIdx + 1];
+        const movedSection =
+            prev != null && after != null && prev.section != null && prev.section === after.section
+                ? prev.section
+                : null;
+        next[insertIdx] = { ...moved, section: movedSection };
         const ordered = next.map((r, i) => ({ ...r, order: i + 1 }));
         this.rowData.set(ordered);
         this.emitChanges(ordered);
