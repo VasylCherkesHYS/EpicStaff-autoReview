@@ -15,6 +15,7 @@ from tables.models.base_models import (
     SoftDeleteMixin,
 )
 from tables.models.label_models import Label
+from tables.models.rbac_models.org_scoped import OrgScopedModel
 
 
 class GraphManager(models.Manager):
@@ -43,14 +44,14 @@ class GraphManager(models.Manager):
         return self.filter(id__in=subgraph_ids).prefetch_related("tags")
 
 
-class Graph(TimestampMixin, models.Model):
+class Graph(OrgScopedModel, TimestampMixin):
     objects = GraphManager()
 
     tags = models.ManyToManyField(to="GraphTag", blank=True, default=[])
     labels = models.ManyToManyField(Label, blank=True, related_name="flows")
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True)
-    name = models.CharField(max_length=255, blank=False, unique=True)
+    name = models.CharField(max_length=255, blank=False)
     description = models.TextField(blank=True)
     metadata = models.JSONField(default=dict)
     time_to_live = models.IntegerField(
@@ -62,6 +63,14 @@ class Graph(TimestampMixin, models.Model):
     epicchat_enabled = models.BooleanField(
         default=False, help_text="If 'True' -> flow is connected to EpicChat widget."
     )
+
+    class Meta(OrgScopedModel.Meta):
+        abstract = False
+        constraints = [
+            models.UniqueConstraint(
+                fields=["org", "name"], name="unique_graph_name_per_org"
+            ),
+        ]
 
 
 class BaseNode(BaseGraphEntity, BaseGlobalNode):
