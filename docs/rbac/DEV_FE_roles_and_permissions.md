@@ -11,7 +11,7 @@ This guide walks through everything the FE needs to wire up to make the new perm
 
 ### What landed on the BE
 
-- **Permission framework.** Every authenticated user has a role per organization with a permission bitmask covering 11 resource types (Organizations, Users, Roles, Flows, Agents, Tools, Knowledge Sources, Files, Projects, LLM Configs, Secrets) and up to 8 actions per resource (Create / Read / Update / Delete / Export / Download / Use / List).
+- **Permission framework.** Every authenticated user has a role per organization with a permission bitmask covering 11 resource types (Organizations, Users, Roles, Flows, Agents, Tools, Knowledge Sources, Files, Projects, LLM Configs, Secrets) and up to 5 actions per resource (Create / Read / Update / Delete / Export).
 - **Active-org header.** Endpoints that need to know which workspace the caller is operating in read it from an `X-Organization-Id` request header. Missing → 400. Wrong → 403.
 - **5 new endpoints.** Permission catalog, "what can I do here", role list (active-context + target-context variants), role detail.
 - **Profile extended.** `GET /api/profile/` now echoes `active_organization_id` and `active_permissions` when the header is set — single round-trip workspace bootstrap.
@@ -217,7 +217,7 @@ import { Injectable, signal } from '@angular/core';
 
 export type ActionCode =
   | 'create' | 'read' | 'update' | 'delete'
-  | 'export' | 'download' | 'use' | 'list';
+  | 'export';
 
 export type ResourceCode =
   | 'organizations' | 'users' | 'roles'
@@ -490,7 +490,7 @@ Drop these into a shared `permissions.types.ts`:
 ```typescript
 export type ActionCode =
   | 'create' | 'read' | 'update' | 'delete'
-  | 'export' | 'download' | 'use' | 'list';
+  | 'export';
 
 export type ResourceCode =
   | 'organizations' | 'users' | 'roles'

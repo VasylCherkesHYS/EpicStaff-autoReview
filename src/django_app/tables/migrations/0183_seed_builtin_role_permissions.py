@@ -4,11 +4,11 @@ from django.db import migrations
 _BITMASKS = {
     "Org Admin": {
         "flows": 31,             # C R U D E
-        "agents": 15,            # C R U D
+        "agents": 31,            # C R U D E
         "tools": 15,
         "knowledge_sources": 15,
-        "files": 47,             # C R U D dl
-        "projects": 15,
+        "files": 31,             # C R U D E
+        "projects": 31,          # C R U D E
         "llm_configs": 15,
         "secrets": 207,          # C R U D use list
         "users": 15,
@@ -20,7 +20,7 @@ _BITMASKS = {
         "agents": 7,
         "tools": 7,
         "knowledge_sources": 2,  # R
-        "files": 39,             # C R U dl
+        "files": 23,             # C R U E
         "projects": 7,
         "llm_configs": 2,
         "secrets": 192,          # use list

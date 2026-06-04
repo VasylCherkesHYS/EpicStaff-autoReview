@@ -104,9 +104,6 @@ def test_permission_catalog_returns_actions_and_resource_types(
         "update",
         "delete",
         "export",
-        "download",
-        "use",
-        "list",
     ]
     resource_codes = [r["code"] for r in body["resource_types"]]
     assert "organizations" in resource_codes
