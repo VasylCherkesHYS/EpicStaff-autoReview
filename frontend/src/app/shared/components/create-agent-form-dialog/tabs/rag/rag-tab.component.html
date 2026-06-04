@@ -60,13 +60,14 @@
             } @else {
                 <ng-template #suggestedToggle>
                     <div class="suggested-params-toggle">
-                        <app-toggle-switch
-                            [checked]="useSuggested()[activeKey()]"
-                            [disabled]="!canToggleSuggested()"
-                            (checkedChange)="onUseSuggestedToggle($event)"
-                            label="Use Suggest Params for Search Type"
-                            tooltipText="Fetches recommended parameters for the selected search type and applies them to the fields below. Auto-disables when you edit any field; toggle off keeps the values."
-                        />
+                        <app-button
+                            type="secondary"
+                            mod="small"
+                            [disabled]="!canToggleSuggested() || suggestingFor() === activeKey()"
+                            (click)="applySuggestedParams()"
+                        >
+                            {{ suggestingFor() === activeKey() ? 'Fetching…' : 'Use Suggested Params' }}
+                        </app-button>
                         @if (suggestErrorFor() === activeKey()) {
                             <small class="suggest-status error">Failed to fetch suggestions</small>
                         }
@@ -84,8 +85,8 @@
                                 tooltipText="Sets the similarity threshold for knowledge retrieval. Lower values return more results but may be less relevant. Higher values are more precise but may miss useful information."
                                 [min]="0"
                                 [max]="1"
-                                [step]="0.1"
-                                [decimals]="1"
+                                [step]="0.01"
+                                [decimals]="2"
                             />
                         </div>
 

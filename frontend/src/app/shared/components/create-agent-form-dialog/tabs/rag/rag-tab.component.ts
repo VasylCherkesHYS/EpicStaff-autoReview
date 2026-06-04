@@ -14,6 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
     AppSvgIconComponent,
+    ButtonComponent,
     DualSliderComponent,
     InputNumberComponent,
     RadioButtonComponent,
@@ -117,6 +118,7 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
         ValidationErrorsComponent,
         ToggleSwitchComponent,
         AppSvgIconComponent,
+        ButtonComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -136,13 +138,6 @@ export class RagTabComponent implements OnInit {
     selectedRagType = signal<'naive' | 'graph' | null>(null);
     activeGraphMethodSignal = signal<GraphSearchMethod | null>(null);
     recommendedSearchMethod = signal<GraphSearchMethod | null>(null);
-    useSuggested = signal<Record<SuggestKey, boolean>>({
-        basic: false,
-        local: false,
-        global_search: false,
-        drift_search: false,
-        naive: false,
-    });
     suggestingFor = signal<SuggestKey | null>(null);
     suggestErrorFor = signal<SuggestKey | null>(null);
 
@@ -176,9 +171,6 @@ export class RagTabComponent implements OnInit {
     private fetchToken = 0;
     private lastLlmConfigId: number | null = null;
 
-    // Guard flag while we patchValue ourselves so the valueChanges watcher
-    // doesn't interpret our own write as a user edit.
-    private applying = false;
     // Guard so the initial recommendation fetch fires once per
     // (collection, llm, ragType) triple, not on every signal touch.
     private lastRecommendationKey: string | null = null;
@@ -252,7 +244,6 @@ export class RagTabComponent implements OnInit {
             const id = this.llmConfigId();
             if (id !== this.lastLlmConfigId) {
                 this.lastLlmConfigId = id;
-                this.lastRecommendationKey = null;
                 this.maybeFetchSearchMetadata();
             }
         });
@@ -319,37 +310,11 @@ export class RagTabComponent implements OnInit {
                 .subscribe((m) => this.activeGraphMethodSignal.set((m as GraphSearchMethod) ?? null));
 
             this.wireDynamicCommunityToggle();
-            this.wireMethodValueWatchers();
         } else {
             this.activeGraphMethodSignal.set(null);
-            this.wireNaiveValueWatcher();
         }
 
         this.form().setControl('search_configs', this.searchConfigsFormGroup);
-    }
-
-    private wireMethodValueWatchers(): void {
-        const root = this.searchConfigsFormGroup;
-        if (!root) return;
-        (['basic', 'local', 'global_search', 'drift_search'] as GraphSearchMethod[]).forEach((m) => {
-            const group = root.get(m) as FormGroup | null;
-            if (!group) return;
-            group.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-                if (this.applying) return;
-                if (!this.useSuggested()[m]) return;
-                this.useSuggested.update((s) => ({ ...s, [m]: false }));
-            });
-        });
-    }
-
-    private wireNaiveValueWatcher(): void {
-        const group = this.searchConfigsFormGroup;
-        if (!group) return;
-        group.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-            if (this.applying) return;
-            if (!this.useSuggested().naive) return;
-            this.useSuggested.update((s) => ({ ...s, naive: false }));
-        });
     }
 
     private initGraphBasicSearchConfig(configs: GraphBasicSearchConfig | undefined): FormGroup {
@@ -597,24 +562,16 @@ export class RagTabComponent implements OnInit {
         return 'Assign an LLM to this agent so we know which model will run these searches.';
     }
 
-    onUseSuggestedToggle(value: boolean): void {
-        const key = this.activeKey();
-        this.useSuggested.update((s) => ({ ...s, [key]: value }));
+    applySuggestedParams(): void {
+        if (!this.canToggleSuggested()) return;
         this.suggestErrorFor.set(null);
-        if (!value) return;
-        if (!this.canToggleSuggested()) {
-            // Bounce the toggle back off; we shouldn't be able to fetch.
-            this.useSuggested.update((s) => ({ ...s, [key]: false }));
-            return;
-        }
-        this.fetchAndApply(key);
+        this.fetchAndApply(this.activeKey());
     }
 
     private fetchAndApply(key: SuggestKey): void {
         const collectionId = this.collectionId;
         const llmConfigId = this.llmConfigId();
         if (collectionId == null || llmConfigId == null) {
-            this.useSuggested.update((s) => ({ ...s, [key]: false }));
             return;
         }
 
@@ -636,7 +593,6 @@ export class RagTabComponent implements OnInit {
         request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (response) => this.applyResponse(key, response),
             error: () => {
-                this.useSuggested.update((s) => ({ ...s, [key]: false }));
                 this.suggestErrorFor.set(key);
                 this.suggestingFor.set(null);
             },
@@ -651,17 +607,8 @@ export class RagTabComponent implements OnInit {
             return;
         }
 
-        this.applying = true;
-        try {
-            target.patchValue(response.suggested_params, { emitEvent: false });
-            target.markAsPristine();
-        } finally {
-            // Release the flag asynchronously to swallow any deferred valueChanges
-            // emissions that escape `emitEvent: false` from nested groups.
-            queueMicrotask(() => {
-                this.applying = false;
-            });
-        }
+        target.patchValue(response.suggested_params, { emitEvent: false });
+        target.markAsPristine();
 
         if (key !== 'naive' && response.recommended_search_method) {
             this.recommendedSearchMethod.set(response.recommended_search_method);
@@ -782,13 +729,6 @@ export class RagTabComponent implements OnInit {
     }
 
     private resetSuggestState(): void {
-        this.useSuggested.set({
-            basic: false,
-            local: false,
-            global_search: false,
-            drift_search: false,
-            naive: false,
-        });
         this.suggestingFor.set(null);
         this.suggestErrorFor.set(null);
         this.recommendedSearchMethod.set(null);
