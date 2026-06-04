@@ -3,7 +3,15 @@ from crewai import LLM
 from src.shared.models import LLMData
 
 
-_NO_TEMPERATURE_PATTERNS = ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4")
+_NO_TEMPERATURE_PATTERNS = (
+    "claude-opus-4",
+    "claude-sonnet-4",
+    "claude-haiku-4",
+    "gpt-5",
+    "o1",
+    "o3",
+    "o4",
+)
 
 
 def _strip_unsupported_params(llm_config: dict) -> dict:
