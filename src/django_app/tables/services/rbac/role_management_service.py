@@ -7,10 +7,11 @@ from typing import Optional
 
 from django.db.models import Count, Q
 
-from tables.models.rbac_models import OrganizationUser, Role
+from tables.models.rbac_models import Organization, OrganizationUser, Role
 from tables.models.rbac_models.rbac_enums import BuiltInRole
 from tables.services.rbac.rbac_exceptions import (
     BuiltInRoleImmutableError,
+    OrganizationNotFoundError,
     RoleNotFoundError,
 )
 
@@ -33,6 +34,13 @@ class RoleManagementService:
         lack a Superadmin membership row.
         """
         if org_id is not None:
+            # Target-context callers (and superadmin via header) reach here
+            # without a membership check guaranteeing the org exists — an
+            # unknown id must 404, not silently return only the built-ins.
+            # is_active is intentionally not filtered: superadmin may audit a
+            # deactivated-but-existing org.
+            if not Organization.objects.filter(pk=org_id).exists():
+                raise OrganizationNotFoundError()
             role_filter = Q(is_built_in=True, org__isnull=True) | Q(org_id=org_id)
         else:
             role_filter = Q(is_built_in=True, org__isnull=True)
@@ -51,9 +59,13 @@ class RoleManagementService:
             )
         return roles
 
-    def get_role(self, role_id: int) -> Role:
+    def get_role(self, role_id) -> Role:
         try:
-            role = Role.objects.prefetch_related("permissions_set").get(pk=role_id)
+            pk = int(role_id)
+        except (TypeError, ValueError) as exc:
+            raise RoleNotFoundError() from exc
+        try:
+            role = Role.objects.prefetch_related("permissions_set").get(pk=pk)
         except Role.DoesNotExist as exc:
             raise RoleNotFoundError() from exc
         self._attach_assigned_counts(roles=[role], org_id=role.org_id)

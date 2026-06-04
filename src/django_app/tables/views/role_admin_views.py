@@ -45,7 +45,7 @@ class RoleAdminViewSet(viewsets.ViewSet):
         },
     )
     def retrieve(self, request, pk=None):
-        role = self._service.get_role(role_id=int(pk))
+        role = self._service.get_role(role_id=pk)
         return Response(RoleResponseSerializer(role).data)
 
 
@@ -65,7 +65,10 @@ class OrgScopedRoleAdminViewSet(viewsets.ViewSet):
 
     @extend_schema(
         summary="List roles for a specific organization (target-context)",
-        responses={200: RoleResponseSerializer(many=True)},
+        responses={
+            200: RoleResponseSerializer(many=True),
+            404: OpenApiResponse(description="Organization not found"),
+        },
     )
     def list(self, request, org_id=None):
         roles = self._service.list_roles(org_id=int(org_id))

@@ -15,9 +15,9 @@ ACTION_METADATA = [
     {"code": "update", "label": "Edit", "bit": int(Permission.UPDATE)},
     {"code": "delete", "label": "Delete", "bit": int(Permission.DELETE)},
     {"code": "export", "label": "Export", "bit": int(Permission.EXPORT)},
-    {"code": "download", "label": "Download", "bit": int(Permission.DOWNLOAD)},
-    {"code": "use", "label": "Use", "bit": int(Permission.USE)},
-    {"code": "list", "label": "List", "bit": int(Permission.LIST)},
+    # TODO: Future actions:
+    # {"code": "use", "label": "Use", "bit": int(Permission.USE)},
+    # {"code": "list", "label": "List", "bit": int(Permission.LIST)},
 ]
 
 
@@ -78,7 +78,7 @@ RESOURCE_TYPE_METADATA = [
         "label": "Storage (Files)",
         "group": "workspace",
         "description": "Files and folders in organization storage",
-        "applicable_actions": ["create", "read", "update", "delete", "download"],
+        "applicable_actions": ["create", "read", "update", "delete", "export"],
     },
     {
         "code": ResourceType.PROJECTS.value,
@@ -99,7 +99,7 @@ RESOURCE_TYPE_METADATA = [
         "label": "API Keys / Secrets",
         "group": "config",
         "description": "Provider API keys, credentials, sensitive config",
-        "applicable_actions": ["create", "read", "update", "delete", "use", "list"],
+        "applicable_actions": ["create", "read", "update", "delete"],
     },
 ]
 

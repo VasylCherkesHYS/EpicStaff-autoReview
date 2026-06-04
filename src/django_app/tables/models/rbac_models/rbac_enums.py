@@ -23,7 +23,7 @@ class Permission(IntFlag):
     UPDATE = 4
     DELETE = 8
     EXPORT = 16
-    DOWNLOAD = 32
+    # 32 retired (was DOWNLOAD; folded into EXPORT — same logic).
     USE = 64
     LIST = 128
 

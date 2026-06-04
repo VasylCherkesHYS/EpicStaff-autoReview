@@ -15,7 +15,6 @@ _ACTION_CODE_TO_BIT = {
     "update": Permission.UPDATE,
     "delete": Permission.DELETE,
     "export": Permission.EXPORT,
-    "download": Permission.DOWNLOAD,
     "use": Permission.USE,
     "list": Permission.LIST,
 }
