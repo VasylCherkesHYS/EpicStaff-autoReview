@@ -66,8 +66,12 @@
                             [disabled]="!canToggleSuggested() || suggestingFor() === activeKey()"
                             (click)="applySuggestedParams()"
                         >
-                            {{ suggestingFor() === activeKey() ? 'Fetching…' : 'Use Suggested Params' }}
+                            {{ suggestingFor() === activeKey() ? 'Fetching…' : 'Apply Suggested Params' }}
                         </app-button>
+                        <app-help-tooltip
+                            text="Fetches AI-recommended search parameters for the selected search type and fills the fields below. Your current values are overwritten — edit any field afterward to fine-tune."
+                            position="right"
+                        />
                         @if (suggestErrorFor() === activeKey()) {
                             <small class="suggest-status error">Failed to fetch suggestions</small>
                         }

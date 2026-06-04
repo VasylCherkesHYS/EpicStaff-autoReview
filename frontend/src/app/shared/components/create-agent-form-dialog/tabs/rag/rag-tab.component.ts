@@ -16,6 +16,7 @@ import {
     AppSvgIconComponent,
     ButtonComponent,
     DualSliderComponent,
+    HelpTooltipComponent,
     InputNumberComponent,
     RadioButtonComponent,
     SelectComponent,
@@ -119,6 +120,7 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
         ToggleSwitchComponent,
         AppSvgIconComponent,
         ButtonComponent,
+        HelpTooltipComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
