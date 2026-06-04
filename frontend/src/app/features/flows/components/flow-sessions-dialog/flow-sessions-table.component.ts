@@ -229,6 +229,7 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     @Input() durationFilter: DurationFilter | null = null;
 
     @Input() externalPreview: boolean = false;
+    @Input() activePreviewId: number | null = null;
 
     @Output() deleteSelected = new EventEmitter<number[]>();
     @Output() viewSession = new EventEmitter<number>();
@@ -254,6 +255,10 @@ export class FlowSessionsTableComponent implements OnChanges, OnDestroy {
     public ngOnChanges(changes: SimpleChanges): void {
         if (changes['sessions'] || changes['showDuration']) {
             this.manageDurationInterval();
+        }
+        if (changes['activePreviewId'] && this.externalPreview) {
+            this.expandedSessionId.set(this.activePreviewId);
+            this.cdr.markForCheck();
         }
     }
 
