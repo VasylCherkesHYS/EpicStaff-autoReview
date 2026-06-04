@@ -41,22 +41,36 @@ from src.shared.models import (
 
 class RedisPubSub:
     def __init__(self):
+        self.handlers = {}
+        self.buffers = {GRAPH_MESSAGES_CHANNEL: deque(maxlen=1000)}
+        self.redis_client = self._create_redis_client()
+        self.pubsub = self.redis_client.pubsub()
+
+    @staticmethod
+    def _create_redis_client() -> redis.Redis:
         redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
         redis_port = int(os.getenv("REDIS_PORT", 6379))
         redis_password = os.getenv("REDIS_PASSWORD")
-        self.redis_client = redis.Redis(
+        logger.debug(f"Redis host: {redis_host}")
+        logger.debug(f"Redis port: {redis_port}")
+        return redis.Redis(
             host=redis_host,
             port=redis_port,
             password=redis_password,
             decode_responses=True,
         )
+
+    def _reconnect(self):
+        try:
+            self.pubsub.close()
+        except Exception:
+            pass
+        try:
+            self.redis_client.close()
+        except Exception:
+            pass
+        self.redis_client = self._create_redis_client()
         self.pubsub = self.redis_client.pubsub()
-
-        self.handlers = {}
-        self.buffers = {GRAPH_MESSAGES_CHANNEL: deque(maxlen=1000)}
-
-        logger.debug(f"Redis host: {redis_host}")
-        logger.debug(f"Redis port: {redis_port}")
 
     def subscribe_to_channels(self):
         self.pubsub.subscribe(**self.handlers)
@@ -402,23 +416,38 @@ class RedisPubSub:
             logger.error(f"Error handling graph_session_message: {e}")
 
     def listen_for_messages(self):
+        message = None
         try:
             message = self.pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=0.001
             )
-            if message:
-                channel = message.get("channel", "")
-                handler = self.handlers.get(channel)
-
-                if handler:
-                    handler(message)
-                else:
-                    logger.warning(f"No handler found for channel: {channel}")
-        except Exception as e:
+        except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.error(f"Error while listening for Redis messages: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error while listening for Redis messages: {e}")
 
-    # TODO: listen_for_redis_messages_worker and cache_for_redis_messages_worker
-    # can be optimized and combined to one function
+        if message:
+            channel = message.get("channel", "")
+            handler = self.handlers.get(channel)
+            if handler:
+                try:
+                    handler(message)
+                except Exception as e:
+                    logger.error(f"Error in handler for channel {channel}: {e}")
+            else:
+                logger.warning(f"No handler found for channel: {channel}")
+
+    def _run_with_reconnect(self, label: str, inner_loop):
+        while True:
+            try:
+                self.subscribe_to_channels()
+                inner_loop()
+            except Exception as e:
+                logger.error(f"Redis {label} disconnected, reconnecting in 1s: {e}")
+                time.sleep(1)
+                self._reconnect()
+
     def listen_for_redis_messages_worker(self):
         logger.info(f"Start worker {os.getpid()} listening for Redis messages...")
         self.set_handler(SESSION_STATUS_CHANNEL, self.session_status_handler)
@@ -429,34 +458,30 @@ class RedisPubSub:
         )
         self.set_handler(SCHEDULE_CHANNEL, self.schedule_channel_handler)
         self.set_handler(STORAGE_MUTATION_CHANNEL, self.storage_mutations_handler)
-        self.subscribe_to_channels()
 
-        while True:
-            self.listen_for_messages()
+        def inner_loop():
+            while True:
+                self.listen_for_messages()
+
+        self._run_with_reconnect("listener", inner_loop)
 
     def cache_for_redis_messages_worker(self):
         """Saves to DB a bunch of data"""
         logger.info(f"Start worker {os.getpid()} caching for Redis messages...")
         self.set_handler(GRAPH_MESSAGES_CHANNEL, self.graph_session_message_handler)
-        self.subscribe_to_channels()
 
         start_time = time.time()
-        while True:
-            try:
-                # 1. Listen for new message
-                self.listen_for_messages()
 
-                # 2. Bulk save the buffer, clear state
+        def inner_loop():
+            nonlocal start_time
+            while True:
+                self.listen_for_messages()
                 buffer = self.buffers.get(GRAPH_MESSAGES_CHANNEL)
                 if buffer and time.time() - start_time >= 3:
                     self._flush_buffer()
                     start_time = time.time()
 
-            except Exception as e:
-                # Catch general exceptions in the listener loop (e.g., Redis errors)
-                logger.error(f"Error in main listener loop: {e}")
-            except Exception as e:
-                logger.error(f"Error while saving graph session messages: {e}")
+        self._run_with_reconnect("cacher", inner_loop)
 
     def _flush_buffer(self):
         """Flush the graph messages buffer to the database.
