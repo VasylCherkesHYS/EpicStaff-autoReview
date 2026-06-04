@@ -54,6 +54,16 @@ const MANIPULATION_TOKENS: Token[] = [
 
 const EXPRESSION_TEMPLATES = ['Required field', 'Range of values', 'After a point'];
 const MANIPULATION_TEMPLATES = ['Combined', 'Percentage', 'Average'];
+const EXPRESSION_TEMPLATE_EXAMPLES: Record<string, string> = {
+    'Required field': '# @field  Required field',
+    'Range of values': '# 10<=@field<=100  Range of values',
+    'After a point': '# @field>=10  After a point',
+};
+const MANIPULATION_TEMPLATE_EXAMPLES: Record<string, string> = {
+    Combined: '# @field=(@field1 + @field2)*@field3  Combined',
+    Percentage: '# @field=(@field1 / @field2) * 100  Percentage',
+    Average: '# @field=(@field1 + @field2 + @field3) / 3  Average',
+};
 
 /** Tokens that are symbolic — inserted without surrounding spaces. */
 const SYMBOLIC_TOKENS = new Set([
@@ -98,6 +108,9 @@ export class ExpressionBuilderComponent implements OnInit {
 
     displayValue = signal<string>('');
 
+    /** Read-only tip lines rendered above the textarea (ephemeral — never saved). */
+    readonly tips = signal<string[]>([]);
+
     /** Last known caret position — updated on every input/click/keyup. */
     private caretPos = 0;
 
@@ -113,6 +126,8 @@ export class ExpressionBuilderComponent implements OnInit {
     mentionActive = signal<boolean>(false);
     mentionQuery = signal<string>('');
     mentionIndex = signal<number>(0);
+    readonly mentionTop = signal(0);
+    readonly mentionLeft = signal(0);
 
     filteredMention = computed(() => {
         const q = this.mentionQuery().toLowerCase();
@@ -174,9 +189,11 @@ export class ExpressionBuilderComponent implements OnInit {
             }
         }
 
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            this.commit.emit(this.displayValue());
+        if (event.key === 'Enter') {
+            if (event.ctrlKey || event.metaKey) {
+                event.preventDefault();
+                this.commit.emit(this.displayValue());
+            }
             return;
         }
         if (event.key === 'Escape') {
@@ -243,6 +260,36 @@ export class ExpressionBuilderComponent implements OnInit {
         }
     }
 
+    // ── Quick template insertion ──────────────────────────────────────────────
+
+    /**
+     * Returns true when the given template label has an example defined,
+     * so the template button can be enabled in the template.
+     */
+    hasTemplateExample(tpl: string): boolean {
+        const map = this.mode() === 'expression' ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
+        return tpl in map;
+    }
+
+    onTemplateClick(tpl: string): void {
+        const map = this.mode() === 'expression' ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
+        const example = map[tpl];
+        if (!example) return;
+
+        // Append the tip line to the read-only tips block above the textarea.
+        this.tips.update((current) => [...current, example]);
+
+        // Focus the writable textarea — do not touch displayValue or caret.
+        const ta = this.editorRef?.nativeElement;
+        if (ta) {
+            requestAnimationFrame(() => ta.focus());
+        }
+    }
+
+    dismissTip(index: number): void {
+        this.tips.update((current) => current.filter((_, i) => i !== index));
+    }
+
     // ── @ typeahead helpers ───────────────────────────────────────────────────
 
     private updateMentionState(ta: HTMLTextAreaElement): void {
@@ -254,9 +301,80 @@ export class ExpressionBuilderComponent implements OnInit {
             this.mentionQuery.set(match[1]);
             this.mentionActive.set(true);
             this.mentionIndex.set(0);
+
+            const coords = this.getCaretCoordinates(ta, pos);
+            const lineHeight = parseFloat(window.getComputedStyle(ta).lineHeight) || 18;
+            this.mentionTop.set(coords.top + lineHeight + ta.offsetTop);
+            this.mentionLeft.set(coords.left + ta.offsetLeft);
         } else {
             this.mentionActive.set(false);
         }
+    }
+
+    private getCaretCoordinates(ta: HTMLTextAreaElement, position: number): { top: number; left: number } {
+        const style = window.getComputedStyle(ta);
+        const mirror = document.createElement('div');
+        const propsToCopy = [
+            'boxSizing',
+            'width',
+            'height',
+            'overflowX',
+            'overflowY',
+            'borderTopWidth',
+            'borderRightWidth',
+            'borderBottomWidth',
+            'borderLeftWidth',
+            'borderStyle',
+            'paddingTop',
+            'paddingRight',
+            'paddingBottom',
+            'paddingLeft',
+            'fontStyle',
+            'fontVariant',
+            'fontWeight',
+            'fontStretch',
+            'fontSize',
+            'fontSizeAdjust',
+            'lineHeight',
+            'fontFamily',
+            'textAlign',
+            'textTransform',
+            'textIndent',
+            'textDecoration',
+            'letterSpacing',
+            'wordSpacing',
+            'tabSize',
+            'MozTabSize',
+            'whiteSpace',
+            'wordWrap',
+            'wordBreak',
+        ];
+        for (const p of propsToCopy) {
+            (mirror.style as unknown as Record<string, string>)[p] = (style as unknown as Record<string, string>)[p];
+        }
+        mirror.style.position = 'absolute';
+        mirror.style.visibility = 'hidden';
+        mirror.style.top = '0';
+        mirror.style.left = '0';
+        mirror.style.whiteSpace = 'pre-wrap';
+        mirror.style.wordWrap = 'break-word';
+
+        document.body.appendChild(mirror);
+
+        mirror.textContent = ta.value.substring(0, position);
+        const span = document.createElement('span');
+        span.textContent = ta.value.substring(position) || '.';
+        mirror.appendChild(span);
+
+        const spanRect = span.getBoundingClientRect();
+        const mirrorRect = mirror.getBoundingClientRect();
+
+        const top = spanRect.top - mirrorRect.top - ta.scrollTop;
+        const left = spanRect.left - mirrorRect.left - ta.scrollLeft;
+
+        document.body.removeChild(mirror);
+
+        return { top, left };
     }
 
     selectMention(varName: string): void {

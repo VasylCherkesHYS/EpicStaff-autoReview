@@ -1018,6 +1018,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 variables: this.collectExpressionVariables(),
                 mode: 'manipulation',
             }),
+            // Allow plain Enter to insert newlines inside the popup editor.
+            // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
+            suppressKeyboardEvent: (params) => params.editing && params.event.key === 'Enter',
             cellStyle: { fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' },
             valueGetter: (params: ValueGetterParams<ConditionGroup>) =>
                 toDisplayExpression(params.data?.manipulation ?? ''),
@@ -1041,6 +1044,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             cellEditorPopup: true,
             cellEditorPopupPosition: 'over',
             cellEditorParams: () => ({ variables: this.collectExpressionVariables() }),
+            // Allow plain Enter to insert newlines inside the popup editor.
+            // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
+            suppressKeyboardEvent: (params) => params.editing && params.event.key === 'Enter',
             rowSpan: (params: RowSpanParams<ConditionGroup>) =>
                 this.getRowSpan(params, 'expression', (d) => d?.expression || ''),
             cellStyle: () => ({ fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' }),

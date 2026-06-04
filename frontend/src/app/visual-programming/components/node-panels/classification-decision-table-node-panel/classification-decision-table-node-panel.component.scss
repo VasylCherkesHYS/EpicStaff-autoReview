@@ -34,7 +34,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: var(--panel-bg, #1e1e22);
+    background: var(--color-nodes-sidepanel-bg);
     flex-shrink: 0;
 }
 
@@ -44,7 +44,7 @@
     grid-template-columns: 1fr 1fr 1fr auto;
     min-width: 0; /* prevent overflow */
     gap: 1rem;
-    padding: 1rem 1.5rem 0.75rem;
+    padding: 20px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
