@@ -187,10 +187,12 @@ from tables.models.tag_models import AgentTag, CrewTag, GraphTag
 from tables.models.label_models import Label
 from tables.models.vector_models import MemoryDatabase
 from tables.models.webhook_models import (
+    LOCAL_ONLY_PROVIDERS,
     VoiceSettings,
     WebhookTrigger,
     RealtimeChannel,
     TwilioChannel,
+    ProviderType,
 )
 from tables.services.copy_services import (
     AgentCopyService,
@@ -1607,9 +1609,6 @@ class WebhookTriggerViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
 
     def _wait_for_tunnel_url(self, trigger):
-        from tables.services.webhook_trigger_service import WebhookTriggerService
-        from tables.models.webhook_models import ProviderType
-
         service = WebhookTriggerService()
         if trigger.provider_type == ProviderType.NGROK:
             service.wait_for_tunnel_url(trigger)
@@ -1619,6 +1618,21 @@ class WebhookTriggerViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         trigger = serializer.save()
         self._wait_for_tunnel_url(trigger)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        new_provider = request.data.get("provider_type", instance.provider_type)
+        if new_provider in LOCAL_ONLY_PROVIDERS and instance.twilio_channels.exists():
+            return Response(
+                {
+                    "provider_type": (
+                        "Cannot switch to a local-only provider while this trigger "
+                        "is linked to a Twilio channel."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         trigger = serializer.save()
@@ -1808,7 +1822,15 @@ class TwilioConfigureWebhookView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        from tables.services.webhook_trigger_service import WebhookTriggerService
+        provider_error = twilio.validate_provider()
+        if provider_error:
+            logger.warning(
+                f"configure-webhook: provider validation failed for channel {channel.id}: {provider_error}"
+            )
+            return Response(
+                {"error": provider_error},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         tunnel_url = WebhookTriggerService().get_tunnel_url_for_trigger(webhook_trigger)
         if not tunnel_url:

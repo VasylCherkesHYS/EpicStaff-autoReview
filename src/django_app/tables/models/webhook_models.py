@@ -12,6 +12,11 @@ class ProviderType(models.TextChoices):
     LOCALHOST = "localhost"
 
 
+# Providers that are only reachable locally and cannot be used by external
+# services (e.g. Twilio) that call back into our webhooks. Single source of truth.
+LOCAL_ONLY_PROVIDERS = {ProviderType.LOCALHOST}
+
+
 class TunnelConfig(Protocol):
     def get_webhook_url(self) -> str | None: ...
     def get_redis_key(self) -> str: ...
@@ -195,6 +200,22 @@ class TwilioChannel(models.Model):
 
     def __str__(self):
         return f"Twilio/{self.phone_number or self.account_sid}"
+
+    def validate_provider(self) -> str | None:
+        """Validate that the configured webhook provider is reachable by Twilio.
+
+        Returns an error message string if the provider is not usable, or None
+        if the configuration is valid.
+        """
+        webhook_trigger = self.webhook_trigger
+        if not webhook_trigger or not webhook_trigger.provider_type:
+            return "No webhook trigger configured for this channel"
+        if webhook_trigger.provider_type in LOCAL_ONLY_PROVIDERS:
+            return (
+                "Localhost webhook provider is not reachable by Twilio. "
+                "Use ngrok or a publicly accessible provider."
+            )
+        return None
 
 
 # ---------------------------------------------------------------------------

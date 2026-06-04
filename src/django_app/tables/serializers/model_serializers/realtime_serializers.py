@@ -1,11 +1,16 @@
 from rest_framework import serializers
 
 from tables.models.webhook_models import (
+    LOCAL_ONLY_PROVIDERS,
     RealtimeChannel,
     TwilioChannel,
     WebhookTrigger,
 )
 from tables.serializers.base_serializers import WebhookTriggerNestedSerializer
+from tables.serializers.utils.mixins import (
+    WebhookCreationMixin,
+    WebhookTriggerIntRefMixin,
+)
 from tables.models.realtime_models import (
     ConversationRecording,
     ElevenLabsRealtimeConfig,
@@ -53,16 +58,58 @@ class GeminiRealtimeConfigSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class TwilioChannelSerializer(serializers.ModelSerializer):
-    webhook_trigger = serializers.PrimaryKeyRelatedField(
-        queryset=WebhookTrigger.objects.all(),
-        required=False,
-        allow_null=True,
-    )
+class TwilioChannelSerializer(
+    WebhookTriggerIntRefMixin,
+    WebhookCreationMixin,
+    serializers.ModelSerializer,
+):
+    webhook_trigger = WebhookTriggerNestedSerializer(required=False, allow_null=True)
 
     class Meta:
         model = TwilioChannel
         fields = "__all__"
+
+    def validate(self, attrs):
+        wt_data = attrs.get("webhook_trigger")
+        wt_id = getattr(self, "_webhook_trigger_id", None)
+        provider_type = None
+        if wt_data:
+            provider_type = wt_data.get("provider_type")
+        elif wt_id:
+            trigger = WebhookTrigger.objects.filter(id=wt_id).first()
+            if trigger:
+                provider_type = trigger.provider_type
+        if provider_type and provider_type in LOCAL_ONLY_PROVIDERS:
+            raise serializers.ValidationError(
+                {
+                    "webhook_trigger": (
+                        "Localhost webhook provider is not reachable by Twilio. "
+                        "Use ngrok or a publicly accessible provider."
+                    )
+                }
+            )
+        return attrs
+
+    def create(self, validated_data):
+        webhook_trigger_data = validated_data.pop("webhook_trigger", None)
+        if not self._apply_webhook_trigger_fk_to_create(validated_data):
+            if webhook_trigger_data:
+                trigger, _ = self._get_or_create_webhook_trigger(webhook_trigger_data)
+                validated_data["webhook_trigger"] = trigger
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if not self._apply_webhook_trigger_fk_to_update(instance, validated_data):
+            if "webhook_trigger" in validated_data:
+                webhook_trigger_data = validated_data.pop("webhook_trigger")
+                if webhook_trigger_data:
+                    trigger, _ = self._get_or_create_webhook_trigger(
+                        webhook_trigger_data
+                    )
+                    instance.webhook_trigger = trigger
+                else:
+                    instance.webhook_trigger = None
+        return super().update(instance, validated_data)
 
 
 class _TwilioChannelReadSerializer(serializers.ModelSerializer):

@@ -2,6 +2,7 @@ import pytest
 from django.urls import reverse
 
 from tables.models.webhook_models import (
+    LocalhostWebhookConfig,
     NgrokWebhookConfig,
     ProviderType,
     RealtimeChannel,
@@ -37,6 +38,18 @@ def _make_webhook_trigger_with_ngrok(path="test-voice"):
         name="test-ngrok",
         auth_token="tok",
         region=NgrokWebhookConfig.Region.EU,
+    )
+    return trigger
+
+
+def _make_webhook_trigger_with_localhost(path="test-localhost"):
+    trigger = WebhookTrigger.objects.create(
+        path=path, provider_type=ProviderType.LOCALHOST
+    )
+    LocalhostWebhookConfig.objects.create(
+        trigger=trigger,
+        name="test-localhost",
+        domain="localhost:8000",
     )
     return trigger
 
@@ -130,6 +143,48 @@ class TestTwilioChannelWebhookTrigger:
 
         tc.refresh_from_db()
         assert tc.webhook_trigger_id is None
+
+    def test_configure_webhook_rejects_localhost_provider(self, auth_client, db):
+        """configure-webhook must 400 when the trigger uses the localhost provider."""
+        rc = _make_realtime_channel(db)
+        trigger = _make_webhook_trigger_with_localhost(path="cfg-localhost")
+        _make_twilio_channel(rc, webhook_trigger=trigger)
+
+        url = reverse("twilio-configure-webhook")
+        response = auth_client.post(
+            url,
+            {"phone_sid": "PN_test", "channel_token": str(rc.token)},
+            format="json",
+        )
+        assert response.status_code == 400, response.json()
+        assert "localhost" in response.json()["error"].lower()
+
+    def test_validate_provider_rejects_localhost(self, db):
+        """validate_provider() returns an error message for local-only providers."""
+        rc = _make_realtime_channel(db)
+        trigger = _make_webhook_trigger_with_localhost(path="vp-localhost")
+        tc = _make_twilio_channel(rc, webhook_trigger=trigger)
+
+        error = tc.validate_provider()
+        assert error is not None
+        assert "localhost" in error.lower()
+
+    def test_validate_provider_accepts_ngrok(self, db):
+        """validate_provider() returns None for a publicly reachable provider."""
+        rc = _make_realtime_channel(db)
+        trigger = _make_webhook_trigger_with_ngrok(path="vp-ngrok")
+        tc = _make_twilio_channel(rc, webhook_trigger=trigger)
+
+        assert tc.validate_provider() is None
+
+    def test_validate_provider_rejects_missing_trigger(self, db):
+        """validate_provider() returns an error when no trigger is configured."""
+        rc = _make_realtime_channel(db)
+        tc = _make_twilio_channel(rc)
+
+        error = tc.validate_provider()
+        assert error is not None
+        assert "no webhook trigger" in error.lower()
 
     def test_realtime_channel_get_expands_twilio_webhook_trigger(self, auth_client, db):
         """GET /realtime-channels/{id}/ should include twilio.webhook_trigger with path and live_url."""

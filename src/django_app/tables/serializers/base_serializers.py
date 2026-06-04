@@ -1,4 +1,5 @@
 from tables.models.webhook_models import (
+    LOCAL_ONLY_PROVIDERS,
     LocalhostWebhookConfig,
     NgrokWebhookConfig,
     ProviderType,
