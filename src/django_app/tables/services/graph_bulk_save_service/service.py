@@ -11,7 +11,7 @@ from tables.serializers.graph_bulk_save_serializers import (
     ConditionalEdgeBulkSerializer,
     EdgeBulkSerializer,
 )
-from tables.exceptions import BulkSaveValidationError
+from tables.exceptions import BulkSaveValidationError, GraphSaveVersionConflictError
 from tables.services.graph_bulk_save_service.data_types import (
     BuildSaveableResult,
     EdgeListValidationResult,
@@ -52,6 +52,7 @@ class GraphBulkSaveService:
             if issubclass(m, BaseGlobalNode) and not m._meta.abstract
         )
 
+    @transaction.atomic
     def save(self, graph: Graph, validated_input: dict) -> Graph:
         expected_save_version = validated_input["save_version"]
         deleted_data = validated_input.get("deleted", {})
@@ -60,6 +61,10 @@ class GraphBulkSaveService:
         edge_saveables: list = []
 
         payload_temp_ids: set[str] = self._collect_payload_temp_ids(validated_input)
+
+        # Pass 1: validate saving version
+        if graph.save_version != expected_save_version:
+            raise GraphSaveVersionConflictError(current_version=graph.save_version)
 
         # Pass 1: validate deletions
         deletion_errors = self._validate_deletions(graph, deleted_data)
@@ -464,7 +469,6 @@ class GraphBulkSaveService:
 
         return node_ids - found_ids
 
-    @transaction.atomic
     def _execute_writes(
         self,
         graph: Graph,
