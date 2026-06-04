@@ -151,7 +151,11 @@
         </div> -->
 
                         <!-- Delete Icon (Click to Remove Connection) -->
-                        <div class="icon-button delete-icon" title="Delete connection" (click)="onDelete()">
+                        <div
+                            class="icon-button delete-icon"
+                            title="Delete connection"
+                            (click)="onDeleteConnection(connection.id, $event)"
+                        >
                             <i class="ti ti-trash"></i>
                         </div>
                     </div>

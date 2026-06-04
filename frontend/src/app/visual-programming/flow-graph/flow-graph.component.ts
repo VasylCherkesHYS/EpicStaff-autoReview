@@ -506,6 +506,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         });
     }
 
+    public onDeleteConnection(connectionId: string, event: MouseEvent): void {
+        event.stopPropagation();
+        this.undoRedoService.stateChanged();
+        this.flowService.deleteSelections({ fNodeIds: [], fConnectionIds: [connectionId] });
+        this.cd.detectChanges();
+    }
+
     public onCreateNode(event: FCreateNodeEvent): void {
         if (!event.data || typeof event.data !== 'object') {
             return;
