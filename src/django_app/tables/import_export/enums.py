@@ -18,6 +18,7 @@ class EntityType(str, Enum):
     CREW = "Project"
     GRAPH = "Flow"
     SESSION = "Session"
+    LABEL = "Label"
 
     AGENT_TAG = "AgentTag"
     CREW_TAG = "CrewTag"
@@ -31,7 +32,6 @@ class NodeType(str, Enum):
     START_NODE = "StartNode"
     CREW_NODE = "CrewNode"
     PYTHON_NODE = "PythonNode"
-    LLM_NODE = "LLMNode"
     AUDIO_TRANSCRIPTION_NODE = "AudioTranscriptionNode"
     FILE_EXTRACTOR_NODE = "FileExtractorNode"
     TELEGRAM_TRIGGER_NODE = "TelegramTriggerNode"

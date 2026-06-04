@@ -141,13 +141,6 @@ class AudioTranscriptionNode(BaseNode):
     )
 
 
-class LLMNode(BaseNode):
-    graph = models.ForeignKey(
-        "Graph", on_delete=models.CASCADE, related_name="llm_node_list"
-    )
-    llm_config = models.ForeignKey("LLMConfig", blank=False, on_delete=models.CASCADE)
-
-
 class EndNode(BaseGraphEntity, BaseGlobalNode):
     # TODO: can be OneToOne field
     graph = models.ForeignKey(
@@ -291,6 +284,17 @@ class GraphSessionMessage(models.Model):
     execution_order = models.IntegerField(default=0)
     message_data = models.JSONField()
     uuid = models.UUIDField(null=False, editable=False, unique=True)
+    parent_subgraph_execution_id = models.UUIDField(
+        null=True, blank=True, db_index=True
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["session", "parent_subgraph_execution_id", "id"],
+                name="gsm_session_parent_id_idx",
+            ),
+        ]
 
 
 class StartNode(BaseGraphEntity, BaseGlobalNode):
