@@ -78,6 +78,10 @@
         background: var(--transparent-white-8, rgba(255, 255, 255, 0.08));
     }
 
+    &.selectable {
+        cursor: pointer;
+    }
+
     &:hover:not(.table-row--selected) {
         background: var(--transparent-white-4, rgba(255, 255, 255, 0.04));
     }
