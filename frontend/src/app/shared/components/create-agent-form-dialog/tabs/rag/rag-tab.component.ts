@@ -84,7 +84,6 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
     data_max_tokens: 12000,
     reduce_max_tokens: null,
     reduce_max_completion_tokens: null,
-    reduce_temperature: 0.0,
     concurrency: 32,
     drift_k_followups: 20,
     primer_folds: 5,
@@ -95,7 +94,6 @@ export const GRAPH_DRIFT_DEFAULTS: GraphDriftSearchConfig = {
     local_search_top_k_mapped_entities: 10,
     local_search_top_k_relationships: 10,
     local_search_max_data_tokens: 12000,
-    local_search_temperature: 0.0,
     local_search_top_p: 1.0,
     local_search_n: 1,
     local_search_llm_max_gen_tokens: null,
@@ -431,10 +429,6 @@ export class RagTabComponent implements OnInit {
             reduce_max_completion_tokens: [
                 configs?.reduce_max_completion_tokens ?? GRAPH_DRIFT_DEFAULTS.reduce_max_completion_tokens,
             ],
-            reduce_temperature: [
-                configs?.reduce_temperature ?? GRAPH_DRIFT_DEFAULTS.reduce_temperature,
-                [Validators.required, Validators.min(0), Validators.max(2)],
-            ],
             concurrency: [
                 configs?.concurrency ?? GRAPH_DRIFT_DEFAULTS.concurrency,
                 [Validators.required, Validators.min(1), Validators.max(256)],
@@ -468,10 +462,6 @@ export class RagTabComponent implements OnInit {
             local_search_max_data_tokens: [
                 configs?.local_search_max_data_tokens ?? GRAPH_DRIFT_DEFAULTS.local_search_max_data_tokens,
                 [Validators.required, Validators.min(100), Validators.max(100000)],
-            ],
-            local_search_temperature: [
-                configs?.local_search_temperature ?? GRAPH_DRIFT_DEFAULTS.local_search_temperature,
-                [Validators.required, Validators.min(0), Validators.max(2)],
             ],
             local_search_top_p: [
                 configs?.local_search_top_p ?? GRAPH_DRIFT_DEFAULTS.local_search_top_p,

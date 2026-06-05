@@ -57,7 +57,6 @@ export interface GraphDriftSearchConfig {
     data_max_tokens: number;
     reduce_max_tokens: number | null;
     reduce_max_completion_tokens: number | null;
-    reduce_temperature: number;
     concurrency: number;
     drift_k_followups: number;
     primer_folds: number;
@@ -68,7 +67,6 @@ export interface GraphDriftSearchConfig {
     local_search_top_k_mapped_entities: number;
     local_search_top_k_relationships: number;
     local_search_max_data_tokens: number;
-    local_search_temperature: number;
     local_search_top_p: number;
     local_search_n: number;
     local_search_llm_max_gen_tokens: number | null;
