@@ -70,7 +70,11 @@
                     [fNodeId]="node.id"
                     [fNodeSize]="node.size"
                     [fNodePosition]="node.position"
-                    [style.z-index]="2"
+                    [style.z-index]="getNodeZIndex(node)"
+                    (mouseenter)="hoveredNodeId.set(node.id)"
+                    (mouseleave)="hoveredNodeId.set(null)"
+                    (portMouseenter)="hoveredNodeId.set(node.id)"
+                    (portMouseleave)="hoveredNodeId.set(null)"
                     (fNodePositionChange)="onNodePositionChanged($event, node)"
                     (fNodeSizeChange)="onNodeSizeChanged($event, node)"
                     (editClicked)="onOpenNodePanel($event)"
@@ -147,7 +151,11 @@
         </div> -->
 
                         <!-- Delete Icon (Click to Remove Connection) -->
-                        <div class="icon-button delete-icon" title="Delete connection" (click)="onDelete()">
+                        <div
+                            class="icon-button delete-icon"
+                            title="Delete connection"
+                            (click)="onDeleteConnection(connection.id, $event)"
+                        >
                             <i class="ti ti-trash"></i>
                         </div>
                     </div>
