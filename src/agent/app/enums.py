@@ -1,24 +1,17 @@
 """
-Shared enumerations used across multiple layers of the agent service.
+Agent-service-local enumerations.
 
-``RunType`` drives ``RunnerFactory`` to select the correct ``Runner`` subclass.
-``EmitterMode`` is declared as a class attribute on each ``Runner`` subclass and
-tells the factory which ``Emitter`` implementation to construct.
+``RunType`` has moved to ``shared.models.agent_service`` so that the wire
+contract is defined in a single place.  Import it from there.
+
+``EmitterMode`` is runtime/agent-only — it is never serialised and is not
+part of the cross-service contract.
 """
 
 from enum import Enum
 
-
-class RunType(str, Enum):
-    """Execution mode for an agent request.
-
-    ``SINGLE_TASK`` — one prompt, one ``AgentLoop`` invocation.
-    ``LIST_OF_TASKS`` — sequential list of prompts, each run through the loop.
-    ``CHAT`` and ``TEAM`` are reserved for future runner implementations.
-    """
-
-    SINGLE_TASK = "SINGLE_TASK"
-    LIST_OF_TASKS = "LIST_OF_TASKS"
+# Re-export RunType from shared so existing intra-agent imports keep working.
+from shared.models.agent_service import RunType  # noqa: F401
 
 
 class EmitterMode(str, Enum):

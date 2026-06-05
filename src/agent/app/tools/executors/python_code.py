@@ -2,29 +2,51 @@ from __future__ import annotations
 
 import uuid
 
-from app.models import ToolResult
+from shared.models.agent_service import ToolResult
+from shared.models.tools import CodeTaskData, PythonCodeToolData
+
 from app.sandbox.client import SandboxClient
-from app.tools.descriptors import PythonCodeToolDescriptor
-from shared.models.tools import CodeTaskData
 
 
 class PythonCodeToolExecutor:
+    """Executes a Python-code tool via the sandbox service.
+
+    Storage wiring (use_storage, storage_allowed_paths, storage_org_prefix,
+    session_id) is injected by the caller at construction time once S3 refs
+    are resolved — for now they default to disabled/None.
+    """
+
     def __init__(
-        self, sandbox: SandboxClient, descriptor: PythonCodeToolDescriptor
+        self,
+        sandbox: SandboxClient,
+        data: PythonCodeToolData,
+        *,
+        use_storage: bool = False,
+        storage_allowed_paths: list[str] | None = None,
+        storage_org_prefix: str | None = None,
+        session_id: int | None = None,
     ) -> None:
         self._sandbox = sandbox
-        self._descriptor = descriptor
+        self._data = data
+        self._use_storage = use_storage
+        self._storage_allowed_paths = storage_allowed_paths
+        self._storage_org_prefix = storage_org_prefix
+        self._session_id = session_id
 
     async def __call__(self, args: dict) -> ToolResult:
+        python_code = self._data.python_code
+
         task = CodeTaskData(
-            venv_name=self._descriptor.venv_name,
-            libraries=self._descriptor.libraries,
-            code=self._descriptor.code,
+            venv_name=python_code.venv_name,
+            libraries=python_code.libraries,
+            code=python_code.code,
             execution_id=str(uuid.uuid4()),
-            entrypoint=self._descriptor.entrypoint,
-            func_kwargs={**self._descriptor.configuration, **args},
-            global_kwargs=self._descriptor.global_kwargs,
-            use_storage=False,
+            entrypoint=python_code.entrypoint,
+            func_kwargs=args,
+            use_storage=self._use_storage,
+            storage_allowed_paths=self._storage_allowed_paths,
+            storage_org_prefix=self._storage_org_prefix,
+            session_id=self._session_id,
         )
 
         try:

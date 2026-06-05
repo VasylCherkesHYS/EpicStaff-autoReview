@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from app.models import ToolResult
+from shared.models.agent_service import ToolResult
 from app.tools.system_registry import (
     SystemToolRegistry,
     get_system_registry,

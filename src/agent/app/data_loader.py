@@ -16,7 +16,7 @@ import redis.asyncio as aioredis
 from loguru import logger
 
 from app.exceptions import DataLoadError
-from app.models import AgentRequest
+from shared.models.agent_service import AgentRequest
 from shared.redis_streams import StreamEnvelope
 
 

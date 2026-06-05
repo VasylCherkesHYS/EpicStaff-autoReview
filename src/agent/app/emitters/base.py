@@ -1,5 +1,5 @@
 """
-Layer 1 — Emitter ABC: transport-agnostic output sink (Bridge pattern).
+Emitter ABC: transport-agnostic output sink (Bridge pattern).
 
 The Emitter is the Bridge between the agent execution layers (Runner,
 AgentLoop) and the output transport (Redis Streams, WebSocket, etc.).
@@ -17,7 +17,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.llm.client import LLMChunk
-from app.models import AgentRequest, LoopResult, ToolResult
+from shared.models.agent_service import AgentRequest, LoopResult, ToolResult
 
 
 class Emitter(ABC):
@@ -34,29 +34,17 @@ class Emitter(ABC):
 
     @abstractmethod
     async def on_start(self, request: AgentRequest) -> None:
-        """Called once before the runner begins execution.
-
-        Subclasses may use this to record the start timestamp, initialise
-        buffers, or publish a ``started`` status envelope.
-        """
+        """Called once before the runner begins execution."""
         ...
 
     @abstractmethod
     async def on_chunk(self, chunk: LLMChunk) -> None:
-        """Called for each ``LLMChunk`` produced by ``LLMClient.chat``.
-
-        Batch implementations buffer the chunk; streaming implementations
-        publish it immediately.
-        """
+        """Called for each ``LLMChunk`` produced by ``LLMClient.chat``."""
         ...
 
     @abstractmethod
     async def on_tool_call(self, call: object) -> None:
-        """Called when the loop dispatches a tool call to ``ToolRegistry``.
-
-        ``call`` is the assembled tool-call object (type TBD by follow-up
-        plan; typed as ``object`` for now).
-        """
+        """Called when the loop dispatches a tool call to ``ToolRegistry``."""
         ...
 
     @abstractmethod
@@ -66,12 +54,7 @@ class Emitter(ABC):
 
     @abstractmethod
     async def on_final(self, result: LoopResult) -> None:
-        """Called once when the loop finishes successfully.
-
-        Subclasses must publish the accumulated result to the output
-        transport here.  For ``RedisStreamBatchEmitter`` this is the point
-        where the single ``agent.result`` envelope is written to the stream.
-        """
+        """Called once when the loop finishes successfully."""
         ...
 
     @abstractmethod

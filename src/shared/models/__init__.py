@@ -1,3 +1,13 @@
+from .agent_service import (
+    RunType,
+    AgentSpec,
+    RagSpec,
+    S3FileSpec,
+    AgentRequest,
+    ToolResult,
+    ContextAttachment,
+    LoopResult,
+)
 from .agents import (
     AgentData,
     RealtimeAgentChatData,
@@ -78,6 +88,15 @@ from .tools import (
 )
 
 __all__ = [
+    # agent_service
+    "RunType",
+    "AgentSpec",
+    "RagSpec",
+    "S3FileSpec",
+    "AgentRequest",
+    "ToolResult",
+    "ContextAttachment",
+    "LoopResult",
     # agents
     "AgentData",
     "RealtimeAgentChatData",

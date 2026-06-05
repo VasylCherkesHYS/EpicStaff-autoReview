@@ -9,13 +9,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.exceptions import DuplicateToolNameError
-from app.models import ToolResult
-from app.tools.descriptors import McpToolDescriptor, PythonCodeToolDescriptor
 from app.tools.registry_builder import ToolRegistryBuilder
 from app.tools.system_registry import (
     SystemToolRegistry,
     get_system_registry,
     system_tool,
+)
+from shared.models.agent_service import ToolResult
+from shared.models.tools import (
+    ArgsSchema,
+    McpToolData,
+    PythonCodeData,
+    PythonCodeToolData,
 )
 
 
@@ -30,27 +35,25 @@ def _fake_sandbox() -> MagicMock:
     return MagicMock()
 
 
-def _python_descriptor(name: str = "my_tool") -> PythonCodeToolDescriptor:
-    return PythonCodeToolDescriptor(
+def _python_tool_data(name: str = "my_tool") -> PythonCodeToolData:
+    return PythonCodeToolData(
+        id=1,
         name=name,
         description="A tool.",
-        args_schema={"type": "object", "properties": {}},
-        code="def run(): return 'ok'",
-        entrypoint="run",
-        libraries=[],
-        configuration={},
-        global_kwargs={},
-        venv_name=f"venv_pyt_{name}",
+        args_schema=ArgsSchema(properties={}),
+        python_code=PythonCodeData(
+            venv_name=f"venv_pyt_{name}",
+            code="def run(): return 'ok'",
+            entrypoint="run",
+            libraries=[],
+        ),
     )
 
 
-def _mcp_descriptor(name: str = "mcp_tool") -> McpToolDescriptor:
-    return McpToolDescriptor(
-        name=name,
-        description="An MCP tool.",
-        args_schema={"type": "object", "properties": {}},
+def _mcp_tool_data(tool_name: str = "mcp_tool") -> McpToolData:
+    return McpToolData(
         transport="http://localhost:8080/sse",
-        tool_name=name,
+        tool_name=tool_name,
     )
 
 
@@ -72,7 +75,7 @@ async def test_system_tool_gets_sys_prefix():
 
 async def test_python_code_tool_gets_usr_prefix():
     builder = ToolRegistryBuilder(_fake_sandbox())
-    registry = builder.add_python_code_tool(_python_descriptor("formatter")).build()
+    registry = builder.add_python_code_tool(_python_tool_data("formatter")).build()
 
     names = [spec.name for spec in registry.tool_specs()]
     assert "usr_formatter" in names
@@ -80,7 +83,12 @@ async def test_python_code_tool_gets_usr_prefix():
 
 async def test_mcp_tool_gets_usr_prefix():
     builder = ToolRegistryBuilder(_fake_sandbox())
-    registry = builder.add_mcp_tool(_mcp_descriptor("connector")).build()
+    registry = builder.add_mcp_tool(
+        _mcp_tool_data("connector"),
+        name="connector",
+        description="An MCP tool.",
+        args_schema={"type": "object", "properties": {}},
+    ).build()
 
     names = [spec.name for spec in registry.tool_specs()]
     assert "usr_connector" in names
@@ -92,7 +100,7 @@ async def test_sys_and_usr_same_leaf_name_coexist():
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = (
         builder.add_system_tools()
-        .add_python_code_tool(_python_descriptor("shared_name"))
+        .add_python_code_tool(_python_tool_data("shared_name"))
         .build()
     )
 
@@ -103,10 +111,10 @@ async def test_sys_and_usr_same_leaf_name_coexist():
 
 async def test_duplicate_usr_name_raises_duplicate_tool_name_error():
     builder = ToolRegistryBuilder(_fake_sandbox())
-    builder.add_python_code_tool(_python_descriptor("dup"))
+    builder.add_python_code_tool(_python_tool_data("dup"))
 
     with pytest.raises(DuplicateToolNameError):
-        builder.add_python_code_tool(_python_descriptor("dup"))
+        builder.add_python_code_tool(_python_tool_data("dup"))
 
 
 async def test_duplicate_sys_name_raises_duplicate_tool_name_error():
@@ -155,12 +163,17 @@ async def test_build_blocks_further_add_after_build():
     builder.build()
 
     with pytest.raises(RuntimeError, match="single-use"):
-        builder.add_python_code_tool(_python_descriptor("after_build"))
+        builder.add_python_code_tool(_python_tool_data("after_build"))
 
 
 async def test_mcp_stub_executor_raises_not_implemented():
     builder = ToolRegistryBuilder(_fake_sandbox())
-    registry = builder.add_mcp_tool(_mcp_descriptor("my_mcp")).build()
+    registry = builder.add_mcp_tool(
+        _mcp_tool_data("my_mcp"),
+        name="my_mcp",
+        description="An MCP tool.",
+        args_schema={},
+    ).build()
 
     with pytest.raises(
         NotImplementedError, match="MCP tool execution is not implemented yet"
@@ -185,8 +198,13 @@ async def test_tool_specs_returns_all_registered():
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = (
         builder.add_system_tools()
-        .add_python_code_tool(_python_descriptor("code_tool"))
-        .add_mcp_tool(_mcp_descriptor("mcp_tool"))
+        .add_python_code_tool(_python_tool_data("code_tool"))
+        .add_mcp_tool(
+            _mcp_tool_data("mcp_tool"),
+            name="mcp_tool",
+            description="MCP.",
+            args_schema={},
+        )
         .build()
     )
 

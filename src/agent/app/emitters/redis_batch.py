@@ -1,25 +1,19 @@
 """
-Layer 1 concrete Emitter — RedisStreamBatchEmitter.
+RedisStreamBatchEmitter: buffers all mid-execution events and publishes a
+single ``agent.result`` (or ``agent.error``) envelope to the ``agent.results``
+Redis Stream only on ``on_final`` / ``on_error``.
 
-Buffers all mid-execution events in memory and publishes a single
-``agent.result`` (or ``agent.error``) envelope to the ``agent.results``
-Redis Stream only on ``on_final`` / ``on_error``.  This is the only
-``Emitter`` implementation built in this plan; it is used by all runners
-that declare ``emitter_mode = EmitterMode.BATCH``.
-
-The ``StreamEnvelope`` published on ``on_final`` carries the ``LoopResult``
-fields plus the full list of buffered events so consumers can reconstruct
-the execution trace.
+This is the only ``Emitter`` implementation built in this plan; it is used
+by all runners that declare ``emitter_mode = EmitterMode.BATCH``.
 """
 
 from __future__ import annotations
-
 
 from loguru import logger
 
 from app.emitters.base import Emitter
 from app.llm.client import LLMChunk
-from app.models import AgentRequest, LoopResult, ToolResult
+from shared.models.agent_service import AgentRequest, LoopResult, ToolResult
 from shared.redis_streams import RedisStreamClient, StreamEnvelope
 
 

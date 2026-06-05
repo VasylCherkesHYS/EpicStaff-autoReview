@@ -1,0 +1,180 @@
+"""
+Contract tests: AgentRequest validation and DataLoader correlation_id injection.
+"""
+
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from app.data_loader import DataLoader
+from shared.models.agent_service import AgentRequest, RunType
+
+
+# ---------------------------------------------------------------------------
+# The canonical example request blob (no correlation_id — DataLoader injects it)
+# ---------------------------------------------------------------------------
+
+EXAMPLE_BLOB = {
+    "run_type": "SINGLE_TASK",
+    "agents": [
+        {
+            "id": 12,
+            "name": "researcher",
+            "role": "Senior Researcher",
+            "instructions": "You research topics thoroughly.",
+            "llm": {
+                "provider": "openai",
+                "config": {"model": "gpt-4o", "temperature": 0.7},
+            },
+            "fcm_llm": None,
+            "max_iter": 15,
+            "max_rpm": 60,
+            "max_execution_time": 120,
+            "cache": True,
+            "max_retry_limit": 5,
+            "default_temperature": 0.7,
+            "tool_refs": ["python-code-tool:1", "mcp-tool:4"],
+            "rag_refs": ["naive:3"],
+            "s3_refs": [88],
+        }
+    ],
+    "tools": [
+        {
+            "unique_name": "python-code-tool:1",
+            "data": {
+                "id": 1,
+                "name": "python-code-tool",
+                "description": "Runs Python code.",
+                "args_schema": {
+                    "type": "object",
+                    "title": "ArgumentsSchema",
+                    "properties": {"x": {"type": "string"}},
+                    "required": [],
+                },
+                "python_code": {
+                    "venv_name": "venv_pyt_1",
+                    "code": "def run(x): return x",
+                    "entrypoint": "run",
+                    "libraries": [],
+                    "global_kwargs": None,
+                    "use_storage": False,
+                    "storage_allowed_paths": None,
+                    "storage_org_prefix": None,
+                    "session_id": None,
+                },
+            },
+        },
+        {
+            "unique_name": "mcp-tool:4",
+            "data": {
+                "transport": "http://localhost/sse",
+                "tool_name": "search",
+                "timeout": 30,
+                "auth": None,
+                "init_timeout": 10,
+            },
+        },
+    ],
+    "rags": [
+        {
+            "unique_name": "naive:3",
+            "collection_id": 7,
+            "rag_id": 3,
+            "rag_type": "naive",
+            "search_config": {
+                "rag_type": "naive",
+                "search_limit": 3,
+                "similarity_threshold": 0.2,
+            },
+            "embedder": {
+                "provider": "openai",
+                "config": {"model": "text-embedding-3-small"},
+            },
+        }
+    ],
+    "s3_files": [{"id": 88, "path": "reports/2026/q1.pdf"}],
+    "payload": {"prompt": "Summarize Q1."},
+}
+
+
+# ---------------------------------------------------------------------------
+# Validation tests
+# ---------------------------------------------------------------------------
+
+
+def test_agent_request_validates_example_blob():
+    request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
+
+    assert request.run_type == RunType.SINGLE_TASK
+    assert len(request.agents) == 1
+    assert request.agents[0].id == 12
+    assert request.agents[0].name == "researcher"
+    assert request.agents[0].llm.provider == "openai"
+    assert request.agents[0].llm.config.model == "gpt-4o"
+    assert request.agents[0].tool_refs == ["python-code-tool:1", "mcp-tool:4"]
+    assert request.agents[0].rag_refs == ["naive:3"]
+    assert request.agents[0].s3_refs == [88]
+    assert len(request.tools) == 2
+    assert len(request.rags) == 1
+    assert len(request.s3_files) == 1
+    assert request.s3_files[0].path == "reports/2026/q1.pdf"
+    assert request.payload == {"prompt": "Summarize Q1."}
+    assert request.correlation_id == "corr-1"
+
+
+def test_agent_request_round_trips():
+    request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
+    dumped = request.model_dump()
+    # correlation_id round-trips
+    assert dumped["correlation_id"] == "corr-1"
+    # run_type serialises as string value
+    assert dumped["run_type"] == "SINGLE_TASK"
+
+
+def test_agent_request_frozen():
+    request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
+    with pytest.raises(Exception):
+        request.correlation_id = "mutated"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# DataLoader injects correlation_id from envelope
+# ---------------------------------------------------------------------------
+
+
+async def test_data_loader_injects_correlation_id():
+    """DataLoader builds AgentRequest(correlation_id=envelope.correlation_id, **data).
+    The blob stored at the Redis key must NOT contain correlation_id.
+    """
+    from shared.redis_streams import StreamEnvelope
+
+    # Build a valid request, dump to JSON (without correlation_id) — this
+    # is what the producer stores at the Redis key.
+    template = AgentRequest(correlation_id="ignored", **EXAMPLE_BLOB)
+    dumped = template.model_dump(exclude={"correlation_id"})
+    blob_without_correlation_id = json.dumps(dumped)
+
+    fake_redis = MagicMock()
+    fake_redis.get = AsyncMock(return_value=blob_without_correlation_id)
+    fake_redis.aclose = AsyncMock()
+
+    loader = DataLoader.__new__(DataLoader)
+    loader._host = "localhost"
+    loader._port = 6379
+    loader._password = None
+    loader._client = fake_redis
+
+    envelope = StreamEnvelope(
+        type="agent.run",
+        correlation_id="injected-corr-id",
+        payload={"request_key": "agent:request:42"},
+    )
+
+    request = await loader.load(envelope)
+
+    assert request.correlation_id == "injected-corr-id"
+    assert request.run_type == RunType.SINGLE_TASK
+    assert request.agents[0].id == 12

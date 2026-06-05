@@ -14,7 +14,7 @@ from app.emitters.base import Emitter
 from app.emitters.redis_batch import RedisStreamBatchEmitter
 from app.enums import EmitterMode, RunType
 from app.exceptions import UnknownRunTypeError
-from app.models import AgentRequest
+from shared.models.agent_service import AgentRequest
 from app.runners.base import Runner
 from shared.redis_streams import RedisStreamClient
 

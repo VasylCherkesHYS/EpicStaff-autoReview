@@ -17,7 +17,7 @@ from typing import ClassVar
 
 from app.emitters.base import Emitter
 from app.enums import EmitterMode, RunType
-from app.models import AgentRequest
+from shared.models.agent_service import AgentRequest
 
 
 class Runner(ABC):

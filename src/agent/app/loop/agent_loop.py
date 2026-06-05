@@ -1,5 +1,5 @@
 """
-Layer 3 — AgentLoop ABC and DefaultAgentLoop: single-agent tool-use cycle.
+AgentLoop ABC and DefaultAgentLoop: single-agent tool-use cycle.
 
 ``AgentLoop`` is the only component in the architecture that speaks to
 ``LLMClient``, accumulates tool calls across chunks, dispatches to
@@ -20,11 +20,28 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from app.emitters.base import Emitter
-from app.llm.client import LLMClient, LLMChunk
+from app.llm.client import LLMChunk, LLMClient
 from app.loop.context import AgentContext
 from app.loop.stop_policy import StopPolicy
-from app.models import LoopResult, ToolResult
 from app.tools.registry import ToolRegistry
+from shared.models.agent_service import LoopResult, ToolResult
+
+
+def _build_model_config(context: AgentContext) -> dict:
+    """Build the litellm-compatible model_config dict from the agent's LLM spec.
+
+    Prefixes ``model`` with ``provider/`` when the provider name is not
+    already present in the model string (e.g. ``openai/gpt-4o`` vs a model
+    that already carries a provider prefix like ``azure/gpt-4o``).
+    """
+    llm = context.agent.llm
+    config = llm.config.model_dump(exclude_none=True)
+    model = config.get("model", "")
+
+    if llm.provider and "/" not in model:
+        config["model"] = f"{llm.provider}/{model}"
+
+    return config
 
 
 class AgentLoop(ABC):
@@ -47,16 +64,7 @@ class AgentLoop(ABC):
         emitter: Emitter,
         stop: StopPolicy,
     ) -> LoopResult:
-        """Execute the tool-use cycle and return a summary result.
-
-        Subclasses must:
-        - Build messages from ``context`` (system prompt + attachments + history).
-        - Call ``LLMClient.chat`` in a loop, driving ``emitter`` hooks for
-          each chunk, tool call, and tool result.
-        - Append assistant and tool messages to ``context`` after each iteration.
-        - Delegate termination decisions to ``stop.should_stop``.
-        - Return a ``LoopResult`` describing the completed cycle.
-        """
+        """Execute the tool-use cycle and return a summary result."""
         ...
 
 
@@ -77,11 +85,7 @@ def _classify_stop(
     complete_calls: list,
     stop: StopPolicy,
 ) -> str:
-    """Return the human-readable stop reason for a completed iteration.
-
-    Inspects the concrete policy type to distinguish ``"max_iter_reached"``
-    from ``"no_tool_calls"``.  Falls back to ``"stopped"`` for custom policies.
-    """
+    """Return the human-readable stop reason for a completed iteration."""
     from app.loop.stop_policy import MaxIterAndNoToolCalls
 
     if isinstance(stop, MaxIterAndNoToolCalls):
@@ -117,7 +121,7 @@ class DefaultAgentLoop(AgentLoop):
     ) -> LoopResult:
         """Enforce the wall-clock limit and delegate to ``_run_inner``."""
         state = _RunState()
-        time_limit = context.agent_config.max_execution_time
+        time_limit = context.agent.max_execution_time
 
         try:
             if time_limit is None:
@@ -163,14 +167,11 @@ class DefaultAgentLoop(AgentLoop):
             async for chunk in self._llm.chat(
                 messages=context.messages,
                 tools=tools.tool_specs(),
-                model_config={
-                    "model": context.agent_config.model,
-                    **context.agent_config.params,
-                },
+                model_config=_build_model_config(context),
                 stream=True,
                 runtime_config={
-                    "max_retry_limit": context.agent_config.max_retry_limit,
-                    "max_rpm": context.agent_config.max_rpm,
+                    "max_retry_limit": context.agent.max_retry_limit,
+                    "max_rpm": context.agent.max_rpm,
                 },
             ):
                 await emitter.on_chunk(chunk)

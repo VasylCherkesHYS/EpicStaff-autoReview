@@ -9,24 +9,28 @@ from this file.
 
 from app.data_loader import DataLoader
 from app.factory import RunnerFactory
-from app.models import (
-    AgentConfig,
+from app.request_handler import RequestHandler
+from shared.models.agent_service import (
     AgentRequest,
+    AgentSpec,
     ContextAttachment,
     LoopResult,
-    ResolvedSurface,
+    RagSpec,
+    RunType,
+    S3FileSpec,
     ToolResult,
 )
-from app.request_handler import RequestHandler
 
 __all__ = [
     "DataLoader",
     "RunnerFactory",
     "RequestHandler",
+    "RunType",
     "AgentRequest",
-    "AgentConfig",
+    "AgentSpec",
+    "RagSpec",
+    "S3FileSpec",
     "ToolResult",
     "ContextAttachment",
     "LoopResult",
-    "ResolvedSurface",
 ]

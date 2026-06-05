@@ -1,7 +1,7 @@
 """
 ToolRegistry: name-keyed store of callable tool specifications.
 
-``SurfaceResolver`` populates the registry via ``register`` during surface
+``AgentResolver`` populates the registry via ``register`` during resource
 resolution; ``AgentLoop`` reads the specs via ``tool_specs`` (passed to
 ``LLMClient.chat``) and dispatches tool calls via ``execute``.
 """
@@ -12,7 +12,7 @@ from typing import Awaitable, Callable
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import ToolResult
+from shared.models.agent_service import ToolResult
 
 
 class ToolSpec(BaseModel):
@@ -33,10 +33,10 @@ class ToolSpec(BaseModel):
 class ToolRegistry:
     """Maps tool names to specs and async executor callables.
 
-    ``SurfaceResolver`` per-type resolvers call ``register`` to add each
-    tool they resolve from the surface payload.  ``AgentLoop`` calls
-    ``tool_specs`` to get the list forwarded to the LLM and ``execute`` to
-    run a named tool after the LLM requests it.
+    ``AgentResolver`` calls ``register`` to add each tool resolved from the
+    request pool.  ``AgentLoop`` calls ``tool_specs`` to get the list
+    forwarded to the LLM and ``execute`` to run a named tool after the LLM
+    requests it.
 
     Invariant: ``execute`` must only be called with names that were
     previously passed to ``register``; unknown names raise ``KeyError``.

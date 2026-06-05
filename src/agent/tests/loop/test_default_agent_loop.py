@@ -17,8 +17,10 @@ from app.llm.client import LLMChunk, LLMClient, ToolCallFragment
 from app.loop.agent_loop import DefaultAgentLoop
 from app.loop.context import AgentContext
 from app.loop.stop_policy import MaxIterAndNoToolCalls
-from app.models import AgentConfig, LoopResult, ToolResult
 from app.tools.registry import ToolRegistry, ToolSpec
+from shared.models.agent_service import LoopResult, ToolResult
+from shared.models.ai_providers import LLMConfigData, LLMData
+from shared.models.agent_service import AgentSpec
 
 
 # ---------------------------------------------------------------------------
@@ -114,20 +116,47 @@ class StubToolRegistry(ToolRegistry):
 # ---------------------------------------------------------------------------
 
 
+def _make_llm_data(model: str = "fake-model") -> LLMData:
+    return LLMData(
+        provider="openai",
+        config=LLMConfigData(model=model),
+    )
+
+
+def _make_agent_spec(
+    max_execution_time: float | None = None,
+    max_retry_limit: int | None = None,
+    max_rpm: int | None = None,
+) -> AgentSpec:
+    return AgentSpec(
+        id=1,
+        name="test-agent",
+        role="Test assistant",
+        instructions="You are a test assistant.",
+        llm=_make_llm_data(),
+        max_execution_time=max_execution_time,
+        max_retry_limit=max_retry_limit,
+        max_rpm=max_rpm,
+    )
+
+
 def make_context(
     max_execution_time: float | None = None, messages: list[dict] | None = None
 ) -> AgentContext:
-    config = AgentConfig(
-        model="fake-model",
-        system_prompt="You are a test assistant.",
-        max_execution_time=max_execution_time,
-    )
-    return AgentContext(
-        agent_config=config,
+    agent = _make_agent_spec(max_execution_time=max_execution_time)
+    context = AgentContext(
+        agent=agent,
         attachments=[],
         correlation_id="test-corr",
-        messages=messages or [],
+        # Pass a pre-seeded messages list to override the auto-seeded system message
+        # when the test supplies explicit messages.
+        messages=messages if messages is not None else None,
     )
+    # When no messages supplied the context seeds a system message; strip it so
+    # loop tests that count messages start from zero assistant/tool messages.
+    if messages is None:
+        context.messages = []
+    return context
 
 
 def text_chunks(*texts: str) -> list[LLMChunk]:
@@ -147,7 +176,38 @@ def tool_chunks(call_id: str, name: str, args: str) -> list[LLMChunk]:
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Tests: model_config derivation
+# ---------------------------------------------------------------------------
+
+
+def test_build_model_config_adds_provider_prefix():
+    """Provider prefix is added when model string has no '/'."""
+    from app.loop.agent_loop import _build_model_config
+
+    agent = _make_agent_spec()
+    context = AgentContext(agent=agent, attachments=[], correlation_id="c")
+    config = _build_model_config(context)
+    assert config["model"] == "openai/fake-model"
+
+
+def test_build_model_config_no_double_prefix():
+    """Provider prefix is NOT added when model already contains '/'."""
+    from app.loop.agent_loop import _build_model_config
+
+    agent = AgentSpec(
+        id=1,
+        name="a",
+        role="r",
+        instructions="i",
+        llm=LLMData(provider="openai", config=LLMConfigData(model="openai/gpt-4o")),
+    )
+    context = AgentContext(agent=agent, attachments=[], correlation_id="c")
+    config = _build_model_config(context)
+    assert config["model"] == "openai/gpt-4o"
+
+
+# ---------------------------------------------------------------------------
+# Tests: loop behaviour
 # ---------------------------------------------------------------------------
 
 
@@ -417,8 +477,6 @@ async def test_timeout_fires_mid_execution():
         await asyncio.sleep(5)
         return "never"
 
-    # StubToolRegistry wraps async callables directly; need a proper async executor.
-    # Override execute on an otherwise-normal registry to call slow_tool.
     tools = ToolRegistry()
 
     async def slow_executor(args: dict) -> ToolResult:
@@ -460,3 +518,19 @@ async def test_streaming_chunk_order_preserved():
 
     observed = [payload for name, payload in emitter.events if name == "on_chunk"]
     assert observed == ordered_chunks
+
+
+async def test_context_seeds_system_message_from_role_and_instructions():
+    """AgentContext seeds a system message from role + instructions when messages is empty."""
+    agent = AgentSpec(
+        id=1,
+        name="researcher",
+        role="Senior Researcher",
+        instructions="You research topics thoroughly.",
+        llm=_make_llm_data(),
+    )
+    context = AgentContext(agent=agent, attachments=[], correlation_id="c")
+    assert len(context.messages) == 1
+    assert context.messages[0]["role"] == "system"
+    assert "Senior Researcher" in context.messages[0]["content"]
+    assert "You research topics thoroughly." in context.messages[0]["content"]

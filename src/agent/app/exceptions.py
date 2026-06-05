@@ -17,8 +17,16 @@ class UnknownRunTypeError(AgentServiceError):
     """Raised when RunnerFactory receives a run_type with no registered runner."""
 
 
-class UnknownSurfaceItemTypeError(AgentServiceError):
-    """Raised when SurfaceResolver encounters an item type with no registered resolver."""
+class UnknownToolRefError(AgentServiceError):
+    """Raised when AgentResolver finds a tool_ref not present in request.tools pool."""
+
+
+class UnknownRagRefError(AgentServiceError):
+    """Raised when AgentResolver finds a rag_ref not present in request.rags pool."""
+
+
+class UnknownS3RefError(AgentServiceError):
+    """Raised when AgentResolver finds an s3_ref id not present in request.s3_files pool."""
 
 
 class DataLoadError(AgentServiceError):

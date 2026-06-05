@@ -4,7 +4,7 @@ from typing import Awaitable, Callable
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import ToolResult
+from shared.models.agent_service import ToolResult
 
 
 class SystemToolEntry(BaseModel):
