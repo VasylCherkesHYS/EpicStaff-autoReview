@@ -62,8 +62,8 @@ import { FlowModel } from '../../../../visual-programming/core/models/flow.model
 import { NodeModel } from '../../../../visual-programming/core/models/node.model';
 import { FlowGraphComponent } from '../../../../visual-programming/flow-graph/flow-graph.component';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
-import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import { SidePanelService } from '../../../../visual-programming/services/side-panel.service';
+import { UndoRedoService } from '../../../../visual-programming/services/undo-redo.service';
 import {
     createStartNode,
     hasStartNode,
@@ -221,7 +221,35 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
     public onGraphSave(flowState: FlowModel): void {
         if (!this.graph?.id || this.isSaving()) return;
 
+        this.cleanupCdtGridState(flowState);
         this.saveFlowState(flowState, true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
+
+    private cleanupCdtGridState(flowState: FlowModel): void {
+        const match = window.location.pathname.match(/\/flows\/(\d+)/);
+        const graphId = match?.[1];
+        if (!graphId) return;
+
+        const liveSuffixes = new Set<string>();
+        for (const node of flowState.nodes) {
+            if (node.type !== NodeType.CLASSIFICATION_TABLE) continue;
+            const nodeNum = node.nodeNumber ?? node.backendId;
+            if (nodeNum == null) continue;
+            liveSuffixes.add(`${graphId}_${nodeNum}`);
+        }
+
+        const prefix = 'cdt-grid-state-';
+        const toRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(prefix)) continue;
+            const suffix = key.slice(prefix.length);
+            if (!suffix.startsWith(`${graphId}_`)) continue;
+            if (!liveSuffixes.has(suffix)) toRemove.push(key);
+        }
+        for (const key of toRemove) {
+            localStorage.removeItem(key);
+        }
     }
 
     private saveFlowState(flowState: FlowModel, showSuccessToast: boolean): Observable<void> {
