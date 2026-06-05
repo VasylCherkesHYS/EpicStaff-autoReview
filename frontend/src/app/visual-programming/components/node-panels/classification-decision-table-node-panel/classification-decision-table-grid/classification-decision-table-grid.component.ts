@@ -20,6 +20,7 @@ import {
 } from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import {
+    BodyScrollEvent,
     CellClickedEvent,
     CellValueChangedEvent,
     ColDef,
@@ -1571,6 +1572,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const wrapperEl = this.elRef.nativeElement.querySelector('.grid-wrapper') as HTMLElement | null;
         const containerEl = wrapperEl ?? this.elRef.nativeElement;
         const containerRect = containerEl.getBoundingClientRect();
+        const containerWidth = containerEl.clientWidth;
+        const btnHalfWidth = 20; // half of ~40px button width used for clamping margin
+
+        const clampX = (rawX: number): number => Math.max(btnHalfWidth, Math.min(rawX, containerWidth - btnHalfWidth));
 
         const findLeafCell = (colId: string): HTMLElement | null => {
             const cells = Array.from(
@@ -1586,7 +1591,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const cell = findLeafCell('expression');
             if (cell) {
                 const r = cell.getBoundingClientRect();
-                this.exprAddPos.set({ x: r.right - containerRect.left, y: 0 });
+                this.exprAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
             } else {
                 this.exprAddPos.set(null);
             }
@@ -1598,7 +1603,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const cell = findLeafCell('manipulation');
             if (cell) {
                 const r = cell.getBoundingClientRect();
-                this.manipAddPos.set({ x: r.right - containerRect.left, y: 0 });
+                this.manipAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
             } else {
                 this.manipAddPos.set(null);
             }
@@ -1728,6 +1733,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         }, 100);
         this.positionResizeObserver = new ResizeObserver(() => this.updateAddButtonPositions());
         this.positionResizeObserver.observe(this.elRef.nativeElement);
+    }
+
+    onBodyScroll(event: BodyScrollEvent): void {
+        if (event.direction === 'horizontal') {
+            this.updateAddButtonPositions();
+        }
     }
 
     private bodyClickHandler = (event: MouseEvent) => {
