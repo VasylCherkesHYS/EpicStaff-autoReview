@@ -11,6 +11,7 @@ _EXCLUDED_GRAPH_SCALARS = (
     "uuid",
     "created_at",
     "updated_at",
+    "save_version",
 )
 
 
