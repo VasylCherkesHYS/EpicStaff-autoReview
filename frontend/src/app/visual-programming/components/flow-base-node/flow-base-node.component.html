@@ -9,7 +9,6 @@
 <!-- Control buttons positioned above the node -->
 <div
     class="actions"
-    *ngIf="node.type !== NodeType.TABLE"
     (mousedown)="$event.stopPropagation()"
 >
     <!-- Edit Button for Note -->
@@ -29,6 +28,15 @@
         (click)="onExpandProjectClick()"
     >
         <app-svg-icon icon="edit"></app-svg-icon>
+    </div>
+    <!-- Delete Button -->
+    <div
+        *ngIf="node.type !== NodeType.START"
+        class="action-button delete-button"
+        title="Delete node"
+        (click)="onDeleteClick($event)"
+    >
+        <i class="ti ti-trash"></i>
     </div>
 </div>
 
