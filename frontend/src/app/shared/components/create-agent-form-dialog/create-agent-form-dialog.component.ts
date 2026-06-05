@@ -258,7 +258,7 @@ export class CreateAgentFormComponent implements OnInit {
         }
         this.isSubmitting.set(true);
 
-        const formData = this.agentForm.value;
+        const formData = this.agentForm.getRawValue();
         const configuredToolIds = formData.configured_tools ?? [];
         const pythonToolIds = formData.python_code_tools ?? [];
         const mcpToolIds = formData.mcp_tools ?? [];
