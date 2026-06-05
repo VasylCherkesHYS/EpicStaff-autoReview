@@ -97,6 +97,16 @@ class SseTicketResponseSerializer(serializers.Serializer):
     expires_in = serializers.IntegerField()
 
 
+# ---- WebSocket ticket ----
+
+
+class WsTicketResponseSerializer(serializers.Serializer):
+    # TODO ws and sse serializers are basically the same
+    # should I resolve this?
+    ticket = serializers.CharField()
+    expires_in = serializers.IntegerField()
+
+
 # ---- Swagger token (OAuth2 password flow) ----
 
 

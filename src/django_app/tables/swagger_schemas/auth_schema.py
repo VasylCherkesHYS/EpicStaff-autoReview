@@ -15,6 +15,7 @@ from tables.serializers.rbac_serializers import (
     SwaggerTokenResponseSerializer,
     TokenIntrospectRequestSerializer,
     TokenIntrospectResponseSerializer,
+    WsTicketResponseSerializer,
 )
 from tables.swagger_schemas.common_schemas import UNAUTHORIZED_401_RESPONSE
 
@@ -363,6 +364,49 @@ SWAGGER_TOKEN_POST = dict(
                         "code": "authentication_failed",
                         "message": "AuthenticationFailed: No active account found with the given credentials",
                     },
+                    response_only=True,
+                    status_codes=["403"],
+                ),
+            ],
+        ),
+    },
+)
+
+WS_TICKET_POST = dict(
+    summary="Issue a short-lived single-use WebSocket ticket",
+    description=(
+        "Issues a single-use ticket bound to the calling JWT user. The ticket is passed "
+        "as a `?ticket=...` query param when opening a WebSocket connection because the "
+        "WebSocket handshake cannot carry an `Authorization` header. "
+        "The ticket is consumed on first use (Redis GETDEL), so it cannot be replayed — "
+        "each reconnect requires a fresh ticket issued by a new call to this endpoint. "
+        "TTL is governed by the `GRAPH_WS_TICKET_TTL_SECONDS` setting and is returned "
+        "as `expires_in` in the response."
+    ),
+    responses={
+        200: OpenApiResponse(
+            response=WsTicketResponseSerializer,
+            description="Ticket issued successfully.",
+            examples=[
+                OpenApiExample(
+                    "Ticket issued",
+                    value={
+                        "ticket": "kPx3mN8vQzR1uYwT6aJcXdLsEoFbHgIi",
+                        "expires_in": 30,
+                    },
+                    response_only=True,
+                    status_codes=["200"],
+                ),
+            ],
+        ),
+        401: UNAUTHORIZED_401_RESPONSE,
+        403: OpenApiResponse(
+            response=OpenApiTypes.STR,
+            description="Caller authenticated via an API key that has no owning user.",
+            examples=[
+                OpenApiExample(
+                    "No user context",
+                    value={"detail": "This endpoint requires a user context."},
                     response_only=True,
                     status_codes=["403"],
                 ),

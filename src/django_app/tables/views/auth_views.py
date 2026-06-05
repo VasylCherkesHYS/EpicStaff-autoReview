@@ -39,6 +39,7 @@ from tables.swagger_schemas.auth_schema import (
     SSE_TICKET_POST,
     SWAGGER_TOKEN_POST,
     TOKEN_INTROSPECT_POST,
+    WS_TICKET_POST,
 )
 from tables.throttles import LoginThrottle, PasswordResetRequestThrottle
 
@@ -115,10 +116,7 @@ class WsTicketView(APIView):
 
     _service = WsTicketService()
 
-    @extend_schema(
-        summary="Issue a short-lived single-use WebSocket ticket",
-        responses={200: SseTicketResponseSerializer},
-    )
+    @extend_schema(**WS_TICKET_POST)
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False) or not hasattr(
             request.user, "email"
