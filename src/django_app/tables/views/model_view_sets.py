@@ -123,7 +123,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
 )
 from drf_spectacular.types import OpenApiTypes
-from tables.swagger_schemas.graph_bulk_save_schema import (
+from tables.swagger_schemas.knowledge_schemas.graph_bulk_save_schemas import (
     SAVE_FLOW_SWAGGER as _SAVE_FLOW_SWAGGER,
 )
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
@@ -147,7 +147,6 @@ from tables.models.graph_models import (
     EndNode,
     GraphOrganization,
     GraphOrganizationUser,
-    LLMNode,
     GraphNote,
     TelegramTriggerNode,
     TelegramTriggerNodeField,
@@ -212,7 +211,6 @@ from tables.serializers.model_serializers import (
     GraphSerializer,
     GraphSessionMessageSerializer,
     LabelSerializer,
-    LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
     NgrokWebhookConfigModelSerializer,
@@ -245,7 +243,12 @@ from tables.serializers.serializers import (
 )
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
+from tables.import_export.services.import_service import ImportSettings
 from tables.services.redis_service import RedisService
+from tables.swagger_schemas.twilio_schemas import (
+    TWILIO_PHONE_NUMBERS_GET,
+    TWILIO_CONFIGURE_WEBHOOK_POST,
+)
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 from tables.graph_collab.notifications import GraphEditNotifier
 from utils.logger import logger
@@ -784,10 +787,6 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     queryset=ConditionalEdge.objects.select_related("python_code"),
                 ),
                 Prefetch(
-                    "llm_node_list",
-                    queryset=LLMNode.objects.select_related("llm_config"),
-                ),
-                Prefetch(
                     "webhook_trigger_node_list",
                     queryset=WebhookTriggerNode.objects.all(),
                 ),
@@ -851,9 +850,14 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
+        vd = file_serializer.validated_data
         data = self.import_export_service.import_entity(
-            file_serializer.validated_data["file"],
-            preserve_uuids=file_serializer.validated_data["preserve_uuids"],
+            vd["file"],
+            settings=ImportSettings(
+                preserve_uuids=vd["preserve_uuids"],
+                replace_existing=vd["replace_existing"],
+                import_labels=vd["import_labels"],
+            ),
         )
         return Response(data, status=status.HTTP_200_OK)
 
@@ -1092,13 +1096,6 @@ class AudioTranscriptionNodeViewSet(
     serializer_class = AudioTranscriptionNodeSerializer
 
 
-class LLMNodeViewSet(
-    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
-):
-    queryset = LLMNode.objects.all()
-    serializer_class = LLMNodeSerializer
-
-
 class CodeAgentNodeViewSet(IdempotentNodeCreateMixin, viewsets.ModelViewSet):
     queryset = CodeAgentNode.objects.all()
     serializer_class = CodeAgentNodeSerializer
@@ -1114,11 +1111,28 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
     serializer_class = ConditionalEdgeSerializer
 
 
+class GraphSessionMessageFilter(FilterSet):
+    session_id = NumberFilter(field_name="session_id", lookup_expr="exact")
+    parent_subgraph_execution_id = filters.UUIDFilter(
+        field_name="parent_subgraph_execution_id", lookup_expr="exact"
+    )
+
+    class Meta:
+        model = GraphSessionMessage
+        fields = ["session_id", "parent_subgraph_execution_id"]
+
+
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
-    queryset = GraphSessionMessage.objects.all()
+    queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["session_id"]
+    filterset_class = GraphSessionMessageFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not self.request.query_params.get("parent_subgraph_execution_id"):
+            qs = qs.filter(parent_subgraph_execution_id__isnull=True)
+        return qs
 
 
 class MemoryFilter(FilterSet):
@@ -1555,6 +1569,7 @@ def _twilio_request(
 class TwilioPhoneNumbersView(generics.GenericAPIView):
     """Return the list of incoming phone numbers from Twilio."""
 
+    @extend_schema(**TWILIO_PHONE_NUMBERS_GET)
     def get(self, request):
         vs = VoiceSettings.load()
         if not vs.twilio_account_sid or not vs.twilio_auth_token:
@@ -1584,6 +1599,7 @@ class TwilioPhoneNumbersView(generics.GenericAPIView):
 class TwilioConfigureWebhookView(generics.GenericAPIView):
     """Set the VoiceUrl on a Twilio phone number to the configured voice stream URL."""
 
+    @extend_schema(**TWILIO_CONFIGURE_WEBHOOK_POST)
     def post(self, request):
         phone_sid = request.data.get("phone_sid")
         if not phone_sid:

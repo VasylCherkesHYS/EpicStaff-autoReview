@@ -23,6 +23,7 @@ DEPENDENCY_ORDER = (
     EntityType.REALTIME_TRANSCRIPTION_CONFIG,
     EntityType.PYTHON_CODE_TOOL,
     EntityType.MCP_TOOL,
+    EntityType.LABEL,
     EntityType.AGENT,
     EntityType.CREW,
     EntityType.WEBHOOK_TRIGGER,

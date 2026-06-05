@@ -168,6 +168,7 @@ import { SessionFilesButtonComponent } from './session-files-button/session-file
                         white-space: nowrap;
                         display: block;
                         vertical-align: bottom;
+                        cursor: pointer;
                         &:hover {
                             text-decoration: underline;
                         }

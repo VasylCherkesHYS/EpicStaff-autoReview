@@ -112,19 +112,12 @@ export class CreateFlowDialogComponent implements OnInit, OnDestroy {
 
         if (this.isEditMode && this.originalFlow) {
             this.flowsStorageService
-                .patchUpdateFlow(this.originalFlow.id, {
-                    name: formValue.name,
-                    description: formValue.description || '',
-                })
-                .pipe(
-                    switchMap((updatedFlow) => {
-                        const labelIds: number[] = formValue.label_ids || [];
-                        return this.flowsStorageService
-                            .updateFlowLabels(updatedFlow.id, labelIds, updatedFlow.save_version)
-                            .pipe(map(() => updatedFlow));
-                    }),
-                    finalize(() => (this.isSubmitting = false))
+                .patchUpdateFlow(
+                    this.originalFlow.id,
+                    { name: formValue.name, description: formValue.description || '', label_ids: formValue.label_ids || [] },
+                    this.originalFlow.save_version
                 )
+                .pipe(finalize(() => (this.isSubmitting = false)))
                 .subscribe({
                     next: (updatedFlow) => this.dialogRef.close(updatedFlow),
                     error: (err: HttpErrorResponse) => (this.errorMessage = this.parseNameError(err, 'update')),

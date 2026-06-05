@@ -221,18 +221,21 @@ export class SubGraphNodePanelComponent extends BaseSidePanel<SubGraphNodeModel>
     public onFlowChange(): void {}
 
     protected createUpdatedNode(): SubGraphNodeModel {
-        const selectedId = this.form.get('selectedFlowId')?.value;
-        const selectedFlow = this.availableFlows().find((f) => f.id === Number(selectedId));
+        const selectedId = Number(this.form.get('selectedFlowId')?.value);
+        const originalId = this.node().data.id;
 
         let updatedData = this.node().data;
-        if (selectedFlow) {
-            updatedData = {
-                id: selectedFlow.id,
-                uuid: selectedFlow.uuid,
-                name: selectedFlow.name,
-                description: selectedFlow.description,
-                tags: selectedFlow.tags || [],
-            };
+        if (selectedId !== originalId) {
+            const selectedFlow = this.availableFlows().find((f) => f.id === selectedId);
+            if (selectedFlow) {
+                updatedData = {
+                    id: selectedFlow.id,
+                    uuid: selectedFlow.uuid,
+                    name: selectedFlow.name,
+                    description: selectedFlow.description,
+                    tags: selectedFlow.tags || [],
+                };
+            }
         }
 
         const validInputPairs = this.getValidInputPairs();

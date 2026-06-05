@@ -100,6 +100,7 @@ export class StartNodePanelComponent extends BaseSidePanel<StartNodeModel> {
 
     public onInitialStateChange(json: string): void {
         this.initialStateJson = json;
+        this.notifyExternalChange();
     }
 
     public onCodeErrorChange(hasError: boolean): void {
