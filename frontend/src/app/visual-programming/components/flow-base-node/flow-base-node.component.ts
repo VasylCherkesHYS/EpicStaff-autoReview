@@ -85,6 +85,8 @@ export class FlowBaseNodeComponent {
     @Input() showVariables: boolean = false;
 
     @Output() projectExpandToggled = new EventEmitter<ProjectNodeModel>();
+    @Output() portMouseenter = new EventEmitter<void>();
+    @Output() portMouseleave = new EventEmitter<void>();
 
     public NodeType = NodeType;
     public readonly eResizeHandleType = EFResizeHandleType;
