@@ -70,6 +70,7 @@ export class FlowBaseNodeComponent {
         height: number;
     }>();
     @Output() editClicked = new EventEmitter<NodeModel>();
+    @Output() deleteClicked = new EventEmitter<NodeModel>();
     public isExpanded = signal(false);
     public isToggleDisabled = signal(false);
     @Input() showVariables: boolean = false;
@@ -102,6 +103,12 @@ export class FlowBaseNodeComponent {
         public flowService: FlowService,
         private cdr: ChangeDetectorRef
     ) {}
+
+    public onDeleteClick(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        this.deleteClicked.emit(this.node);
+    }
 
     public onEditClick(event?: MouseEvent): void {
         if (event) {

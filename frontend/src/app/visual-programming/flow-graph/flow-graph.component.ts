@@ -437,6 +437,15 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.deleteSelections(selections);
     }
 
+    public onDeleteNode(node: NodeModel): void {
+        this.hasUnarrangedChanges.set(true);
+        this.deleteSelections({
+            fNodeIds: [node.id],
+            fGroupIds: [],
+            fConnectionIds: [],
+        });
+    }
+
     public onDeleteConnection(event: MouseEvent, connectionId: string): void {
         this.hasUnarrangedChanges.set(true);
         event.preventDefault();
