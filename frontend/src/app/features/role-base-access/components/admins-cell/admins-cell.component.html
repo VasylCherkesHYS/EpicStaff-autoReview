@@ -62,6 +62,8 @@
             class="admins-panel"
             [ngStyle]="panelStyle()"
             (click)="stopProp($event)"
+            appClickOutside
+            (appClickOutside)="isOpen.set(false)"
         >
             @for (admin of admins(); track admin.id) {
                 <div class="member-row">
