@@ -209,6 +209,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         });
     });
 
+    public hoveredNodeId = signal<string | null>(null);
+
+    public getNodeZIndex(node: NodeModel): number {
+        if (this.hoveredNodeId() === node.id) return 1000;
+        return Math.max(2, 500 - Math.floor(Math.max(0, node.position?.y ?? 0) / 10));
+    }
+
     private readonly destroy$ = new Subject<void>();
     private readonly userAdjustedConnectionIds = new Set<string>();
     private readonly previousBackwardConnectionIds = new Set<string>();
