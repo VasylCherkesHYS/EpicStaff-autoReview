@@ -4,9 +4,6 @@ from graphrag.prompts.query.drift_search_system_prompt import (
     DRIFT_LOCAL_SYSTEM_PROMPT,
     DRIFT_REDUCE_PROMPT,
 )
-from graphrag.prompts.query.global_search_knowledge_system_prompt import (
-    GENERAL_KNOWLEDGE_INSTRUCTION,
-)
 from graphrag.prompts.query.global_search_map_system_prompt import MAP_SYSTEM_PROMPT
 from graphrag.prompts.query.global_search_reduce_system_prompt import (
     REDUCE_SYSTEM_PROMPT,
@@ -70,5 +67,7 @@ def build_global_search_reduce_prompt(user_prompt: str | None = None) -> str:
     return _build_prompt(REDUCE_SYSTEM_PROMPT, user_prompt)
 
 
-def build_global_search_knowledge_prompt(user_prompt: str | None = None) -> str:
-    return _build_prompt(GENERAL_KNOWLEDGE_INSTRUCTION, user_prompt)
+def build_global_search_knowledge_prompt(user_prompt: str | None = None) -> str | None:
+    if not user_prompt:
+        return None
+    return _USER_PROMPT_WRAPPER.format(user_prompt=user_prompt)

@@ -520,8 +520,8 @@ def build_graph_drift_params(
             local_search_top_k_relationships=_pick(
                 custom, "local_search_top_k_relationships", calc_top_k(chunks)
             ),
-            reduce_temperature=_pick(custom, "reduce_temperature", 0.0),
-            local_search_temperature=_pick(custom, "local_search_temperature", 0.0),
+            reduce_temperature=0.0,
+            local_search_temperature=0.0,
             local_search_top_p=_pick(custom, "local_search_top_p", 1.0),
             local_search_n=_pick(custom, "local_search_n", 1),
             **token_fields,

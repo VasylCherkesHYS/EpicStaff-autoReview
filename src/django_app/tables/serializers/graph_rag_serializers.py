@@ -549,18 +549,6 @@ class GraphDriftSearchConfigInputSerializer(serializers.Serializer):
         help_text="Top K mapped relationships (1-100)",
     )
     # LLM generation
-    reduce_temperature = serializers.FloatField(
-        required=False,
-        min_value=0.0,
-        max_value=2.0,
-        help_text="Temperature for reduce generation (0.0-2.0)",
-    )
-    local_search_temperature = serializers.FloatField(
-        required=False,
-        min_value=0.0,
-        max_value=2.0,
-        help_text="Temperature for local search generation (0.0-2.0)",
-    )
     local_search_top_p = serializers.FloatField(
         required=False,
         min_value=0.0,

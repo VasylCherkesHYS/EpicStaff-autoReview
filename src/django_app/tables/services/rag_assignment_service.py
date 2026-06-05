@@ -44,7 +44,9 @@ _GRAPH_CONFIG_FIELDS: dict[str, tuple[str, ...]] = {
         f for f in GraphRagGlobalSearchParams.model_fields if f != "search_method"
     ),
     "drift_search": tuple(
-        f for f in GraphRagDriftSearchParams.model_fields if f != "search_method"
+        f
+        for f in GraphRagDriftSearchParams.model_fields
+        if f not in ("search_method", "reduce_temperature", "local_search_temperature")
     ),
 }
 
