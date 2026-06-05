@@ -93,6 +93,7 @@ export class InputNumberComponent implements ControlValueAccessor {
     }
 
     onStep(direction: 1 | -1 = 1) {
+        if (this.isDisabled()) return;
         const current = Number(this.value()) || 0;
         let next = current + this.stepSize() * direction;
 

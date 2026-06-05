@@ -201,7 +201,7 @@ export class AdvancedSettingsDialogComponent implements OnInit {
     public save(): void {
         if (this.form.invalid) return;
 
-        const { search_configs, rag, ...rest } = this.form.value;
+        const { search_configs, rag, ...rest } = this.form.getRawValue();
         const searchConfigsAvailable = this.data.llm_config != null;
         const result = {
             ...rest,
