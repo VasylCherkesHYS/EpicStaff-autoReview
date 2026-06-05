@@ -874,19 +874,6 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         )
         return response
 
-    def partial_update(self, request, *args, **kwargs):
-        response = super().partial_update(request, *args, **kwargs)
-        instance = self.get_object()
-        instance.refresh_from_db(fields=["save_version"])
-
-        GraphEditNotifier.notify_graph_saved(
-            graph_id=instance.pk,
-            new_save_version=instance.save_version,
-            user=request.user,
-            saved_at=timezone.now().isoformat(),
-        )
-        return response
-
     @action(detail=True, methods=["post"], url_path="save")
     @extend_schema(**_SAVE_FLOW_SWAGGER)
     def save_flow(self, request, pk=None):
