@@ -1,17 +1,5 @@
-from crewai import LLM
-
 from src.shared.models import LLMData
-
-
-_NO_TEMPERATURE_PATTERNS = (
-    "claude-opus-4",
-    "claude-sonnet-4",
-    "claude-haiku-4",
-    "gpt-5",
-    "o1",
-    "o3",
-    "o4",
-)
+from src.crew.utils.llm_wrapper import PatchedLLM, _NO_TEMPERATURE_PATTERNS
 
 
 def _strip_unsupported_params(llm_config: dict) -> dict:
@@ -25,7 +13,7 @@ def _strip_unsupported_params(llm_config: dict) -> dict:
 def parse_llm(llm: LLMData, **kwargs):
     llm_config = {**llm.config.model_dump()}
     llm_config.update(kwargs)
-    return LLM(**_strip_unsupported_params(llm_config))
+    return PatchedLLM(**llm_config)
 
 
 def parse_memory_llm(memory_llm: LLMData):
