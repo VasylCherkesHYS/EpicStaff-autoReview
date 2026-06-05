@@ -40,6 +40,7 @@ import { themeQuartz } from 'ag-grid-community';
 
 import { AppSvgIconComponent } from '../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
+import { ConfirmationDialogService } from '../../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { HelpTooltipComponent } from '../../../../../shared/components/help-tooltip/help-tooltip.component';
 import { MultiSelectComponent } from '../../../../../shared/components/multi-select/multi-select.component';
 import { SelectItem } from '../../../../../shared/components/select/select.component';
@@ -99,6 +100,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     private renderer = inject(Renderer2);
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
+    private confirmDialog = inject(ConfirmationDialogService);
 
     private gridApi!: GridApi;
     private outsideClickUnlisten: (() => void) | null = null;
@@ -2177,14 +2179,29 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         this.groupMenuOverlayRef = null;
         this.groupMenuSectionId.set(null);
         if (!sectionId) return;
-        const updated = this.rowData().map((row) => (row.section === sectionId ? { ...row, section: null } : row));
-        const newCollapsed = new Set(this.collapsedGroups());
-        newCollapsed.delete(sectionId);
-        this.collapsedGroups.set(newCollapsed);
-        this.rowData.set(updated);
-        this.recomputeVisibleRowKeys();
-        this.emitChanges(updated);
-        queueMicrotask(() => this.recomputeGroupOverlays());
+        this.confirmDialog
+            .confirm({
+                title: 'Ungroup these rows?',
+                message: 'Are you sure you want to ungroup these rows?',
+                confirmText: 'Ungroup',
+                cancelText: 'Cancel',
+                type: 'warning',
+                isShownBorder: true,
+            })
+            .subscribe((result) => {
+                if (result === true) {
+                    const updated = this.rowData().map((row) =>
+                        row.section === sectionId ? { ...row, section: null } : row
+                    );
+                    const newCollapsed = new Set(this.collapsedGroups());
+                    newCollapsed.delete(sectionId);
+                    this.collapsedGroups.set(newCollapsed);
+                    this.rowData.set(updated);
+                    this.recomputeVisibleRowKeys();
+                    this.emitChanges(updated);
+                    queueMicrotask(() => this.recomputeGroupOverlays());
+                }
+            });
     }
 
     public handleGroupMenuCollapse(): void {
@@ -2258,6 +2275,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const sourceIdx = rows.indexOf(source.data);
         const overIdx = rows.indexOf(over.data);
         if (sourceIdx === -1 || overIdx === -1) return;
+
+        const original: string | null = (source.data as ConditionGroup).section ?? null;
+
         const next = [...rows];
         const [moved] = next.splice(sourceIdx, 1);
         let insertIdx = overIdx > sourceIdx ? overIdx - 1 : overIdx;
@@ -2265,14 +2285,36 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         next.splice(insertIdx, 0, moved);
         const prev = next[insertIdx - 1];
         const after = next[insertIdx + 1];
-        const movedSection =
+        const movedSection: string | null =
             prev != null && after != null && prev.section != null && prev.section === after.section
                 ? prev.section
                 : null;
-        next[insertIdx] = { ...moved, section: movedSection };
-        const ordered = next.map((r, i) => ({ ...r, order: i + 1 }));
-        this.rowData.set(ordered);
-        this.emitChanges(ordered);
-        queueMicrotask(() => this.recomputeGroupOverlays());
+
+        const isCrossGroup = original != null && movedSection != null && original !== movedSection;
+
+        const commit = (): void => {
+            next[insertIdx] = { ...moved, section: movedSection };
+            const ordered = next.map((r, i) => ({ ...r, order: i + 1 }));
+            this.rowData.set(ordered);
+            this.emitChanges(ordered);
+            queueMicrotask(() => this.recomputeGroupOverlays());
+        };
+
+        if (isCrossGroup) {
+            this.confirmDialog
+                .confirm({
+                    title: 'Move row between groups?',
+                    message: 'Are you sure you want to move this row?',
+                    confirmText: 'Move Row',
+                    cancelText: 'Cancel',
+                    type: 'warning',
+                    isShownBorder: true,
+                })
+                .subscribe((result) => {
+                    if (result === true) commit();
+                });
+        } else {
+            commit();
+        }
     }
 }
