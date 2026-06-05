@@ -109,14 +109,11 @@ export class DecisionTableGridComponent implements OnInit {
         const connections = this.flowService.connections();
         const currentNodeId = this.currentNodeId();
 
-        console.log('[DecisionTableGrid] Initializing with groups:', groups);
-
         const findNodeId = (value: string | null, groupName: string): string | null => {
             // 1. Try direct lookup
             if (value) {
                 const foundNode = nodes.find((n) => n.id === value || n.node_name === value);
                 if (foundNode) return foundNode.id;
-                console.warn(`[DecisionTableGrid] Node not found for value: '${value}'`);
             }
 
             // 2. Fallback: Visual Connection lookup
@@ -130,9 +127,6 @@ export class DecisionTableGridComponent implements OnInit {
                 );
 
                 if (connection) {
-                    console.log(
-                        `[DecisionTableGrid] Recovered connection for group '${groupName}' -> ${connection.targetNodeId}`
-                    );
                     return connection.targetNodeId;
                 }
             }
