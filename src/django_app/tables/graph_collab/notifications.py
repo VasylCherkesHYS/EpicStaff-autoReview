@@ -3,7 +3,6 @@ from channels.layers import get_channel_layer
 
 from tables.graph_collab.protocol import (
     EditorInfo,
-    # GraphModifiedMessage,
     GraphSavedMessage,
 )
 from utils.logger import logger
@@ -19,19 +18,6 @@ class GraphEditNotifier:
     HTTP views (which are sync). Uses async_to_sync to bridge into the
     channel layer.
     """
-
-    # TODO idk if delete or keep
-    # @staticmethod
-    # def notify_graph_modified(
-    #     graph_id: int, user, avatar_url: str | None = None
-    # ) -> None:
-    #     editor = EditorInfo(
-    #         user_id=user.pk,
-    #         display_name=getattr(user, "display_name", None),
-    #         avatar_url=avatar_url,
-    #     )
-    #     message = GraphModifiedMessage(graph_id=graph_id, modified_by=editor)
-    #     GraphEditNotifier._send(graph_id, message.model_dump())
 
     @staticmethod
     def notify_graph_saved(
