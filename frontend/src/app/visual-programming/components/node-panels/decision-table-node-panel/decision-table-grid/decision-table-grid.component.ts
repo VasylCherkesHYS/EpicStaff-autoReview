@@ -331,11 +331,11 @@ export class DecisionTableGridComponent implements OnInit {
                 }
             }
 
-            (event.data as ConditionGroup & Record<string, unknown>).group_nameWarning = isEmpty;
+            (event.data as Record<string, unknown>)['group_nameWarning'] = isEmpty;
         } else if (colId === 'expression') {
-            (event.data as ConditionGroup & Record<string, unknown>).expressionWarning = !event.newValue?.trim();
+            (event.data as Record<string, unknown>)['expressionWarning'] = !event.newValue?.trim();
         } else if (colId === 'manipulation') {
-            (event.data as ConditionGroup & Record<string, unknown>).manipulationWarning = false;
+            (event.data as Record<string, unknown>)['manipulationWarning'] = false;
         }
 
         this.updateGroupValidFlag(event.data, rowIndex);
