@@ -14,7 +14,6 @@ from tables.models.graph_models import (
     ConditionGroup,
     DecisionTableNode,
     GraphSessionMessage,
-    LLMNode,
     ScheduleTriggerNode,
     StartNode,
     SubGraphNode,
@@ -31,7 +30,6 @@ from src.shared.models import (
     FileExtractorNodeData,
     GraphData,
     GraphSessionMessageData,
-    LLMNodeData,
     PythonNodeData,
     SessionData,
     SubGraphData,
@@ -310,9 +308,6 @@ class SessionManagerService(metaclass=SingletonMeta):
         conditional_edge_list = ConditionalEdge.objects.filter(
             graph=graph.pk
         ).select_related("python_code")
-        llm_node_list = LLMNode.objects.filter(graph=graph.pk).select_related(
-            "llm_config__model__llm_provider"
-        )
         decision_table_node_list = DecisionTableNode.objects.filter(
             graph=graph.pk
         ).prefetch_related("condition_groups__conditions")
@@ -345,7 +340,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             python_node_list,
             file_extractor_node_list,
             audio_transcription_node_list,
-            llm_node_list,
             decision_table_node_list,
             subgraph_node_list,
             webhook_trigger_node_list,
@@ -421,11 +415,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             )
             for item in audio_transcription_node_list
         ]
-        llm_node_data_list = [
-            cv.convert_llm_node_to_pydantic(llm_node=item, resolver=resolver)
-            for item in llm_node_list
-        ]
-
         code_agent_node_data_list: list[CodeAgentNodeData] = []
         for item in code_agent_node_list:
             code_agent_node_data_list.append(
@@ -526,7 +515,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             python_node_list=python_node_data_list,
             file_extractor_node_list=file_extractor_node_data_list,
             audio_transcription_node_list=audio_transcription_node_data_list,
-            llm_node_list=llm_node_data_list,
             code_agent_node_list=code_agent_node_data_list,
             edge_list=edge_data_list,
             conditional_edge_list=conditional_edge_data_list,

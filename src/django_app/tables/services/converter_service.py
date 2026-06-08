@@ -22,7 +22,6 @@ from src.shared.models import (
     GraphRagSearchConfig,
     LLMConfigData,
     LLMData,
-    LLMNodeData,
     McpToolData,
     NaiveRagSearchConfig,
     NgrokConfigData,
@@ -45,7 +44,6 @@ from tables.models import (
     Crew,
     EmbeddingConfig,
     LLMConfig,
-    LLMNode,
     PythonCode,
     PythonCodeTool,
     Task,
@@ -698,17 +696,6 @@ class ConverterService(metaclass=SingletonMeta):
             source=resolver(conditional_edge.source_node_id),
             python_code=python_code_data,
             input_map=conditional_edge.input_map,
-        )
-
-    def convert_llm_node_to_pydantic(
-        self, llm_node: LLMNode, resolver: NodeNameResolver = SINGLE_LOOKUP_RESOLVER
-    ) -> LLMNodeData:
-        llm_data = self.convert_llm_config_to_pydantic(config=llm_node.llm_config)
-        return LLMNodeData(
-            node_name=resolver(llm_node.id),
-            llm_data=llm_data,
-            input_map=llm_node.input_map,
-            output_variable_path=llm_node.output_variable_path,
         )
 
     def convert_condition_to_pydantic(self, condition: Condition) -> ConditionData:

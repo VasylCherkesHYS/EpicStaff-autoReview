@@ -9,6 +9,7 @@ import {
     UpdateMeRequest,
     UserRole,
 } from '@shared/models';
+import { AppStorageService } from '@shared/services';
 import { map, Observable, of, switchMap } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
@@ -25,6 +26,7 @@ export class ProfileService {
     private readonly configService = inject(ConfigService);
     private readonly activeOrgService = inject(ActiveOrgService);
     private readonly permissionsService = inject(PermissionsService);
+    private readonly appStorageService = inject(AppStorageService);
 
     private get baseUrl(): string {
         return `${this.configService.apiUrl}profile/`;
@@ -98,6 +100,14 @@ export class ProfileService {
 
     confirmPasswordChange(dto: PasswordChangeConfirmRequest): Observable<TokenPair> {
         return this.http.post<TokenPair>(`${this.baseUrl}password-change/confirm/`, dto);
+    }
+
+    /** Switches the active organization: clears all caches, sets the new org,
+     *  then reloads permissions for the new org context. Order MATTERS */
+    switchOrg(orgId: number): Observable<void> {
+        this.appStorageService.clearAll();
+        this.activeOrgService.set(orgId);
+        return this.permissionsService.loadActivePermissions().pipe(map(() => undefined));
     }
 
     clearCurrentUser(): void {

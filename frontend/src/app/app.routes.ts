@@ -2,11 +2,11 @@ import { inject } from '@angular/core';
 import { Router, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
+import { bootstrapGuard } from './core/guards/bootstrap.guard';
 import { guestGuard } from './core/guards/guest.guard';
 import { onboardingGuard } from './core/guards/onboarding.guard';
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { permissionGuard, superAdminGuard, workspaceGuard } from './core/guards/workspace.guard';
-import { currentUserResolver } from './core/resolvers/current-user.resolver';
 import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
 import { RoutedAuthShellComponent } from './layouts/routed-auth-shell/routed-auth-shell.component';
 import { LastVisitedTabService } from './services/last-visited-tab.service';
@@ -56,7 +56,7 @@ export const routes: Routes = [
             {
                 path: '',
                 component: MainLayoutComponent,
-                resolve: { currentUser: currentUserResolver },
+                canActivate: [bootstrapGuard],
                 children: [
                     {
                         path: '',

@@ -16,7 +16,6 @@ from tables.models.graph_models import (
     FileExtractorNode,
     GraphOrganization,
     GraphOrganizationUser,
-    LLMNode,
     GraphNote,
     PythonNode,
     ScheduleTriggerNode,
@@ -87,14 +86,6 @@ def copy_audio_transcription_node(
 ) -> AudioTranscriptionNode:
     return AudioTranscriptionNode.objects.create(
         graph=graph,
-        **get_base_node_fields(node),
-    )
-
-
-def copy_llm_node(graph: Graph, node: LLMNode) -> LLMNode:
-    return LLMNode.objects.create(
-        graph=graph,
-        llm_config=node.llm_config,
         **get_base_node_fields(node),
     )
 
@@ -247,7 +238,6 @@ NODE_COPY_HANDLERS: dict[NodeType, tuple[str, Callable]] = {
         "audio_transcription_node_list",
         copy_audio_transcription_node,
     ),
-    NodeType.LLM_NODE: ("llm_node_list", copy_llm_node),
     NodeType.CREW_NODE: ("crew_node_list", copy_crew_node),
     NodeType.SUBGRAPH_NODE: ("subgraph_node_list", copy_subgraph_node),
     NodeType.PYTHON_NODE: ("python_node_list", copy_python_node),

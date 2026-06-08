@@ -12,7 +12,6 @@ from .basic_node_serializers import (
     CrewNodeSerializer,
     EdgeSerializer,
     FileExtractorNodeSerializer,
-    LLMNodeSerializer,
     PythonNodeSerializer,
     SubGraphNodeSerializer,
 )
