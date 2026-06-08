@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, inject, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { MarkdownModule } from 'ngx-markdown';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import {
@@ -134,6 +135,16 @@ interface ThinkingStep {
                 class="final-result"
                 *ngIf="getText()"
             >
+                <button
+                    class="copy-btn"
+                    (click)="copyFinalResult($event)"
+                    aria-label="Copy result"
+                >
+                    <app-svg-icon
+                        icon="copy"
+                        size="0.875rem"
+                    />
+                </button>
                 <markdown
                     [data]="getText()"
                     class="markdown-content"
@@ -234,10 +245,43 @@ interface ThinkingStep {
         }
 
         .final-result {
+            position: relative;
             padding: 1rem 1rem 0 5.5rem;
             color: var(--gray-200);
             max-height: 400px;
             overflow-y: auto;
+
+            &:hover .copy-btn {
+                opacity: 1;
+            }
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--gray-500);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition:
+                opacity 0.15s ease,
+                color 0.15s ease,
+                background-color 0.15s ease;
+            padding: 0;
+            z-index: 1;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.08);
+                color: var(--gray-100);
+            }
         }
 
         .collapsible-content {
@@ -384,8 +428,22 @@ export class CodeAgentStreamMessageComponent implements OnInit, OnChanges {
     public thinkingSteps: ThinkingStep[] = [];
     public totalToolCalls = 0;
 
+    private readonly toastService = inject(ToastService);
+
     public ngOnInit(): void {
         this.buildThinkingSteps();
+    }
+
+    public copyFinalResult(event: Event): void {
+        event.stopPropagation();
+        navigator.clipboard
+            .writeText(this.getText())
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 
     public ngOnChanges(changes: SimpleChanges): void {

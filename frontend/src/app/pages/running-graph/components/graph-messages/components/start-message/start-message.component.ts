@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, ViewEncapsulation } from '@angular/core';
+import { Component, inject, Input, ViewEncapsulation } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GraphMessage } from '../../../../models/graph-session-message.model';
@@ -64,6 +65,16 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
                             [@expandCollapse]="isInputsExpanded ? 'expanded' : 'collapsed'"
                         >
                             <div class="input-content">
+                                <button
+                                    class="copy-btn"
+                                    (click)="copyContent($event)"
+                                    aria-label="Copy input parameters"
+                                >
+                                    <app-svg-icon
+                                        icon="copy"
+                                        size="0.875rem"
+                                    />
+                                </button>
                                 <ngx-json-viewer
                                     [json]="getStartInput()"
                                     [expanded]="false"
@@ -171,6 +182,7 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
             }
 
             .input-content {
+                position: relative;
                 background-color: var(--gray-800);
                 border: 1px solid var(--gray-750);
                 border-radius: 8px;
@@ -178,6 +190,38 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
                 overflow: auto;
                 max-height: 400px;
                 margin-left: 23px;
+
+                &:hover .copy-btn {
+                    opacity: 1;
+                }
+            }
+
+            .copy-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: var(--gray-500);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition:
+                    opacity 0.15s ease,
+                    color 0.15s ease,
+                    background-color 0.15s ease;
+                padding: 0;
+                z-index: 1;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: var(--gray-100);
+                }
             }
         `,
     ],
@@ -186,6 +230,8 @@ export class StartMessageComponent {
     @Input() message!: GraphMessage;
     isMessageExpanded = false;
     isInputsExpanded = true;
+
+    private readonly toastService = inject(ToastService);
 
     toggleMessage(): void {
         if (!this.hasInputs()) return;
@@ -201,6 +247,18 @@ export class StartMessageComponent {
     hasInputs(): boolean {
         const input = this.getStartInput();
         return input && Object.keys(input).length > 0;
+    }
+
+    copyContent(event: Event): void {
+        event.stopPropagation();
+        navigator.clipboard
+            .writeText(JSON.stringify(this.getStartInput(), null, 2))
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 
     getStartInput(): Record<string, unknown> {

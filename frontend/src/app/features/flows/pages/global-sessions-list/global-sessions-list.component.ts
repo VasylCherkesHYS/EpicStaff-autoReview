@@ -18,7 +18,7 @@ import {
     AppSvgIconComponent,
     PaginationControlsComponent,
 } from '@shared/components';
-import { catchError, EMPTY, interval, finalize, Observable, Subject, switchMap, takeUntil } from 'rxjs';
+import { catchError, EMPTY, finalize, interval, Observable, Subject, switchMap, takeUntil } from 'rxjs';
 import { GraphMessagesComponent } from 'src/app/pages/running-graph/components/graph-messages/graph-messages.component';
 
 import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
@@ -58,59 +58,64 @@ import {
                 <span class="slash">/All sessions</span>
             </div>
         </div>
-        <div class="global-sessions-content" #contentRef>
-        <div class="left-panel">
-            <div class="filter-controls">
-                <div class="right-actions">
-                    <button
-                        class="delete-btn"
-                        [class.invisible]="selectedIds().size === 0"
-                        (click)="onBulkDelete()"
-                    >
-                        Delete Selected ({{ selectedIds().size }})
-                    </button>
-                    <app-action-dropdown-button
+        <div
+            class="global-sessions-content"
+            #contentRef
+        >
+            <div class="left-panel">
+                <div class="filter-controls">
+                    <div class="right-actions">
+                        <button
+                            class="delete-btn"
+                            [class.invisible]="selectedIds().size === 0"
+                            (click)="onBulkDelete()"
+                        >
+                            Delete Selected ({{ selectedIds().size }})
+                        </button>
+                        <app-action-dropdown-button
                             [label]="'Export (' + (selectedIds().size === 0 ? totalCount() : selectedIds().size) + ')'"
                             [items]="exportItems"
-                            [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)"
+                            [disabled]="
+                                isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount() === 0)
+                            "
                             (mainClick)="onExport('json')"
                             (itemClick)="onExportItemSelected($event)"
                         />
-                    <span
-                        [class.invisible]="selectedIds().size > 0"
-                        class="results-length"
-                    >
-                        {{ totalCount() }} Results
-                    </span>
+                        <span
+                            [class.invisible]="selectedIds().size > 0"
+                            class="results-length"
+                        >
+                            {{ totalCount() }} Results
+                        </span>
+                    </div>
                 </div>
-            </div>
-            <div class="table-container">
-                <app-flow-sessions-table
-                    [sessions]="sessions()"
-                    [showFlowName]="true"
-                    [showDuration]="true"
-                    [sortable]="true"
-                    [sortOrder]="sortOrder()"
-                    [statusFilter]="statusFilter()"
-                    [flows]="availableFlows()"
-                    [flowNameFilter]="flowFilter()"
-                    (flowNameFilterChange)="onFlowFilterChange($event)"
-                    [durationFilter]="durationFilter()"
-                    (durationFilterChange)="onDurationFilterChange($event)"
-                    [isLoading]="!isLoaded()"
-                    [showEmptyState]="isLoaded() && sessions().length === 0"
-                    [externalPreview]="true"
-                    [selectedIds]="selectedIds()"
-                    (deleteSelected)="onDeleteSelected($event)"
-                    (viewSession)="onViewSession($event)"
-                    (stopSession)="onStopSession($event)"
-                    (sortChange)="onSortChange($event)"
-                    (statusFilterChange)="onStatusFilterChange($event)"
-                    (previewSession)="onPreviewSession($event)"
-                    [activePreviewId]="previewSession()?.id ?? null"
-                    (selectedIdsChange)="selectedIds.set($event)"
-                ></app-flow-sessions-table>
-            </div>
+                <div class="table-container">
+                    <app-flow-sessions-table
+                        [sessions]="sessions()"
+                        [showFlowName]="true"
+                        [showDuration]="true"
+                        [sortable]="true"
+                        [sortOrder]="sortOrder()"
+                        [statusFilter]="statusFilter()"
+                        [flows]="availableFlows()"
+                        [flowNameFilter]="flowFilter()"
+                        (flowNameFilterChange)="onFlowFilterChange($event)"
+                        [durationFilter]="durationFilter()"
+                        (durationFilterChange)="onDurationFilterChange($event)"
+                        [isLoading]="!isLoaded()"
+                        [showEmptyState]="isLoaded() && sessions().length === 0"
+                        [externalPreview]="true"
+                        [selectedIds]="selectedIds()"
+                        (deleteSelected)="onDeleteSelected($event)"
+                        (viewSession)="onViewSession($event)"
+                        (stopSession)="onStopSession($event)"
+                        (sortChange)="onSortChange($event)"
+                        (statusFilterChange)="onStatusFilterChange($event)"
+                        (previewSession)="onPreviewSession($event)"
+                        [activePreviewId]="previewSession()?.id ?? null"
+                        (selectedIdsChange)="selectedIds.set($event)"
+                    ></app-flow-sessions-table>
+                </div>
 
                 <div class="pagination-container">
                     @if (isLoaded() && totalCount() > pageSize()) {
@@ -135,7 +140,7 @@ import {
                     </label>
                 </div>
             </div>
-            
+
             <div
                 class="panel-divider"
                 [class.panel-divider--open]="isPanelOpen()"

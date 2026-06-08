@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, inject, Input } from '@angular/core';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GraphMessage, UpdateSessionStatusMessageData } from '../../../../models/graph-session-message.model';
 
@@ -25,7 +26,19 @@ import { GraphMessage, UpdateSessionStatusMessageData } from '../../../../models
                     />
                     Status Data:
                 </div>
-                <pre class="status-data-content">{{ statusData | json }}</pre>
+                <div class="status-data-wrapper">
+                    <button
+                        class="copy-btn"
+                        (click)="copyStatusData($event)"
+                        aria-label="Copy status data"
+                    >
+                        <app-svg-icon
+                            icon="copy"
+                            size="0.875rem"
+                        />
+                    </button>
+                    <pre class="status-data-content">{{ statusData | json }}</pre>
+                </div>
             </div>
         </div>
     `,
@@ -62,6 +75,14 @@ import { GraphMessage, UpdateSessionStatusMessageData } from '../../../../models
                             margin-right: 0.5rem;
                         }
                     }
+                    .status-data-wrapper {
+                        position: relative;
+
+                        &:hover .copy-btn {
+                            opacity: 1;
+                        }
+                    }
+
                     .status-data-content {
                         background-color: var(--gray-800);
                         border-radius: 6px;
@@ -73,11 +94,41 @@ import { GraphMessage, UpdateSessionStatusMessageData } from '../../../../models
                     }
                 }
             }
+
+            .copy-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: var(--gray-500);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition:
+                    opacity 0.15s ease,
+                    color 0.15s ease,
+                    background-color 0.15s ease;
+                padding: 0;
+                z-index: 1;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: var(--gray-100);
+                }
+            }
         `,
     ],
 })
 export class StatusUpdateMessageComponent {
     @Input() message!: GraphMessage;
+
+    private readonly toastService = inject(ToastService);
 
     get updateStatusData(): UpdateSessionStatusMessageData | null {
         if (this.message.message_data && this.message.message_data.message_type === 'update_session_status') {
@@ -100,5 +151,17 @@ export class StatusUpdateMessageComponent {
 
     hasStatusData(): boolean {
         return !!(this.statusData && Object.keys(this.statusData).length);
+    }
+
+    copyStatusData(event: Event): void {
+        event.stopPropagation();
+        navigator.clipboard
+            .writeText(JSON.stringify(this.statusData, null, 2))
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 }

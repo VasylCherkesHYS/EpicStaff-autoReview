@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, inject, Input } from '@angular/core';
 import { MarkdownModule } from 'ngx-markdown';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-message.model';
@@ -59,6 +60,16 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
                                 class="result-content"
                                 [ngClass]="{ collapsed: isCollapsed && shouldShowToggle() }"
                             >
+                                <button
+                                    class="copy-btn"
+                                    (click)="copyContent($event)"
+                                    aria-label="Copy LLM response"
+                                >
+                                    <app-svg-icon
+                                        icon="copy"
+                                        size="0.875rem"
+                                    />
+                                </button>
                                 <markdown [data]="llmResponse"></markdown>
                             </div>
                             <button
@@ -77,11 +88,40 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
     styles: [
         `
             .llm-flow-container {
+                position: relative;
                 background-color: var(--color-nodes-background);
                 border-radius: 8px;
                 padding: 1.25rem;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 border-left: 4px solid #36cfc9; /* Teal accent */
+            }
+
+            .copy-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: var(--gray-500);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition:
+                    opacity 0.15s ease,
+                    color 0.15s ease,
+                    background-color 0.15s ease;
+                padding: 0;
+                z-index: 1;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: var(--gray-100);
+                }
             }
 
             .llm-header {
@@ -162,6 +202,7 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
             }
 
             .result-content {
+                position: relative;
                 background-color: var(--gray-800);
                 border: 1px solid var(--gray-750);
                 border-radius: 8px;
@@ -172,6 +213,10 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
                 overflow-y: auto;
                 transition: max-height 0.3s ease;
                 margin-left: 23px;
+
+                &:hover .copy-btn {
+                    opacity: 1;
+                }
             }
 
             .result-content.collapsed {
@@ -200,6 +245,7 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
 export class LlmMessageComponent {
     @Input() message!: GraphMessage;
 
+    private readonly toastService = inject(ToastService);
     isMessageExpanded = false;
     isResponseExpanded = true;
     isCollapsed = true;
@@ -228,5 +274,17 @@ export class LlmMessageComponent {
         const response = this.llmResponse;
         // Show the toggle button if content is longer than ~5 lines or 500 chars
         return response.split('\n').length > 5 || response.length > 500;
+    }
+
+    copyContent(event: Event): void {
+        event.stopPropagation();
+        navigator.clipboard
+            .writeText(this.llmResponse)
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 }

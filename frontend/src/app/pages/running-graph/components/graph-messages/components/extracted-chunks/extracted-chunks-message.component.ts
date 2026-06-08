@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, inject, Input } from '@angular/core';
 import { expandCollapseAnimation } from '@shared/animations';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import {
     ExtractedChunk,
@@ -22,6 +23,8 @@ export class ExtractedChunksMessageComponent {
 
     isExpanded = true;
 
+    private readonly toastService = inject(ToastService);
+
     get data(): ExtractedChunksMessageData | null {
         if (this.message?.message_data?.message_type === 'extracted_chunks') {
             return this.message.message_data as ExtractedChunksMessageData;
@@ -35,5 +38,17 @@ export class ExtractedChunksMessageComponent {
 
     toggle(): void {
         this.isExpanded = !this.isExpanded;
+    }
+
+    copyChunkText(text: string, event: Event): void {
+        event.stopPropagation();
+        navigator.clipboard
+            .writeText(text)
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 }

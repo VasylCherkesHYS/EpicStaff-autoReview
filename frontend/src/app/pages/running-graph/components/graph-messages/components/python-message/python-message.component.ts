@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, inject, Input, OnInit } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
+import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { FormatExecutionDataPipe } from '../../../../../../shared/pipes/format-execution-data.pipe';
@@ -183,6 +184,16 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
                         >
                             <div class="raw-data-wrapper">
                                 <div class="raw-data-content">
+                                    <button
+                                        class="copy-btn"
+                                        (click)="copyContent($event)"
+                                        aria-label="Copy Python execution data"
+                                    >
+                                        <app-svg-icon
+                                            icon="copy"
+                                            size="0.875rem"
+                                        />
+                                    </button>
                                     <ngx-json-viewer
                                         [json]="getExecutionData() | formatExecutionData"
                                         [expanded]="false"
@@ -198,11 +209,40 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
     styles: [
         `
             .python-flow-container {
+                position: relative;
                 background-color: var(--color-nodes-background);
                 border-radius: 8px;
                 padding: var(--message-padding, 1.25rem);
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 border-left: 4px solid #ffcf3f;
+            }
+
+            .copy-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: var(--gray-500);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition:
+                    opacity 0.15s ease,
+                    color 0.15s ease,
+                    background-color 0.15s ease;
+                padding: 0;
+                z-index: 1;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: var(--gray-100);
+                }
             }
 
             .python-header {
@@ -307,12 +347,17 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
             }
 
             .raw-data-content {
+                position: relative;
                 background-color: var(--gray-800);
                 border: 1px solid var(--gray-750);
                 border-radius: 8px;
                 padding: 1rem;
                 overflow: auto;
                 max-height: 600px;
+
+                &:hover .copy-btn {
+                    opacity: 1;
+                }
             }
 
             .raw-data-content ::ng-deep ngx-json-viewer,
@@ -351,6 +396,7 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
 })
 export class PythonMessageComponent implements OnInit {
     @Input() message!: GraphMessage;
+    private readonly toastService = inject(ToastService);
     isMessageExpanded = false;
     isCodeExpanded = true;
     isInputExpanded = true;
@@ -483,5 +529,22 @@ export class PythonMessageComponent implements OnInit {
         const output = this.getOutput();
         // Show toggle button if content is longer than approximately 5 lines
         return output.split('\n').length > 5 || output.length > 500;
+    }
+
+    copyContent(event: Event): void {
+        event.stopPropagation();
+        const parts: string[] = [];
+        if (this.hasCode()) parts.push(`Code:\n${this.getCode()}`);
+        if (this.hasOutput()) parts.push(`Output:\n${this.getOutput()}`);
+        if (this.hasError()) parts.push(`Error:\n${this.getError()}`);
+        const text = parts.length > 0 ? parts.join('\n\n') : JSON.stringify(this.getExecutionData(), null, 2);
+        navigator.clipboard
+            .writeText(text)
+            .then(() => {
+                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
+            })
+            .catch(() => {
+                this.toastService.error('Failed to copy', 3000, 'top-right');
+            });
     }
 }
