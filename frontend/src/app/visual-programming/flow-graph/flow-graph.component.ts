@@ -90,6 +90,7 @@ import { SidePanelService } from '../services/side-panel.service';
 import { UndoRedoService } from '../services/undo-redo.service';
 import { createFlowConnection } from '../utils/connection.factory';
 import { normalizeFlowPorts } from '../utils/load';
+import { GraphCollaborationWsService } from 'src/app/features/flows/services/graph-collaboration.ws.service';
 
 function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
     if (a.length !== b.length) return false;
@@ -234,6 +235,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly dialog = inject(Dialog);
     private readonly toastService = inject(ToastService);
     private readonly injector = inject(Injector);
+    private readonly wsService = inject(GraphCollaborationWsService)
 
     constructor() {}
 
@@ -306,7 +308,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         );
 
         this.flowService.removeConnection(event.connectionId);
+        this.wsService.sendConnectionDeleted(event.connectionId);
         this.flowService.addConnection(updatedConnection);
+        this.wsService.sendConnectionCreated(updatedConnection);
 
         this.toastService.success('Connection reassigned successfully', 3000, 'bottom-right');
     }
@@ -354,6 +358,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         );
 
         this.flowService.addConnection(newConnection);
+        this.wsService.sendConnectionCreated(newConnection)
 
         const nodes = this.flowService.nodes();
         const intersects = getConnectionIntersectingNodes(newConnection, nodes);
@@ -405,6 +410,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
             const updatedNode = { ...node, position: safePosition };
             this.flowService.updateNode(updatedNode);
+            this.wsService.sendNodeCreated(updatedNode);
             placedNodes.push(updatedNode);
         }
 
@@ -477,6 +483,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (waypoints.length > existingCount) {
             this.userAdjustedConnectionIds.add(connectionId);
             this.flowService.updateConnectionWaypoints(connectionId, waypoints, true);
+            this.wsService.sendConnectionWaypointsUpdated(connectionId, waypoints)
             return;
         }
 
@@ -496,6 +503,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             isSameElements ? waypoints : normalizedWaypoints,
             normalizedWaypoints.length > 0
         );
+        this.wsService.sendConnectionWaypointsUpdated(connectionId, isSameElements ? waypoints : normalizedWaypoints)
     }
 
     public onNodeDroppedFromPanel(event: FCreateNodeEvent): void {
@@ -518,6 +526,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             ),
         };
         this.flowService.updateNode(updatedNode);
+        this.wsService.sendNodeCreated(updatedNode);
     }
 
     public onContextMenu(event: MouseEvent): void {
@@ -549,6 +558,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         );
         const newNode = this.nodeFactory.createNode(event.type, { ...event.overrides, position });
         this.flowService.addNode(newNode);
+        this.wsService.sendNodeCreated(newNode)
     }
 
     public onOpenNodePanel(node: NodeModel): void {
@@ -616,6 +626,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public onNodePanelSaved(updatedNode: NodeModel): void {
         const normalizedNode = normalizeTableNodeSize(updatedNode);
         this.flowService.updateNode(normalizedNode);
+        this.wsService.sendNodeUpdated(normalizedNode);
         const movedNodeIds = this.resolveTableOverlaps(normalizedNode);
         this.sidePanelService.clearSelection();
 
@@ -637,6 +648,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public onNodePanelAutosaved(updatedNode: NodeModel): void {
         const normalizedNode = normalizeTableNodeSize(updatedNode);
         this.flowService.updateNode(normalizedNode);
+        this.wsService.sendNodeUpdated(normalizedNode);
         const movedNodeIds = this.resolveTableOverlaps(normalizedNode);
 
         setTimeout(() => {
@@ -684,6 +696,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         };
 
         this.flowService.updateNode(updatedNode);
+        this.wsService.sendNodeUpdated(updatedNode);
     }
 
     public onDragStarted(event: FDragStartedEvent): void {
@@ -830,7 +843,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
             if (freePos.x !== current.position.x || freePos.y !== current.position.y) {
                 this.flowService.updateNode({ ...current, position: freePos });
+                this.wsService.sendNodeUpdated({...current, position: freePos})
                 autoAlignedNodeIds.add(id);
+            } else {
+                this.wsService.sendNodeUpdated(current);
             }
         }
 
@@ -867,6 +883,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         };
 
         this.flowService.updateNode(updatedNode);
+        this.wsService.sendNodeUpdated(updatedNode);
     }
 
     public onZoomInNode(node: NodeModel): void {
@@ -1136,6 +1153,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             fNodeIds: nodeIdsToDelete,
             fConnectionIds: selections.fConnectionIds,
         });
+        if (nodeIdsToDelete.length > 0) {
+            this.wsService.sendNodesDeleted(nodeIdsToDelete)
+        }
+        if (selections.fConnectionIds.length > 0) {
+            this.wsService.sendConnectionsDeleted(selections.fConnectionIds);
+        }
     }
 
     private resolveTableOverlaps(node: NodeModel): string[] {
