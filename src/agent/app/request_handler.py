@@ -3,9 +3,9 @@ Layer 6 — RequestHandler: top-level pipeline that drives a single stream messa
 to completion.
 
 Orchestrates the full request lifecycle: envelope → ``DataLoader`` → ``RunnerFactory``
-→ ``Runner.execute`` → ack.  Owns error mapping (any exception triggers
-``emitter.on_error``) and guarantees the stream message is always acked,
-preventing re-delivery of poison pills.
+→ ``Runner.execute`` → ack.  The runner owns the full emitter lifecycle
+(on_start → on_final | on_error).  The fallback emitter here only covers
+pre-runner failures (load / build).  The message is always acked in finally.
 """
 
 from __future__ import annotations
@@ -24,14 +24,14 @@ class RequestHandler:
     Collaborators:
     - ``DataLoader`` — hydrates the envelope into an ``AgentRequest``.
     - ``RunnerFactory`` — selects and constructs the ``(Runner, Emitter)`` pair.
-    - ``Runner`` — executes the agent work.
+    - ``Runner`` — executes the agent work and owns the full emitter lifecycle.
     - ``RedisStreamClient`` — used to ack the message and, via the emitter, to
       publish results.
 
-    On any exception in the happy path a fallback ``RedisStreamBatchEmitter``
-    is constructed directly so that an ``agent.error`` envelope reaches
-    ``agent.results`` even when the factory itself fails (e.g. unknown run_type).
-    The stream message is acked unconditionally after error handling.
+    The fallback ``RedisStreamBatchEmitter`` is used only for pre-emitter
+    failures (load / build).  Once a runner + emitter are built, the runner
+    owns on_start → on_final | on_error exclusively.  The stream message is
+    acked unconditionally in the finally block.
     """
 
     def __init__(
@@ -58,9 +58,10 @@ class RequestHandler:
     ) -> None:
         """Process one stream message end-to-end and ack it.
 
-        Runs the pipeline: load → build → start → execute.  Any exception
-        is caught, published as an ``agent.error`` envelope, and the message
-        is still acked so the consumer group does not stall.
+        Runs the pipeline: load → build → execute.  Pre-emitter failures
+        (load / build) are caught here and published via a fallback emitter.
+        Once a runner is built its ``execute`` owns the emitter lifecycle.
+        The message is acked unconditionally.
 
         Args:
             envelope: parsed stream message payload.
@@ -73,27 +74,33 @@ class RequestHandler:
             envelope.type,
             correlation_id,
         )
+        logger.debug(
+            "envelope payload correlation_id={} payload={}",
+            correlation_id,
+            envelope.payload,
+        )
 
         try:
             request = await self._loader.load(envelope)
             runner, emitter = self._factory.build(
                 request, self._redis_client, self._result_stream
             )
-            await emitter.on_start(request)
-            await runner.execute(request, emitter)
 
         except Exception as error:
-            logger.error(
-                "request failed correlation_id={} error={}",
+            logger.exception(
+                "request failed before emitter correlation_id={}",
                 correlation_id,
-                error,
             )
             fallback_emitter = RedisStreamBatchEmitter(
                 self._redis_client, self._result_stream, correlation_id
             )
             await fallback_emitter.on_error(error)
 
-        await self._redis_client.ack(stream, self._consumer_group, message_id)
-        logger.debug(
-            "acked message_id={} correlation_id={}", message_id, correlation_id
-        )
+        else:
+            await runner.execute(request, emitter)
+
+        finally:
+            await self._redis_client.ack(stream, self._consumer_group, message_id)
+            logger.debug(
+                "acked message_id={} correlation_id={}", message_id, correlation_id
+            )

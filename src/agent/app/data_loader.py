@@ -16,6 +16,7 @@ import redis.asyncio as aioredis
 from loguru import logger
 
 from app.exceptions import DataLoadError
+from app.logging_utils import redacted_dump
 from shared.models.agent_service import AgentRequest
 from shared.redis_streams import StreamEnvelope
 
@@ -66,6 +67,11 @@ class DataLoader:
         request_key = self._extract_request_key(envelope)
 
         raw = await self._client.get(request_key)
+        logger.debug(
+            "loaded blob key={} bytes={}",
+            request_key,
+            len(raw) if raw is not None else 0,
+        )
 
         if raw is None:
             raise DataLoadError(
@@ -89,6 +95,13 @@ class DataLoader:
             raise DataLoadError(
                 f"Failed to parse AgentRequest from key '{request_key}': {error}"
             ) from error
+
+        _corr_id = envelope.correlation_id
+        logger.opt(lazy=True).debug(
+            "AgentRequest correlation_id={} request={}",
+            lambda: _corr_id,
+            lambda: redacted_dump(request),
+        )
 
         return request
 

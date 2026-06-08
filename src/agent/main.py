@@ -7,8 +7,14 @@ from uuid import uuid4
 from loguru import logger
 
 from app.data_loader import DataLoader
+from app.enums import RunType
 from app.factory import RunnerFactory
+from app.llm.litellm_client import LiteLLMClient
+from app.loop.agent_loop import DefaultAgentLoop
 from app.request_handler import RequestHandler
+from app.resources.resolver import AgentResolver
+from app.runners.deps import RunnerDependencies
+from app.runners.single_task import SingleTaskRunner
 from app.sandbox.client import SandboxClient
 from settings import load_settings
 from shared.redis_streams import RedisStreamClient, StreamEnvelope
@@ -51,8 +57,12 @@ async def main() -> None:
     )
     await loader.connect()
 
-    factory = RunnerFactory()
-    # No runners registered yet — unknown run_type triggers on_error path
+    llm = LiteLLMClient()
+    deps = RunnerDependencies(
+        resolver=AgentResolver(sandbox_client), loop=DefaultAgentLoop(llm)
+    )
+    factory = RunnerFactory(deps)
+    factory.register(RunType.SINGLE_TASK, SingleTaskRunner)
 
     handler = RequestHandler(
         loader=loader,

@@ -5,7 +5,7 @@ Composes ``RouterPool`` (per-deployment rpm enforcement) and ``RetryPolicy``
 (exponential backoff on transient errors).  Normalizes LiteLLM streaming
 chunks into the ``LLMChunk`` schema consumed by ``AgentLoop``.
 
-Default max-retry count is read from ``LLM_DEFAULT_MAX_RETRIES`` env var via
+Default max-retry count is read from ``AGENT_DEFAULT_MAX_RETRIES`` env var via
 ``settings.load_settings()`` on first need; override via the ``retry`` param.
 """
 
@@ -14,9 +14,12 @@ from __future__ import annotations
 import uuid
 from typing import AsyncIterator
 
+from loguru import logger
+
 from app.llm.client import LLMChunk, LLMClient, ToolCallFragment
 from app.llm.retry import RetryPolicy
 from app.llm.router_pool import RouterPool, get_router_pool
+from app.logging_utils import redact
 
 _STRIPPED_MODEL_CONFIG_KEYS = frozenset(
     {"model", "api_key", "base_url", "api_version", "max_retry_limit", "max_rpm"}
@@ -33,7 +36,7 @@ def _kwargs_for_acompletion(model_config: dict) -> dict:
 def _default_max_retries() -> int:
     from settings import load_settings
 
-    return load_settings().llm_default_max_retries
+    return load_settings().agent_default_max_retries
 
 
 class LiteLLMClient(LLMClient):
@@ -113,6 +116,18 @@ class LiteLLMClient(LLMClient):
                 **extra_kwargs,
             )
 
+        _model = model_config.get("model")
+        _synthetic = synthetic_model
+        _msg_count = len(messages)
+        _tool_count = len(litellm_tools or [])
+        logger.opt(lazy=True).debug(
+            "litellm request model={} synthetic={} messages={} tools={} kwargs={}",
+            lambda: _model,
+            lambda: _synthetic,
+            lambda: _msg_count,
+            lambda: _tool_count,
+            lambda: redact(extra_kwargs),
+        )
         response_stream = await retry.aretry(_call)
 
         tc_map: dict[int, dict] = {}
@@ -149,8 +164,10 @@ class LiteLLMClient(LLMClient):
                 )
 
             if finish:
+                logger.debug("litellm finish_reason={}", finish)
                 yield LLMChunk(finish_reason=finish)
 
             if usage:
                 usage_dict = usage if isinstance(usage, dict) else vars(usage)
+                logger.debug("litellm usage={}", usage_dict)
                 yield LLMChunk(usage=usage_dict)

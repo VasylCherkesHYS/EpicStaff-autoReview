@@ -83,6 +83,8 @@ class AgentResolver:
         s3_pool: dict[int, S3FileSpec] = {spec.id: spec for spec in request.s3_files}
 
         registry = self._build_tool_registry(agent, tool_pool)
+        names = [s.name for s in registry.tool_specs()]
+        logger.debug("agent_id={} resolved {} tool(s): {}", agent.id, len(names), names)
         self._validate_rag_refs(agent, rag_pool)
         s3_paths = self._validate_s3_refs(agent, s3_pool)
 

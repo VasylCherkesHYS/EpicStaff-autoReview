@@ -25,9 +25,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from shared.models.ai_providers import EmbedderData, LLMData
-from shared.models.knowledge import RagSearchConfig
-from shared.models.tools import BaseToolData
+from .ai_providers import EmbedderData, LLMData
+from .knowledge import RagSearchConfig
+from .tools import BaseToolData
 
 
 class RunType(str, Enum):

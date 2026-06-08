@@ -4,14 +4,23 @@ Layer 3 support — StopPolicy: pluggable termination strategy for ``AgentLoop``
 The stop policy is the single decision point that tells the loop whether to
 perform another LLM call or return.  Runners inject an appropriate policy
 when constructing the loop invocation, keeping termination logic out of both
-the loop body and the runner.
+the loop body and the runner.  ``StopDecision`` carries both the boolean and
+the human-readable stop reason so the loop no longer needs to classify the
+reason separately.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from app.llm.client import LLMChunk
+
+
+@dataclass(frozen=True)
+class StopDecision:
+    stop: bool
+    reason: str = ""
 
 
 class StopPolicy(ABC):
@@ -19,7 +28,8 @@ class StopPolicy(ABC):
 
     ``AgentLoop`` calls ``should_stop`` after each iteration with the current
     index, the chunks received from the LLM, and any tool calls that were
-    accumulated.  Subclasses encode domain-specific termination rules.
+    accumulated.  Subclasses encode domain-specific termination rules and
+    return a ``StopDecision`` with both the flag and the reason string.
     """
 
     @abstractmethod
@@ -28,8 +38,8 @@ class StopPolicy(ABC):
         iteration_index: int,
         last_chunks: list[LLMChunk],
         last_tool_calls: list,
-    ) -> bool:
-        """Return ``True`` if the loop should stop after this iteration.
+    ) -> StopDecision:
+        """Return a ``StopDecision`` describing whether and why to stop.
 
         Args:
             iteration_index: zero-based count of completed iterations.
@@ -58,9 +68,12 @@ class MaxIterAndNoToolCalls(StopPolicy):
         iteration_index: int,
         last_chunks: list[LLMChunk],
         last_tool_calls: list,
-    ) -> bool:
-        """Return ``True`` if ``iteration_index >= max_iter`` or no tool calls were made."""
+    ) -> StopDecision:
+        """Return a ``StopDecision`` with reason ``max_iter_reached`` or ``no_tool_calls``."""
         if iteration_index >= self._max_iter:
-            return True
+            return StopDecision(True, "max_iter_reached")
 
-        return not last_tool_calls
+        if not last_tool_calls:
+            return StopDecision(True, "no_tool_calls")
+
+        return StopDecision(False)

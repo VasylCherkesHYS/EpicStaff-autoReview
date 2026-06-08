@@ -144,19 +144,12 @@ def make_context(
     max_execution_time: float | None = None, messages: list[dict] | None = None
 ) -> AgentContext:
     agent = _make_agent_spec(max_execution_time=max_execution_time)
-    context = AgentContext(
+    return AgentContext(
         agent=agent,
         attachments=[],
         correlation_id="test-corr",
-        # Pass a pre-seeded messages list to override the auto-seeded system message
-        # when the test supplies explicit messages.
-        messages=messages if messages is not None else None,
+        messages=messages,
     )
-    # When no messages supplied the context seeds a system message; strip it so
-    # loop tests that count messages start from zero assistant/tool messages.
-    if messages is None:
-        context.messages = []
-    return context
 
 
 def text_chunks(*texts: str) -> list[LLMChunk]:
@@ -449,8 +442,8 @@ async def test_max_iter_reached():
     assert result.tool_invocations == 2
 
 
-async def test_llm_raises_emits_error_and_returns_llm_error():
-    """LLMClient.chat raises → on_error called once, stop_reason='llm_error', no further iterations."""
+async def test_llm_raises_returns_llm_error_no_on_error():
+    """LLMClient.chat raises → stop_reason='llm_error', on_error NOT called (loop no longer emits)."""
     emitter = RecordingEmitter()
     context = make_context()
     tools = StubToolRegistry({})
@@ -466,11 +459,11 @@ async def test_llm_raises_emits_error_and_returns_llm_error():
     assert result.tool_invocations == 0
 
     error_events = [payload for name, payload in emitter.events if name == "on_error"]
-    assert len(error_events) == 1
+    assert len(error_events) == 0
 
 
 async def test_timeout_fires_mid_execution():
-    """Wall-clock limit fires during tool execution → stop_reason='timeout', partial counts, on_error once."""
+    """Wall-clock limit fires during tool execution → stop_reason='timeout', on_error NOT called."""
     emitter = RecordingEmitter()
 
     async def slow_tool(args):
@@ -500,7 +493,7 @@ async def test_timeout_fires_mid_execution():
     assert result.stop_reason == "timeout"
 
     error_events = [payload for name, payload in emitter.events if name == "on_error"]
-    assert len(error_events) == 1
+    assert len(error_events) == 0
 
 
 async def test_streaming_chunk_order_preserved():
@@ -520,8 +513,8 @@ async def test_streaming_chunk_order_preserved():
     assert observed == ordered_chunks
 
 
-async def test_context_seeds_system_message_from_role_and_instructions():
-    """AgentContext seeds a system message from role + instructions when messages is empty."""
+def test_context_starts_with_empty_messages():
+    """AgentContext starts with empty messages; prompt is built externally by the runner."""
     agent = AgentSpec(
         id=1,
         name="researcher",
@@ -530,7 +523,4 @@ async def test_context_seeds_system_message_from_role_and_instructions():
         llm=_make_llm_data(),
     )
     context = AgentContext(agent=agent, attachments=[], correlation_id="c")
-    assert len(context.messages) == 1
-    assert context.messages[0]["role"] == "system"
-    assert "Senior Researcher" in context.messages[0]["content"]
-    assert "You research topics thoroughly." in context.messages[0]["content"]
+    assert context.messages == []

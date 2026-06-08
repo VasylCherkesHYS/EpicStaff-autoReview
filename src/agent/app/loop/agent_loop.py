@@ -19,8 +19,11 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from loguru import logger
+
 from app.emitters.base import Emitter
 from app.llm.client import LLMChunk, LLMClient
+from app.logging_utils import redact
 from app.loop.context import AgentContext
 from app.loop.stop_policy import StopPolicy
 from app.tools.registry import ToolRegistry
@@ -81,22 +84,6 @@ class _RunState:
     final_text: str | None = None
 
 
-def _classify_stop(
-    complete_calls: list,
-    stop: StopPolicy,
-) -> str:
-    """Return the human-readable stop reason for a completed iteration."""
-    from app.loop.stop_policy import MaxIterAndNoToolCalls
-
-    if isinstance(stop, MaxIterAndNoToolCalls):
-        if not complete_calls:
-            return "no_tool_calls"
-
-        return "max_iter_reached"
-
-    return "stopped"
-
-
 class DefaultAgentLoop(AgentLoop):
     """Canonical single-agent tool-use loop.
 
@@ -132,8 +119,12 @@ class DefaultAgentLoop(AgentLoop):
                 timeout=time_limit,
             )
 
-        except asyncio.TimeoutError as error:
-            await emitter.on_error(error)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "loop timeout correlation_id={} iterations={}",
+                context.correlation_id,
+                state.iterations,
+            )
             return LoopResult(
                 stop_reason="timeout",
                 final_text=state.final_text,
@@ -141,8 +132,8 @@ class DefaultAgentLoop(AgentLoop):
                 iterations=state.iterations,
             )
 
-        except Exception as error:
-            await emitter.on_error(error)
+        except Exception:
+            logger.exception("loop llm_error correlation_id={}", context.correlation_id)
             return LoopResult(
                 stop_reason="llm_error",
                 final_text=state.final_text,
@@ -160,6 +151,17 @@ class DefaultAgentLoop(AgentLoop):
     ) -> LoopResult:
         """Core iteration loop — no timeout handling, no exception swallowing."""
         while True:
+            _iter = state.iterations
+            _corr_id = context.correlation_id
+            _msg_count = len(context.messages)
+            logger.opt(lazy=True).debug(
+                "loop iter={} correlation_id={} sending {} messages={}",
+                lambda: _iter,
+                lambda: _corr_id,
+                lambda: _msg_count,
+                lambda: redact(context.messages),
+            )
+
             text_buf = ""
             tool_buf: dict[str, dict] = {}
             chunks: list[LLMChunk] = []
@@ -211,6 +213,11 @@ class DefaultAgentLoop(AgentLoop):
                     ]
 
                 context.append_message(assistant_message)
+                logger.debug(
+                    "assistant text_len={} tool_calls={}",
+                    len(text_buf),
+                    [e["name"] for e in tool_buf.values()],
+                )
 
             complete_calls = [
                 (call_id, entry["name"], entry["args"])
@@ -221,7 +228,14 @@ class DefaultAgentLoop(AgentLoop):
                 await emitter.on_tool_call(
                     {"id": call_id, "name": name, "arguments": args_str}
                 )
+                logger.debug("tool call id={} name={} args={}", call_id, name, args_str)
                 result = await self._execute_tool(tools, call_id, name, args_str)
+                logger.debug(
+                    "tool result id={} is_error={} content={!r}",
+                    call_id,
+                    result.is_error,
+                    result.content,
+                )
                 await emitter.on_tool_result(result)
                 context.append_message(
                     {"role": "tool", "tool_call_id": call_id, "content": result.content}
@@ -230,13 +244,20 @@ class DefaultAgentLoop(AgentLoop):
 
             state.iterations += 1
 
-            if stop.should_stop(state.iterations, chunks, complete_calls):
-                stop_reason = _classify_stop(complete_calls, stop)
+            decision = stop.should_stop(state.iterations, chunks, complete_calls)
+            logger.debug(
+                "stop decision correlation_id={} stop={} reason={}",
+                context.correlation_id,
+                decision.stop,
+                decision.reason,
+            )
+
+            if decision.stop:
                 return LoopResult(
                     final_text=state.final_text,
                     tool_invocations=state.tool_invocations,
                     iterations=state.iterations,
-                    stop_reason=stop_reason,
+                    stop_reason=decision.reason,
                 )
 
     async def _execute_tool(

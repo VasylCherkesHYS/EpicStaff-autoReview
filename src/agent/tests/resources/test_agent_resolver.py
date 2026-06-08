@@ -265,11 +265,11 @@ def test_resolved_agent_carries_correct_agent_id():
     assert resolved.agent_id == 42
 
 
-def test_resolved_agent_context_has_system_message():
+def test_resolved_agent_context_has_empty_messages():
+    """Resolver returns context with empty messages; prompt is built by the runner."""
     agent = _agent_spec()
     request = _request([agent])
 
     resolved = _resolver().resolve(agent, request)
 
-    assert resolved.context.messages[0]["role"] == "system"
-    assert "Senior Researcher" in resolved.context.messages[0]["content"]
+    assert resolved.context.messages == []

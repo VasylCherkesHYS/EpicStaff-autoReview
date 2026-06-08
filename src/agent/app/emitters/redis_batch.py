@@ -13,6 +13,7 @@ from loguru import logger
 
 from app.emitters.base import Emitter
 from app.llm.client import LLMChunk
+from app.logging_utils import redact
 from shared.models.agent_service import AgentRequest, LoopResult, ToolResult
 from shared.redis_streams import RedisStreamClient, StreamEnvelope
 
@@ -71,6 +72,12 @@ class RedisStreamBatchEmitter(Emitter):
                 "stop_reason": result.stop_reason,
                 "events": self._buffered_events,
             },
+        )
+        _corr_id = self._correlation_id
+        logger.opt(lazy=True).debug(
+            "agent.result correlation_id={} payload={}",
+            lambda: _corr_id,
+            lambda: redact(envelope.payload),
         )
         await self._client.publish(self._result_stream, envelope.to_fields())
         logger.info("published agent.result correlation_id={}", self._correlation_id)
