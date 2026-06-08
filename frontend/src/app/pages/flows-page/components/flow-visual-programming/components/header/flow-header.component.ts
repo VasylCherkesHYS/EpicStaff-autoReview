@@ -98,6 +98,7 @@ export class FlowHeaderComponent {
                     name: this.graph.name,
                     description: this.graph.description || '',
                     label_ids: this.graph.label_ids || [],
+                    save_version: this.graph.save_version,
                 },
             },
             width: '500px',
