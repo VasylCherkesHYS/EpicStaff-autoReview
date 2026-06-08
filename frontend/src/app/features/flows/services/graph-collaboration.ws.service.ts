@@ -1,8 +1,13 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Subject } from 'rxjs';
-
+import { debounceTime, throttleTime } from 'rxjs';
+import { IPoint } from '@foblex/2d';
 import { ConfigService } from '../../../services/config/config.service';
 import { WsTicketService } from '../../../services/auth/ws-ticket.service';
+import { ProfileService } from '../../../services/auth/profile.service';
+import { NodeModel } from '../../../visual-programming/core/models/node.model';
+import { ConnectionModel } from '../../../visual-programming/core/models/connection.model';
+import { FlowModel } from '../../../visual-programming/core/models/flow.model';
 
 export interface EditorInfo {
     user_id: number;
@@ -14,18 +19,40 @@ type ServerMessage =
     | PresenceStateMessage
     | UserJoinedMessage
     | UserLeftMessage
-    | GraphModifiedMessage
+    | GraphStateMessage
     | GraphSavedMessage
     | WsErrorMessage
+    | NodeCreatedMessage
+    | NodeUpdatedMessage
+    | NodesDeletedMessage
+    | ConnectionCreatedMessage
+    | ConnectionDeletedMessage
+    | ConnectionsDeletedMessage
+    | ConnectionWaypointsUpdatedMessage
+    | CursorMovedMessage
+    | SelectionChangedMessage
+    | NodeLockedMessage
+    | NodeUnlockedMessage
 
 type PresenceStateMessage  = { type: 'presence_state'; editors: EditorInfo[] };
 type UserJoinedMessage     = { type: 'user_joined'; editor: EditorInfo };
 type UserLeftMessage       = { type: 'user_left'; user_id: number };
-export type GraphModifiedMessage = { 
-    type: 'graph_modified'; 
-    graph_id: number; 
-    modified_by: EditorInfo 
-};
+type WsErrorMessage = { type: 'error'; code: string; message: string };
+
+export type GraphStateMessage                   = { type: 'graph_state';                    flow: FlowModel };
+export type NodeCreatedMessage                  = { type: 'node_created';                   node: NodeModel;                editor: EditorInfo };
+export type NodeUpdatedMessage                  = { type: 'node_updated';                   node: NodeModel;                editor: EditorInfo };
+export type NodesDeletedMessage                 = { type: 'nodes_deleted';                  node_ids: string[];             editor: EditorInfo };
+export type ConnectionCreatedMessage            = { type: 'connection_created';             connection: ConnectionModel;    editor: EditorInfo}
+export type ConnectionDeletedMessage            = { type: 'connection_deleted';             connection_id: string;          editor: EditorInfo };
+export type ConnectionsDeletedMessage           = { type: 'connections_deleted';            connection_ids: string[];       editor: EditorInfo };
+export type ConnectionWaypointsUpdatedMessage   = { type: 'connection_waypoints_updated';   connection_id: string;          waypoints: IPoint[]; editor: EditorInfo};
+export type CursorMovedMessage                  = { type: 'cursor_moved';                  x: number; y: number;           editor: EditorInfo};
+export type SelectionChangedMessage             = { type: 'selection_changed';              node_ids: string[];             editor: EditorInfo};
+export type NodeLockedMessage                   = { type: 'node_locked';                    node_id: string;                editor: EditorInfo};
+export type NodeUnlockedMessage                 = { type: 'node_unlocked';                    node_id: string;                editor: EditorInfo};
+
+
 export type GraphSavedMessage    = {
     type: 'graph_saved';
     graph_id: number;
@@ -33,9 +60,6 @@ export type GraphSavedMessage    = {
     saved_by: EditorInfo;
     saved_at: string;
 };
-type WsErrorMessage = { type: 'error'; code: string; message: string };
-
-type ClientMessage = { type: 'graph_modified' };
 
 type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting';
 
@@ -44,6 +68,7 @@ type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnect
 export class GraphCollaborationWsService {
     private configService = inject(ConfigService);
     private wsTicketService = inject(WsTicketService);
+    private profileService = inject(ProfileService);
     private socket: WebSocket | null = null;
     private currentGraphId: number | null = null;
     private reconnectTimeout: number | null = null;
@@ -57,8 +82,37 @@ export class GraphCollaborationWsService {
     public connectionStatus = signal<ConnectionStatus>('disconnected');
 
     public graphSaved$ = new Subject<GraphSavedMessage>();
-    public graphModified$ = new Subject<GraphModifiedMessage>();
+    public graphState$ = new Subject<GraphStateMessage>();
+    public nodeCreated$ = new Subject<NodeCreatedMessage>();
+    public nodeUpdated$ = new Subject<NodeUpdatedMessage>();
+    public nodesDeleted$ = new Subject<NodesDeletedMessage>();
+    public connectionCreated$ = new Subject<ConnectionCreatedMessage>();
+    public connectionDeleted$ = new Subject<ConnectionDeletedMessage>();
+    public connectionsDeleted$ = new Subject<ConnectionsDeletedMessage>();
+    public connectionWaypointsUpdated$ = new Subject<ConnectionWaypointsUpdatedMessage>();
+    public cursorMoved$ = new Subject<CursorMovedMessage>();
+    public selectionChanged$ = new Subject<SelectionChangedMessage>();
+    public nodeLocked$ = new Subject<NodeLockedMessage>();
+    public nodeUnlocked$ = new Subject<NodeUnlockedMessage>();
 
+    private readonly cursorPipe$ = new Subject<{x: number; y: number}>();
+    private readonly waypointPipe$ = new Subject<{ connection_id: string; waypoints: IPoint[] }>();
+
+    constructor() {
+        this.cursorPipe$
+            .pipe(throttleTime(50))
+            .subscribe(({x, y}) => {
+                const editor = this.buildEditorInfo();
+                if (editor) this.sendRaw({type: 'cursor_moved', x, y, editor});
+            });
+
+        this.waypointPipe$
+            .pipe(debounceTime(200))
+            .subscribe(({ connection_id, waypoints }) => {
+                const editor = this.buildEditorInfo();
+                if (editor) this.sendRaw({ type: 'connection_waypoints_updated', connection_id, waypoints, editor });
+            });
+    }
     public connect(graphId: number) {
         if (this.currentGraphId === graphId && this.socket) return;
         this.cleanUp();
@@ -126,25 +180,122 @@ export class GraphCollaborationWsService {
                 this.editors.set(message.editors);
                 break;
             case 'user_joined':
-                this.editors.update((editors) => {
-                    const exists = editors.some((e) => e.user_id === message.editor.user_id);
-                    return exists ? editors : [...editors, message.editor]
-                });
+                this.editors.update((editors) => 
+                    editors.some((e) => e.user_id === message.editor.user_id) ? editors : [... editors, message.editor]
+                );
                 break;
             case 'user_left':
                 this.editors.update((editors) =>
                 editors.filter((e) => e.user_id !== message.user_id)
                 );
                 break;
-            case 'graph_modified':
-                this.graphModified$.next(message);
+            case 'graph_state':
+                this.graphState$.next(message);
                 break;
             case 'graph_saved':
                 this.graphSaved$.next(message);
                 break;
+            case 'node_created':
+                this.nodeCreated$.next(message);
+                break;
+            case 'node_updated':
+                this.nodeUpdated$.next(message);
+                break;
+            case 'nodes_deleted':
+                this.nodesDeleted$.next(message);
+                break;
+            case 'connection_created':
+                this.connectionCreated$.next(message);
+                break;
+            case 'connection_deleted':
+                this.connectionDeleted$.next(message);
+                break;
+            case 'connections_deleted':
+                this.connectionsDeleted$.next(message);
+                break;
+            case 'connection_waypoints_updated':
+                this.connectionWaypointsUpdated$.next(message);
+                break;
+            case 'cursor_moved':
+                this.cursorMoved$.next(message);
+                break;
+            case 'selection_changed':
+                this.selectionChanged$.next(message);
+                break;
+            case 'node_locked':
+                this.nodeLocked$.next(message);
+                break;
+            case 'node_unlocked':
+                this.nodeUnlocked$.next(message);
+                break;
             case 'error':
                 console.error(`[WS] Server error [${message.code}]: ${message.message}`);
                 break;
+        }
+    }
+
+    public sendNodeCreated(node: NodeModel): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({type: 'node_created', node, editor})
+    }
+
+    public sendNodeUpdated(node: NodeModel): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({type: 'node_updated', node, editor})
+    }
+
+    public sendNodesDeleted(node_ids: string[]): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({type: 'nodes_deleted', node_ids, editor});
+    }
+
+    public sendConnectionCreated(connection: ConnectionModel): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({type: 'connection_created', connection, editor});
+    }
+
+    public sendConnectionDeleted(connection_id: string): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'connection_deleted', connection_id, editor });
+    }
+
+    public sendConnectionsDeleted(connection_ids: string[]): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'connections_deleted', connection_ids, editor });
+    }
+
+    public sendConnectionWaypointsUpdated(connection_id: string, waypoints: IPoint[]): void {
+        this.waypointPipe$.next({ connection_id, waypoints });
+    }
+
+    public sendCursorMoved(x: number, y: number): void {
+        this.cursorPipe$.next({x, y});
+    }
+
+    public sendSelectionChanged(node_ids: string[]): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'selection_changed', node_ids, editor });
+    }
+
+    public sendNodeLocked(node_id: string): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'node_locked', node_id, editor });
+    }
+
+    public sendNodeUnlocked(node_id: string): void {
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'node_unlocked', node_id, editor });
+    }
+
+    private buildEditorInfo(): EditorInfo | null {
+        const user = this.profileService.currentUserSignal();
+        if (!user) return null;
+        return {user_id: user.id, display_name: user.display_name, avatar_url: user.avatar_url};
+    }
+
+    private sendRaw(payload: object): void {
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(payload))
         }
     }
 
@@ -174,12 +325,6 @@ export class GraphCollaborationWsService {
             this.baseReconnectDelayMs * Math.pow(2, this.reconnectAttempts - 1),
             this.maxReconnectDelayMs
         );
-    }
-
-    public sendUserEditing(): void {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket?.send(JSON.stringify({type: 'graph_modified'}))
-        }
     }
 
     private cleanUp():void {
