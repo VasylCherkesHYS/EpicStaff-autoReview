@@ -6,6 +6,8 @@ optionally offloading large payloads to a separate storage backend.
 
 Add a new transport or store by implementing AbstractBroker / AbstractStorage
 and injecting it — Producer and Consumer stay unchanged.
+
+To change default payload size threshold for all producers set DEFAULT_PAYLOAD_SIZE_THRESHOLD in the env.
 """
 
 from .message import Message

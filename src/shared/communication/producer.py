@@ -1,11 +1,14 @@
 import json
+from os import getenv
 
 from .message import Message
 from .brokers import AbstractBroker
 from .storages import AbstractStorage
 
 
-PAYLOAD_SIZE_THRESHOLD = 1024**2  # 1MB
+DEFAULT_PAYLOAD_SIZE_THRESHOLD = int(
+    getenv("DEFAULT_PAYLOAD_SIZE_THRESHOLD", 1024**2)
+)  # 1MB
 
 
 class Producer:
@@ -23,7 +26,7 @@ class Producer:
         self,
         broker: AbstractBroker,
         storage: AbstractStorage,
-        payload_size_threshold: int = PAYLOAD_SIZE_THRESHOLD,
+        payload_size_threshold: int = DEFAULT_PAYLOAD_SIZE_THRESHOLD,
     ):
         self._broker = broker
         self._storage = storage
