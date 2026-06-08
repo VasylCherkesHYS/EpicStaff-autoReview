@@ -4,6 +4,7 @@ from typing import Any, Literal
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from .agents import CrewData
+from .ai_providers import LLMData
 from .tools import PythonCodeData
 
 

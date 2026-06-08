@@ -32,7 +32,6 @@ from tables.models.graph_models import (
     Edge,
     EndNode,
     FileExtractorNode,
-    LLMNode,
     PythonNode,
     StartNode,
     SubGraphNode,
@@ -52,7 +51,6 @@ _SECRET_PATTERN = re.compile(r"api_key|secret|token", re.IGNORECASE)
 _NODE_TABLES: list[tuple[str, type, bool]] = [
     ("crew", CrewNode, True),
     ("python", PythonNode, True),
-    ("llm", LLMNode, True),
     ("file_extractor", FileExtractorNode, True),
     ("audio_transcription", AudioTranscriptionNode, True),
     ("subgraph", SubGraphNode, True),
@@ -1391,12 +1389,8 @@ _TOOL_CALLABLES: dict[str, callable] = {
     "get_subflow": lambda graph_id, subgraph_node_id, **_: get_subflow(
         graph_id, subgraph_node_id
     ),
-    "get_edges_from": lambda graph_id, node_id, **_: get_edges_from(
-        graph_id, node_id
-    ),
-    "get_edges_to": lambda graph_id, node_id, **_: get_edges_to(
-        graph_id, node_id
-    ),
+    "get_edges_from": lambda graph_id, node_id, **_: get_edges_from(graph_id, node_id),
+    "get_edges_to": lambda graph_id, node_id, **_: get_edges_to(graph_id, node_id),
     "list_node_types": lambda graph_id, **_: list_node_types(graph_id),
     # Skill tools are graph-independent; graph_id is accepted but ignored.
     "list_skills": lambda _graph_id, **__: list_skills(),
@@ -1405,7 +1399,13 @@ _TOOL_CALLABLES: dict[str, callable] = {
     "get_session_stats": lambda graph_id, since=None, until=None, status=None, **_: (
         get_session_stats(graph_id, since=since, until=until, status=status)
     ),
-    "get_recent_sessions": lambda graph_id, limit=5, since=None, until=None, where=None, include_full_variables=False, **_: (
+    "get_recent_sessions": lambda graph_id,
+    limit=5,
+    since=None,
+    until=None,
+    where=None,
+    include_full_variables=False,
+    **_: (
         get_recent_sessions(
             graph_id,
             limit=int(limit),

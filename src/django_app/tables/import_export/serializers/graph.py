@@ -24,7 +24,8 @@ from tables.models import (
 )
 from tables.models.graph_models import (
     CodeAgentNode,
-    GraphNote, ScheduleTriggerNode,
+    GraphNote,
+    ScheduleTriggerNode,
     ClassificationDecisionTablePrompt,
 )
 from tables.import_export.serializers.python_tools import PythonCodeImportSerializer

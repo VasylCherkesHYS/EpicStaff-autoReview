@@ -9,6 +9,14 @@ from tables.models import (
     GraphOrganizationUser,
     PythonNode,
     Session,
+    CrewNode,
+    Session,
+    Edge,
+    Graph,
+    PythonNode,
+    FileExtractorNode,
+    AudioTranscriptionNode,
+    GraphOrganizationUser,
 )
 from tables.models.graph_models import (
     ClassificationConditionGroup,
@@ -38,18 +46,6 @@ from src.shared.models import (
     SubGraphData,
     SubGraphNodeData,
     TelegramTriggerNodeData,
-)
-from tables.models import (
-    CodeAgentNode,
-    CrewNode,
-    Session,
-    Edge,
-    Graph,
-    GraphStorageFile,
-    PythonNode,
-    FileExtractorNode,
-    AudioTranscriptionNode,
-    GraphOrganizationUser,
 )
 from tables.constants.variables_constants import DOMAIN_VARIABLES_KEY
 from tables.services.converter_service import ConverterService
@@ -127,11 +123,16 @@ class SessionManagerService(metaclass=SingletonMeta):
         start_node = StartNode.objects.filter(graph_id=graph_id).first()
 
         if start_node is not None:
-            if variables and start_node.variables:
-                start_node_variables = self._get_actual_variables(start_node.variables)
-                variables = self._deep_merge_dicts(start_node_variables, variables)
-            elif start_node.variables:
-                variables = start_node.variables
+            if start_node.variables:
+                # Resolve template variables in start_node config using user-provided variables
+                resolved_start_vars = self._resolve_template_variables(
+                    start_node.variables, variables
+                )
+                start_node_variables = self._get_actual_variables(resolved_start_vars)
+                if variables:
+                    variables = self._deep_merge_dicts(start_node_variables, variables)
+                else:
+                    variables = start_node_variables
 
         variables = self._get_actual_variables(variables)
 
