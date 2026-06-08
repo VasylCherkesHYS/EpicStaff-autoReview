@@ -18,6 +18,7 @@ import { ConfigureModelsDialogService } from '../../../features/configure-models
 import { EpicChatService } from '../../../features/epic-chat/epic-chat.service';
 import { UserAvatarComponent } from '../../../features/role-base-access/components/user-avatar/user-avatar.component';
 import { UserMenuComponent } from '../../../features/role-base-access/components/user-sidebar-menu/user-menu.component';
+import { ActiveOrgService } from '../../../services/auth/active-org.service';
 import { AuthService } from '../../../services/auth/auth.service';
 import { ProfileService } from '../../../services/auth/profile.service';
 import { ConfigService } from '../../../services/config/config.service';
@@ -129,6 +130,7 @@ export class LeftSidebarComponent implements AfterViewInit {
 
     constructor(
         public epicChatService: EpicChatService,
+        public activeOrgService: ActiveOrgService,
         private configService: ConfigService,
         private configureModelsDialogService: ConfigureModelsDialogService,
         private authService: AuthService
