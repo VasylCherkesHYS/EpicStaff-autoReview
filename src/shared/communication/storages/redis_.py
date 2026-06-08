@@ -3,9 +3,9 @@ from datetime import timedelta
 from redis import Redis as SyncRedis, RedisError
 from redis.asyncio import Redis as AsyncRedis
 
-from ..error_handler import handle_error
-from ..errors import StorageOperationError
-from .abstract import AbstractStorage
+from communication.error_handler import handle_error
+from communication.errors import StorageOperationError
+from communication.storages.abstract import AbstractStorage
 
 
 class RedisStorage(AbstractStorage):

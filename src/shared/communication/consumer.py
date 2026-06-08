@@ -1,9 +1,9 @@
 import json
 from typing import Iterable, AsyncIterable
 
-from .message import Message
-from .brokers import AbstractBroker
-from .storages import AbstractStorage
+from communication.message import Message
+from communication.brokers import AbstractBroker
+from communication.storages import AbstractStorage
 
 
 class Consumer:
