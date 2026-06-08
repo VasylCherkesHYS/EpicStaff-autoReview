@@ -34,4 +34,4 @@ class DataLoadError(AgentServiceError):
 
 
 class DuplicateToolNameError(AgentServiceError):
-    """Raised when ToolRegistryBuilder detects a prefixed tool name collision."""
+    """Raised when ToolRegistryBuilder detects a tool name collision (after sanitisation)."""

@@ -63,25 +63,25 @@ def _register_system_tool(name: str) -> None:
         return name
 
 
-async def test_system_tool_gets_sys_prefix():
+async def test_system_tool_uses_clean_name():
     _register_system_tool("calculator")
 
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = builder.add_system_tools().build()
 
     names = [spec.name for spec in registry.tool_specs()]
-    assert "sys_calculator" in names
+    assert "calculator" in names
 
 
-async def test_python_code_tool_gets_usr_prefix():
+async def test_python_code_tool_uses_clean_name():
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = builder.add_python_code_tool(_python_tool_data("formatter")).build()
 
     names = [spec.name for spec in registry.tool_specs()]
-    assert "usr_formatter" in names
+    assert "formatter" in names
 
 
-async def test_mcp_tool_gets_usr_prefix():
+async def test_mcp_tool_uses_clean_name():
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = builder.add_mcp_tool(
         _mcp_tool_data("connector"),
@@ -91,22 +91,17 @@ async def test_mcp_tool_gets_usr_prefix():
     ).build()
 
     names = [spec.name for spec in registry.tool_specs()]
-    assert "usr_connector" in names
+    assert "connector" in names
 
 
-async def test_sys_and_usr_same_leaf_name_coexist():
+async def test_sys_and_usr_same_name_now_collides():
     _register_system_tool("shared_name")
 
     builder = ToolRegistryBuilder(_fake_sandbox())
-    registry = (
-        builder.add_system_tools()
-        .add_python_code_tool(_python_tool_data("shared_name"))
-        .build()
-    )
+    builder.add_system_tools()
 
-    names = {spec.name for spec in registry.tool_specs()}
-    assert "sys_shared_name" in names
-    assert "usr_shared_name" in names
+    with pytest.raises(DuplicateToolNameError):
+        builder.add_python_code_tool(_python_tool_data("shared_name"))
 
 
 async def test_duplicate_usr_name_raises_duplicate_tool_name_error():
@@ -178,7 +173,7 @@ async def test_mcp_stub_executor_raises_not_implemented():
     with pytest.raises(
         NotImplementedError, match="MCP tool execution is not implemented yet"
     ):
-        await registry.execute("usr_my_mcp", {})
+        await registry.execute("my_mcp", {})
 
 
 async def test_system_tool_executor_callable_via_registry():
@@ -187,7 +182,7 @@ async def test_system_tool_executor_callable_via_registry():
     builder = ToolRegistryBuilder(_fake_sandbox())
     registry = builder.add_system_tools().build()
 
-    result = await registry.execute("sys_ping", {})
+    result = await registry.execute("ping", {})
     assert isinstance(result, ToolResult)
     assert result.is_error is False
 
@@ -210,4 +205,27 @@ async def test_tool_specs_returns_all_registered():
 
     specs = registry.tool_specs()
     names = {s.name for s in specs}
-    assert names == {"sys_spec_tool", "usr_code_tool", "usr_mcp_tool"}
+    assert names == {"spec_tool", "code_tool", "mcp_tool"}
+
+
+async def test_tool_name_is_sanitized():
+    builder = ToolRegistryBuilder(_fake_sandbox())
+    registry = builder.add_python_code_tool(_python_tool_data("My Tool")).build()
+
+    names = [spec.name for spec in registry.tool_specs()]
+    assert "My_Tool" in names
+
+    # Sandbox is a MagicMock; executor catches the non-awaitable and returns
+    # an error ToolResult — confirms dispatch reaches the executor without
+    # raising a registry KeyError on the sanitized name.
+    result = await registry.execute("My_Tool", {})
+    assert isinstance(result, ToolResult)
+
+
+async def test_sanitized_collision_raises():
+    # "My Tool" and "My_Tool" both sanitize to "My_Tool"
+    builder = ToolRegistryBuilder(_fake_sandbox())
+    builder.add_python_code_tool(_python_tool_data("My Tool"))
+
+    with pytest.raises(DuplicateToolNameError):
+        builder.add_python_code_tool(_python_tool_data("My_Tool"))

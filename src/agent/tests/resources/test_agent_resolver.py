@@ -143,7 +143,7 @@ async def test_python_tool_ref_resolves_to_registry():
     resolved = _resolver().resolve(agent, request)
 
     names = {spec.name for spec in resolved.tools.tool_specs()}
-    assert "usr_my_tool" in names
+    assert "my_tool" in names
 
 
 async def test_mcp_tool_ref_resolves_to_registry():
@@ -155,7 +155,7 @@ async def test_mcp_tool_ref_resolves_to_registry():
 
     names = {spec.name for spec in resolved.tools.tool_specs()}
     # leaf id "4" used as name
-    assert "usr_4" in names
+    assert "4" in names
 
 
 async def test_unknown_tool_ref_raises():
@@ -245,8 +245,8 @@ async def test_two_agents_share_pool_each_gets_own_registry():
 
     names_a = {spec.name for spec in resolved_a.tools.tool_specs()}
     names_b = {spec.name for spec in resolved_b.tools.tool_specs()}
-    assert "usr_shared_tool" in names_a
-    assert "usr_shared_tool" in names_b
+    assert "shared_tool" in names_a
+    assert "shared_tool" in names_b
     # Registries are separate objects
     assert resolved_a.tools is not resolved_b.tools
 
