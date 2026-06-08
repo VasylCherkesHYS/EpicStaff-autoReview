@@ -206,7 +206,43 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                         state ? { ...state, save_version: event.new_save_version } : state
                     );
                 }
-            })
+            });
+
+        this.wsService.graphState$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => {
+                const normalizedFlow = normalizeFlowPorts(msg.flow);
+                this.flowService.setFlow(normalizedFlow);
+            });
+
+        this.wsService.nodeCreated$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.addNode(msg.node));
+        
+        this.wsService.nodeUpdated$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.updateNode(msg.node));
+
+        this.wsService.nodesDeleted$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.deleteSelections({fNodeIds: msg.node_ids, fConnectionIds: []}));
+
+        this.wsService.connectionCreated$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.addConnection(msg.connection));
+        
+        this.wsService.connectionDeleted$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.removeConnection(msg.connection_id));
+
+        this.wsService.connectionsDeleted$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.removeConnectionsInBatch(msg.connection_ids));
+
+        this.wsService.connectionWaypointsUpdated$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((msg) => this.flowService.updateConnectionWaypoints(msg.connection_id, msg.waypoints));
+
     }
 
     public ngOnInit(): void {
