@@ -125,7 +125,7 @@
         }
     </ul>
 
-    @if (isEpicChatEnabled && user(); as currentUser) {
+    @if (isEpicChatEnabled) {
         <epic-chat
             #epicChat
             class="epic-chat-host"
@@ -133,7 +133,6 @@
             [themeConfig]="epicChatThemeConfig"
             chat-icon-path=""
             message-timeout="180000"
-            [uniqueUserId]="currentUser.id.toString()"
             [apiBaseUrl]="apiBaseUrl"
             [accessToken]="accessToken"
             [attr.chat-left]="epicChatService.isDocked() ? epicChatService.dockLeftPx() + 'px' : '68px'"
@@ -144,12 +143,6 @@
             [dockEnabled]="true"
             [fileAttachmentDisabled]="false"
             [isDockMode]="epicChatService.isDocked()"
-            [isMonoAgent]="true"
-            [hideToggleButton]="true"
-            [defaultAgentName]="epicChatService.currentMonoAgent()?.name ?? ''"
-            [defaultAgentDescription]="epicChatService.currentMonoAgent()?.description ?? ''"
-            [defaultAgentFlowUrl]="epicChatService.currentMonoAgent()?.flowUrl ?? ''"
-            [defaultAgentFlowId]="epicChatService.currentMonoAgent()?.flowId ?? null"
             [epChatCommand]="epicChatService.epChatCommand()"
             (epChatCommandResult)="onEpChatCommandResult($event)"
             (epChatEvent)="onEpChatEvent($event)"
