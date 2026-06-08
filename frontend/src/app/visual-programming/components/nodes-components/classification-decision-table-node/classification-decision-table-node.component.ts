@@ -33,26 +33,6 @@ export class ClassificationDecisionTableNodeComponent {
             );
     }
 
-    // get routeDocks(): Array<{ code: string; port: ViewPort | undefined }> {
-    //     const allGroups = this.node.data.table?.condition_groups ?? [];
-    //     const uniqueRouteCodes = new Map<string, ViewPort | undefined>();
-
-    //     // Collect unique route codes where dock_visible=true
-    //     allGroups.forEach((group: ConditionGroup) => {
-    //         if (group.route_code && group.dock_visible) {
-    //             if (!uniqueRouteCodes.has(group.route_code)) {
-    //                 const port = this.getPortForRouteCode(group.route_code);
-    //                 uniqueRouteCodes.set(group.route_code, port);
-    //             }
-    //         }
-    //     });
-
-    //     return Array.from(uniqueRouteCodes.entries()).map(([code, port]) => ({
-    //         code,
-    //         port,
-    //     }));
-    // }
-
     get defaultNextNode() {
         return this.node.data.table?.default_next_node;
     }
