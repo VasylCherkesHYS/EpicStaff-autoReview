@@ -1,7 +1,7 @@
 from tables.models.knowledge_models import DocumentMetadata
 
 
-MAX_FILE_SIZE = 12 * 1024 * 1024  # 12 MB
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 ALLOWED_FILE_TYPES = {choice[0] for choice in DocumentMetadata.DocumentFileType.choices}
 

@@ -449,6 +449,7 @@ services:
       - DOMAIN_NAME=${DOMAIN_NAME}
       - SSL_ENABLE=${SSL_ENABLE}
       - FRONTEND_INTERNAL_PORT=80
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-100M}
     volumes:
       - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template
       - ./nginx/certs:/etc/nginx/certs:ro

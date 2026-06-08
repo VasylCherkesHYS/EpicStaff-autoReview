@@ -97,7 +97,7 @@ class DocumentContent(models.Model):
     Binary storage for file contents.
     """
 
-    content = models.BinaryField(help_text="Binary file content (max 12MB)")
+    content = models.BinaryField(help_text="Binary file content (max 20MB)")
 
     def __str__(self):
         return f"Content {self.content_id}"

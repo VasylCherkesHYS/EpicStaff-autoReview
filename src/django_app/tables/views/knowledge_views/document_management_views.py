@@ -1,3 +1,8 @@
+import io
+import mimetypes
+import zipfile
+
+from django.http import HttpResponse
 from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,6 +15,7 @@ from tables.serializers.knowledge_serializers import (
     DocumentMetadataSerializer,
     DocumentUploadSerializer,
     DocumentBulkDeleteSerializer,
+    CopyDocumentsSerializer,
     DocumentListSerializer,
     DocumentDetailSerializer,
 )
@@ -22,6 +28,8 @@ from tables.swagger_schemas.knowledge_schemas.document_management_schemas import
     DOCUMENTS_DESTROY_DELETE,
     DOCUMENTS_UPLOAD_POST,
     DOCUMENTS_BULK_DELETE_POST,
+    DOCUMENTS_DOWNLOAD_GET,
+    DOCUMENTS_COPY_POST,
     COLLECTION_DOCUMENTS_LIST_GET,
 )
 from tables.exceptions import (
@@ -31,8 +39,57 @@ from tables.exceptions import (
     CollectionNotFoundException,
     NoFilesProvidedException,
     DocumentNotFoundException,
+    DocumentsNotFoundException,
     InvalidFieldType,
 )
+
+
+def _document_bytes(document: DocumentMetadata) -> bytes:
+    """Return the binary payload of a document, or empty bytes if absent."""
+    content = document.document_content
+    if content is None or content.content is None:
+        return b""
+    return bytes(content.content)
+
+
+def _build_file_response(document: DocumentMetadata) -> HttpResponse:
+    """Build an attachment response for a single document."""
+    content_type = (
+        mimetypes.guess_type(document.file_name)[0] or "application/octet-stream"
+    )
+    response = HttpResponse(_document_bytes(document), content_type=content_type)
+    response["Content-Disposition"] = f'attachment; filename="{document.file_name}"'
+    return response
+
+
+def _build_archive_response(
+    documents: list, archive_name: str = "documents.zip"
+) -> HttpResponse:
+    """Bundle multiple documents into a zip attachment, deduplicating file names."""
+    buffer = io.BytesIO()
+    used_names: dict[str, int] = {}
+
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for document in documents:
+            archive.writestr(
+                _unique_name(document.file_name, used_names),
+                _document_bytes(document),
+            )
+
+    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{archive_name}"'
+    return response
+
+
+def _unique_name(name: str, used_names: dict) -> str:
+    """Suffix duplicate file names so no archive entry is overwritten."""
+    count = used_names.get(name, 0)
+    used_names[name] = count + 1
+    if count == 0:
+        return name
+
+    stem, dot, ext = name.rpartition(".")
+    return f"{stem} ({count}){dot}{ext}" if dot else f"{name} ({count})"
 
 
 class DocumentManagementViewSet(viewsets.GenericViewSet):
@@ -160,6 +217,8 @@ class DocumentViewSet(
             return DocumentListSerializer
         elif self.action == "retrieve":
             return DocumentDetailSerializer
+        elif self.action == "copy":
+            return CopyDocumentsSerializer
         return DocumentMetadataSerializer
 
     @extend_schema(**DOCUMENTS_LIST_GET)
@@ -210,6 +269,86 @@ class DocumentViewSet(
                 {"error": f"An unexpected error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(**DOCUMENTS_DOWNLOAD_GET)
+    @action(detail=False, methods=["get"], url_path="download")
+    def download(self, request):
+        """
+        Download one or multiple documents.
+        A single document is returned as-is; multiple are bundled into a zip.
+        """
+        try:
+            document_ids = self._parse_document_ids(
+                request.query_params.get("document_ids", "")
+            )
+        except InvalidFieldType as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not document_ids:
+            return Response(
+                {"error": "document_ids query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            documents = DocumentManagementService.get_documents_with_content(
+                document_ids
+            )
+        except DocumentsNotFoundException as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+
+        if len(documents) == 1:
+            return _build_file_response(documents[0])
+        return _build_archive_response(documents)
+
+    @extend_schema(**DOCUMENTS_COPY_POST)
+    @action(detail=False, methods=["post"], url_path="copy")
+    def copy(self, request):
+        """
+        Copy documents into a target collection (shares binary content).
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            copied_documents = DocumentManagementService.copy_documents_to_collection(
+                collection_id=serializer.validated_data["collection_id"],
+                document_ids=serializer.validated_data["document_ids"],
+            )
+
+            response_serializer = DocumentMetadataSerializer(
+                copied_documents, many=True
+            )
+
+            return Response(
+                {
+                    "message": f"Successfully copied {len(copied_documents)} document(s)",
+                    "documents": response_serializer.data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except (CollectionNotFoundException, DocumentsNotFoundException) as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(
+                {"error": f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @staticmethod
+    def _parse_document_ids(raw_value: str) -> list:
+        """Parse a comma-separated ``document_ids`` query parameter into ints."""
+        ids = []
+        for chunk in raw_value.split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            try:
+                ids.append(int(chunk))
+            except ValueError:
+                raise InvalidFieldType("document_ids", chunk)
+        return ids
 
 
 class CollectionDocumentsViewSet(viewsets.GenericViewSet):

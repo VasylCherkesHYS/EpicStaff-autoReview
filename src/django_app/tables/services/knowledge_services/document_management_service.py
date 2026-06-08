@@ -16,6 +16,7 @@ from tables.exceptions import (
     CollectionNotFoundException,
     NoFilesProvidedException,
     DocumentNotFoundException,
+    DocumentsNotFoundException,
     InvalidCollectionIdException,
 )
 
@@ -420,3 +421,61 @@ class DocumentManagementService:
             logger.info(f"Filtering documents by collection {collection_id_int}")
 
         return queryset
+
+    @staticmethod
+    def get_documents_with_content(
+        document_ids: List[int],
+    ) -> List[DocumentMetadata]:
+        """
+        Fetch documents by ID with their binary content, preserving request order.
+
+        Raises:
+            DocumentsNotFoundException: If any requested document is missing.
+        """
+        documents = DocumentMetadata.objects.filter(
+            document_id__in=document_ids
+        ).select_related("document_content")
+
+        documents_by_id = {doc.document_id: doc for doc in documents}
+        missing_ids = [
+            doc_id for doc_id in document_ids if doc_id not in documents_by_id
+        ]
+        if missing_ids:
+            raise DocumentsNotFoundException(missing_ids)
+
+        return [documents_by_id[doc_id] for doc_id in document_ids]
+
+    @staticmethod
+    @transaction.atomic
+    def copy_documents_to_collection(
+        collection_id: int, document_ids: List[int]
+    ) -> List[DocumentMetadata]:
+        """
+        Copy documents into a target collection without duplicating binary content.
+        New DocumentMetadata records point to the same DocumentContent.
+
+        Raises:
+            CollectionNotFoundException: If the target collection is missing.
+            DocumentsNotFoundException: If any source document is missing.
+        """
+        collection = DocumentManagementService.get_collection(collection_id)
+        source_documents = DocumentManagementService.get_documents_with_content(
+            document_ids
+        )
+
+        copied_documents = [
+            DocumentManagementService.create_document_metadata(
+                collection=collection,
+                document_content=source_doc.document_content,
+                file_name=source_doc.file_name,
+                file_type=source_doc.file_type,
+                file_size=source_doc.file_size,
+            )
+            for source_doc in source_documents
+        ]
+
+        logger.info(
+            f"Copied {len(copied_documents)} document(s) into collection {collection_id}"
+        )
+
+        return copied_documents

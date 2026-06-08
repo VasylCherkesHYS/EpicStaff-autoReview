@@ -11,7 +11,7 @@ export const CHUNK_STRATEGIES_SELECT_ITEMS: SelectItem[] = CHUNK_STRATEGIES.map(
     value: t.toLowerCase(),
 }));
 
-export const MAX_DOCUMENT_SIZE = 12 * 1024 * 1024; // 12 MB
+export const MAX_DOCUMENT_SIZE = 20 * 1024 * 1024; // 20 MB
 
 export const RAG_TYPE_CONFIG: Record<RagType, { name: string; icon: string }> = {
     naive: { name: 'Naive RAG', icon: 'mouse' },
