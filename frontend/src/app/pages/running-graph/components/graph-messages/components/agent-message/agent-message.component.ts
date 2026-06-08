@@ -1,17 +1,17 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
 import { GetAgentRequest } from '../../../../../../features/staff/models/agent.model';
-import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { CopyButtonComponent } from '../../../../../../shared/components/copy-button/copy-button.component';
 import { AgentMessageData, GraphMessage } from '../../../../models/graph-session-message.model';
 
 @Component({
     selector: 'app-agent-message',
     standalone: true,
-    imports: [CommonModule, NgxJsonViewerModule, AppSvgIconComponent],
+    imports: [CommonModule, NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
     animations: [expandCollapseAnimation],
     template: `
         <div class="agent-flow-container">
@@ -64,16 +64,7 @@ import { AgentMessageData, GraphMessage } from '../../../../models/graph-session
                             [@expandCollapse]="isThoughtExpanded ? 'expanded' : 'collapsed'"
                         >
                             <div class="thought-bubble">
-                                <button
-                                    class="copy-btn"
-                                    (click)="copyContent($event)"
-                                    aria-label="Copy agent message"
-                                >
-                                    <app-svg-icon
-                                        icon="copy"
-                                        size="0.875rem"
-                                    />
-                                </button>
+                                <app-copy-button [text]="copyText" />
                                 <span class="thought-quote">"</span>{{ cleanThought(getThought())
                                 }}<span class="thought-quote">"</span>
                             </div>
@@ -175,34 +166,6 @@ import { AgentMessageData, GraphMessage } from '../../../../models/graph-session
             border-left: 4px solid #8e5cd9;
         }
 
-        .copy-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 28px;
-            height: 28px;
-            border: none;
-            border-radius: 6px;
-            background: transparent;
-            color: var(--gray-500);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition:
-                opacity 0.15s ease,
-                color 0.15s ease,
-                background-color 0.15s ease;
-            padding: 0;
-            z-index: 1;
-
-            &:hover {
-                background: rgba(255, 255, 255, 0.08);
-                color: var(--gray-100);
-            }
-        }
-
         .agent-header {
             display: flex;
             align-items: center;
@@ -301,7 +264,7 @@ import { AgentMessageData, GraphMessage } from '../../../../models/graph-session
             font-style: italic;
             margin-left: 23px;
 
-            &:hover .copy-btn {
+            &:hover app-copy-button {
                 opacity: 1;
             }
         }
@@ -381,7 +344,6 @@ export class AgentMessageComponent implements OnInit {
     @Input() public message!: GraphMessage;
     @Input() public agent: GetAgentRequest | null = null; // Add input for agent data
 
-    private readonly toastService = inject(ToastService);
     private toolJsonData: unknown = null;
     private resultJsonData: unknown = null;
 
@@ -567,20 +529,12 @@ export class AgentMessageComponent implements OnInit {
         return (this.message.message_data as AgentMessageData).result?.trim() || '';
     }
 
-    public copyContent(event: Event): void {
-        event.stopPropagation();
+    public get copyText(): string {
         const parts: string[] = [];
         if (this.hasThought()) parts.push(`Thought:\n${this.cleanThought(this.getThought())}`);
         if (this.hasTool()) parts.push(`Tool: ${this.getTool()}`);
         if (this.hasToolInput()) parts.push(`Tool Input:\n${this.getToolInput()}`);
         if (this.getResult()) parts.push(`Tool Output:\n${this.getResult()}`);
-        navigator.clipboard
-            .writeText(parts.join('\n\n'))
-            .then(() => {
-                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
-            })
-            .catch(() => {
-                this.toastService.error('Failed to copy', 3000, 'top-right');
-            });
+        return parts.join('\n\n');
     }
 }

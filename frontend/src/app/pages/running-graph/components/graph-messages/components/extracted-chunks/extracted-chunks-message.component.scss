@@ -131,36 +131,8 @@
     flex-direction: column;
     gap: 0.5rem;
 
-    &:hover .copy-btn {
+    &:hover app-copy-button {
         opacity: 1;
-    }
-}
-
-.copy-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--gray-500);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition:
-        opacity 0.15s ease,
-        color 0.15s ease,
-        background-color 0.15s ease;
-    padding: 0;
-    z-index: 1;
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--gray-100);
     }
 }
 

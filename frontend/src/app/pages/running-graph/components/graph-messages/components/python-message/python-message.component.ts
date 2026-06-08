@@ -1,17 +1,17 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
-import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { CopyButtonComponent } from '../../../../../../shared/components/copy-button/copy-button.component';
 import { FormatExecutionDataPipe } from '../../../../../../shared/pipes/format-execution-data.pipe';
 import { GraphMessage, MessageType, PythonMessageData } from '../../../../models/graph-session-message.model';
 
 @Component({
     selector: 'app-python-message',
     standalone: true,
-    imports: [CommonModule, NgxJsonViewerModule, FormatExecutionDataPipe, AppSvgIconComponent],
+    imports: [CommonModule, NgxJsonViewerModule, FormatExecutionDataPipe, AppSvgIconComponent, CopyButtonComponent],
     animations: [expandCollapseAnimation],
     template: `
         <div class="python-flow-container">
@@ -184,16 +184,7 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
                         >
                             <div class="raw-data-wrapper">
                                 <div class="raw-data-content">
-                                    <button
-                                        class="copy-btn"
-                                        (click)="copyContent($event)"
-                                        aria-label="Copy Python execution data"
-                                    >
-                                        <app-svg-icon
-                                            icon="copy"
-                                            size="0.875rem"
-                                        />
-                                    </button>
+                                    <app-copy-button [text]="copyText" />
                                     <ngx-json-viewer
                                         [json]="getExecutionData() | formatExecutionData"
                                         [expanded]="false"
@@ -215,34 +206,6 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
                 padding: var(--message-padding, 1.25rem);
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 border-left: 4px solid #ffcf3f;
-            }
-
-            .copy-btn {
-                position: absolute;
-                top: 8px;
-                right: 8px;
-                width: 28px;
-                height: 28px;
-                border: none;
-                border-radius: 6px;
-                background: transparent;
-                color: var(--gray-500);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                opacity: 0;
-                transition:
-                    opacity 0.15s ease,
-                    color 0.15s ease,
-                    background-color 0.15s ease;
-                padding: 0;
-                z-index: 1;
-
-                &:hover {
-                    background: rgba(255, 255, 255, 0.08);
-                    color: var(--gray-100);
-                }
             }
 
             .python-header {
@@ -355,7 +318,7 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
                 overflow: auto;
                 max-height: 600px;
 
-                &:hover .copy-btn {
+                &:hover app-copy-button {
                     opacity: 1;
                 }
             }
@@ -396,7 +359,6 @@ import { GraphMessage, MessageType, PythonMessageData } from '../../../../models
 })
 export class PythonMessageComponent implements OnInit {
     @Input() message!: GraphMessage;
-    private readonly toastService = inject(ToastService);
     isMessageExpanded = false;
     isCodeExpanded = true;
     isInputExpanded = true;
@@ -531,20 +493,11 @@ export class PythonMessageComponent implements OnInit {
         return output.split('\n').length > 5 || output.length > 500;
     }
 
-    copyContent(event: Event): void {
-        event.stopPropagation();
+    get copyText(): string {
         const parts: string[] = [];
         if (this.hasCode()) parts.push(`Code:\n${this.getCode()}`);
         if (this.hasOutput()) parts.push(`Output:\n${this.getOutput()}`);
         if (this.hasError()) parts.push(`Error:\n${this.getError()}`);
-        const text = parts.length > 0 ? parts.join('\n\n') : JSON.stringify(this.getExecutionData(), null, 2);
-        navigator.clipboard
-            .writeText(text)
-            .then(() => {
-                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
-            })
-            .catch(() => {
-                this.toastService.error('Failed to copy', 3000, 'top-right');
-            });
+        return parts.length > 0 ? parts.join('\n\n') : JSON.stringify(this.getExecutionData(), null, 2);
     }
 }

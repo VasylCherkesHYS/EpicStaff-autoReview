@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, Input, ViewEncapsulation } from '@angular/core';
+import { Component, Input, ViewEncapsulation } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
-import { ToastService } from '../../../../../../services/notifications/toast.service';
 import { expandCollapseAnimation } from '../../../../../../shared/animations/animations-expand-collapse';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { CopyButtonComponent } from '../../../../../../shared/components/copy-button/copy-button.component';
 import {
     FinishSubflowMessageData,
     GraphMessage,
@@ -15,7 +15,7 @@ import {
 @Component({
     selector: 'app-subgraph-finish-message',
     standalone: true,
-    imports: [CommonModule, NgxJsonViewerModule, AppSvgIconComponent],
+    imports: [CommonModule, NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
     encapsulation: ViewEncapsulation.Emulated,
     animations: [expandCollapseAnimation],
     template: `
@@ -67,16 +67,7 @@ import {
                             [@expandCollapse]="isOutputExpanded ? 'expanded' : 'collapsed'"
                         >
                             <div class="output-content">
-                                <button
-                                    class="copy-btn"
-                                    (click)="copyOutput($event)"
-                                    aria-label="Copy output"
-                                >
-                                    <app-svg-icon
-                                        icon="copy"
-                                        size="0.875rem"
-                                    />
-                                </button>
+                                <app-copy-button [text]="outputJson" />
                                 <ngx-json-viewer
                                     [json]="getOutput()"
                                     [expanded]="false"
@@ -105,16 +96,7 @@ import {
                             [@expandCollapse]="isVariablesExpanded ? 'expanded' : 'collapsed'"
                         >
                             <div class="variables-content">
-                                <button
-                                    class="copy-btn"
-                                    (click)="copyVariables($event)"
-                                    aria-label="Copy variables"
-                                >
-                                    <app-svg-icon
-                                        icon="copy"
-                                        size="0.875rem"
-                                    />
-                                </button>
+                                <app-copy-button [text]="variablesJson" />
                                 <ngx-json-viewer
                                     [json]="getVariables()"
                                     [expanded]="false"
@@ -237,36 +219,8 @@ import {
                 max-height: 400px;
                 margin-left: 23px;
 
-                &:hover .copy-btn {
+                &:hover app-copy-button {
                     opacity: 1;
-                }
-            }
-
-            .copy-btn {
-                position: absolute;
-                top: 8px;
-                right: 8px;
-                width: 28px;
-                height: 28px;
-                border: none;
-                border-radius: 6px;
-                background: transparent;
-                color: var(--gray-500);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                opacity: 0;
-                transition:
-                    opacity 0.15s ease,
-                    color 0.15s ease,
-                    background-color 0.15s ease;
-                padding: 0;
-                z-index: 1;
-
-                &:hover {
-                    background: rgba(255, 255, 255, 0.08);
-                    color: var(--gray-100);
                 }
             }
 
@@ -352,30 +306,12 @@ export class SubgraphFinishMessageComponent {
     isVariablesExpanded = false;
     isStateHistoryExpanded = true;
 
-    private readonly toastService = inject(ToastService);
-
-    copyOutput(event: Event): void {
-        event.stopPropagation();
-        navigator.clipboard
-            .writeText(JSON.stringify(this.getOutput(), null, 2))
-            .then(() => {
-                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
-            })
-            .catch(() => {
-                this.toastService.error('Failed to copy', 3000, 'top-right');
-            });
+    get outputJson(): string {
+        return JSON.stringify(this.getOutput(), null, 2);
     }
 
-    copyVariables(event: Event): void {
-        event.stopPropagation();
-        navigator.clipboard
-            .writeText(JSON.stringify(this.getVariables(), null, 2))
-            .then(() => {
-                this.toastService.success('Copied to clipboard!', 3000, 'bottom-right');
-            })
-            .catch(() => {
-                this.toastService.error('Failed to copy', 3000, 'top-right');
-            });
+    get variablesJson(): string {
+        return JSON.stringify(this.getVariables(), null, 2);
     }
 
     toggleMessage(): void {

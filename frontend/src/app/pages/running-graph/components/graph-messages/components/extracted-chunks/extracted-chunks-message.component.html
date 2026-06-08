@@ -59,16 +59,7 @@
                 class="chunk-card"
                 *ngFor="let chunk of data.chunks; trackBy: trackByOrder"
             >
-                <button
-                    class="copy-btn"
-                    (click)="copyChunkText(chunk.chunk_text, $event)"
-                    aria-label="Copy chunk text"
-                >
-                    <app-svg-icon
-                        icon="copy"
-                        size="0.875rem"
-                    />
-                </button>
+                <app-copy-button [text]="chunk.chunk_text" />
                 <div class="chunk-header">
                     <div class="chunk-order">#{{ chunk.chunk_order }}</div>
                     <div
