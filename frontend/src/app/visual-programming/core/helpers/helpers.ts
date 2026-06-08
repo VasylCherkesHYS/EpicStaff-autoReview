@@ -499,7 +499,7 @@ export function generatePortsForClassificationDecisionTableNode(
         .filter((group) => group.dock_visible !== false)
         .forEach((group) => {
             const key = group.route_code ?? group.group_name;
-            if (!uniqueRouteCodes.has(key)) {
+            if (key && !uniqueRouteCodes.has(key)) {
                 uniqueRouteCodes.set(key, key);
             }
         });

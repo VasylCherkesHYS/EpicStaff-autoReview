@@ -45,16 +45,17 @@ export function mapClassificationDecisionTableToConnections(
         // Per-group route connections: restored from next_node resolved in ref-resolvers
         for (const group of table.condition_groups ?? []) {
             if (!group.next_node) continue;
+            // A classification table routes by route_code. A group with no route
+            // code has no output port, so it must not produce a connection
+            if (!group.route_code) continue;
             const targetNode = nodeByUuid.get(group.next_node);
             if (!targetNode || targetNode.type === NodeType.EDGE) continue;
 
-            // Port ID follows decision-route-${slug(route_code)}, with fallback to decision-out-${group_name}.
+            // Port ID follows decision-route-${slug(route_code)}.
             // Slug transform must match generatePortsForClassificationDecisionTableNode in helpers.ts
             // (lowercase + whitespace -> '-') otherwise the connection won't visually attach to its port.
             const slug = (s: string): string => s.toLowerCase().replace(/\s+/g, '-');
-            const portRole = group.route_code
-                ? `decision-route-${slug(group.route_code)}`
-                : `decision-out-${group.group_name}`;
+            const portRole = `decision-route-${slug(group.route_code)}`;
 
             connections.push(
                 createFlowConnection(
