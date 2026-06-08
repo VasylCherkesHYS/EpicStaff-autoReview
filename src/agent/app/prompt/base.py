@@ -9,7 +9,10 @@ class PromptBuilder(ABC):
 
     def _system_prompt(self, agent: AgentSpec) -> str:
         # STABLE / cacheable prefix — persona + base instructions (+ slot for future static additions).
-        return f"{agent.role}\n\n{agent.instructions}"
+        return (
+            f"Your name is {agent.name}. Your role is {agent.role}.\n"
+            f"These are instructions you should follow: {agent.instructions}"
+        )
 
     def _attachment_messages(
         self, attachments: Sequence[ContextAttachment]

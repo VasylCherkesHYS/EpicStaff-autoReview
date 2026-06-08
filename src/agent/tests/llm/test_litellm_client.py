@@ -418,3 +418,47 @@ async def test_usage_chunk_yielded():
     assert len(usage_chunks) == 1
     assert usage_chunks[0].usage["prompt_tokens"] == 5
     assert usage_chunks[0].usage["completion_tokens"] == 3
+    assert usage_chunks[0].usage["total_tokens"] == 8
+
+
+async def test_stream_options_include_usage_passed_to_acompletion():
+    """acompletion is called with stream_options={"include_usage": True}."""
+    recorded_calls = []
+    router = MagicMock()
+    router.model_list = [{"model_name": "synth-model-001"}]
+
+    async def capturing_acompletion(**kwargs):
+        recorded_calls.append(kwargs)
+        return _aiter([_chunk(finish_reason="stop")])
+
+    router.acompletion = capturing_acompletion
+    pool = make_pool_with_router(router)
+
+    client = LiteLLMClient(retry=RetryPolicy(max_retries=0), pool=pool)
+    await collect(client, MESSAGES, [], MODEL_CONFIG)
+
+    assert recorded_calls[0]["stream_options"] == {"include_usage": True}
+
+
+async def test_usage_only_chunk_with_empty_choices_does_not_crash():
+    """Terminal usage chunk with empty choices yields one LLMChunk(usage=...) and no crash."""
+    usage_chunk = SimpleNamespace(
+        choices=[],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=4, total_tokens=14),
+    )
+    chunks_in = [
+        _chunk(content="hello"),
+        usage_chunk,
+        _chunk(finish_reason="stop"),
+    ]
+    router = make_router(chunks_in)
+    pool = make_pool_with_router(router)
+
+    client = LiteLLMClient(retry=RetryPolicy(max_retries=0), pool=pool)
+    result = await collect(client, MESSAGES, [], MODEL_CONFIG)
+
+    usage_chunks = [c for c in result if c.usage is not None]
+    assert len(usage_chunks) == 1
+    assert usage_chunks[0].usage["prompt_tokens"] == 10
+    assert usage_chunks[0].usage["completion_tokens"] == 4
+    assert usage_chunks[0].usage["total_tokens"] == 14

@@ -27,7 +27,7 @@ from app.logging_utils import redact
 from app.loop.context import AgentContext
 from app.loop.stop_policy import StopPolicy
 from app.tools.registry import ToolRegistry
-from shared.models.agent_service import LoopResult, ToolResult
+from shared.models.agent_service import LoopResult, TokenUsage, ToolResult
 
 
 def _build_model_config(context: AgentContext) -> dict:
@@ -82,6 +82,16 @@ class _RunState:
     iterations: int = 0
     tool_invocations: int = 0
     final_text: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    def token_usage(self) -> TokenUsage:
+        return TokenUsage(
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=self.completion_tokens,
+            total_tokens=self.total_tokens,
+        )
 
 
 class DefaultAgentLoop(AgentLoop):
@@ -130,6 +140,7 @@ class DefaultAgentLoop(AgentLoop):
                 final_text=state.final_text,
                 tool_invocations=state.tool_invocations,
                 iterations=state.iterations,
+                token_usage=state.token_usage(),
             )
 
         except Exception:
@@ -139,6 +150,7 @@ class DefaultAgentLoop(AgentLoop):
                 final_text=state.final_text,
                 tool_invocations=state.tool_invocations,
                 iterations=state.iterations,
+                token_usage=state.token_usage(),
             )
 
     async def _run_inner(
@@ -188,6 +200,19 @@ class DefaultAgentLoop(AgentLoop):
                         fragment.id, {"name": fragment.name, "args": ""}
                     )
                     entry["args"] += fragment.arguments_delta
+
+                if chunk.usage:
+                    state.prompt_tokens += int(chunk.usage.get("prompt_tokens", 0))
+                    state.completion_tokens += int(
+                        chunk.usage.get("completion_tokens", 0)
+                    )
+                    state.total_tokens += int(
+                        chunk.usage.get(
+                            "total_tokens",
+                            chunk.usage.get("prompt_tokens", 0)
+                            + chunk.usage.get("completion_tokens", 0),
+                        )
+                    )
 
             # Only append the assistant message when there is content to record.
             # An iteration with neither text nor tool calls still counts toward
@@ -258,6 +283,7 @@ class DefaultAgentLoop(AgentLoop):
                     tool_invocations=state.tool_invocations,
                     iterations=state.iterations,
                     stop_reason=decision.reason,
+                    token_usage=state.token_usage(),
                 )
 
     async def _execute_tool(

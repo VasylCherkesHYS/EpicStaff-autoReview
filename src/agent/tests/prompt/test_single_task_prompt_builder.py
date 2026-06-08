@@ -32,7 +32,9 @@ def test_build_no_attachments_no_schema():
 
     assert len(messages) == 2
     assert messages[0]["role"] == "system"
-    assert messages[0]["content"] == f"{agent.role}\n\n{agent.instructions}"
+    assert messages[0]["content"] == (
+        f"Your name is {agent.name}. Your role is {agent.role}.\nThese are instructions you should follow: {agent.instructions}"
+    )
     assert messages[1]["role"] == "user"
     assert messages[1]["content"] == "Do X"
 
@@ -72,4 +74,6 @@ def test_system_message_content():
     agent = _agent_spec(role="Expert Analyst", instructions="Analyze data carefully.")
     messages = builder.build(agent, instructions="Run analysis.")
 
-    assert messages[0]["content"] == "Expert Analyst\n\nAnalyze data carefully."
+    assert messages[0]["content"] == (
+        f"Your name is {agent.name}. Your role is {agent.role}.\nThese are instructions you should follow: {agent.instructions}"
+    )

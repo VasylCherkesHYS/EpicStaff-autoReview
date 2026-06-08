@@ -524,3 +524,47 @@ def test_context_starts_with_empty_messages():
     )
     context = AgentContext(agent=agent, attachments=[], correlation_id="c")
     assert context.messages == []
+
+
+async def test_token_usage_aggregated_across_two_iterations():
+    """Usage chunks from two iterations are summed: prompt=12, completion=5, total=17."""
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({"get_time": lambda args: "12:00"})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    iter1_chunks = [
+        *tool_chunks("call_1", "get_time", "{}"),
+        LLMChunk(usage={"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}),
+    ]
+    iter2_chunks = [
+        *text_chunks("The time is 12:00"),
+        LLMChunk(usage={"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}),
+    ]
+
+    llm = FakeLLMClient([iter1_chunks, iter2_chunks])
+    loop = DefaultAgentLoop(llm)
+
+    result = await loop.run(context, tools, emitter, stop)
+
+    assert result.stop_reason == "no_tool_calls"
+    assert result.token_usage.prompt_tokens == 12
+    assert result.token_usage.completion_tokens == 5
+    assert result.token_usage.total_tokens == 17
+
+
+async def test_token_usage_defaults_to_zero_when_no_usage_chunks():
+    """When LLM emits no usage chunks, token_usage fields are all zero."""
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("hello")])
+    loop = DefaultAgentLoop(llm)
+
+    result = await loop.run(context, tools, emitter, stop)
+
+    assert result.token_usage.prompt_tokens == 0
+    assert result.token_usage.completion_tokens == 0
+    assert result.token_usage.total_tokens == 0

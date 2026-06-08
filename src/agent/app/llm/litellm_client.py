@@ -26,6 +26,25 @@ _STRIPPED_MODEL_CONFIG_KEYS = frozenset(
 )
 
 
+def _usage_dict(usage) -> dict:
+    """Normalize a litellm Usage object / SimpleNamespace / dict to plain token counts."""
+    if isinstance(usage, dict):
+        data = usage
+    elif hasattr(usage, "model_dump"):
+        data = usage.model_dump()
+    else:
+        data = vars(usage)
+
+    prompt = int(data.get("prompt_tokens") or 0)
+    completion = int(data.get("completion_tokens") or 0)
+    total = int(data.get("total_tokens") or (prompt + completion))
+    return {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": total,
+    }
+
+
 def _kwargs_for_acompletion(model_config: dict) -> dict:
     """Strip Router-owned and runtime keys from model_config before forwarding."""
     return {
@@ -113,6 +132,7 @@ class LiteLLMClient(LLMClient):
                 messages=messages,
                 stream=True,
                 tools=litellm_tools,
+                stream_options={"include_usage": True},
                 **extra_kwargs,
             )
 
@@ -133,10 +153,21 @@ class LiteLLMClient(LLMClient):
         tc_map: dict[int, dict] = {}
 
         async for chunk in response_stream:
-            choice = chunk.choices[0]
+            usage = getattr(chunk, "usage", None)
+
+            if usage:
+                usage_data = _usage_dict(usage)
+                logger.debug("litellm usage={}", usage_data)
+                yield LLMChunk(usage=usage_data)
+
+            choices = chunk.choices or []
+
+            if not choices:
+                continue
+
+            choice = choices[0]
             delta = choice.delta
             finish = choice.finish_reason
-            usage = getattr(chunk, "usage", None)
 
             if delta.content:
                 yield LLMChunk(delta_text=delta.content)
@@ -166,8 +197,3 @@ class LiteLLMClient(LLMClient):
             if finish:
                 logger.debug("litellm finish_reason={}", finish)
                 yield LLMChunk(finish_reason=finish)
-
-            if usage:
-                usage_dict = usage if isinstance(usage, dict) else vars(usage)
-                logger.debug("litellm usage={}", usage_dict)
-                yield LLMChunk(usage=usage_dict)

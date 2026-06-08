@@ -158,6 +158,16 @@ class ContextAttachment(BaseModel):
     source: str
 
 
+class TokenUsage(BaseModel):
+    """Aggregated token counts for one AgentLoop run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
 class LoopResult(BaseModel):
     """Summary returned by ``AgentLoop.run`` after the tool-use cycle ends.
 
@@ -171,3 +181,4 @@ class LoopResult(BaseModel):
     tool_invocations: int
     iterations: int
     stop_reason: str
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
