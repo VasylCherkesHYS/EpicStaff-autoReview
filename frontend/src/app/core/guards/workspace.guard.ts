@@ -1,30 +1,23 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { ActionCode, ResourceCode } from '@shared/models';
-import { map } from 'rxjs';
 
 import { PermissionsService } from '../../services/auth/permissions.service';
-import { ProfileService } from '../../services/auth/profile.service';
 
 /**
- * Parent guard for /workspace. Runs bootstrapUser() so that permissions are set
- * before any child tab guards execute. Blocks users with no workspace access at all.
+ * Parent guard for /workspace. Permissions are already loaded by bootstrapGuard
+ * (parent canActivate on MainLayoutComponent), so this just checks access.
  */
 export const workspaceGuard: CanActivateFn = () => {
-    const profileService = inject(ProfileService);
     const permissionsService = inject(PermissionsService);
     const router = inject(Router);
 
-    return profileService.bootstrapUser().pipe(
-        map(() => {
-            const hasAccess =
-                permissionsService.isSuperadmin ||
-                permissionsService.can('organizations', 'read') ||
-                permissionsService.can('users', 'read') ||
-                permissionsService.can('roles', 'read');
-            return hasAccess ? true : router.parseUrl('/projects/my');
-        })
-    );
+    const hasAccess =
+        permissionsService.isSuperadmin ||
+        permissionsService.can('organizations', 'read') ||
+        permissionsService.can('users', 'read') ||
+        permissionsService.can('roles', 'read');
+    return hasAccess ? true : router.parseUrl('/projects/my');
 };
 
 /** /workspace/main — superadmins only. */

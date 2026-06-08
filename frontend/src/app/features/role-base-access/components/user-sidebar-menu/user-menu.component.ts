@@ -10,6 +10,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { ActiveOrgService } from '../../../../services/auth/active-org.service';
 import { AuthService } from '../../../../services/auth/auth.service';
 import { ProfileService } from '../../../../services/auth/profile.service';
+import { ToastService } from '../../../../services/notifications';
 import { OrgAvatarComponent } from '../org-avatar/org-avatar.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
@@ -23,6 +24,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 export class UserMenuComponent {
     private authService = inject(AuthService);
     private router = inject(Router);
+    private toast = inject(ToastService);
     protected currentUserService = inject(ProfileService);
     protected activeOrgService = inject(ActiveOrgService);
 
@@ -40,7 +42,10 @@ export class UserMenuComponent {
             .switchOrg(orgId)
             .pipe(
                 finalize(() => this.switching.set(false)),
-                catchError(() => EMPTY)
+                catchError(() => {
+                    this.toast.error('You no longer have access to this organization.');
+                    return EMPTY;
+                })
             )
             .subscribe(() => {
                 this.isUserMenuOpen.set(false);
