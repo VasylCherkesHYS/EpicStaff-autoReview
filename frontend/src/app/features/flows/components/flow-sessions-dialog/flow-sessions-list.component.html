@@ -11,11 +11,6 @@
 
     <div class="dialog-content">
         <div class="filter-controls">
-            <app-flow-session-status-filter-dropdown
-                [value]="statusFilter()"
-                (valueChange)="onStatusFilterChange($event)"
-            >
-            </app-flow-session-status-filter-dropdown>
             <app-flow-session-node-filter-dropdown
                 [nodeGroups]="availableNodeGroups()"
                 [value]="nodeFilter()"
@@ -28,6 +23,7 @@
                     class="toggle-switch"
                     [class.active]="isErrorCauseFilter()"
                     (click)="onIsErrorCauseChange()"
+                    [class.disabled]="!nodeFilter()"
                 >
                     <div class="toggle-thumb"></div>
                 </div>
@@ -44,7 +40,7 @@
                 <app-action-dropdown-button
                     [label]="'Export (' + (selectedIds().size === 0 ? totalCount : selectedIds().size) + ')'"
                     [items]="exportItems"
-                    [disabled]="isExporting() || (selectedIds().size === 0 && totalCount === 0)"
+                    [disabled]="isDeleting() || isExporting() || (selectedIds().size === 0 && totalCount === 0)"
                     (mainClick)="onExport('json')"
                     (itemClick)="onExportItemSelected($event)"
                 />
@@ -67,8 +63,8 @@
             </app-flow-sessions-table>
         </div>
 
-        @if (isLoaded() && totalCount > pageSize()) {
-            <div class="pagination-container">
+        <div class="pagination-container">
+            @if (isLoaded() && totalCount > pageSize()) {
                 <app-pagination-controls
                     [pageSize]="pageSize()"
                     [totalCount]="totalCount"
@@ -77,7 +73,18 @@
                     (pageChange)="onPageChange($event)"
                 >
                 </app-pagination-controls>
-            </div>
-        }
+            }
+            <label class="page-size-selector">
+                <span>Sessions per page</span>
+                <select
+                    [value]="pageSize()"
+                    (change)="onPageSizeChange(+$any($event.target).value)"
+                >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </label>
+        </div>
     </div>
 </div>

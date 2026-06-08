@@ -2,7 +2,6 @@
 
 import pytest
 
-from tables.graph_versioning.services import GraphVersioningService
 from tables.import_export.constants import IMPORT_VERSION
 from tables.import_export.enums import EntityType
 from tables.models import GraphVersion
@@ -59,7 +58,9 @@ def test_save_version_default_description_is_empty(service, graph):
 def test_restore_version_returns_response_dict_structure(service, graph):
     version = service.save_version(graph, name="snap")
 
-    result = service.restore_version(version, backup=False)
+    result = service.restore_version(
+        version, backup=False, expected_save_version=graph.save_version
+    )
 
     assert result["restored"] is True
     assert result["graph_id"] == graph.id
@@ -78,7 +79,9 @@ def test_restore_version_round_trip_restores_crew_node(service, graph, crew):
     graph.crew_node_list.all().delete()
     assert graph.crew_node_list.count() == 0
 
-    service.restore_version(version, backup=False)
+    service.restore_version(
+        version, backup=False, expected_save_version=graph.save_version
+    )
 
     assert graph.crew_node_list.count() == 1
     restored_node = graph.crew_node_list.first()
@@ -106,7 +109,9 @@ def test_restore_version_with_missing_crew_returns_warnings_and_skips_node(
     # filter_snapshot skips the node during restore.
     crew.delete()
 
-    result = service.restore_version(version, backup=False)
+    result = service.restore_version(
+        version, backup=False, expected_save_version=graph.save_version
+    )
 
     assert len(result["warnings"]) > 0
     skipped = [w for w in result["warnings"] if w["type"] == "node_skipped"]
@@ -124,7 +129,9 @@ def test_restore_version_with_backup_true_creates_backup_version(service, graph)
     version = service.save_version(graph, name="original")
     before_count = GraphVersion.objects.count()
 
-    result = service.restore_version(version, backup=True)
+    result = service.restore_version(
+        version, backup=True, expected_save_version=graph.save_version
+    )
 
     assert result["auto_backup_version_id"] is not None
     assert GraphVersion.objects.count() == before_count + 1
@@ -137,7 +144,9 @@ def test_restore_version_with_backup_false_creates_no_backup(service, graph):
     version = service.save_version(graph, name="original")
     before_count = GraphVersion.objects.count()
 
-    result = service.restore_version(version, backup=False)
+    result = service.restore_version(
+        version, backup=False, expected_save_version=graph.save_version
+    )
 
     assert GraphVersion.objects.count() == before_count
     assert result["auto_backup_version_id"] is None
@@ -170,7 +179,9 @@ def test_restore_version_warnings_node_ids_are_remapped_to_new_ids(
     # Delete the LLMConfig — node is kept but FK will be nulled on restore
     llm_config.delete()
 
-    result = service.restore_version(version, backup=False)
+    result = service.restore_version(
+        version, backup=False, expected_save_version=graph.save_version
+    )
 
     fk_nulled_warnings = [w for w in result["warnings"] if w["type"] == "fk_nulled"]
     assert len(fk_nulled_warnings) > 0
@@ -182,3 +193,155 @@ def test_restore_version_warnings_node_ids_are_remapped_to_new_ids(
     assert fk_nulled_warnings[0]["node_id"] == new_node.id
     # Sanity-check: the new id differs from the old snapshot id (it was remapped)
     assert fk_nulled_warnings[0]["node_id"] != old_snapshot_id
+
+
+# ---------------------------------------------------------------------------
+# Group F: create_graph_from_version — DB tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_creates_new_graph_row(service, graph, default_org):
+    version = service.save_version(graph, name="my-version")
+
+    result = service.create_graph_from_version(version)
+
+    assert result["created"] is True
+    new_graph_id = result["graph_id"]
+    assert new_graph_id != graph.id
+    assert Graph.objects.filter(id=new_graph_id).exists()
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_uses_version_name(service, graph, default_org):
+    version = service.save_version(graph, name="my-snapshot-name")
+
+    result = service.create_graph_from_version(version)
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    new_name = f"{graph.name} from {version.name}"
+    assert new_graph.name == new_name
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_appends_suffix_when_name_taken(
+    service, graph, default_org
+):
+    version = service.save_version(graph, name=graph.name)
+
+    result1 = service.create_graph_from_version(version)
+    result2 = service.create_graph_from_version(version)
+
+    new_graph1 = Graph.objects.get(id=result1["graph_id"])
+    new_graph2 = Graph.objects.get(id=result2["graph_id"])
+    # Name must differ from the source graph's name (suffix appended)
+    assert new_graph1.name != new_graph2.name
+    assert graph.name in new_graph1.name and graph.name in new_graph2.name
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_round_trips_crew_node(
+    service, graph, crew, default_org
+):
+    from tables.models import CrewNode
+
+    CrewNode.objects.create(graph=graph, node_name="cn", crew=crew)
+    version = service.save_version(graph, name="crew-snap")
+
+    result = service.create_graph_from_version(version)
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    assert new_graph.crew_node_list.count() == 1
+    assert new_graph.crew_node_list.first().crew_id == crew.id
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_with_missing_crew_skips_node_and_warns(
+    service, graph, crew, default_org
+):
+    from tables.models import CrewNode
+
+    CrewNode.objects.create(graph=graph, node_name="cn", crew=crew)
+    version = service.save_version(graph, name="crew-snap")
+    crew.delete()
+
+    result = service.create_graph_from_version(version)
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    assert new_graph.crew_node_list.count() == 0
+    skipped = [w for w in result["warnings"] if w["type"] == "node_skipped"]
+    assert len(skipped) > 0
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_warnings_node_ids_remap_to_new_ids(
+    service, graph, llm_config, default_org
+):
+    from tables.models import CodeAgentNode
+
+    node = CodeAgentNode.objects.create(
+        graph=graph,
+        node_name="ca",
+        llm_config=llm_config,
+    )
+    old_snapshot_id = node.id
+
+    version = service.save_version(graph, name="code-agent-snap")
+    llm_config.delete()
+
+    result = service.create_graph_from_version(version)
+
+    fk_nulled_warnings = [w for w in result["warnings"] if w["type"] == "fk_nulled"]
+    assert len(fk_nulled_warnings) > 0
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    new_node = new_graph.code_agent_node_list.first()
+    assert new_node is not None
+    assert fk_nulled_warnings[0]["node_id"] == new_node.id
+    assert fk_nulled_warnings[0]["node_id"] != old_snapshot_id
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_new_graph_has_no_versions(
+    service, graph, default_org
+):
+    version = service.save_version(graph, name="snap")
+
+    result = service.create_graph_from_version(version)
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    assert new_graph.versions.count() == 0
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_does_not_mutate_source_graph(
+    service, graph, crew, default_org
+):
+    from tables.models import CrewNode
+
+    CrewNode.objects.create(graph=graph, node_name="cn", crew=crew)
+    original_node_count = graph.crew_node_list.count()
+    version = service.save_version(graph, name="snap")
+
+    service.create_graph_from_version(version)
+
+    graph.refresh_from_db()
+    assert graph.crew_node_list.count() == original_node_count
+
+
+@pytest.mark.django_db
+def test_create_graph_from_version_copies_labels_from_source(
+    service, graph, default_org
+):
+    from tables.models import Label
+
+    label = Label.objects.create(name="urgent")
+    graph.labels.set([label])
+
+    version = service.save_version(graph, name="labelled-snap")
+
+    result = service.create_graph_from_version(version)
+
+    new_graph = Graph.objects.get(id=result["graph_id"])
+    new_graph_label_ids = set(new_graph.labels.values_list("id", flat=True))
+    assert label.id in new_graph_label_ids

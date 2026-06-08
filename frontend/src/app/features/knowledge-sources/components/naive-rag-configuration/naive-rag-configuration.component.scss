@@ -1,6 +1,12 @@
 .configure {
     display: flex;
     height: 100%;
+    overflow: auto;
+
+    app-document-chunks-section {
+        flex: 1 1 auto;
+        min-width: 500px;
+    }
 
     &__files-section {
         display: flex;

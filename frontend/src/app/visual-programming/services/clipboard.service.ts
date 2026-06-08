@@ -6,7 +6,7 @@ import { NodeType } from '../core/enums/node-type';
 import { generateMultipleNodeDisplayNames } from '../core/helpers/generate-node-display-name.util';
 import { generatePortsForNode, parsePortId } from '../core/helpers/helpers';
 import { ConnectionModel } from '../core/models/connection.model';
-import { NodeModel } from '../core/models/node.model';
+import { DecisionTableNodeModel, NodeModel } from '../core/models/node.model';
 import { CustomPortId, ViewPort } from '../core/models/port.model';
 import { FlowService } from './flow.service';
 
@@ -94,6 +94,11 @@ export class ClipboardService {
         const offsetY = mousePosition.y - boundingBox.minY;
 
         const oldToNewIdMap = new Map<string, string>();
+        const newNodeIds: string[] = clipboardNodes.map((oldNode) => {
+            const newNodeId = uuidv4();
+            oldToNewIdMap.set(oldNode.id, newNodeId);
+            return newNodeId;
+        });
 
         // Assign sequential badge numbers and generate names in one pass
         const nodesToCreate = clipboardNodes.map((oldNode) => ({
@@ -105,10 +110,14 @@ export class ClipboardService {
 
         // Create new nodes with backendId: null for diff-save support
         const newNodes: NodeModel[] = clipboardNodes.map((oldNode, index) => {
-            const newNodeId = uuidv4();
-            oldToNewIdMap.set(oldNode.id, newNodeId);
+            const newNodeId = newNodeIds[index];
 
-            const newPorts: ViewPort[] = generatePortsForNode(newNodeId, oldNode.type, oldNode.data);
+            // Deep-clone data so per-paste mutations don't leak into the clipboard
+            const newData = oldNode.data ? JSON.parse(JSON.stringify(oldNode.data)) : oldNode.data;
+            // DT next-node refs are repopulated below via FlowService.addConnection's hook
+            this.clearDecisionTableNextNodeRefs(oldNode.type, newData);
+
+            const newPorts: ViewPort[] = generatePortsForNode(newNodeId, oldNode.type, newData);
 
             return {
                 ...oldNode,
@@ -121,6 +130,7 @@ export class ClipboardService {
                 },
                 ports: newPorts,
                 node_name: displayNames[index],
+                data: newData,
             };
         });
 
@@ -156,12 +166,38 @@ export class ClipboardService {
 
         const currentFlow = this.flowService.getFlowState();
 
+        // Add nodes first so addConnection's DT-sync hook can resolve source/target by id
         this.flowService.setFlow({
             ...currentFlow,
             nodes: [...currentFlow.nodes, ...newNodes],
-            connections: [...currentFlow.connections, ...newConnections],
         });
 
-        return { newNodes, newConnections };
+        // Route each new connection through addConnection so updateDecisionTableNextNodeFromConnection
+        // repopulates the copied DT's data.table.*_node refs from the (already-remapped) target ids
+        for (const conn of newConnections) {
+            this.flowService.addConnection(conn);
+        }
+
+        // Return hook-updated nodes from flow state — otherwise the caller's downstream updateNode
+        // (positioning) would overwrite the freshly-synced data.table.* refs with the pre-hook nulls
+        const finalNodeById = new Map(this.flowService.nodes().map((n) => [n.id, n]));
+        const returnedNodes = newNodes.map((n) => finalNodeById.get(n.id) ?? n);
+
+        return { newNodes: returnedNodes, newConnections };
+    }
+
+    private clearDecisionTableNextNodeRefs(type: NodeType, data: NodeModel['data'] | null): void {
+        if (type !== NodeType.TABLE || !data) return;
+
+        const table = (data as DecisionTableNodeModel['data']).table;
+        if (!table) return;
+
+        table.default_next_node = null;
+        table.next_error_node = null;
+        if (Array.isArray(table.condition_groups)) {
+            for (const group of table.condition_groups) {
+                group.next_node = null;
+            }
+        }
     }
 }

@@ -9,7 +9,7 @@ import {
 import { PromptConfig } from '../../core/models/classification-decision-table.model';
 import { ConnectionModel } from '../../core/models/connection.model';
 import { FlowModel } from '../../core/models/flow.model';
-import { ClassificationDecisionTableNodeModel, DecisionTableNodeModel, NodeModel } from '../../core/models/node.model';
+import { ClassificationDecisionTableNodeModel, DecisionTableNodeModel, NodeModel, ScheduleTriggerNodeModel } from '../../core/models/node.model';
 import { hasPersistedWaypoints, mergeWaypointsIntoMetadata } from './edge-waypoints.helpers';
 import { toNodeMetadata } from './metadata';
 import { ConnectionDiff, NodeDiff, NodeDiffByType } from './types';
@@ -66,6 +66,38 @@ function buildDecisionTableNodePayload(
         ...(nextError.tempId ? { next_error_node_temp_id: nextError.tempId } : {}),
         metadata: toNodeMetadata(node),
     } satisfies CreateDecisionTableNodeRequest & Record<string, unknown>;
+}
+
+function buildScheduleBlock(node: ScheduleTriggerNodeModel): Record<string, unknown> {
+    const d = node.data;
+
+    if (d.runMode === 'once') {
+        return {
+            run_mode: 'once',
+            start_date_time: d.startDateTime,
+            interval: null,
+            end: { type: 'never', date_time: null, max_runs: null },
+            timezone: d.timezone,
+        };
+    }
+
+    const unitAllowsWeekdays = d.intervalUnit === 'days' || d.intervalUnit === 'weeks';
+    const interval = {
+        every: d.intervalEvery,
+        unit: d.intervalUnit,
+        weekdays: unitAllowsWeekdays ? d.weekdays : [],
+    };
+
+    let end: Record<string, unknown>;
+    if (d.endType === 'on_date') {
+        end = { type: 'on_date', date_time: d.endDateTime, max_runs: null };
+    } else if (d.endType === 'after_n_runs') {
+        end = { type: 'after_n_runs', date_time: null, max_runs: d.maxRuns };
+    } else {
+        end = { type: 'never', date_time: null, max_runs: null };
+    }
+
+    return { run_mode: 'repeat', start_date_time: d.startDateTime, interval, end, timezone: d.timezone };
 }
 
 function serializeCDTFieldExpressions(fieldExpressions: Record<string, unknown>): Record<string, string> {
@@ -199,7 +231,8 @@ export function buildBulkSavePayload(
     nodeDiff: NodeDiffByType,
     connectionDiff: ConnectionDiff,
     current: FlowModel,
-    idMap: Map<string, number>
+    idMap: Map<string, number>,
+    saveVersion: number
 ): Record<string, unknown> {
     const nodeItems = <T extends { id: string; backendId: number | null }>(
         diff: NodeDiff<T>,
@@ -249,6 +282,7 @@ export function buildBulkSavePayload(
         subgraph_node_ids: nodeDiff.subgraphNodes.toDelete.map((n) => n.backendId!).filter((id) => id != null),
         webhook_trigger_node_ids: nodeDiff.webhookNodes.toDelete.map((n) => n.backendId!).filter((id) => id != null),
         telegram_trigger_node_ids: nodeDiff.telegramNodes.toDelete.map((n) => n.backendId!).filter((id) => id != null),
+        schedule_trigger_node_ids: nodeDiff.scheduleNodes.toDelete.map((n) => n.backendId!).filter((id) => id != null),
         decision_table_node_ids: nodeDiff.decisionTableNodes.toDelete
             .map((n) => n.backendId!)
             .filter((id) => id != null),
@@ -261,6 +295,7 @@ export function buildBulkSavePayload(
     };
 
     return {
+        save_version: saveVersion,
         start_node_list: nodeItems(nodeDiff.startNodes, (n) => ({
             graph: graphId,
             variables: n.data.initialState ?? {},
@@ -341,6 +376,13 @@ export function buildBulkSavePayload(
             webhook_trigger: n.data.webhook_trigger,
             fields: n.data.fields,
             metadata: toNodeMetadata(n),
+        })),
+        schedule_trigger_node_list: nodeItems(nodeDiff.scheduleNodes, (n) => ({
+            node_name: n.node_name,
+            graph: graphId,
+            is_active: n.data.startDateTime ? n.data.isActive : false,
+            metadata: toNodeMetadata(n),
+            schedule: n.data.startDateTime ? buildScheduleBlock(n) : null,
         })),
         decision_table_node_list: nodeItems(nodeDiff.decisionTableNodes, (n) =>
             buildDecisionTableNodePayload(n, graphId, current.nodes, idMap)

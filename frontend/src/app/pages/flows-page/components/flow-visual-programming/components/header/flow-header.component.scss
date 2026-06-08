@@ -13,7 +13,7 @@
         display: flex;
         align-items: center;
         position: relative;
-        flex: 1 1 auto;
+        flex: 1 1 0;
         min-width: 180px;
         overflow: hidden;
 
@@ -94,7 +94,6 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        margin-left: 16px;
         padding-left: 16px;
         min-width: 0;
         flex: 0 1 auto;
@@ -192,7 +191,13 @@
             align-items: stretch;
             border: 1px solid var(--accent-color);
             border-radius: 6px;
-            overflow: visible;
+            overflow: hidden;
+            max-width: 100%;
+            flex: 0 1 auto;
+
+            &.save-split-btn--icon-only {
+                flex-shrink: 0;
+            }
 
             &.disabled {
                 opacity: 0.7;

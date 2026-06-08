@@ -3,7 +3,7 @@ import json
 from rest_framework.exceptions import ValidationError
 
 from tables.import_export.services.export_service import ExportService
-from tables.import_export.services.import_service import ImportService
+from tables.import_export.services.import_service import ImportService, ImportSettings
 from tables.import_export.version_conversions.base import VersionConverter
 from tables.import_export.registry import entity_registry
 from tables.import_export.constants import MAIN_ENTITY_KEY
@@ -25,17 +25,29 @@ class ViewSetImportExportService:
 
     def export_entity(self, instance, fmt: str = "json"):
         data = self.export_service.export_entities(self.entity_type, [instance.pk])
-        strategy = self.format_strategies.get(fmt, self.format_strategies["json"])
+        if fmt not in self.format_strategies:
+            raise ValidationError(
+                f"Unsupported export format: '{fmt}'. Supported: {list(self.format_strategies)}"
+            )
+        strategy = self.format_strategies[fmt]
         base_name = str(getattr(instance, self.filename_attr, "object"))
         return strategy.render(data, self.entity_type, self.export_prefix, base_name)
 
     def bulk_export(self, entity_ids, fmt: str = "json"):
         data = self.export_service.export_entities(self.entity_type, entity_ids)
-        strategy = self.format_strategies.get(fmt, self.format_strategies["json"])
+        if fmt not in self.format_strategies:
+            raise ValidationError(
+                f"Unsupported export format: '{fmt}'. Supported: {list(self.format_strategies)}"
+            )
+        strategy = self.format_strategies[fmt]
         base_name = f"bulk_{len(entity_ids)}"
         return strategy.render(data, self.entity_type, self.export_prefix, base_name)
 
-    def import_entity(self, file, preserve_uuids: bool = False):
+    def import_entity(
+        self,
+        file,
+        settings: ImportSettings = None,
+    ):
         try:
             data = json.load(file)
         except json.JSONDecodeError:
@@ -51,7 +63,9 @@ class ViewSetImportExportService:
         data = VersionConverter.convert(data)
 
         id_mapper, registry = self.import_service.import_data(
-            data, self.entity_type, preserve_uuids=preserve_uuids
+            data,
+            self.entity_type,
+            settings=settings,
         )
         summary = id_mapper.get_detailed_summary(registry)
 

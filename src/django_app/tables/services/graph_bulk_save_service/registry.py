@@ -10,9 +10,9 @@ from tables.models.graph_models import (
     Edge,
     EndNode,
     FileExtractorNode,
-    LLMNode,
     GraphNote,
     PythonNode,
+    ScheduleTriggerNode,
     StartNode,
     SubGraphNode,
     TelegramTriggerNode,
@@ -26,9 +26,9 @@ from tables.serializers.graph_bulk_save_serializers import (
     DecisionTableNodeBulkSerializer,
     EndNodeBulkSerializer,
     FileExtractorNodeBulkSerializer,
-    LLMNodeBulkSerializer,
     GraphNoteBulkSerializer,
     PythonNodeBulkSerializer,
+    ScheduleTriggerNodeBulkSerializer,
     StartNodeBulkSerializer,
     SubGraphNodeBulkSerializer,
     TelegramTriggerNodeBulkSerializer,
@@ -113,12 +113,6 @@ NODE_TYPE_REGISTRY: list[NodeTypeConfig] = [
         AudioTranscriptionNodeBulkSerializer,
     ),
     NodeTypeConfig(
-        "llm_node_list",
-        "llm_node_ids",
-        LLMNode,
-        LLMNodeBulkSerializer,
-    ),
-    NodeTypeConfig(
         "start_node_list",
         "start_node_ids",
         StartNode,
@@ -167,6 +161,12 @@ NODE_TYPE_REGISTRY: list[NodeTypeConfig] = [
         "telegram_trigger_node_ids",
         TelegramTriggerNode,
         TelegramTriggerNodeBulkSerializer,
+    ),
+    NodeTypeConfig(
+        "schedule_trigger_node_list",
+        "schedule_trigger_node_ids",
+        ScheduleTriggerNode,
+        ScheduleTriggerNodeBulkSerializer,
     ),
 ]
 

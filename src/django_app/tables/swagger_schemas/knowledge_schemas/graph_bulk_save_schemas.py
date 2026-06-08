@@ -34,9 +34,6 @@ SAVE_FLOW_SWAGGER = dict(
             "audio_transcription_node_list": drf_serializers.ListField(
                 child=drf_serializers.DictField(), required=False
             ),
-            "llm_node_list": drf_serializers.ListField(
-                child=drf_serializers.DictField(), required=False
-            ),
             "start_node_list": drf_serializers.ListField(
                 child=drf_serializers.DictField(), required=False
             ),
@@ -58,6 +55,9 @@ SAVE_FLOW_SWAGGER = dict(
             "telegram_trigger_node_list": drf_serializers.ListField(
                 child=drf_serializers.DictField(), required=False
             ),
+            "schedule_trigger_node_list": drf_serializers.ListField(
+                child=drf_serializers.DictField(), required=False
+            ),
             "edge_list": drf_serializers.ListField(
                 child=drf_serializers.DictField(), required=False
             ),
@@ -72,7 +72,6 @@ SAVE_FLOW_SWAGGER = dict(
                     "python_node_ids": _id_list_field,
                     "file_extractor_node_ids": _id_list_field,
                     "audio_transcription_node_ids": _id_list_field,
-                    "llm_node_ids": _id_list_field,
                     "start_node_ids": _id_list_field,
                     "end_node_ids": _id_list_field,
                     "subgraph_node_ids": _id_list_field,
@@ -80,6 +79,7 @@ SAVE_FLOW_SWAGGER = dict(
                     "graph_note_ids": _id_list_field,
                     "webhook_trigger_node_ids": _id_list_field,
                     "telegram_trigger_node_ids": _id_list_field,
+                    "schedule_trigger_node_ids": _id_list_field,
                     "edge_ids": _id_list_field,
                     "conditional_edge_ids": _id_list_field,
                 },
@@ -126,7 +126,6 @@ SAVE_FLOW_SWAGGER = dict(
                 ],
                 "file_extractor_node_list": [],
                 "audio_transcription_node_list": [],
-                "llm_node_list": [],
                 "start_node_list": [
                     {
                         "id": 1,

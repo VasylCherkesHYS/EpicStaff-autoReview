@@ -10,9 +10,9 @@ from tables.serializers.model_serializers import (
     EdgeSerializer,
     EndNodeSerializer,
     FileExtractorNodeSerializer,
-    LLMNodeSerializer,
     GraphNoteSerializer,
     PythonNodeSerializer,
+    ScheduleTriggerNodeSerializer,
     StartNodeSerializer,
     SubGraphNodeSerializer,
     WebhookTriggerNodeSerializer,
@@ -59,10 +59,6 @@ class AudioTranscriptionNodeBulkSerializer(
     pass
 
 
-class LLMNodeBulkSerializer(BulkSaveEntityMixin, LLMNodeSerializer):
-    pass
-
-
 class StartNodeBulkSerializer(BulkSaveEntityMixin, StartNodeSerializer):
     pass
 
@@ -97,6 +93,12 @@ class WebhookTriggerNodeBulkSerializer(
 
 class TelegramTriggerNodeBulkSerializer(
     BulkSaveEntityMixin, TelegramTriggerNodeSerializer
+):
+    pass
+
+
+class ScheduleTriggerNodeBulkSerializer(
+    BulkSaveEntityMixin, ScheduleTriggerNodeSerializer
 ):
     pass
 
@@ -213,6 +215,7 @@ class GraphBulkSaveInputSerializer(serializers.Serializer):
     Edge lists declared explicitly because edges are not in NODE_TYPE_REGISTRY
     """
 
+    save_version = serializers.IntegerField(required=True)
     edge_list = serializers.ListField(
         child=serializers.DictField(), required=False, default=list
     )

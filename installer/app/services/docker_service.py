@@ -393,7 +393,7 @@ class ManageProjectState(State):
         yield f".env updated at: {env_path} with path: {target_path}\n"
 
         # Create Docker volumes
-        volumes = ["crew_config", "crew_pgdata", "sandbox_venvs", "sandbox_executions"]
+        volumes = ["crew_config", "crew_pgdata", "sandbox_venvs"]
         for line in self.docker_service.create_volumes(volumes):
             yield line
 

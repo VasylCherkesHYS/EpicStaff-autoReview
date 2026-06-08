@@ -27,6 +27,7 @@ import {
     NodeModel,
     ProjectNodeModel,
     PythonNodeModel,
+    ScheduleTriggerNodeModel,
     StartNodeModel,
     SubGraphNodeModel,
     TaskNodeModel,
@@ -71,11 +72,14 @@ export class FlowBaseNodeComponent {
         height: number;
     }>();
     @Output() editClicked = new EventEmitter<NodeModel>();
+    @Output() deleteClicked = new EventEmitter<NodeModel>();
     public isExpanded = signal(false);
     public isToggleDisabled = signal(false);
     @Input() showVariables: boolean = false;
 
     @Output() projectExpandToggled = new EventEmitter<ProjectNodeModel>();
+    @Output() portMouseenter = new EventEmitter<void>();
+    @Output() portMouseleave = new EventEmitter<void>();
 
     public NodeType = NodeType;
     public readonly eResizeHandleType = EFResizeHandleType;
@@ -103,6 +107,12 @@ export class FlowBaseNodeComponent {
         public flowService: FlowService,
         private cdr: ChangeDetectorRef
     ) {}
+
+    public onDeleteClick(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        this.deleteClicked.emit(this.node);
+    }
 
     public onEditClick(event?: MouseEvent): void {
         if (event) {
@@ -202,6 +212,13 @@ export class FlowBaseNodeComponent {
 
     onNodeSizeChanged(size: { width: number; height: number }): void {
         this.fNodeSizeChange.emit(size);
+    }
+
+    get isScheduleTriggerActive(): boolean {
+        return (
+            this.node.type === NodeType.SCHEDULE_TRIGGER &&
+            (this.node as ScheduleTriggerNodeModel).data?.isActive === true
+        );
     }
 
     public getSelectedFlowUrl(): string | null {

@@ -13,6 +13,7 @@ from django_app.settings import (
     CODE_RESULT_CHANNEL,
     GRAPH_MESSAGE_UPDATE_CHANNEL,
     GRAPH_MESSAGES_CHANNEL,
+    SCHEDULE_CHANNEL,
     SESSION_STATUS_CHANNEL,
     STORAGE_MUTATION_CHANNEL,
     TELEGRAM_TRIGGER_PREFIX,
@@ -29,6 +30,7 @@ from tables.models import (
 )
 from tables.services.telegram_trigger_service import TelegramTriggerService
 from tables.services.webhook_trigger_service import WebhookTriggerService
+from tables.services.schedule_trigger_service import ScheduleTriggerService
 from src.shared.models import (
     CodeResultData,
     GraphSessionMessageData,
@@ -39,22 +41,36 @@ from src.shared.models import (
 
 class RedisPubSub:
     def __init__(self):
+        self.handlers = {}
+        self.buffers = {GRAPH_MESSAGES_CHANNEL: deque(maxlen=1000)}
+        self.redis_client = self._create_redis_client()
+        self.pubsub = self.redis_client.pubsub()
+
+    @staticmethod
+    def _create_redis_client() -> redis.Redis:
         redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
         redis_port = int(os.getenv("REDIS_PORT", 6379))
         redis_password = os.getenv("REDIS_PASSWORD")
-        self.redis_client = redis.Redis(
+        logger.debug(f"Redis host: {redis_host}")
+        logger.debug(f"Redis port: {redis_port}")
+        return redis.Redis(
             host=redis_host,
             port=redis_port,
             password=redis_password,
             decode_responses=True,
         )
+
+    def _reconnect(self):
+        try:
+            self.pubsub.close()
+        except Exception:
+            pass
+        try:
+            self.redis_client.close()
+        except Exception:
+            pass
+        self.redis_client = self._create_redis_client()
         self.pubsub = self.redis_client.pubsub()
-
-        self.handlers = {}
-        self.buffers = {GRAPH_MESSAGES_CHANNEL: deque(maxlen=1000)}
-
-        logger.debug(f"Redis host: {redis_host}")
-        logger.debug(f"Redis port: {redis_port}")
 
     def subscribe_to_channels(self):
         self.pubsub.subscribe(**self.handlers)
@@ -196,7 +212,7 @@ class RedisPubSub:
         Only updates values that exist in the persistent_variables structure.
         """
         try:
-            variables = data["status_data"]["variables"]
+            variables = data.get("status_data", {}).get("variables")
             if not variables:
                 return
 
@@ -211,6 +227,7 @@ class RedisPubSub:
 
             if (
                 session.graph_user
+                and graph_organization
                 and graph_organization.user_variables
                 and not session.graph_user.persistent_variables
             ):
@@ -372,6 +389,13 @@ class RedisPubSub:
                 value=json.dumps(data),
             )
 
+            subgraph_execution_ids = (
+                graph_session_message_data.message_data or {}
+            ).get("subgraph_execution_ids") or []
+            parent_subgraph_execution_id = (
+                subgraph_execution_ids[0] if subgraph_execution_ids else None
+            )
+
             # Save in buffer.
             buffer.append(
                 dict(
@@ -381,6 +405,7 @@ class RedisPubSub:
                     execution_order=graph_session_message_data.execution_order,
                     message_data=graph_session_message_data.message_data,
                     uuid=message_uuid,
+                    parent_subgraph_execution_id=parent_subgraph_execution_id,
                 )
             )
 
@@ -399,23 +424,38 @@ class RedisPubSub:
             logger.error(f"Error handling graph_session_message: {e}")
 
     def listen_for_messages(self):
+        message = None
         try:
             message = self.pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=0.001
             )
-            if message:
-                channel = message.get("channel", "")
-                handler = self.handlers.get(channel)
-
-                if handler:
-                    handler(message)
-                else:
-                    logger.warning(f"No handler found for channel: {channel}")
-        except Exception as e:
+        except (redis.ConnectionError, redis.TimeoutError) as e:
             logger.error(f"Error while listening for Redis messages: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error while listening for Redis messages: {e}")
 
-    # TODO: listen_for_redis_messages_worker and cache_for_redis_messages_worker
-    # can be optimized and combined to one function
+        if message:
+            channel = message.get("channel", "")
+            handler = self.handlers.get(channel)
+            if handler:
+                try:
+                    handler(message)
+                except Exception as e:
+                    logger.error(f"Error in handler for channel {channel}: {e}")
+            else:
+                logger.warning(f"No handler found for channel: {channel}")
+
+    def _run_with_reconnect(self, label: str, inner_loop):
+        while True:
+            try:
+                self.subscribe_to_channels()
+                inner_loop()
+            except Exception as e:
+                logger.error(f"Redis {label} disconnected, reconnecting in 1s: {e}")
+                time.sleep(1)
+                self._reconnect()
+
     def listen_for_redis_messages_worker(self):
         logger.info(f"Start worker {os.getpid()} listening for Redis messages...")
         self.set_handler(SESSION_STATUS_CHANNEL, self.session_status_handler)
@@ -424,35 +464,32 @@ class RedisPubSub:
         self.set_handler(
             REQUEST_WEBHOOK_UPDATE_CHANNEL, self.request_webhook_update_handler
         )
+        self.set_handler(SCHEDULE_CHANNEL, self.schedule_channel_handler)
         self.set_handler(STORAGE_MUTATION_CHANNEL, self.storage_mutations_handler)
-        self.subscribe_to_channels()
 
-        while True:
-            self.listen_for_messages()
+        def inner_loop():
+            while True:
+                self.listen_for_messages()
+
+        self._run_with_reconnect("listener", inner_loop)
 
     def cache_for_redis_messages_worker(self):
         """Saves to DB a bunch of data"""
         logger.info(f"Start worker {os.getpid()} caching for Redis messages...")
         self.set_handler(GRAPH_MESSAGES_CHANNEL, self.graph_session_message_handler)
-        self.subscribe_to_channels()
 
         start_time = time.time()
-        while True:
-            try:
-                # 1. Listen for new message
-                self.listen_for_messages()
 
-                # 2. Bulk save the buffer, clear state
+        def inner_loop():
+            nonlocal start_time
+            while True:
+                self.listen_for_messages()
                 buffer = self.buffers.get(GRAPH_MESSAGES_CHANNEL)
                 if buffer and time.time() - start_time >= 3:
                     self._flush_buffer()
                     start_time = time.time()
 
-            except Exception as e:
-                # Catch general exceptions in the listener loop (e.g., Redis errors)
-                logger.error(f"Error in main listener loop: {e}")
-            except Exception as e:
-                logger.error(f"Error while saving graph session messages: {e}")
+        self._run_with_reconnect("cacher", inner_loop)
 
     def _flush_buffer(self):
         """Flush the graph messages buffer to the database.
@@ -596,17 +633,30 @@ class RedisPubSub:
             ]
             exec_id_messages[exec_id] = matching
 
-            copies = [
-                dict(
-                    session_id=session.pk,
-                    created_at=msg.created_at,
-                    name=msg.name,
-                    execution_order=msg.execution_order,
-                    message_data=msg.message_data,
-                    uuid=uuid4(),
+            copies = []
+            for msg in matching:
+                # Re-derive ancestry within this subgraph's session scope.
+                src_message_data = msg.message_data or {}
+                ids = src_message_data.get("subgraph_execution_ids") or []
+                inner_ids = ids[: ids.index(exec_id)] if exec_id in ids else []
+                new_parent = inner_ids[0] if inner_ids else None
+
+                scoped_message_data = {
+                    **src_message_data,
+                    "subgraph_execution_ids": inner_ids,
+                }
+
+                copies.append(
+                    dict(
+                        session_id=session.pk,
+                        created_at=msg.created_at,
+                        name=msg.name,
+                        execution_order=msg.execution_order,
+                        message_data=scoped_message_data,
+                        uuid=uuid4(),
+                        parent_subgraph_execution_id=new_parent,
+                    )
                 )
-                for msg in matching
-            ]
 
             if copies:
                 buffer.extend(copies)
@@ -671,3 +721,73 @@ class RedisPubSub:
                 )
 
         return total_usage
+
+    def schedule_channel_handler(self, message: dict):
+        """Router for schedule_channel messages coming from Manager.
+
+        Channel direction rules:
+          - 'node_update' is Django → Manager; we see the echo of our own
+            post_save publish and skip it silently here.
+          - 'run_session' and 'deactivate' are Manager → Django and are the
+            only actions consumed on this side.
+
+        Supported actions:
+          - 'run_session' → start a session via ScheduleTriggerService
+            (guard checks + run_session + increment_runs — all atomic)
+          - 'deactivate'  → set is_active=False (published by Manager after a
+            once-mode fire or when APScheduler auto-removes a job, e.g. when
+            end_date is reached)
+
+        Input:
+            message["data"] — JSON string:
+            {"action": "run_session"|"deactivate", "node_id": <int>}
+        """
+        try:
+            logger.debug(f"[SchedulePubSub] Received: {message}")
+            data = json.loads(message["data"])
+            action = data.get("action")
+
+            if action == "node_update":
+                return
+
+            node_id = data.get("node_id")
+            if not node_id:
+                logger.warning("[SchedulePubSub] node_id missing in message")
+                return
+
+            if action == "run_session":
+                self._handle_schedule_run_session(node_id)
+            elif action == "deactivate":
+                self._handle_schedule_deactivate(node_id)
+            else:
+                logger.warning(f"[SchedulePubSub] Unknown action: {action}")
+        except Exception as e:
+            logger.error(f"[SchedulePubSub] Error handling message: {e}")
+
+    def _handle_schedule_run_session(self, node_id: int):
+        """
+        Starts a graph session via ScheduleTriggerService.
+
+        All business logic is encapsulated in the service:
+          - guard checks (start_date, end_date, max_runs)
+          - select_for_update(skip_locked=True) for race condition protection
+          - run_session()
+          - atomic current_runs increment via F()
+
+        Input:  node_id — PK of the ScheduleTriggerNode
+        """
+        try:
+            close_old_connections()
+            ScheduleTriggerService().handle_schedule_trigger(node_id)
+            logger.info(f"[SchedulePubSub] run_session completed for node {node_id}")
+        except Exception as e:
+            logger.error(
+                f"[SchedulePubSub] Error in run_session for node {node_id}: {e}"
+            )
+
+    def _handle_schedule_deactivate(self, node_id: int):
+        try:
+            close_old_connections()
+            ScheduleTriggerService().deactivate_node(node_id)
+        except Exception as e:
+            logger.error(f"[SchedulePubSub] Error deactivating node {node_id}: {e}")

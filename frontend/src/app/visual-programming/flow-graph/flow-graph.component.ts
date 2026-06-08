@@ -5,6 +5,7 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
+    ElementRef,
     EventEmitter,
     inject,
     Injector,
@@ -43,12 +44,12 @@ import { Subject } from 'rxjs';
 
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
-import { ToggleSwitchComponent } from '../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 import { DomainDialogComponent } from '../components/domain-dialog/domain-dialog.component';
 import { FlowActionPanelComponent } from '../components/flow-action-panel/flow-action-panel.component';
 import { FlowBaseNodeComponent } from '../components/flow-base-node/flow-base-node.component';
 import { FlowFilesButtonComponent } from '../components/flow-files-button/flow-files-button.component';
 import { FlowGraphContextMenuComponent } from '../components/flow-graph-context-menu/flow-graph-context-menu.component';
+import { FlowSettingsPanelComponent } from '../components/flow-settings-panel/flow-settings-panel.component';
 import { FlowShortcutsButtonComponent } from '../components/flow-shortcuts-button/flow-shortcuts-button.component';
 import { NodePanelShellComponent } from '../components/node-panels/node-panel-shell/node-panel-shell.component';
 import { NodesSearchComponent } from '../components/nodes-search/nodes-search.component';
@@ -58,6 +59,7 @@ import { MouseTrackerDirective } from '../core/directives/mouse-tracker.directiv
 import { ShortcutListenerDirective } from '../core/directives/shortcut-listener.directive';
 import { WaypointTooltipDirective } from '../core/directives/waypoint-tooltip.directive';
 import { NodeType } from '../core/enums/node-type';
+import { computeAutoArrangePositions } from '../core/helpers/auto-arrange.util';
 import { BackwardArcPathBuilder, computeBackwardArcPoints } from '../core/helpers/backward-arc.path-builder';
 import { getMinimapClassForNode } from '../core/helpers/get-minimap-class.util';
 import { defineSourceTargetPair, isBackwardConnection, isConnectionValid } from '../core/helpers/helpers';
@@ -82,6 +84,7 @@ import { CreateNodeRequest } from '../core/models/node-creation.types';
 import { CustomPortId } from '../core/models/port.model';
 import { ClipboardService } from '../services/clipboard.service';
 import { FlowService } from '../services/flow.service';
+import { FlowSettingsService } from '../services/flow-settings.service';
 import { NodeFactoryService } from '../services/node-factory.service';
 import { SidePanelService } from '../services/side-panel.service';
 import { BackwardConnectionBuilder } from '../core/connection-builders/backward-connection.builder';
@@ -129,7 +132,6 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         NodePanelShellComponent,
         FlowShortcutsButtonComponent,
         AppSvgIconComponent,
-        ToggleSwitchComponent,
         FConnectionGradient,
         FConnectionContent,
         FConnectionWaypoints,
@@ -158,6 +160,8 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     @ViewChild('nodePanelShell', { static: false })
     private nodePanelShell?: NodePanelShellComponent;
 
+    @ViewChild('arrangeBtnRef') private arrangeBtnRef?: ElementRef<HTMLButtonElement>;
+
     readonly GRID_CELL_SIZE = GRID_CELL_SIZE;
     protected readonly getMinimapClassForNode = getMinimapClassForNode;
     protected readonly eMarkerType = EFMarkerType;
@@ -168,9 +172,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     protected mouseCursorPosition: IPoint = { x: 0, y: 0 };
     protected contextMenuPosition = signal<IPoint>({ x: 0, y: 0 });
     protected isLoaded = signal(false);
+    private arrangeAnimationId: number | null = null;
+    private _arrangingLock = false;
     protected showContextMenu = signal(false);
-    protected showVariables = signal(false);
-    public smartRoutingEnabled = signal<boolean>(false);
+    protected readonly hasUnarrangedChanges = signal(true);
+    protected readonly isArranging = signal<boolean>(false);
+    protected readonly flowSettings = inject(FlowSettingsService);
 
     protected readonly nodeColorMap = computed<Map<string, string>>(() => {
         const map = new Map<string, string>();
@@ -210,6 +217,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         });
     });
 
+    public hoveredNodeId = signal<string | null>(null);
+
+    public getNodeZIndex(node: NodeModel): number {
+        if (this.hoveredNodeId() === node.id) return 1000;
+        return Math.max(2, 500 - Math.floor(Math.max(0, node.position?.y ?? 0) / 10));
+    }
+
     private readonly destroy$ = new Subject<void>();
     private readonly userAdjustedConnectionIds = new Set<string>();
     private readonly previousBackwardConnectionIds = new Set<string>();
@@ -248,6 +262,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public ngOnDestroy(): void {
+        if (this.arrangeAnimationId !== null) {
+            cancelAnimationFrame(this.arrangeAnimationId);
+        }
         this.destroy$.next();
         this.destroy$.complete();
     }
@@ -256,11 +273,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.isLoaded.set(true);
         setTimeout(() => {
             this.rerouteSegmentConnections();
+            this.fCanvasComponent.fitToScreen({ x: 200, y: 100 }, false);
             this.cd.detectChanges();
         }, 0);
     }
 
     public onReassignConnection(event: FReassignConnectionEvent): void {
+        this.hasUnarrangedChanges.set(true);
         if (!event.newTargetId && !event.newSourceId) {
             console.warn('No new target or source provided for reassignment');
             return;
@@ -301,6 +320,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onConnectionAdded(event: FCreateConnectionEvent): void {
+        this.hasUnarrangedChanges.set(true);
         this.undoRedoService.stateChanged();
 
         const { fOutputId, fInputId } = event;
@@ -371,6 +391,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onPaste(): void {
+        this.hasUnarrangedChanges.set(true);
         if (this.isDialogOpen()) {
             return;
         }
@@ -408,6 +429,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             return;
         }
 
+        this.hasUnarrangedChanges.set(true);
         this.undoRedoService.onUndo();
     }
 
@@ -416,10 +438,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             return;
         }
 
+        this.hasUnarrangedChanges.set(true);
         this.undoRedoService.onRedo();
     }
 
     public onDelete(): void {
+        this.hasUnarrangedChanges.set(true);
         if (this.isDialogOpen()) {
             return;
         }
@@ -428,7 +452,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.deleteSelections(selections);
     }
 
+    public onDeleteNode(node: NodeModel): void {
+        this.hasUnarrangedChanges.set(true);
+        this.deleteSelections({
+            fNodeIds: [node.id],
+            fGroupIds: [],
+            fConnectionIds: [],
+        });
+    }
+
     public onDeleteConnection(event: MouseEvent, connectionId: string): void {
+        this.hasUnarrangedChanges.set(true);
         event.preventDefault();
         event.stopPropagation();
 
@@ -473,6 +507,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onNodeDroppedFromPanel(event: FCreateNodeEvent): void {
+        this.hasUnarrangedChanges.set(true);
         if (!event.data || typeof event.data !== 'object') {
             return;
         }
@@ -504,6 +539,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onAddNodeFromContextMenu(event: CreateNodeRequest): void {
+        this.hasUnarrangedChanges.set(true);
         this.undoRedoService.stateChanged();
         this.showContextMenu.set(false);
 
@@ -634,7 +670,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public emitSave(): void {
-        this.commitSidePanelToFlow();
+        if (this.nodePanelShell?.hasPanelInstance()) {
+            const updatedNode = this.nodePanelShell.captureCurrentNodeState();
+            if (updatedNode === null) {
+                return;
+            }
+            this.flowService.updateNode(updatedNode);
+        }
         this.save.emit(this.flowService.getFlowState());
     }
 
@@ -817,6 +859,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onNodePositionChanged(newPos: IPoint, node: NodeModel): void {
+        this.hasUnarrangedChanges.set(true);
         this.draggedNodeIds.add(node.id);
 
         if (!this.isDragging || !this.draggingElements.has(node.id)) {
@@ -848,16 +891,156 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.fZoomDirective.setZoom(position, 1, EFZoomDirection.ZOOM_IN, true);
     }
 
-    public toggleShowVariables(): void {
-        this.showVariables.set(!this.showVariables());
+    protected openSettings(): void {
+        this.dialog.open(FlowSettingsPanelComponent, {
+            width: '480px',
+            maxWidth: '90vw',
+        });
     }
 
     public updateMouseTrackerPosition(event: IPoint): void {
         this.mouseCursorPosition = event;
     }
 
-    public onSmartRoutingToggle(value: boolean): void {
-        this.smartRoutingEnabled.set(value);
+    public onAutoArrange(): void {
+        if (this._arrangingLock) return;
+        this._arrangingLock = true;
+        this.isArranging.set(true);
+        if (this.arrangeBtnRef) {
+            this.arrangeBtnRef.nativeElement.disabled = true;
+        }
+
+        const nodes = this.flowService.nodes();
+        if (nodes.length === 0) {
+            this._arrangingLock = false;
+            this.isArranging.set(false);
+            if (this.arrangeBtnRef) {
+                this.arrangeBtnRef.nativeElement.disabled = false;
+            }
+            return;
+        }
+
+        const connections = this.flowService.connections();
+        const newPositions = computeAutoArrangePositions(nodes, connections);
+
+        const alreadyArranged = nodes.every((n) => {
+            const target = newPositions.get(n.id);
+            return !target || (n.position.x === target.x && n.position.y === target.y);
+        });
+        if (alreadyArranged) {
+            this.hasUnarrangedChanges.set(false);
+            this._arrangingLock = false;
+            this.isArranging.set(false);
+            return;
+        }
+
+        this.undoRedoService.stateChanged();
+
+        const startPositions = new Map(nodes.map((n) => [n.id, { ...n.position }]));
+
+        // Pre-identify non-user-adjusted backward connections for per-frame arc updates.
+        const backwardIds = this.backwardConnectionIds();
+        const backwardConns = connections.filter(
+            (c) => backwardIds.has(c.id) && !this.userAdjustedConnectionIds.has(c.id)
+        );
+
+        // Clear ALL non-user-adjusted waypoints (including backward) so every connection
+        // starts from a clean state. Backward arcs are re-computed each frame below.
+        for (const conn of connections) {
+            if (conn.waypoints?.length && !this.userAdjustedConnectionIds.has(conn.id)) {
+                this.flowService.updateConnectionWaypoints(conn.id, []);
+            }
+        }
+        // Flush synchronously so nodes and arrows start from the same visual state.
+        this.cd.detectChanges();
+        this.fFlowComponent?.redraw();
+
+        const DURATION = 400;
+        const startTime = performance.now();
+
+        const frame = (now: number): void => {
+            const t = Math.min((now - startTime) / DURATION, 1);
+            // ease-in-out quadratic
+            const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+            const updatedNodes = nodes
+                .filter((n) => newPositions.has(n.id))
+                .map((n) => {
+                    const from = startPositions.get(n.id) ?? n.position;
+                    const to = newPositions.get(n.id)!;
+                    return {
+                        ...n,
+                        position: {
+                            x: Math.round(from.x + (to.x - from.x) * eased),
+                            y: Math.round(from.y + (to.y - from.y) * eased),
+                        },
+                    };
+                });
+
+            // Update backward arc waypoints each frame using mid-animation node positions
+            // (no node-avoidance so the arc stays compact and follows nodes smoothly).
+            if (backwardConns.length > 0) {
+                const nodeMap = new Map(updatedNodes.map((n) => [n.id, n]));
+                for (const conn of backwardConns) {
+                    const src = nodeMap.get(conn.sourceNodeId);
+                    const tgt = nodeMap.get(conn.targetNodeId);
+                    if (!src || !tgt) continue;
+                    const srcPort = src.ports?.find((p) => p.id === conn.sourcePortId);
+                    const tgtPort = tgt.ports?.find((p) => p.id === conn.targetPortId);
+                    const srcPt = getPortPosition(src, srcPort);
+                    const tgtPt = getPortPosition(tgt, tgtPort);
+                    const arcPts = computeBackwardArcPoints(srcPt, tgtPt, undefined, []);
+                    this.flowService.updateConnectionWaypoints(conn.id, [
+                        { x: (arcPts[1].x + arcPts[4].x) / 2, y: arcPts[2].y },
+                    ]);
+                }
+            }
+
+            this.flowService.updateNodesInBatch(updatedNodes);
+            this.cd.detectChanges();
+            this.fFlowComponent?.redraw();
+
+            if (t < 1) {
+                this.arrangeAnimationId = requestAnimationFrame(frame);
+            } else {
+                this.arrangeAnimationId = null;
+                // Restore proper segment routing after animation completes
+                this.rerouteSegmentConnections();
+                setTimeout(() => {
+                    this.rerouteSegmentConnections();
+                    // Recompute backward arcs without node-avoidance: after a full
+                    // rearrange all nodes have moved so the avoidance logic pushes arcs
+                    // far outside the visible area. A simple fixed-margin arc looks correct.
+                    const finalNodes = this.flowService.nodes();
+                    const finalConnections = this.flowService.connections();
+                    const bwIds = this.backwardConnectionIds();
+                    for (const conn of finalConnections) {
+                        if (!bwIds.has(conn.id) || this.userAdjustedConnectionIds.has(conn.id)) continue;
+                        const src = finalNodes.find((n) => n.id === conn.sourceNodeId);
+                        const tgt = finalNodes.find((n) => n.id === conn.targetNodeId);
+                        if (!src || !tgt) continue;
+                        const srcPort = src.ports?.find((p) => p.id === conn.sourcePortId);
+                        const tgtPort = tgt.ports?.find((p) => p.id === conn.targetPortId);
+                        const srcPt = getPortPosition(src, srcPort);
+                        const tgtPt = getPortPosition(tgt, tgtPort);
+                        const arcPts = computeBackwardArcPoints(srcPt, tgtPt, undefined, []);
+                        const waypoint = { x: (arcPts[1].x + arcPts[4].x) / 2, y: arcPts[2].y };
+                        this.flowService.updateConnectionWaypoints(conn.id, [waypoint]);
+                        this.bumpConnectionRenderVersion(conn.id);
+                    }
+                    this.cd.detectChanges();
+                    this.fFlowComponent?.redraw();
+                    this.hasUnarrangedChanges.set(false);
+                    this._arrangingLock = false;
+                    this.isArranging.set(false);
+                    if (this.arrangeBtnRef) {
+                        this.arrangeBtnRef.nativeElement.disabled = false;
+                    }
+                }, 0);
+            }
+        };
+
+        this.arrangeAnimationId = requestAnimationFrame(frame);
     }
 
     public onDomainClick(): void {
