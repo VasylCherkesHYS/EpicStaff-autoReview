@@ -22,12 +22,12 @@ Only stdlib is imported by this script itself.
 
 from __future__ import annotations
 
+import datetime
+import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
-import venv
 from collections import defaultdict
 from pathlib import Path
 
@@ -47,14 +47,34 @@ SERVICES = [
     "src/voice_app",
 ]
 
-BOOTSTRAP_PACKAGES = {"pip", "pip-licenses", "prettytable", "wcwidth", "setuptools", "wheel", "piplicenses"}
+BOOTSTRAP_PACKAGES = {
+    "pip",
+    "pip-licenses",
+    "prettytable",
+    "wcwidth",
+    "setuptools",
+    "wheel",
+    "piplicenses",
+}
+
+FIRST_PARTY_NAMES: frozenset[str] = frozenset({"dotdict"})
+FIRST_PARTY_AUTHOR_DOMAINS: tuple[str, ...] = ("hys-enterprise.com",)
+
+# C6 — SPDX overrides for packages whose PyPI metadata declares the wrong license.
+# Each entry confirmed by reading the actual shipped LICENSE body text from the wheel.
+SPDX_OVERRIDES: dict[str, str] = {
+    "pywin32": "LGPL-2.1",  # metadata says PSF; wheel ships GNU LGPL v2.1 text
+    "chroma-hnswlib": "Apache-2.0",  # metadata UNKNOWN; wheel ships Apache-2.0 text
+    "crewai-tools": "MIT",  # metadata UNKNOWN; wheel ships MIT text
+    "embedchain": "Apache-2.0",  # metadata Other/Proprietary; wheel ships Apache-2.0 text
+}
 
 VENDORED = [
     {
         "name": "crewAI",
         "version": "vendored fork",
         "license": "MIT",
-        "copyright": "Copyright (c) 2024 João Moura",
+        "copyright": "Copyright (c) 2025 crewAI, Inc.",
         "source": "https://github.com/crewAIInc/crewAI",
         "note": "vendored, unmodified",
     },
@@ -81,7 +101,30 @@ def log(msg: str) -> None:
     print(f"[python-notices] {msg}", file=sys.stderr)
 
 
-def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+def get_git_sha() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(REPO_ROOT),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return proc.stdout.strip()
+    except subprocess.CalledProcessError:
+        return "UNKNOWN"
+
+
+def lock_hash(svc_dir: Path) -> str:
+    lock = svc_dir / "poetry.lock"
+    if not lock.exists():
+        return "no-lock"
+    return hashlib.sha256(lock.read_bytes()).hexdigest()[:16]
+
+
+def run(
+    cmd: list[str], cwd: Path | None = None, check: bool = True
+) -> subprocess.CompletedProcess:
     log("$ " + " ".join(str(c) for c in cmd))
     return subprocess.run(
         cmd,
@@ -101,7 +144,11 @@ def venv_python(venv_dir: Path) -> Path:
 def poetry_venv_path(svc_dir: Path) -> Path | None:
     """Ask poetry where the venv for this service lives. Returns None on error."""
     try:
-        proc = run([sys.executable, "-m", "poetry", "env", "info", "--path"], cwd=svc_dir, check=True)
+        proc = run(
+            [sys.executable, "-m", "poetry", "env", "info", "--path"],
+            cwd=svc_dir,
+            check=True,
+        )
         p = proc.stdout.strip()
         return Path(p) if p else None
     except subprocess.CalledProcessError:
@@ -132,7 +179,16 @@ def bootstrap_venv(svc_dir: Path) -> Path | None:
     # If lock is outdated regenerate it (Poetry 2.x dropped --no-update flag).
     try:
         run(
-            [sys.executable, "-m", "poetry", "install", "--only", "main", "--no-root", "--dry-run"],
+            [
+                sys.executable,
+                "-m",
+                "poetry",
+                "install",
+                "--only",
+                "main",
+                "--no-root",
+                "--dry-run",
+            ],
             cwd=svc_dir,
         )
     except subprocess.CalledProcessError as exc:
@@ -142,7 +198,9 @@ def bootstrap_venv(svc_dir: Path) -> Path | None:
             try:
                 run([sys.executable, "-m", "poetry", "lock"], cwd=svc_dir)
             except subprocess.CalledProcessError as lock_exc:
-                log(f"  {svc_dir.name}: poetry lock failed: {lock_exc.stderr.strip()[:400]}")
+                log(
+                    f"  {svc_dir.name}: poetry lock failed: {lock_exc.stderr.strip()[:400]}"
+                )
                 return None
 
     # Install main deps.
@@ -199,7 +257,9 @@ def scan_service_venv(svc_dir: Path) -> list[dict]:
     try:
         run([str(py), "-m", "pip", "install", "--quiet", "pip-licenses"], check=True)
     except subprocess.CalledProcessError as exc:
-        log(f"  pip install pip-licenses failed for {svc_dir.name}: {exc.stderr.strip()[:300]}")
+        log(
+            f"  pip install pip-licenses failed for {svc_dir.name}: {exc.stderr.strip()[:300]}"
+        )
         return []
 
     try:
@@ -212,7 +272,17 @@ def scan_service_venv(svc_dir: Path) -> list[dict]:
     finally:
         try:
             run(
-                [str(py), "-m", "pip", "uninstall", "--quiet", "-y", "pip-licenses", "prettytable", "wcwidth"],
+                [
+                    str(py),
+                    "-m",
+                    "pip",
+                    "uninstall",
+                    "--quiet",
+                    "-y",
+                    "pip-licenses",
+                    "prettytable",
+                    "wcwidth",
+                ],
                 check=False,
             )
         except Exception:
@@ -237,21 +307,40 @@ def collect_packages() -> dict[tuple[str, str], dict]:
             version = entry.get("Version") or ""
             if not name or normalize_name(name) in BOOTSTRAP_PACKAGES:
                 continue
+            if normalize_name(name) in FIRST_PARTY_NAMES:
+                log(f"  skipping first-party package: {name}")
+                continue
+            author_raw = (entry.get("Author") or "").strip().lower()
+            if any(domain in author_raw for domain in FIRST_PARTY_AUTHOR_DOMAINS):
+                log(f"  skipping first-party package (author domain): {name}")
+                continue
             key = (normalize_name(name), version)
             if key in packages:
                 continue
+            license_raw = (entry.get("LicenseText") or "").strip()
+            notice_raw = (entry.get("NoticeText") or "").strip()
+            spdx_raw = (entry.get("License") or "UNKNOWN").strip() or "UNKNOWN"
+            spdx = spdx_raw.splitlines()[0].strip() if "\n" in spdx_raw else spdx_raw
+            if len(spdx) > 120:
+                spdx = spdx[:117] + "..."
+            # C6 — apply known SPDX overrides
+            spdx = SPDX_OVERRIDES.get(normalize_name(name), spdx)
             packages[key] = {
                 "name": name,
                 "version": version,
-                "license": (entry.get("License") or "UNKNOWN").strip() or "UNKNOWN",
-                "license_text": (entry.get("LicenseText") or "").strip(),
-                "notice_text": (entry.get("NoticeText") or "").strip(),
+                "license": spdx,
+                "license_text": "" if license_raw == "UNKNOWN" else license_raw,
+                "license_text_missing": license_raw == "UNKNOWN",
+                "notice_text": "" if notice_raw == "UNKNOWN" else notice_raw,
+                "notice_text_missing": notice_raw == "UNKNOWN",
                 "author": (entry.get("Author") or "").strip(),
                 "url": (entry.get("URL") or "").strip(),
             }
 
     if skipped:
-        log(f"services skipped (bootstrap failed or no pyproject.toml): {', '.join(skipped)}")
+        log(
+            f"services skipped (bootstrap failed or no pyproject.toml): {', '.join(skipped)}"
+        )
 
     return packages
 
@@ -268,14 +357,23 @@ def derive_copyright(pkg: dict) -> str:
     return ""
 
 
-def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
-    sorted_pkgs = sorted(packages.values(), key=lambda p: (p["name"].lower(), p["version"]))
+def build_markdown(
+    packages: dict[tuple[str, str], dict], provenance: dict[str, str]
+) -> str:
+    sorted_pkgs = sorted(
+        packages.values(), key=lambda p: (p["name"].lower(), p["version"])
+    )
 
     dist: dict[str, int] = defaultdict(int)
     for pkg in sorted_pkgs:
         dist[pkg["license"] or "UNKNOWN"] += 1
 
     lines: list[str] = []
+    lines.append("<!-- AUTO-GENERATED — do not edit by hand -->")
+    lines.append(f"<!-- generated: {provenance['date']} UTC -->")
+    lines.append(f"<!-- commit: {provenance['sha']} -->")
+    lines.append(f"<!-- lock-hashes: {provenance['lock_hashes']} -->")
+    lines.append("")
     lines.append("## Backend (Python)")
     lines.append("")
     lines.append(
@@ -310,7 +408,9 @@ def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
     lines.append("| Package | Version | License | Note |")
     lines.append("|---|---|---|---|")
     for v in VENDORED:
-        lines.append(f"| `{v['name']}` | {v['version']} | {v['license']} | {v['note']} |")
+        lines.append(
+            f"| `{v['name']}` | {v['version']} | {v['license']} | {v['note']} |"
+        )
     lines.append("")
     lines.append(
         "Vendored libraries live inside the repository tree (not pulled from PyPI at install time). "
@@ -342,12 +442,23 @@ def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
         lines.append("")
         license_text = pkg.get("license_text", "")
         notice_text = pkg.get("notice_text", "")
+        license_text_missing = pkg.get("license_text_missing", False)
+        notice_text_missing = pkg.get("notice_text_missing", False)
         if not license_text and not notice_text:
-            lines.append("> :warning: License text not found — verify manually")
+            if license_text_missing:
+                lines.append("> No LICENSE file shipped by upstream wheel.")
+            else:
+                lines.append("> :warning: License text not found — verify manually")
+            if notice_text_missing:
+                lines.append("> No NOTICE file shipped by upstream.")
             lines.append("")
             continue
         if license_text:
-            safe = license_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            safe = (
+                license_text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
             lines.append("<details><summary>License text</summary>")
             lines.append("")
             lines.append("<pre>")
@@ -356,8 +467,15 @@ def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
             lines.append("")
             lines.append("</details>")
             lines.append("")
+        elif license_text_missing:
+            lines.append("> No LICENSE file shipped by upstream wheel.")
+            lines.append("")
         if notice_text:
-            safe = notice_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            safe = (
+                notice_text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
             lines.append("<details><summary>NOTICE</summary>")
             lines.append("")
             lines.append("<pre>")
@@ -365,6 +483,9 @@ def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
             lines.append("</pre>")
             lines.append("")
             lines.append("</details>")
+            lines.append("")
+        elif notice_text_missing:
+            lines.append("> No NOTICE file shipped by upstream.")
             lines.append("")
 
     lines.append("### Vendored library notices")
@@ -383,8 +504,16 @@ def build_markdown(packages: dict[tuple[str, str], dict]) -> str:
 
 def main() -> int:
     SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+    sha = get_git_sha()
+    date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    lock_hashes_str = ", ".join(
+        f"{Path(svc).name}:{lock_hash(REPO_ROOT / svc)}" for svc in SERVICES
+    )
+    provenance = {"sha": sha, "date": date, "lock_hashes": lock_hashes_str}
+    log(f"provenance: commit={sha[:12]}, date={date}")
+
     packages = collect_packages()
-    md = build_markdown(packages)
+    md = build_markdown(packages, provenance)
     OUTPUT_FILE.write_text(md, encoding="utf-8")
     log(f"discovered {len(packages)} unique backend packages")
     log(f"wrote {OUTPUT_FILE}")
