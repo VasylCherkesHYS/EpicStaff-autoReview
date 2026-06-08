@@ -60,51 +60,6 @@ async def test_connect_nonexistent_graph_is_rejected(test_user):
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
 @override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
-async def test_graph_modified_broadcast_to_group(test_graph, test_user, second_user):
-    comm1 = _make_communicator(test_graph.pk, test_user)
-    comm2 = _make_communicator(test_graph.pk, second_user)
-
-    connected1, _ = await comm1.connect()
-    # Drain comm1's initial presence_state and the user_joined it sends to itself.
-    msg = await comm1.receive_json_from()
-    assert msg["type"] == "presence_state"
-    msg = await comm1.receive_json_from()
-    assert msg["type"] == "user_joined"
-
-    connected2, _ = await comm2.connect()
-    assert connected1 and connected2
-
-    # comm1 receives user_joined for second_user.
-    msg = await comm1.receive_json_from()
-    assert msg["type"] == "user_joined"
-    assert msg["editor"]["user_id"] == second_user.pk
-
-    # comm2 receives its own presence_state (both users), then user_joined for itself.
-    msg = await comm2.receive_json_from()
-    assert msg["type"] == "presence_state"
-    msg = await comm2.receive_json_from()
-    assert msg["type"] == "user_joined"
-
-    await comm1.send_json_to({"type": "graph_modified"})
-
-    # Both consumers should receive the broadcast (including sender — group_send goes to all).
-    msg1 = await comm1.receive_json_from()
-    msg2 = await comm2.receive_json_from()
-
-    assert msg1["type"] == "graph_modified"
-    assert msg1["graph_id"] == test_graph.pk
-    assert msg1["modified_by"]["user_id"] == test_user.pk
-
-    assert msg2["type"] == "graph_modified"
-    assert msg2["modified_by"]["user_id"] == test_user.pk
-
-    await comm1.disconnect()
-    await comm2.disconnect()
-
-
-@pytest.mark.asyncio
-@pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_unknown_message_type_returns_error(test_graph, test_user):
     communicator = _make_communicator(test_graph.pk, test_user)
     await communicator.connect()
@@ -233,3 +188,234 @@ async def test_user_disconnect_remaining_receives_user_left(
     assert msg["user_id"] == test_user.pk
 
     await comm2.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+
+async def _drain_connect(communicator) -> None:
+    """Consume the initial presence_state and user_joined messages after connect."""
+    msg = await communicator.receive_json_from()
+    assert msg["type"] == "presence_state"
+    msg = await communicator.receive_json_from()
+    assert msg["type"] == "user_joined"
+
+
+# ---------------------------------------------------------------------------
+# Relay tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_node_created_relayed_to_peer_with_server_editor(
+    test_graph, test_user, second_user
+):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    spoofed_editor = {"user_id": 9999, "display_name": "spoof", "avatar_url": None}
+    await comm_a.send_json_to(
+        {
+            "type": "node_created",
+            "node": {"id": "n1", "type": "python"},
+            "editor": spoofed_editor,
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "node_created"
+    assert (
+        msg["editor"]["user_id"] == test_user.pk
+    ), "server must override editor identity"
+    assert msg["node"] == {"id": "n1", "type": "python"}
+    assert "sender_channel" not in msg
+
+    assert await comm_a.receive_nothing(
+        timeout=0.3
+    ), "sender must not receive its own relay"
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_node_updated_relayed_to_peer(test_graph, test_user, second_user):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    node_payload = {"id": "n2", "type": "agent", "label": "My Agent"}
+    await comm_a.send_json_to(
+        {
+            "type": "node_updated",
+            "node": node_payload,
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "node_updated"
+    assert msg["node"] == node_payload
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_nodes_deleted_relayed_to_peer(test_graph, test_user, second_user):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    await comm_a.send_json_to(
+        {
+            "type": "nodes_deleted",
+            "node_ids": ["n1", "n2"],
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "nodes_deleted"
+    assert msg["node_ids"] == ["n1", "n2"]
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_connection_created_relayed_to_peer(test_graph, test_user, second_user):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    connection_payload = {"id": "c1", "source": "n1", "target": "n2"}
+    await comm_a.send_json_to(
+        {
+            "type": "connection_created",
+            "connection": connection_payload,
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "connection_created"
+    assert msg["connection"] == connection_payload
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_group_isolation_across_graphs(
+    test_graph, second_graph, test_user, second_user
+):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(second_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await _drain_connect(comm_b)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_created",
+            "node": {"id": "n1", "type": "python"},
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    assert await comm_b.receive_nothing(
+        timeout=0.3
+    ), "message sent to graph A must not reach a consumer on graph B"
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
+async def test_malformed_payload_returns_invalid_payload_error(test_graph, test_user):
+    communicator = _make_communicator(test_graph.pk, test_user)
+    await communicator.connect()
+    await _drain_connect(communicator)
+
+    # Send node_created without the required `node` field.
+    await communicator.send_json_to(
+        {
+            "type": "node_created",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await communicator.receive_json_from()
+    assert msg["type"] == "error"
+    assert msg["code"] == "invalid_payload"
+
+    # Connection must survive a validation error — send an unknown type next.
+    await communicator.send_json_to({"type": "totally_unknown"})
+    msg = await communicator.receive_json_from()
+    assert msg["type"] == "error"
+    assert msg["code"] == "unknown_message_type"
+
+    await communicator.disconnect()

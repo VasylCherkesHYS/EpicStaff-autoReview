@@ -9,10 +9,7 @@ class EditorInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GraphModifiedMessage(BaseModel):
-    type: str = "graph_modified"
-    graph_id: int
-    modified_by: EditorInfo
+# --- Server-push messages (outbound only) ---
 
 
 class GraphSavedMessage(BaseModel):
@@ -42,3 +39,72 @@ class ErrorMessage(BaseModel):
     type: str = "error"
     code: str
     message: str
+
+
+class NodeCreatedMessage(BaseModel):
+    type: str = "node_created"
+    node: dict
+    editor: EditorInfo
+
+
+class NodeUpdatedMessage(BaseModel):
+    type: str = "node_updated"
+    node: dict
+    editor: EditorInfo
+
+
+class NodesDeletedMessage(BaseModel):
+    type: str = "nodes_deleted"
+    node_ids: list[str]
+    editor: EditorInfo
+
+
+class ConnectionCreatedMessage(BaseModel):
+    type: str = "connection_created"
+    connection: dict
+    editor: EditorInfo
+
+
+class ConnectionDeletedMessage(BaseModel):
+    type: str = "connection_deleted"
+    connection_id: str
+    editor: EditorInfo
+
+
+class ConnectionsDeletedMessage(BaseModel):
+    type: str = "connections_deleted"
+    connection_ids: list[str]
+    editor: EditorInfo
+
+
+class ConnectionWaypointsUpdatedMessage(BaseModel):
+    type: str = "connection_waypoints_updated"
+    connection_id: str
+    waypoints: list[dict]
+    editor: EditorInfo
+
+
+class CursorMovedMessage(BaseModel):
+    type: str = "cursor_moved"
+    x: float
+    y: float
+    editor: EditorInfo
+
+
+class SelectionChangedMessage(BaseModel):
+    type: str = "selection_changed"
+    node_ids: list[str]
+    editor: EditorInfo
+
+
+class NodeLockedMessage(BaseModel):
+    type: str = "node_locked"
+    node_id: str
+    field: str | None = None
+    editor: EditorInfo
+
+
+class NodeUnlockedMessage(BaseModel):
+    type: str = "node_unlocked"
+    node_id: str
+    editor: EditorInfo

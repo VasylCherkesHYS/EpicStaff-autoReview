@@ -46,6 +46,11 @@ def second_user(db):
     )
 
 
+@pytest.fixture
+def second_graph(db):
+    return Graph.objects.create(name="test-graph-collab-2")
+
+
 @pytest.fixture(autouse=True)
 def reset_presence_store():
     """Reset the module-level presence store between tests to prevent state leakage."""

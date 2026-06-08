@@ -1,17 +1,43 @@
+import pydantic
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
+from pydantic import BaseModel
 
 from tables.graph_collab.presence_service import presence_service
 from tables.graph_collab.protocol import (
+    ConnectionCreatedMessage,
+    ConnectionDeletedMessage,
+    ConnectionsDeletedMessage,
+    ConnectionWaypointsUpdatedMessage,
+    CursorMovedMessage,
     EditorInfo,
     ErrorMessage,
-    GraphModifiedMessage,
+    NodeCreatedMessage,
+    NodeLockedMessage,
+    NodeUnlockedMessage,
+    NodeUpdatedMessage,
+    NodesDeletedMessage,
     PresenceStateMessage,
+    SelectionChangedMessage,
     UserJoinedMessage,
     UserLeftMessage,
 )
 from utils.logger import logger
+
+_RELAY_MESSAGE_TYPES: dict[str, type[BaseModel]] = {
+    "node_created": NodeCreatedMessage,
+    "node_updated": NodeUpdatedMessage,
+    "nodes_deleted": NodesDeletedMessage,
+    "connection_created": ConnectionCreatedMessage,
+    "connection_deleted": ConnectionDeletedMessage,
+    "connections_deleted": ConnectionsDeletedMessage,
+    "connection_waypoints_updated": ConnectionWaypointsUpdatedMessage,
+    "cursor_moved": CursorMovedMessage,
+    "selection_changed": SelectionChangedMessage,
+    "node_locked": NodeLockedMessage,
+    "node_unlocked": NodeUnlockedMessage,
+}
 
 
 def _group_name(graph_id: int) -> str:
@@ -23,7 +49,7 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
     WebSocket consumer for graph co-editing events.
 
     Clients connect to /ws/graphs/{graph_id}/edit/?ticket=<token>.
-    After connect they can send graph_modified messages which are broadcast
+    After connect they can send canvas-edit messages which are relayed
     to all other consumers for the same graph. graph_saved events are pushed
     from HTTP views via GraphEditNotifier.
     """
@@ -83,9 +109,9 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content, **kwargs):
         message_type = content.get("type")
-
-        if message_type == "graph_modified":
-            await self._handle_graph_modified()
+        model_class = _RELAY_MESSAGE_TYPES.get(message_type)
+        if model_class is not None:
+            await self._handle_relay(content, model_class)
         else:
             await self.send_json(
                 ErrorMessage(
@@ -94,19 +120,70 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
                 ).model_dump()
             )
 
-    async def _handle_graph_modified(self):
-        user = self.scope["user"]
-        editor = self._build_editor_info(user)
-        message = GraphModifiedMessage(
-            graph_id=self.graph_id,
-            modified_by=editor,
-        )
-        await self.channel_layer.group_send(self.group, message.model_dump())
+    async def _handle_relay(self, content: dict, model_class: type[BaseModel]) -> None:
+        try:
+            message = model_class.model_validate(content)
+        except pydantic.ValidationError as exc:
+            await self.send_json(
+                ErrorMessage(
+                    code="invalid_payload",
+                    message=str(exc),
+                ).model_dump()
+            )
+            return
 
-    # --- Channel layer handlers ---
+        # Override editor server-side — never trust the client-sent identity.
+        message.editor = self._build_editor_info(self.scope["user"])
 
-    async def graph_modified(self, event):
-        await self.send_json(event)
+        event = message.model_dump()
+        event["sender_channel"] = self.channel_name
+        await self.channel_layer.group_send(self.group, event)
+
+    async def _relay(self, event: dict) -> None:
+        """Forward a channel-layer event to the WebSocket, suppressing echo to sender."""
+        if event.get("sender_channel") == self.channel_name:
+            return
+        payload = {
+            key: value for key, value in event.items() if key != "sender_channel"
+        }
+        await self.send_json(payload)
+
+    # --- Channel layer handlers: relay ---
+
+    async def node_created(self, event):
+        await self._relay(event)
+
+    async def node_updated(self, event):
+        await self._relay(event)
+
+    async def nodes_deleted(self, event):
+        await self._relay(event)
+
+    async def connection_created(self, event):
+        await self._relay(event)
+
+    async def connection_deleted(self, event):
+        await self._relay(event)
+
+    async def connections_deleted(self, event):
+        await self._relay(event)
+
+    async def connection_waypoints_updated(self, event):
+        await self._relay(event)
+
+    async def cursor_moved(self, event):
+        await self._relay(event)
+
+    async def selection_changed(self, event):
+        await self._relay(event)
+
+    async def node_locked(self, event):
+        await self._relay(event)
+
+    async def node_unlocked(self, event):
+        await self._relay(event)
+
+    # --- Channel layer handlers: presence + notifications ---
 
     async def graph_saved(self, event):
         await self.send_json(event)
@@ -121,6 +198,7 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json(event)
 
     # --- Helpers ---
+
     @staticmethod
     def _build_editor_info(user) -> EditorInfo:
         avatar_url: str | None = None
