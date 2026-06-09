@@ -461,6 +461,7 @@ async def test_llm_raises_returns_llm_error_no_on_error():
     assert result.stop_reason == "llm_error"
     assert result.iterations == 0
     assert result.tool_invocations == 0
+    assert result.error == "LLM down"
 
     error_events = [payload for name, payload in emitter.events if name == "on_error"]
     assert len(error_events) == 0
@@ -495,6 +496,8 @@ async def test_timeout_fires_mid_execution():
     result = await loop.run(context, tools, emitter, stop)
 
     assert result.stop_reason == "timeout"
+    assert result.error is not None
+    assert "exceeded" in result.error
 
     error_events = [payload for name, payload in emitter.events if name == "on_error"]
     assert len(error_events) == 0

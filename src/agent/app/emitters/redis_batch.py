@@ -71,6 +71,7 @@ class RedisStreamBatchEmitter(Emitter):
                 "iterations": result.iterations,
                 "stop_reason": result.stop_reason,
                 "token_usage": result.token_usage.model_dump(),
+                "error": result.error,
                 "events": self._buffered_events,
             },
         )

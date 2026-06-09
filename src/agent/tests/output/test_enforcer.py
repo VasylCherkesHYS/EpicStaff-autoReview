@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.emitters.base import Emitter
-from app.exceptions import SchemaValidationError
+from app.exceptions import AgentServiceError, SchemaValidationError
 from app.llm.client import LLMChunk
 from app.loop.agent_loop import AgentLoop
 from app.loop.context import AgentContext
@@ -255,3 +255,79 @@ async def test_corrective_message_appended_on_no_capture():
     user_messages = [m for m in context.messages if m.get("role") == "user"]
     assert len(user_messages) >= 2
     assert "submit_final_answer" in user_messages[1]["content"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Tests: loop failure during schema enforcement
+# ---------------------------------------------------------------------------
+
+
+class FailingLoop(AgentLoop):
+    """Returns a failure LoopResult without calling the answer tool.
+
+    Tracks how many times run() was called.
+    """
+
+    def __init__(self, stop_reason: str, error: str | None) -> None:
+        self._stop_reason = stop_reason
+        self._error = error
+        self.call_count = 0
+
+    async def run(
+        self,
+        context: AgentContext,
+        tools: ToolRegistry,
+        emitter,
+        stop: StopPolicy,
+    ) -> LoopResult:
+        self.call_count += 1
+        return LoopResult(
+            final_text=None,
+            tool_invocations=0,
+            iterations=0,
+            stop_reason=self._stop_reason,
+            token_usage=TokenUsage(),
+            error=self._error,
+        )
+
+
+async def test_llm_error_during_enforcement_raises_agent_service_error():
+    """Loop returns llm_error → AgentServiceError with the original message, not SchemaValidationError."""
+    loop = FailingLoop(stop_reason="llm_error", error="boom")
+    enforcer = StructuredOutputEnforcer(loop, max_retries=2)
+    context = _make_context()
+
+    with pytest.raises(AgentServiceError) as exc_info:
+        await enforcer.enforce(context, OBJECT_SCHEMA, FakeEmitter())
+
+    assert "boom" in str(exc_info.value)
+    assert not isinstance(exc_info.value, SchemaValidationError)
+    assert loop.call_count == 1
+    assert context.tool_choice is None
+
+
+async def test_timeout_during_enforcement_raises_agent_service_error():
+    """Loop returns timeout → AgentServiceError, not SchemaValidationError."""
+    loop = FailingLoop(stop_reason="timeout", error="execution exceeded 30s")
+    enforcer = StructuredOutputEnforcer(loop, max_retries=2)
+    context = _make_context()
+
+    with pytest.raises(AgentServiceError) as exc_info:
+        await enforcer.enforce(context, OBJECT_SCHEMA, FakeEmitter())
+
+    assert "execution exceeded 30s" in str(exc_info.value)
+    assert not isinstance(exc_info.value, SchemaValidationError)
+    assert loop.call_count == 1
+    assert context.tool_choice is None
+
+
+async def test_failure_stop_reason_with_no_error_message_uses_fallback():
+    """When error field is None, a fallback message is constructed from stop_reason."""
+    loop = FailingLoop(stop_reason="llm_error", error=None)
+    enforcer = StructuredOutputEnforcer(loop, max_retries=2)
+    context = _make_context()
+
+    with pytest.raises(AgentServiceError) as exc_info:
+        await enforcer.enforce(context, OBJECT_SCHEMA, FakeEmitter())
+
+    assert "llm_error" in str(exc_info.value)

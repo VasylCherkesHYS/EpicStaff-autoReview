@@ -4,6 +4,7 @@ import json
 
 from loguru import logger
 
+from app.constants import FAILURE_STOP_REASONS
 from app.emitters.base import Emitter
 from app.enums import EmitterMode, RunType
 from app.exceptions import AgentServiceError
@@ -117,6 +118,11 @@ class SingleTaskRunner(Runner):
                 result = await self._deps.loop.run(
                     resolved.context, resolved.tools, emitter, stop
                 )
+                if output_schema and result.stop_reason in FAILURE_STOP_REASONS:
+                    raise AgentServiceError(
+                        result.error or f"agent loop failed ({result.stop_reason})"
+                    )
+
                 if output_schema:
                     enforcer = StructuredOutputEnforcer(
                         self._deps.loop, _schema_max_retries()

@@ -144,9 +144,10 @@ class DefaultAgentLoop(AgentLoop):
                 tool_invocations=state.tool_invocations,
                 iterations=state.iterations,
                 token_usage=state.token_usage(),
+                error=f"execution exceeded {time_limit}s",
             )
 
-        except Exception:
+        except Exception as error:
             logger.exception("loop llm_error correlation_id={}", context.correlation_id)
             return LoopResult(
                 stop_reason="llm_error",
@@ -154,6 +155,7 @@ class DefaultAgentLoop(AgentLoop):
                 tool_invocations=state.tool_invocations,
                 iterations=state.iterations,
                 token_usage=state.token_usage(),
+                error=str(error),
             )
 
     async def _run_inner(

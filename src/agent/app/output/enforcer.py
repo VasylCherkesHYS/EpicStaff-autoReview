@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from loguru import logger
 
-from app.exceptions import SchemaValidationError
+from app.constants import FAILURE_STOP_REASONS
+from app.exceptions import AgentServiceError, SchemaValidationError
 from app.loop.agent_loop import AgentLoop
 from app.loop.stop_policy import MaxIterAndNoToolCalls
 from app.output.schema import ValidationOutcome, add_usage, validate_output
@@ -36,6 +37,13 @@ class StructuredOutputEnforcer:
                 context, registry, emitter, MaxIterAndNoToolCalls(max_iter=1)
             )
             usage = add_usage(usage, result.token_usage)
+
+            if result.stop_reason in FAILURE_STOP_REASONS:
+                context.tool_choice = None
+                raise AgentServiceError(
+                    result.error
+                    or f"agent loop failed ({result.stop_reason}) during schema enforcement"
+                )
 
             if capture.args is None:
                 logger.debug(

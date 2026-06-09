@@ -182,3 +182,5 @@ class LoopResult(BaseModel):
     iterations: int
     stop_reason: str
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    error: str | None = None
+    """Failure detail when stop_reason indicates a failure (llm_error/timeout); None on success."""

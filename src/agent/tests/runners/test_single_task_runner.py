@@ -404,3 +404,76 @@ async def test_no_output_schema_uses_single_plain_loop():
     assert emitter.errors == []
     assert emitter.finals == [CANNED_RESULT]
     assert len(fake_loop.received_messages) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: main loop failure with output_schema + tools
+# ---------------------------------------------------------------------------
+
+
+class FailureLoop(AgentLoop):
+    """Returns a failure LoopResult on the first call; tracks call count."""
+
+    def __init__(self, stop_reason: str, error: str) -> None:
+        self._stop_reason = stop_reason
+        self._error = error
+        self.call_count = 0
+
+    async def run(
+        self,
+        context,
+        tools,
+        emitter,
+        stop,
+    ) -> LoopResult:
+        self.call_count += 1
+        return LoopResult(
+            final_text=None,
+            tool_invocations=0,
+            iterations=0,
+            stop_reason=self._stop_reason,
+            token_usage=TokenUsage(),
+            error=self._error,
+        )
+
+
+async def test_with_tools_and_schema_main_loop_failure_skips_enforcer():
+    """With tools + output_schema: main loop llm_error → on_error called, enforcer never invoked, on_final not called."""
+    emitter = FakeEmitter()
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "string"}},
+        "required": ["x"],
+    }
+    loop = FailureLoop(stop_reason="llm_error", error="rate limited")
+    runner = _runner(resolver=FakeResolverWithTools(), loop=loop)
+    request = _request({"task_instructions": "Do X", "output_schema": schema})
+
+    with patch("app.runners.single_task._schema_max_retries", return_value=2):
+        await runner.execute(request, emitter)
+
+    assert len(emitter.errors) == 1
+    assert "rate limited" in str(emitter.errors[0])
+    assert emitter.finals == []
+    assert loop.call_count == 1
+
+
+async def test_with_tools_and_schema_timeout_skips_enforcer():
+    """With tools + output_schema: main loop timeout → on_error called, enforcer never invoked."""
+    emitter = FakeEmitter()
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "string"}},
+        "required": ["x"],
+    }
+    loop = FailureLoop(stop_reason="timeout", error="execution exceeded 60s")
+    runner = _runner(resolver=FakeResolverWithTools(), loop=loop)
+    request = _request({"task_instructions": "Do X", "output_schema": schema})
+
+    with patch("app.runners.single_task._schema_max_retries", return_value=2):
+        await runner.execute(request, emitter)
+
+    assert len(emitter.errors) == 1
+    assert "execution exceeded 60s" in str(emitter.errors[0])
+    assert emitter.finals == []
+    assert loop.call_count == 1
