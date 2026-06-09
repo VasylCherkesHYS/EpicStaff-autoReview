@@ -84,14 +84,6 @@
                 *ngIf="!loading && pythonTools.length === 0"
             >
                 <p>No custom tools available</p>
-                <app-button
-                    type="primary"
-                    class="btn-primary create-btn"
-                    [leftIcon]="'plus'"
-                    (click)="openCustomToolDialog()"
-                >
-                    Create custom tool
-                </app-button>
             </div>
 
             <!-- Using Python Tool Item Component for each tool -->
@@ -106,16 +98,6 @@
                     (toolToggled)="onPythonToolToggle($event)"
                 >
                 </app-python-tool-item>
-                <div class="add-tool-button-container">
-                    <app-button
-                        type="primary"
-                        class="btn-primary add-tool-btn"
-                        [leftIcon]="'plus'"
-                        (click)="openCustomToolDialog()"
-                    >
-                        Create custom tool
-                    </app-button>
-                </div>
             </div>
         </div>
 
@@ -167,7 +149,6 @@
                 <div class="add-tool-button-container">
                     <app-button
                         type="primary"
-                        class="btn-primary add-tool-btn"
                         [leftIcon]="'plus'"
                         (click)="openMcpToolDialog()"
                     >
@@ -180,17 +161,29 @@
 
     <!-- Footer -->
     <div class="footer">
-        <button
-            class="cancel-button"
+        @if (selectedMenu === 'custom') {
+            <app-button
+                class="add-tool-btn"
+                type="outline-primary"
+                mod="small"
+                (click)="openCustomToolDialog()"
+            >
+                Create custom tool
+            </app-button>
+        }
+        <app-button
+            type="secondary"
+            mod="small"
             (click)="onCancel()"
         >
             Cancel
-        </button>
-        <button
-            class="save-btn"
+        </app-button>
+        <app-button
+            type="primary"
+            mod="small"
             (click)="save()"
         >
             Save Selection
-        </button>
+        </app-button>
     </div>
 </div>

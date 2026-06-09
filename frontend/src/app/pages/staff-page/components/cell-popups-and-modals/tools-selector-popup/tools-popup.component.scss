@@ -221,29 +221,6 @@ $transition-default: all 0.2s ease;
         margin-bottom: 1rem;
         font-size: 13px;
     }
-
-    .create-tool-btn {
-        background-color: $accent-blue;
-        color: white;
-        padding: 8px 16px;
-        border-radius: 6px;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        transition: $transition-default;
-        border: none;
-        cursor: pointer;
-
-        &:hover {
-            background-color: $accent-hover;
-            transform: translateY(-1px);
-        }
-
-        .plus-icon {
-            font-size: 16px;
-        }
-    }
 }
 
 .tools-list {
@@ -256,57 +233,14 @@ $transition-default: all 0.2s ease;
     animation: fadeIn 0.3s ease;
 }
 
-.add-tool-button-container {
-    display: flex;
-    justify-content: center;
-    padding: 12px 0;
-    margin-top: 8px;
-
-    .add-tool-btn {
-        width: 100%;
-        max-width: 200px;
-    }
-}
-
 .footer {
     display: flex;
     justify-content: flex-end;
     padding: 12px;
     border-top: 1px solid $border-color;
     gap: 8px;
-    .save-btn {
-        background-color: $accent-blue;
-        color: white;
-        padding: 7px 16px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
-        transition: $transition-default;
-        border: none;
 
-        &:hover {
-            background-color: $accent-hover;
-        }
-
-        &:active {
-            transform: translateY(0px);
-            box-shadow: none;
-        }
-    }
-    .cancel-button {
-        padding: 7px 14px;
-        background-color: transparent;
-        border: none;
-        color: $text-secondary;
-        font-size: 13px;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: $transition-default;
-
-        &:hover {
-            color: $text-primary;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
+    .add-tool-btn {
+        margin-right: auto;
     }
 }
