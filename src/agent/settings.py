@@ -17,6 +17,7 @@ class Settings:
     sandbox_request_channel: str
     sandbox_result_channel: str
     agent_drop_unsupported_llm_params: bool
+    agent_context_warning_ratio: float
 
 
 def load_settings() -> Settings:
@@ -39,4 +40,7 @@ def load_settings() -> Settings:
             "AGENT_DROP_UNSUPPORTED_LLM_PARAMS", "true"
         ).lower()
         in {"1", "true", "yes"},
+        agent_context_warning_ratio=float(
+            os.environ.get("AGENT_CONTEXT_WARNING_RATIO", "0.8")
+        ),
     )

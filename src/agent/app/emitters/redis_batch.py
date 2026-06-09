@@ -41,6 +41,7 @@ class RedisStreamBatchEmitter(Emitter):
         self._result_stream = result_stream
         self._correlation_id = correlation_id
         self._buffered_events: list[dict] = []
+        self._warnings: list[str] = []
 
     async def on_start(self, request: AgentRequest) -> None:
         """Log the start of a run; no event is buffered or published yet."""
@@ -60,6 +61,16 @@ class RedisStreamBatchEmitter(Emitter):
             {"event": "tool_result", "data": result.model_dump()}
         )
 
+    async def on_warning(self, message: str) -> None:
+        """Buffer an advisory warning; deduplicate identical messages."""
+        if message not in self._warnings:
+            self._warnings.append(message)
+        logger.debug(
+            "emitter on_warning correlation_id={} message={}",
+            self._correlation_id,
+            message,
+        )
+
     async def on_final(self, result: LoopResult) -> None:
         """Publish a single ``agent.result`` envelope containing the loop summary and all buffered events."""
         envelope = StreamEnvelope(
@@ -73,6 +84,7 @@ class RedisStreamBatchEmitter(Emitter):
                 "token_usage": result.token_usage.model_dump(),
                 "error": result.error,
                 "events": self._buffered_events,
+                "warnings": self._warnings,
             },
         )
         _corr_id = self._correlation_id
@@ -89,7 +101,7 @@ class RedisStreamBatchEmitter(Emitter):
         envelope = StreamEnvelope(
             type="agent.error",
             correlation_id=self._correlation_id,
-            payload={"error": str(error)},
+            payload={"error": str(error), "warnings": self._warnings},
         )
         await self._client.publish(self._result_stream, envelope.to_fields())
         logger.error(

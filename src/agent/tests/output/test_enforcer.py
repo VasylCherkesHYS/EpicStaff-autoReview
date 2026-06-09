@@ -40,6 +40,9 @@ class FakeEmitter(Emitter):
     async def on_tool_result(self, result: ToolResult) -> None:
         pass
 
+    async def on_warning(self, message: str) -> None:
+        pass
+
     async def on_final(self, result: LoopResult) -> None:
         pass
 

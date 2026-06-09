@@ -8,8 +8,10 @@ include.  ``RunnerFactory`` selects the implementation; neither Runner nor
 AgentLoop knows which one is active.
 
 Hooks mirror the lifecycle of a single ``AgentLoop`` execution:
-``on_start`` → (``on_chunk`` / ``on_tool_call`` / ``on_tool_result``) * N
-→ ``on_final`` | ``on_error``.
+``on_start`` → (``on_chunk`` / ``on_tool_call`` / ``on_tool_result`` /
+``on_warning``) * N → ``on_final`` | ``on_error``.
+``on_warning`` may fire at any point between ``on_start`` and
+``on_final`` / ``on_error``; it is advisory and must never raise.
 """
 
 from __future__ import annotations
@@ -55,6 +57,14 @@ class Emitter(ABC):
     @abstractmethod
     async def on_final(self, result: LoopResult) -> None:
         """Called once when the loop finishes successfully."""
+        ...
+
+    @abstractmethod
+    async def on_warning(self, message: str) -> None:
+        """Record an advisory, non-fatal warning to include in the response.
+
+        Safe to call any time between on_start and on_final/on_error; must not raise.
+        """
         ...
 
     @abstractmethod

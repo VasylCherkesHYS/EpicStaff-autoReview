@@ -44,6 +44,7 @@ class FakeEmitter(Emitter):
         self.started: list = []
         self.finals: list[LoopResult] = []
         self.errors: list[Exception] = []
+        self.warnings: list[str] = []
 
     async def on_start(self, request) -> None:
         self.started.append(request)
@@ -56,6 +57,9 @@ class FakeEmitter(Emitter):
 
     async def on_tool_result(self, result: ToolResult) -> None:
         pass
+
+    async def on_warning(self, message: str) -> None:
+        self.warnings.append(message)
 
     async def on_final(self, result: LoopResult) -> None:
         self.finals.append(result)

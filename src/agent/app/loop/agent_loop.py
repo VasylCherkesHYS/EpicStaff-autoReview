@@ -19,6 +19,7 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+import litellm
 from loguru import logger
 
 from app.emitters.base import Emitter
@@ -30,6 +31,30 @@ from app.tools.registry import ToolRegistry
 from shared.models.agent_service import LoopResult, TokenUsage, ToolResult
 
 
+def _model_str(context: AgentContext) -> str:
+    """Return the fully-qualified model string used by litellm (e.g. 'openai/gpt-4o')."""
+    llm = context.agent.llm
+    model = llm.config.model
+    return model if "/" in model else f"{llm.provider}/{model}"
+
+
+def _safe_context_window(model_str: str) -> int | None:
+    """Return max input tokens for model_str, or None if unavailable."""
+    try:
+        info = litellm.get_model_info(model_str)
+        return info.get("max_input_tokens") or info.get("max_tokens")
+    except Exception:
+        return None
+
+
+def _safe_token_count(model_str: str, messages: list[dict]) -> int | None:
+    """Return token count for messages, or None if counting fails."""
+    try:
+        return litellm.token_counter(model=model_str, messages=messages)
+    except Exception:
+        return None
+
+
 def _build_model_config(context: AgentContext) -> dict:
     """Build the litellm-compatible model_config dict from the agent's LLM spec.
 
@@ -39,10 +64,7 @@ def _build_model_config(context: AgentContext) -> dict:
     """
     llm = context.agent.llm
     config = llm.config.model_dump(exclude_none=True)
-    model = config.get("model", "")
-
-    if llm.provider and "/" not in model:
-        config["model"] = f"{llm.provider}/{model}"
+    config["model"] = _model_str(context)
 
     if context.tool_choice is not None:
         config["tool_choice"] = context.tool_choice
@@ -88,6 +110,7 @@ class _RunState:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    context_warned: bool = False
 
     def token_usage(self) -> TokenUsage:
         return TokenUsage(
@@ -109,8 +132,11 @@ class DefaultAgentLoop(AgentLoop):
     the loop and return a partial ``LoopResult``.
     """
 
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(
+        self, llm: LLMClient, context_warning_ratio: float | None = None
+    ) -> None:
         self._llm = llm
+        self._context_warning_ratio = context_warning_ratio
 
     async def run(
         self,
@@ -167,7 +193,22 @@ class DefaultAgentLoop(AgentLoop):
         state: _RunState,
     ) -> LoopResult:
         """Core iteration loop — no timeout handling, no exception swallowing."""
+        ratio = self._context_warning_ratio
+        model_str = _model_str(context)
+        context_window = (
+            _safe_context_window(model_str) if ratio and ratio > 0 else None
+        )
+
         while True:
+            if context_window and ratio and not state.context_warned:
+                input_tokens = _safe_token_count(model_str, context.messages)
+                if input_tokens is not None and input_tokens >= ratio * context_window:
+                    await emitter.on_warning(
+                        f"input context >= {int(ratio * 100)}% of model context window "
+                        f"({context_window} tokens) for '{model_str}'; approaching limit"
+                    )
+                    state.context_warned = True
+
             _iter = state.iterations
             _corr_id = context.correlation_id
             _msg_count = len(context.messages)

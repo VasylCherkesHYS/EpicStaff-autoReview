@@ -70,6 +70,7 @@ class RecordingEmitter(Emitter):
 
     def __init__(self) -> None:
         self.events: list[tuple[str, object]] = []
+        self.warnings: list[str] = []
 
     async def on_start(self, request) -> None:
         self.events.append(("on_start", request))
@@ -82,6 +83,10 @@ class RecordingEmitter(Emitter):
 
     async def on_tool_result(self, result: ToolResult) -> None:
         self.events.append(("on_tool_result", result))
+
+    async def on_warning(self, message: str) -> None:
+        self.warnings.append(message)
+        self.events.append(("on_warning", message))
 
     async def on_final(self, result: LoopResult) -> None:
         self.events.append(("on_final", result))
@@ -616,6 +621,102 @@ async def test_tool_choice_none_not_present_in_model_config():
     loop = DefaultAgentLoop(llm)
 
     await loop.run(context, tools, emitter, stop)
+
+
+# ---------------------------------------------------------------------------
+# Tests: context window warning
+# ---------------------------------------------------------------------------
+
+
+async def test_context_warning_emitted_once_when_over_ratio(monkeypatch):
+    """Tokens >= ratio * context_window → exactly one warning containing the window size."""
+    import litellm as _litellm
+
+    from app.loop.agent_loop import DefaultAgentLoop
+
+    monkeypatch.setattr(
+        _litellm, "get_model_info", lambda model: {"max_input_tokens": 1000}
+    )
+    monkeypatch.setattr(_litellm, "token_counter", lambda model, messages: 900)
+
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({"ping": lambda args: "pong"})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    # Two iterations: tool call then text reply
+    llm = FakeLLMClient(
+        [
+            tool_chunks("c1", "ping", "{}"),
+            text_chunks("done"),
+        ]
+    )
+    loop = DefaultAgentLoop(llm, context_warning_ratio=0.8)
+
+    await loop.run(context, tools, emitter, stop)
+
+    assert len(emitter.warnings) == 1
+    assert "1000" in emitter.warnings[0]
+
+
+async def test_context_warning_not_emitted_when_under_ratio(monkeypatch):
+    """Tokens < ratio * context_window → no warning."""
+    import litellm as _litellm
+
+    monkeypatch.setattr(
+        _litellm, "get_model_info", lambda model: {"max_input_tokens": 1000}
+    )
+    monkeypatch.setattr(_litellm, "token_counter", lambda model, messages: 100)
+
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("ok")])
+    loop = DefaultAgentLoop(llm, context_warning_ratio=0.8)
+
+    await loop.run(context, tools, emitter, stop)
+
+    assert emitter.warnings == []
+
+
+async def test_context_warning_ratio_none_no_warning():
+    """context_warning_ratio=None (default) → no warning; get_model_info/token_counter not needed."""
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("ok")])
+    loop = DefaultAgentLoop(llm)  # default ratio=None
+
+    await loop.run(context, tools, emitter, stop)
+
+    assert emitter.warnings == []
+
+
+async def test_context_warning_get_model_info_raises_no_warning(monkeypatch):
+    """get_model_info raising → no warning, run still completes normally."""
+    import litellm as _litellm
+
+    def _raise(model):
+        raise RuntimeError("model not found")
+
+    monkeypatch.setattr(_litellm, "get_model_info", _raise)
+
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("ok")])
+    loop = DefaultAgentLoop(llm, context_warning_ratio=0.8)
+
+    result = await loop.run(context, tools, emitter, stop)
+
+    assert result.stop_reason == "no_tool_calls"
+    assert emitter.warnings == []
 
     assert len(llm.received_configs) == 1
     assert "tool_choice" not in llm.received_configs[0]

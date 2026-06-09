@@ -61,7 +61,8 @@ async def main() -> None:
 
     llm = LiteLLMClient()
     deps = RunnerDependencies(
-        resolver=AgentResolver(sandbox_client), loop=DefaultAgentLoop(llm)
+        resolver=AgentResolver(sandbox_client),
+        loop=DefaultAgentLoop(llm, settings.agent_context_warning_ratio),
     )
     factory = RunnerFactory(deps)
     factory.register(RunType.SINGLE_TASK, SingleTaskRunner)
