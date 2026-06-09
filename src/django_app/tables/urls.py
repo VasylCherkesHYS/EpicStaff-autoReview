@@ -122,6 +122,10 @@ from tables.views.sse_views import (
 )
 
 from tables.views.organization_admin_views import OrganizationAdminViewSet
+from tables.views.role_admin_views import (
+    OrgScopedRoleAdminViewSet,
+    RoleAdminViewSet,
+)
 from tables.views.user_management_views import (
     OrganizationMembershipAdminViewSet,
     UserAdminViewSet,
@@ -204,6 +208,7 @@ admin_router.register(
     r"organizations", OrganizationAdminViewSet, basename="admin-organization"
 )
 admin_router.register(r"users", UserAdminViewSet, basename="admin-user")
+admin_router.register(r"roles", RoleAdminViewSet, basename="admin-role")
 
 urlpatterns = [
     path(
@@ -227,6 +232,11 @@ urlpatterns = [
         "admin/organizations/<int:org_id>/assign-users/",
         OrganizationMembershipAdminViewSet.as_view({"post": "assign_users"}),
         name="admin-org-users-assign",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/roles/",
+        OrgScopedRoleAdminViewSet.as_view({"get": "list"}),
+        name="admin-org-roles-list",
     ),
     path("admin/", include(admin_router.urls)),
     path("", include(router.urls)),
