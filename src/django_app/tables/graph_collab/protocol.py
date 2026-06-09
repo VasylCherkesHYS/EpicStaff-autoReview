@@ -108,3 +108,24 @@ class NodeUnlockedMessage(BaseModel):
     type: str = "node_unlocked"
     node_id: str
     editor: EditorInfo
+
+
+# --- Live graph state messages ---
+
+
+class GraphStateMessage(BaseModel):
+    """Carries the authoritative FlowModel snapshot.
+
+    Direction:
+    - Client→Server: first connector seeds the live snapshot.
+    - Server→Client: late joiner receives the current live snapshot.
+    """
+
+    type: str = "graph_state"
+    flow: dict  # passthrough FlowModel { nodes: [...], connections: [...] }
+
+
+class RequestStateMessage(BaseModel):
+    """Server → first connector asking it to push its current FlowModel."""
+
+    type: str = "request_state"

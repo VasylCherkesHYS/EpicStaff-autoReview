@@ -35,5 +35,13 @@ class GraphPresenceService:
                 result.append(editor)
         return result
 
+    def count_editors(self, graph_id: int) -> int:
+        """Return the number of active channels (connections) for *graph_id*."""
+        return len(self._store.get(graph_id, {}))
+
+    def has_editors(self, graph_id: int) -> bool:
+        """Return True if at least one channel is connected for *graph_id*."""
+        return self.count_editors(graph_id) > 0
+
 
 presence_service = GraphPresenceService()

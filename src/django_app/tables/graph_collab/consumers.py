@@ -4,40 +4,20 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 from pydantic import BaseModel
 
+from tables.graph_collab.graph_state_service import graph_state_service
 from tables.graph_collab.presence_service import presence_service
+from tables.graph_collab.constants import _RELAY_MESSAGE_TYPES, _STATE_OP_TYPES
 from tables.graph_collab.protocol import (
-    ConnectionCreatedMessage,
-    ConnectionDeletedMessage,
-    ConnectionsDeletedMessage,
-    ConnectionWaypointsUpdatedMessage,
-    CursorMovedMessage,
     EditorInfo,
     ErrorMessage,
-    NodeCreatedMessage,
-    NodeLockedMessage,
-    NodeUnlockedMessage,
-    NodeUpdatedMessage,
-    NodesDeletedMessage,
+    GraphStateMessage,
     PresenceStateMessage,
-    SelectionChangedMessage,
+    RequestStateMessage,
     UserJoinedMessage,
     UserLeftMessage,
 )
-from utils.logger import logger
 
-_RELAY_MESSAGE_TYPES: dict[str, type[BaseModel]] = {
-    "node_created": NodeCreatedMessage,
-    "node_updated": NodeUpdatedMessage,
-    "nodes_deleted": NodesDeletedMessage,
-    "connection_created": ConnectionCreatedMessage,
-    "connection_deleted": ConnectionDeletedMessage,
-    "connections_deleted": ConnectionsDeletedMessage,
-    "connection_waypoints_updated": ConnectionWaypointsUpdatedMessage,
-    "cursor_moved": CursorMovedMessage,
-    "selection_changed": SelectionChangedMessage,
-    "node_locked": NodeLockedMessage,
-    "node_unlocked": NodeUnlockedMessage,
-}
+from utils.logger import logger
 
 
 def _group_name(graph_id: int) -> str:
@@ -93,6 +73,13 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             UserJoinedMessage(editor=editor).model_dump(),
         )
 
+        # Serve live state or ask this client to seed it.
+        snapshot = await graph_state_service.get_snapshot(self.graph_id)
+        if snapshot is not None:
+            await self.send_json(GraphStateMessage(flow=snapshot).model_dump())
+        else:
+            await self.send_json(RequestStateMessage().model_dump())
+
     async def disconnect(self, code):
         group = getattr(self, "group", None)
         if group:
@@ -105,10 +92,31 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
                         group,
                         UserLeftMessage(user_id=user.pk).model_dump(),
                     )
+                # Clear live snapshot once the last editor leaves.
+                if presence_service.count_editors(graph_id) == 0:
+                    await graph_state_service.clear(graph_id)
             await self.channel_layer.group_discard(group, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
         message_type = content.get("type")
+
+        # Handle Client→Server graph_state seed before relay lookup.
+        if message_type == "graph_state":
+            try:
+                message = GraphStateMessage.model_validate(content)
+            except pydantic.ValidationError as exc:
+                await self.send_json(
+                    ErrorMessage(
+                        code="invalid_payload",
+                        message=str(exc),
+                    ).model_dump()
+                )
+                return
+            # Seed only if absent — never let a late client clobber the snapshot.
+            if await graph_state_service.get_snapshot(self.graph_id) is None:
+                await graph_state_service.seed(self.graph_id, message.flow)
+            return
+
         model_class = _RELAY_MESSAGE_TYPES.get(message_type)
         if model_class is not None:
             await self._handle_relay(content, model_class)
@@ -134,6 +142,10 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
 
         # Override editor server-side — never trust the client-sent identity.
         message.editor = self._build_editor_info(self.scope["user"])
+
+        # Apply state-mutating ops to the live snapshot before relaying.
+        if message.type in _STATE_OP_TYPES:
+            await graph_state_service.apply_op(self.graph_id, message)
 
         event = message.model_dump()
         event["sender_channel"] = self.channel_name
