@@ -12,6 +12,7 @@ import { DEFAULT_FILE_EXTRACTOR_NODE_PORTS } from '../rules/file-extractor-ports
 import { DEFAULT_LLM_NODE_PORTS } from '../rules/llm-ports/llm-node-default-ports';
 import { DEFAULT_PROJECT_NODE_PORTS } from '../rules/project-ports/project-node-default-ports';
 import { DEFAULT_PYTHON_NODE_PORTS } from '../rules/python-ports/python-node-default-ports';
+import { DEFAULT_SCHEDULE_TRIGGER_NODE_PORTS } from '../rules/schedule-trigger-ports/schedule-trigger-default-ports';
 import { DEFAULT_START_NODE_PORTS } from '../rules/start-ports/start-node-default-ports';
 import { DEFAULT_SUBGRAPH_NODE_PORTS } from '../rules/subgraph-ports/subgraph-node-default-ports';
 import { DEFAULT_TABLE_NODE_PORTS } from '../rules/table-ports/table-ports';
@@ -69,6 +70,8 @@ export function getPortsForType(nodeType: NodeType): BasePort[] {
             return DEFAULT_WEBHOOK_TRIGGER_NODE_PORTS;
         case NodeType.TELEGRAM_TRIGGER:
             return DEFAULT_TELEGRAM_TRIGGER_NODE_PORTS;
+        case NodeType.SCHEDULE_TRIGGER:
+            return DEFAULT_SCHEDULE_TRIGGER_NODE_PORTS;
         case NodeType.END:
             return DEFAULT_END_NODE_PORTS;
         case NodeType.SUBGRAPH:
@@ -496,7 +499,7 @@ export function generatePortsForClassificationDecisionTableNode(
         .filter((group) => group.dock_visible !== false)
         .forEach((group) => {
             const key = group.route_code ?? group.group_name;
-            if (!uniqueRouteCodes.has(key)) {
+            if (key && !uniqueRouteCodes.has(key)) {
                 uniqueRouteCodes.set(key, key);
             }
         });

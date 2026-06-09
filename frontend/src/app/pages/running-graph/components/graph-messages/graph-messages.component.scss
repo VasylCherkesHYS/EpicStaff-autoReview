@@ -1,13 +1,14 @@
 :host {
     width: 100%;
-    height: 100%;
+    height: var(--graph-messages-host-height, 100%);
     display: flex;
     flex-direction: column;
 }
 
 .messages-container {
     position: relative;
-    height: 100%;
+    height: var(--graph-messages-container-height, 100%);
+    max-height: var(--graph-messages-max-height, none);
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -508,6 +509,10 @@
         }
     }
 
+    .scroll-to-top-btn {
+        bottom: 60px;
+    }
+
     .scroll-to-bottom-btn {
         .unseen-badge {
             position: absolute;
@@ -664,4 +669,10 @@
     font-weight: 600;
     color: #c69999;
     margin: 10px;
+}
+
+.loading-more-indicator {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
 }

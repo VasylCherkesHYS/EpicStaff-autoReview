@@ -47,6 +47,7 @@ export class FlowMessagesPanelComponent implements OnInit, OnChanges, OnDestroy 
 
     public sessions: GraphSessionLight[] = [];
     public selectedSessionId: string | null = null;
+    public sessionsLoaded = false;
     public searchQuery = '';
     public isDropdownOpen = false;
 
@@ -60,6 +61,7 @@ export class FlowMessagesPanelComponent implements OnInit, OnChanges, OnDestroy 
 
     public ngOnInit(): void {
         this.selectedSessionId = this.sessionId;
+        this.sessionsLoaded = false;
         this.loadSessions();
 
         this.graphSessionService.sessionsChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => this.loadSessions());
@@ -67,10 +69,15 @@ export class FlowMessagesPanelComponent implements OnInit, OnChanges, OnDestroy 
 
     public ngOnChanges(changes: SimpleChanges): void {
         if (changes['sessionId'] && !changes['sessionId'].firstChange) {
-            this.selectedSessionId = this.sessionId;
-            this.loadSessions();
+            const newSessionId = changes['sessionId'].currentValue as string | null;
+            if (newSessionId !== this.selectedSessionId) {
+                this.selectedSessionId = newSessionId;
+                this.sessionsLoaded = false;
+                this.loadSessions();
+            }
         }
         if (changes['graphId'] && !changes['graphId'].firstChange) {
+            this.sessionsLoaded = false;
             this.loadSessions();
         }
     }
@@ -190,6 +197,7 @@ export class FlowMessagesPanelComponent implements OnInit, OnChanges, OnDestroy 
                         }
                     }
 
+                    this.sessionsLoaded = true;
                     this.cdr.markForCheck();
                 },
             });

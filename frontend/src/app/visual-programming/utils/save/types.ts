@@ -10,6 +10,7 @@ import {
     LLMNodeModel,
     ProjectNodeModel,
     PythonNodeModel,
+    ScheduleTriggerNodeModel,
     StartNodeModel,
     SubGraphNodeModel,
     TelegramTriggerNodeModel,
@@ -33,6 +34,7 @@ export interface NodeDiffByType {
     subgraphNodes: NodeDiff<SubGraphNodeModel>;
     webhookNodes: NodeDiff<WebhookTriggerNodeModel>;
     telegramNodes: NodeDiff<TelegramTriggerNodeModel>;
+    scheduleNodes: NodeDiff<ScheduleTriggerNodeModel>;
     decisionTableNodes: NodeDiff<DecisionTableNodeModel>;
     noteNodes: NodeDiff<GraphNoteModel>;
     codeAgentNodes: NodeDiff<CodeAgentNodeModel>;

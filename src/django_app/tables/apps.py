@@ -18,6 +18,8 @@ class TablesConfig(AppConfig):
         import tables.signals.naive_rag_signals
         import tables.signals.webhook_signals
         import tables.import_export.version_conversions.convertions
+        import tables.signals.schedule_signals
+        from tables.services.schedule_trigger_service import ScheduleTriggerService
         from tables.services.config_service import YamlConfigService
         from tables.services.converter_service import ConverterService
         from tables.services.redis_service import RedisService
@@ -38,6 +40,7 @@ class TablesConfig(AppConfig):
             llm_models,
             tags,
             session,
+            label,
         )
 
         if "runserver" in sys.argv:
@@ -63,6 +66,7 @@ class TablesConfig(AppConfig):
             session_manager_service=session_manager_service,
             webhook_trigger_service=webhook_trigger_service,
         )
+        ScheduleTriggerService(session_manager_service=session_manager_service)
 
         # Register strategies for import/export entities
         entity_registry.register(llm_models.LLMModelStrategy())
@@ -79,6 +83,7 @@ class TablesConfig(AppConfig):
         entity_registry.register(crew.CrewStrategy())
         entity_registry.register(graph.GraphStrategy())
         entity_registry.register(session.SessionStrategy())
+        entity_registry.register(label.LabelStrategy())
         entity_registry.register(webhook.WebhookTriggerStrategy())
         entity_registry.register(tags.AgentTagStrategy())
         entity_registry.register(tags.CrewTagStrategy())

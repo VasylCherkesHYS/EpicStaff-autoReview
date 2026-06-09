@@ -115,15 +115,20 @@ export function computeBackwardArcPoints(
     let sx2 = source.x + EXIT_OFFSET;
     let tx2 = target.x - ENTRY_OFFSET;
 
-    const baseRouteY = waypoints && waypoints.length > 0 ? waypoints[0].y : Math.min(source.y, target.y) - ROUTE_MARGIN;
+    const hasExplicitWaypoint = waypoints && waypoints.length > 0;
+    const baseRouteY = hasExplicitWaypoint ? waypoints![0].y : Math.min(source.y, target.y) - ROUTE_MARGIN;
 
     sx2 = avoidVertical(sx2, baseRouteY, source.y, 'right', nodes);
     tx2 = avoidVertical(tx2, baseRouteY, target.y, 'left', nodes);
 
-    const routeY = avoidHorizontal(baseRouteY, sx2, tx2, source, target, nodes);
+    // When a waypoint is explicitly set, honour its Y directly — skip avoidHorizontal
+    // so the arc stays at the chosen height instead of being pushed up by unrelated nodes.
+    const routeY = hasExplicitWaypoint ? baseRouteY : avoidHorizontal(baseRouteY, sx2, tx2, source, target, nodes);
 
-    sx2 = avoidVertical(sx2, routeY, source.y, 'right', nodes);
-    tx2 = avoidVertical(tx2, routeY, target.y, 'left', nodes);
+    if (!hasExplicitWaypoint) {
+        sx2 = avoidVertical(sx2, routeY, source.y, 'right', nodes);
+        tx2 = avoidVertical(tx2, routeY, target.y, 'left', nodes);
+    }
 
     return [
         { x: source.x, y: source.y },

@@ -1,5 +1,6 @@
 import { Dialog as CdkDialog } from '@angular/cdk/dialog';
 import { Overlay } from '@angular/cdk/overlay';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -15,7 +16,7 @@ import {
     signal,
     ViewChild,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
     catchError,
@@ -28,10 +29,12 @@ import {
     Observable,
     of,
     switchMap,
+    take,
     tap,
 } from 'rxjs';
 
 import { CanComponentDeactivate } from '../../../../core/guards/unsaved-changes.guard';
+import { EpicChatService } from '../../../../features/epic-chat/epic-chat.service';
 import { FlowAssistantPanelComponent } from '../../../../features/flow-assistant/components/flow-assistant-panel/flow-assistant-panel.component';
 import { FlowAssistantService } from '../../../../features/flow-assistant/flow-assistant.service';
 import { FlowSessionsListComponent } from '../../../../features/flows/components/flow-sessions-dialog/flow-sessions-list.component';
@@ -47,6 +50,7 @@ import {
     GraphRestoreResponse,
     RestoreWarning,
 } from '../../../../features/flows/models/graph.model';
+import { CreateGraphWarningsService } from '../../../../features/flows/services/create-graph-warnings.service';
 import { FlowsApiService } from '../../../../features/flows/services/flows-api.service';
 import { FlowsStorageService } from '../../../../features/flows/services/flows-storage.service';
 import { RunGraphService } from '../../../../features/flows/services/run-graph-session.service';
@@ -59,6 +63,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { UnsavedChangesDialogService } from '../../../../shared/components/unsaved-changes-dialog/unsaved-changes-dialog.service';
 import { NodeType } from '../../../../visual-programming/core/enums/node-type';
 import { FlowModel } from '../../../../visual-programming/core/models/flow.model';
+import { ScheduleTriggerNodeModel } from '../../../../visual-programming/core/models/node.model';
 import { NodeModel } from '../../../../visual-programming/core/models/node.model';
 import { FlowGraphComponent } from '../../../../visual-programming/flow-graph/flow-graph.component';
 import { FlowService } from '../../../../visual-programming/services/flow.service';
@@ -70,6 +75,7 @@ import {
     mapGraphDtoToFlowModel,
     normalizeFlowPorts,
 } from '../../../../visual-programming/utils/load';
+import { rewriteLegacyOnceScheduleName } from '../../../../visual-programming/utils/load/nodes/schedule-trigger-node.mapper';
 import {
     buildBulkSavePayload,
     buildUuidToBackendIdMap,
@@ -158,9 +164,11 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         private readonly overlay: Overlay,
         private readonly configService: ConfigService,
         private readonly elementRef: ElementRef,
+        private readonly epicChatService: EpicChatService,
         private readonly flowUnsavedStateService: FlowUnsavedStateService,
         private readonly unsavedChangesDialog: UnsavedChangesDialogService,
         private readonly undoRedoService: UndoRedoService,
+        private readonly createGraphWarningService: CreateGraphWarningsService,
         private readonly runSessionSSEService: RunSessionSSEService,
         private readonly sidePanelService: SidePanelService
     ) {
@@ -176,7 +184,10 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         effect(() => {
             const graphId = Number(this.routeParamMap().get('id'));
             if (!isFinite(graphId)) return;
-            this.flowAssistantService.markFreshVisit(graphId);
+            this.undoRedoService.setUndoStack([]);
+            this.undoRedoService.setRedoStack([]);
+            const warnings = this.createGraphWarningService.readPending();
+            if (warnings.length) this.restoreWarnings.set(warnings);
             this.fetchGraph(graphId);
         });
 
@@ -221,7 +232,35 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
     public onGraphSave(flowState: FlowModel): void {
         if (!this.graph?.id || this.isSaving()) return;
 
+        this.cleanupCdtGridState(flowState);
         this.saveFlowState(flowState, true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
+
+    private cleanupCdtGridState(flowState: FlowModel): void {
+        const match = window.location.pathname.match(/\/flows\/(\d+)/);
+        const graphId = match?.[1];
+        if (!graphId) return;
+
+        const liveSuffixes = new Set<string>();
+        for (const node of flowState.nodes) {
+            if (node.type !== NodeType.CLASSIFICATION_TABLE) continue;
+            const nodeNum = node.nodeNumber ?? node.backendId;
+            if (nodeNum == null) continue;
+            liveSuffixes.add(`${graphId}_${nodeNum}`);
+        }
+
+        const prefix = 'cdt-grid-state-';
+        const toRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(prefix)) continue;
+            const suffix = key.slice(prefix.length);
+            if (!suffix.startsWith(`${graphId}_`)) continue;
+            if (!liveSuffixes.has(suffix)) toRemove.push(key);
+        }
+        for (const key of toRemove) {
+            localStorage.removeItem(key);
+        }
     }
 
     private saveFlowState(flowState: FlowModel, showSuccessToast: boolean): Observable<void> {
@@ -231,7 +270,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previous, flowState);
         const idMap = buildUuidToBackendIdMap(flowState.nodes);
         const connectionDiff = getConnectionDiff(previous, flowState, idMap);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, flowState, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            flowState,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         this.isSaving.set(true);
 
@@ -248,6 +294,17 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 const patchedFlow = patchFlowStateWithBackendIds(flowState, previous, nodeDiff, graph);
 
                 this.flowService.setFlow(patchedFlow);
+                // Sync isActive from the save response: patchFlowStateWithBackendIds only assigns
+                // backend IDs and does not propagate other backend-authoritative fields like is_active.
+                for (const dto of graph.schedule_trigger_node_list ?? []) {
+                    const node = patchedFlow.nodes.find(
+                        (n): n is ScheduleTriggerNodeModel =>
+                            n.type === NodeType.SCHEDULE_TRIGGER && (n as ScheduleTriggerNodeModel).backendId === dto.id
+                    );
+                    if (node && node.data.isActive !== dto.is_active) {
+                        this.flowService.updateNode({ ...node, data: { ...node.data, isActive: dto.is_active } });
+                    }
+                }
                 this.savedFlowState.set(cloneFlowState(patchedFlow));
                 this.sidePanelService.notifyGraphSaved();
                 if (showSuccessToast) {
@@ -255,8 +312,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 }
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning(
+                        'This graph was modified by another user. Please refresh to see the latest changes.'
+                    );
+                } else {
+                    this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             }),
             finalize(() => {
@@ -293,7 +356,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previousForDiff, singleNodeFlow);
         const connectionDiff = { toCreate: [], toUpdate: [], toDelete: [] };
         const idMap = buildUuidToBackendIdMap([node]);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, singleNodeFlow, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            singleNodeFlow,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         return this.flowApiService.bulkSaveGraph(this.graph.id, payload).pipe(
             tap((responseGraph) => {
@@ -319,8 +389,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 this.toastService.success('Node saved');
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning(
+                        'This graph was modified by another user. Please refresh to see the latest changes.'
+                    );
+                } else {
+                    this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             })
         );
@@ -335,9 +411,11 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
 
     public saveCurrentState(): Observable<void> {
         if (!this.hasUnsavedChanges()) return of(void 0);
-        if (this.isSaving()) return EMPTY;
-
-        return this.saveFlowState(this.currentFlowState(), false);
+        return toObservable(this.isSaving).pipe(
+            filter((saving) => !saving),
+            take(1),
+            switchMap(() => this.saveFlowState(this.currentFlowState(), false))
+        );
     }
 
     public handleRunFlow(): void {
@@ -475,6 +553,42 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.flowAssistantService.toggle(this.graph.id);
     }
 
+    public connectToEpicChat(): void {
+        if (!this.graph?.id) {
+            this.toastService.error('Unable to connect chat: Missing flow ID');
+            return;
+        }
+
+        const flowUrl = this.normalizeApiUrl(this.configService.apiUrl);
+        if (!flowUrl) {
+            this.toastService.error('Unable to connect chat: Missing API URL');
+            return;
+        }
+
+        this.flowApiService
+            .patchGraph(this.graph.id, { epicchat_enabled: true, save_version: this.graphState()!.save_version })
+            .subscribe({
+                next: () => {
+                    this.graph.epicchat_enabled = true;
+                    this.epicChatService.requestCreateAgent({
+                        name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
+                        description: this.graph.description?.trim(),
+                        flowId: this.graph.id,
+                        flowUrl,
+                        selectAfterCreate: true,
+                    });
+                    this.toastService.success('Flow connected to Epic Chat');
+                },
+                error: () => {
+                    this.toastService.error('Failed to save EpicChat connection');
+                },
+            });
+    }
+
+    private normalizeApiUrl(apiUrl: string): string {
+        return (apiUrl || '').trim().replace(/\/+$/, '');
+    }
+
     public closeMessagesPanel(): void {
         this.isPanelCollapsed.set(true);
         this.cdr.markForCheck();
@@ -551,7 +665,23 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.availableFlowLights.set(flows);
         const normalizedFlow = normalizeFlowPorts(this.loadedFlowState());
         this.flowService.setFlow(normalizedFlow);
+        // savedFlowState captures the as-persisted snapshot used for dirty-tracking.
+        // It is set BEFORE the legacy-name rewrite so that flows with legacy names are
+        // immediately marked dirty — the user accepted this behaviour (EST-2826).
         this.savedFlowState.set(cloneFlowState(normalizedFlow));
+
+        // Eagerly rewrite legacy "at HH:MM" once-schedule names to "at HH-MM" in the
+        // live canvas state. Because savedFlowState already holds the old names, the
+        // flow will be marked dirty until the user saves, which is the intended UX.
+        const rewrittenFlow: FlowModel = {
+            ...normalizedFlow,
+            nodes: normalizedFlow.nodes.map((node) => {
+                if (node.type !== NodeType.SCHEDULE_TRIGGER) return node;
+                const rewrittenName = rewriteLegacyOnceScheduleName(node.node_name);
+                return rewrittenName !== node.node_name ? { ...node, node_name: rewrittenName } : node;
+            }),
+        };
+        this.flowService.setFlow(rewrittenFlow);
 
         this.isLoaded.set(true);
 
@@ -611,6 +741,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             width: '380px',
             data: {
                 graphId: this.graph.id,
+                graphSaveVersion: () => this.graphState()?.save_version,
                 hasUnsavedChanges: () => this.hasUnsavedChanges(),
                 saveCurrentState: () => this.saveCurrentState(),
             },

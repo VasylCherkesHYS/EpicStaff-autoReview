@@ -107,7 +107,7 @@
             @for (node of flowService.nodes(); track node.id) {
                 <app-flow-base-node
                     [node]="node"
-                    [showVariables]="showVariables()"
+                    [showVariables]="flowSettings.showInputsOutputs()"
                     [multiSelectActive]="multiSelectActive()"
                     [fMinimapClass]="getMinimapClassForNode(node)"
                     fNode
@@ -115,10 +115,15 @@
                     [fNodeId]="node.id"
                     [fNodeSize]="node.size"
                     [fNodePosition]="node.position"
-                    [style.z-index]="2"
+                    [style.z-index]="getNodeZIndex(node)"
+                    (mouseenter)="hoveredNodeId.set(node.id)"
+                    (mouseleave)="hoveredNodeId.set(null)"
+                    (portMouseenter)="hoveredNodeId.set(node.id)"
+                    (portMouseleave)="hoveredNodeId.set(null)"
                     (fNodePositionChange)="onNodePositionChanged($event, node)"
                     (fNodeSizeChange)="onNodeSizeChanged($event, node)"
                     (editClicked)="onOpenNodePanel($event)"
+                    (deleteClicked)="onDeleteNode($event)"
                     (projectExpandToggled)="onProjectExpandToggled($event)"
                 >
                 </app-flow-base-node>
@@ -143,22 +148,26 @@
                     [class.is-backward]="backwardConnectionIds().has(connection.id)"
                     [style.z-index]="backwardConnectionIds().has(connection.id) ? 0 : 1"
                     [style.--marker-start-color]="
-                        smartRoutingEnabled()
+                        flowSettings.arrowColorsEnabled()
                             ? nodeColorMap().get(connection.sourceNodeId) || '#555'
                             : connection.startColor || '#555'
                     "
                     [style.--marker-end-color]="
-                        smartRoutingEnabled()
+                        flowSettings.arrowColorsEnabled()
                             ? nodeColorMap().get(connection.targetNodeId) || '#555'
                             : connection.endColor || '#555'
                     "
                 >
                     <f-connection-gradient
                         [fStartColor]="
-                            smartRoutingEnabled() ? nodeColorMap().get(connection.sourceNodeId) || '#555' : '#555'
+                            flowSettings.arrowColorsEnabled()
+                                ? nodeColorMap().get(connection.sourceNodeId) || '#555'
+                                : '#555'
                         "
                         [fEndColor]="
-                            smartRoutingEnabled() ? nodeColorMap().get(connection.targetNodeId) || '#555' : '#555'
+                            flowSettings.arrowColorsEnabled()
+                                ? nodeColorMap().get(connection.targetNodeId) || '#555'
+                                : '#555'
                         "
                     ></f-connection-gradient>
 
@@ -177,7 +186,7 @@
                             r="2"
                             stroke="none"
                             [attr.fill]="
-                                smartRoutingEnabled()
+                                flowSettings.arrowColorsEnabled()
                                     ? nodeColorMap().get(connection.sourceNodeId) || '#555'
                                     : connection.startColor || '#555'
                             "
@@ -197,7 +206,7 @@
                             d="M0,0 L6,3 0,6Z"
                             stroke="none"
                             [attr.fill]="
-                                smartRoutingEnabled()
+                                flowSettings.arrowColorsEnabled()
                                     ? nodeColorMap().get(connection.targetNodeId) || '#555'
                                     : connection.endColor || '#555'
                             "
@@ -319,11 +328,23 @@
                 ></app-flow-files-button>
             }
             <button
-                class="show-inputs-btn"
-                [class.active]="showVariables()"
-                (click)="toggleShowVariables()"
+                #arrangeBtnRef
+                class="arrange-btn"
+                title="Auto arrange"
+                [disabled]="isArranging() || !(flowService.nodes().length >= 2 && hasUnarrangedChanges())"
+                (click)="onAutoArrange()"
             >
-                {{ showVariables() ? 'Hide Inputs/Output' : 'Show Inputs/Output' }}
+                <app-svg-icon
+                    icon="auto-arrange"
+                    size="38px"
+                ></app-svg-icon>
+            </button>
+            <button
+                class="arrange-btn settings-icon-btn"
+                (click)="openSettings()"
+                title="Flow Settings"
+            >
+                <i class="ti ti-settings"></i>
             </button>
 
             <div class="routing-toggle-block">
@@ -338,7 +359,7 @@
             </div>
         </div>
     </div>
-    <app-flow-action-panel></app-flow-action-panel>
+    <app-flow-action-panel (undoRedoPerformed)="hasUnarrangedChanges.set(true)"></app-flow-action-panel>
 
     @if (showContextMenu()) {
         <app-flow-graph-context-menu

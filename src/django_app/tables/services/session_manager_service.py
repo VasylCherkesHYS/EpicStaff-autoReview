@@ -9,6 +9,14 @@ from tables.models import (
     GraphOrganizationUser,
     PythonNode,
     Session,
+    CrewNode,
+    Session,
+    Edge,
+    Graph,
+    PythonNode,
+    FileExtractorNode,
+    AudioTranscriptionNode,
+    GraphOrganizationUser,
 )
 from tables.models.graph_models import (
     ClassificationConditionGroup,
@@ -17,7 +25,7 @@ from tables.models.graph_models import (
     ConditionGroup,
     DecisionTableNode,
     GraphSessionMessage,
-    LLMNode,
+    ScheduleTriggerNode,
     StartNode,
     SubGraphNode,
     TelegramTriggerNode,
@@ -33,24 +41,11 @@ from src.shared.models import (
     FileExtractorNodeData,
     GraphData,
     GraphSessionMessageData,
-    LLMNodeData,
     PythonNodeData,
     SessionData,
     SubGraphData,
     SubGraphNodeData,
     TelegramTriggerNodeData,
-)
-from tables.models import (
-    CodeAgentNode,
-    CrewNode,
-    Session,
-    Edge,
-    Graph,
-    GraphStorageFile,
-    PythonNode,
-    FileExtractorNode,
-    AudioTranscriptionNode,
-    GraphOrganizationUser,
 )
 from tables.constants.variables_constants import DOMAIN_VARIABLES_KEY
 from tables.services.converter_service import ConverterService
@@ -353,9 +348,6 @@ class SessionManagerService(metaclass=SingletonMeta):
         conditional_edge_list = ConditionalEdge.objects.filter(
             graph=graph.pk
         ).select_related("python_code")
-        llm_node_list = LLMNode.objects.filter(graph=graph.pk).select_related(
-            "llm_config__model__llm_provider"
-        )
         decision_table_node_list = DecisionTableNode.objects.filter(
             graph=graph.pk
         ).prefetch_related("condition_groups__conditions")
@@ -366,6 +358,7 @@ class SessionManagerService(metaclass=SingletonMeta):
             graph=graph.pk
         ).select_related("python_code")
         telegram_trigger_node_list = TelegramTriggerNode.objects.filter(graph=graph.pk)
+        schedule_trigger_node_list = ScheduleTriggerNode.objects.filter(graph=graph.pk)
         code_agent_node_list = CodeAgentNode.objects.filter(graph=graph.pk)
         classification_decision_table_node_list = (
             ClassificationDecisionTableNode.objects.filter(
@@ -398,12 +391,12 @@ class SessionManagerService(metaclass=SingletonMeta):
             python_node_list,
             file_extractor_node_list,
             audio_transcription_node_list,
-            llm_node_list,
             decision_table_node_list,
             classification_decision_table_node_list,
             subgraph_node_list,
             webhook_trigger_node_list,
             telegram_trigger_node_list,
+            schedule_trigger_node_list,
             code_agent_node_list,
         ):
             for n in node_list:
@@ -464,6 +457,12 @@ class SessionManagerService(metaclass=SingletonMeta):
             )
             for item in telegram_trigger_node_list
         ]
+        schedule_trigger_node_data_list = [
+            cv.convert_schedule_trigger_node_to_pydantic(
+                schedule_trigger_node=item, resolver=resolver
+            )
+            for item in schedule_trigger_node_list
+        ]
         file_extractor_node_data_list = [
             cv.convert_file_extractor_node_to_pydantic(
                 file_extractor_node=item, resolver=resolver
@@ -476,11 +475,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             )
             for item in audio_transcription_node_list
         ]
-        llm_node_data_list = [
-            cv.convert_llm_node_to_pydantic(llm_node=item, resolver=resolver)
-            for item in llm_node_list
-        ]
-
         code_agent_node_data_list: list[CodeAgentNodeData] = []
         for item in code_agent_node_list:
             code_agent_node_data_list.append(
@@ -589,7 +583,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             python_node_list=python_node_data_list,
             file_extractor_node_list=file_extractor_node_data_list,
             audio_transcription_node_list=audio_transcription_node_data_list,
-            llm_node_list=llm_node_data_list,
             code_agent_node_list=code_agent_node_data_list,
             edge_list=edge_data_list,
             conditional_edge_list=conditional_edge_data_list,
@@ -598,5 +591,6 @@ class SessionManagerService(metaclass=SingletonMeta):
             entrypoint=entrypoint,
             end_node=end_node_data,
             telegram_trigger_node_data_list=telegram_trigger_node_data_list,
+            schedule_trigger_node_data_list=schedule_trigger_node_data_list,
             classification_decision_table_node_list=classification_dt_node_data_list,
         )

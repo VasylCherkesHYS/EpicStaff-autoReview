@@ -7,7 +7,6 @@ from tables.models import (
     PythonNode,
     DecisionTableNode,
     CrewNode,
-    LLMNode,
     FileExtractorNode,
     WebhookTriggerNode,
     TelegramTriggerNode,
@@ -26,6 +25,7 @@ from tables.models import (
 from tables.models.graph_models import (
     CodeAgentNode,
     GraphNote,
+    ScheduleTriggerNode,
     ClassificationDecisionTablePrompt,
 )
 from tables.import_export.serializers.python_tools import PythonCodeImportSerializer
@@ -206,12 +206,6 @@ class AudioTranscriptionNodeImportSerializer(BaseNodeImportSerializer):
         exclude = ["created_at", "updated_at"]
 
 
-class LLMNodeImportSerializer(BaseNodeImportSerializer):
-    class Meta(BaseNodeImportSerializer.Meta):
-        model = LLMNode
-        exclude = ["created_at", "updated_at"]
-
-
 class CrewNodeImportSerializer(BaseNodeImportSerializer):
     class Meta(BaseNodeImportSerializer.Meta):
         model = CrewNode
@@ -262,4 +256,19 @@ class GraphImportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Graph
-        exclude = ["tags", "created_at", "updated_at", "labels"]
+        exclude = ["tags", "created_at", "updated_at", "labels", "save_version"]
+
+
+class ScheduleTriggerNodeImportSerializer(BaseNodeImportSerializer):
+    class Meta(BaseNodeImportSerializer.Meta):
+        model = ScheduleTriggerNode
+        exclude = ["created_at", "updated_at"]
+
+    def create(self, validated_data):
+        # Schedule config is preserved verbatim; activation state is reset so
+        # an imported flow never starts firing on its own — user must enable
+        # it explicitly after reviewing the imported schedule.
+        validated_data["is_active"] = False
+        validated_data["current_runs"] = 0
+        validated_data["next_run_date_time"] = None
+        return super().create(validated_data)

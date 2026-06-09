@@ -28,6 +28,12 @@
                 background-color: var(--gray-750);
             }
 
+            &:disabled {
+                opacity: 0.35;
+                cursor: not-allowed;
+                pointer-events: all;
+            }
+
             &:active {
                 transform: scale(0.95);
             }

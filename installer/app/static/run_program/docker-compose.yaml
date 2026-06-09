@@ -215,7 +215,6 @@ services:
       - .env
     volumes:
       - sandbox_venvs:/home/user/root/app/venvs/
-      - sandbox_executions:/home/user/root/app/executions/
       - ${CREW_SAVEFILES_PATH}:/home/user/root/app/savefiles/
     networks:
       - backend-network
@@ -251,8 +250,6 @@ services:
 
 volumes:
   sandbox_venvs:
-    external: true
-  sandbox_executions:
     external: true
   crew_pgdata:
     external: true

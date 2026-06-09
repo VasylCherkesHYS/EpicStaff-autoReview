@@ -15,11 +15,11 @@ from .basic_node_serializers import (
     CrewNodeSerializer,
     EdgeSerializer,
     FileExtractorNodeSerializer,
-    LLMNodeSerializer,
     PythonNodeSerializer,
     SubGraphNodeSerializer,
 )
 from .trigger_serializers import (
+    ScheduleTriggerNodeSerializer,
     TelegramTriggerNodeDataFieldsSerializer,
     TelegramTriggerNodeFieldSerializer,
     TelegramTriggerNodeSerializer,

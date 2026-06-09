@@ -23,7 +23,6 @@ from tables.import_export.serializers.graph import (
     StartNodeImportSerializer,
     CrewNodeImportSerializer,
     PythonNodeImportSerializer,
-    LLMNodeImportSerializer,
     CodeAgentNodeImportSerializer,
     WebhookTriggerNodeImportSerializer,
     FileExtractorNodeImportSerializer,
@@ -36,6 +35,7 @@ from tables.import_export.serializers.graph import (
     ConditionImportSerializer,
     SubgraphNodeImportSerializer,
     GraphNoteImportSerializer,
+    ScheduleTriggerNodeImportSerializer,
     ClassificationDecisionTableNodeImportSerializer,
     ClassificationConditionGroupImportSerializer,
 )
@@ -243,10 +243,6 @@ NODE_HANDLERS = {
         "relation": "python_node_list",
         "import_hook": import_python_node,
     },
-    NodeType.LLM_NODE: {
-        "serializer": LLMNodeImportSerializer,
-        "relation": "llm_node_list",
-    },
     NodeType.WEBHOOK_TRIGGER_NODE: {
         "serializer": WebhookTriggerNodeImportSerializer,
         "relation": "webhook_trigger_node_list",
@@ -292,5 +288,9 @@ NODE_HANDLERS = {
         "serializer": CodeAgentNodeImportSerializer,
         "relation": "code_agent_node_list",
         "import_hook": import_code_agent_node,
+    },
+    NodeType.SCHEDULE_TRIGGER_NODE: {
+        "serializer": ScheduleTriggerNodeImportSerializer,
+        "relation": "schedule_trigger_node_list",
     },
 }

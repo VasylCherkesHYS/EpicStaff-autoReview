@@ -2,6 +2,8 @@ import pytest
 
 from tables.graph_versioning.handlers import _MissingSets
 from tables.import_export.enums import NodeType
+from tables.models import Organization
+from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 
 # Dependency IDs used consistently across all handler tests
 _CREW_ID = 42
@@ -11,22 +13,18 @@ _WEBHOOK_TRIGGER_ID = 7
 
 
 @pytest.fixture
+def default_org(db):
+    """Create the default Organization required by create_graph_from_snapshot."""
+    return Organization.objects.get_or_create(name=DEFAULT_ORGANIZATION_NAME)[0]
+
+
+@pytest.fixture
 def crew_node_dict():
     return {
         "id": 10,
         "node_type": NodeType.CREW_NODE,
         "node_name": "Crew Node",
         "crew": _CREW_ID,
-    }
-
-
-@pytest.fixture
-def llm_node_dict():
-    return {
-        "id": 20,
-        "node_type": NodeType.LLM_NODE,
-        "node_name": "LLM Node",
-        "llm_config": _LLM_CONFIG_ID,
     }
 
 

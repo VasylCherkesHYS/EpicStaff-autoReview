@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { ToastService } from '../../services/notifications/toast.service';
+import { FlowsStorageService } from '../flows/services/flows-storage.service';
 import {
     ActionItem,
     EfTable,
@@ -13,70 +14,38 @@ import {
     StreamDoneEvent,
     StreamEvent,
     StreamStructuredEvent,
-    StreamToolCallEvent,
 } from './models/flow-assistant.model';
 import { FlowAssistantApiService } from './services/flow-assistant-api.service';
+import { toolStatusFor } from './services/tool-labels';
+
+export type FlowAssistantMode = 'docked' | 'floating';
+
+export interface FloatPosition {
+    x: number;
+    y: number;
+}
+
+export interface FloatSize {
+    width: number;
+    height: number;
+}
 
 const PANEL_WIDTH_KEY = 'flow_assistant_panel_width';
+const PANEL_MODE_KEY = 'flow_assistant_mode';
+const FLOAT_POSITION_KEY = 'flow_assistant_float_position';
+const FLOAT_SIZE_KEY = 'flow_assistant_float_size';
+
 const DEFAULT_PANEL_WIDTH = 420;
+const DEFAULT_FLOAT_SIZE: FloatSize = { width: 420, height: 640 };
+const MIN_PANEL_WIDTH = 300;
+const MAX_PANEL_WIDTH = 800;
+const MIN_FLOAT_HEIGHT = 400;
 
 const STARTER_PROMPT_CHIPS: ActionItem[] = [
     { type: 'prompt', text: 'What do you do?' },
     { type: 'prompt', text: 'How do you handle an unusual case?' },
     { type: 'prompt', text: "What's outside your scope?" },
 ];
-
-function toolStatusFor(event: StreamToolCallEvent): string {
-    const a = event.arguments ?? {};
-    switch (event.name) {
-        case 'get_flow_overview':
-            return 'Browsing the flow…';
-        case 'get_node': {
-            const hint = event.node_name_hint;
-            return hint ? `Looking up node "${hint}"…` : `Looking up node #${a['node_id']}…`;
-        }
-        case 'get_subflow': {
-            const hint = event.subgraph_name_hint;
-            return hint ? `Inspecting subflow "${hint}"…` : `Inspecting subflow #${a['subgraph_node_id']}…`;
-        }
-        case 'get_edges_from': {
-            const hint = event.node_name_hint;
-            return hint
-                ? `Checking outgoing connections from "${hint}"…`
-                : `Checking outgoing connections from node #${a['node_id']}…`;
-        }
-        case 'get_edges_to': {
-            const hint = event.node_name_hint;
-            return hint
-                ? `Checking incoming connections to "${hint}"…`
-                : `Checking incoming connections to node #${a['node_id']}…`;
-        }
-        case 'list_node_types':
-            return 'Surveying node types…';
-        case 'list_skills':
-            return 'Browsing the knowledge base…';
-        case 'load_skill':
-            return typeof a['name'] === 'string' ? `Reading the "${a['name']}" skill…` : 'Reading a skill…';
-        case 'get_recent_sessions':
-            return 'Reviewing recent runs…';
-        case 'get_session_detail': {
-            const sid = a['session_id'];
-            return typeof sid === 'number' || (typeof sid === 'string' && sid !== '')
-                ? `Looking up session ${sid}…`
-                : 'Looking up a session…';
-        }
-        case 'get_session_stats':
-            return 'Counting runs…';
-        case 'get_session_messages': {
-            const sid = a['session_id'];
-            return typeof sid === 'number' || (typeof sid === 'string' && sid !== '')
-                ? `Reading the session ${sid} trace…`
-                : 'Reading a session trace…';
-        }
-        default:
-            return 'Working…';
-    }
-}
 
 /**
  * Removes GitHub-flavored markdown tables from `text`.
@@ -177,17 +146,27 @@ export class FlowAssistantService {
     private readonly toastService = inject(ToastService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly router = inject(Router);
+    private readonly flowsStorageService = inject(FlowsStorageService);
 
     readonly isOpen = signal(false);
+    readonly currentFlowName = signal<string | null>(null);
     readonly currentGraphId = signal<number | null>(null);
     readonly currentConversationId = signal<number | null>(null);
     readonly messages = signal<FlowAssistantMessage[]>([]);
     readonly isStreaming = signal(false);
     readonly config = signal<FlowAssistantConfig | null>(null);
     readonly dockWidth = signal<number>(this.loadPersistedWidth());
+    readonly mode = signal<FlowAssistantMode>(this.loadPersistedMode());
+    readonly floatSize = signal<FloatSize>(this.loadPersistedFloatSize());
+    readonly floatPosition = signal<FloatPosition | null>(this.loadPersistedFloatPosition());
     readonly sessions = signal<SessionSummary[]>([]);
     readonly currentStatus = signal<string | null>(null);
     readonly pendingPromptChips = signal<ActionItem[]>([]);
+    private readonly previousFloatHeight = signal<number | null>(null);
+    readonly isFullHeight = computed(() => this.previousFloatHeight() !== null);
+
+    private readonly liveToolCallIdsInternal = signal<Set<string>>(new Set());
+    readonly liveToolCallIds = computed(() => this.liveToolCallIdsInternal());
 
     readonly starterChips = computed<ActionItem[]>(() => {
         if (this.pendingPromptChips().length > 0) return [];
@@ -222,11 +201,14 @@ export class FlowAssistantService {
 
         // Populate sidebar but do NOT auto-select most recent — leave thread empty.
         this.loadSessions(graphId, false);
+        this.populateFlowName(graphId);
     }
 
     close(): void {
         this.closeEventSource();
         this.isOpen.set(false);
+        this.currentFlowName.set(null);
+        this.previousFloatHeight.set(null);
     }
 
     reset(): void {
@@ -241,8 +223,11 @@ export class FlowAssistantService {
         this.sessions.set([]);
         this.currentStatus.set(null);
         this.pendingPromptChips.set([]);
+        this.liveToolCallIdsInternal.set(new Set());
         this.isOpen.set(false);
         this.hasOpenedOnCurrentVisit = false;
+        this.currentFlowName.set(null);
+        this.previousFloatHeight.set(null);
     }
 
     markFreshVisit(graphId: number): void {
@@ -310,6 +295,7 @@ export class FlowAssistantService {
                     };
                     this.sessions.update((prev) => [placeholder, ...prev]);
                     this.currentConversationId.set(conversation_id);
+                    this.liveToolCallIdsInternal.set(new Set());
                     this.messages.set([]);
                 },
                 error: () => this.toastService.error('Failed to start conversation'),
@@ -332,6 +318,7 @@ export class FlowAssistantService {
                         }
                         return m;
                     });
+                    this.liveToolCallIdsInternal.set(new Set());
                     this.messages.set(normalized);
                 },
                 error: () => this.toastService.error('Failed to load conversation'),
@@ -428,13 +415,110 @@ export class FlowAssistantService {
             });
     }
 
+    clearChatHistory(): void {
+        const conversationId = this.currentConversationId();
+        if (conversationId === null) return;
+        this.deleteSession(conversationId);
+    }
+
+    resetFloatPosition(): void {
+        if (this.mode() !== 'floating') return;
+        const size = this.floatSize();
+        this.setFloatPosition(this.computeDefaultFloatPosition(size));
+    }
+
+    toggleFullHeight(): void {
+        if (this.mode() !== 'floating') return;
+        const stored = this.previousFloatHeight();
+        if (stored !== null) {
+            this.setFloatSize({ ...this.floatSize(), height: stored });
+            this.previousFloatHeight.set(null);
+        } else {
+            this.previousFloatHeight.set(this.floatSize().height);
+            this.setFloatSize({ ...this.floatSize(), height: window.innerHeight });
+        }
+    }
+
     setDockWidth(width: number): void {
         this.dockWidth.set(width);
-        try {
-            localStorage.setItem(PANEL_WIDTH_KEY, String(width));
-        } catch {
-            // Ignore storage errors
+        this.persistDockWidth(width);
+    }
+
+    toggleMode(): void {
+        const next: FlowAssistantMode = this.mode() === 'docked' ? 'floating' : 'docked';
+        this.setMode(next);
+    }
+
+    setMode(mode: FlowAssistantMode): void {
+        if (mode === 'floating') {
+            // Clamp the loaded size to the current viewport.
+            const currentSize = this.clampSize(this.floatSize());
+            this.floatSize.set(currentSize);
+            const currentPos = this.floatPosition();
+            if (currentPos === null) {
+                // First toggle — place in bottom-right with 24px margin.
+                this.floatPosition.set(this.clampPosition(this.computeDefaultFloatPosition(currentSize), currentSize));
+            } else {
+                // Stale persisted position (e.g. from a larger monitor) — re-clamp.
+                this.floatPosition.set(this.clampPosition(currentPos, currentSize));
+            }
         }
+        this.mode.set(mode);
+        this.persistMode(mode);
+    }
+
+    setFloatBounds(position: FloatPosition, size: FloatSize): void {
+        const clampedSize = this.clampSize(size);
+        const clampedPos = this.clampPosition(position, clampedSize);
+        this.floatSize.set(clampedSize);
+        this.floatPosition.set(clampedPos);
+        this.persistFloatSize(clampedSize);
+        this.persistFloatPosition(clampedPos);
+    }
+
+    setFloatPosition(position: FloatPosition): void {
+        const size = this.floatSize();
+        const clamped = this.clampPosition(position, size);
+        this.floatPosition.set(clamped);
+        this.persistFloatPosition(clamped);
+    }
+
+    setFloatSize(size: FloatSize): void {
+        const clampedSize = this.clampSize(size);
+        this.floatSize.set(clampedSize);
+        this.persistFloatSize(clampedSize);
+        // Re-clamp position against the new size — growing near an edge must keep panel in view.
+        const currentPos = this.floatPosition();
+        if (currentPos !== null) {
+            const clampedPos = this.clampPosition(currentPos, clampedSize);
+            this.floatPosition.set(clampedPos);
+            this.persistFloatPosition(clampedPos);
+        }
+    }
+
+    clampPosition(position: FloatPosition, size: FloatSize): FloatPosition {
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        // If the panel is wider/taller than the viewport, pin to 0 (top-left).
+        const maxX = Math.max(0, viewportW - size.width);
+        const maxY = Math.max(0, viewportH - size.height);
+        return {
+            x: Math.max(0, Math.min(maxX, position.x)),
+            y: Math.max(0, Math.min(maxY, position.y)),
+        };
+    }
+
+    clampSize(size: FloatSize): FloatSize {
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        // If the viewport is smaller than the panel minimums, clamp the size to fit.
+        // The position clamp will then pin it to top-left.
+        const maxW = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, viewportW));
+        const maxH = Math.max(MIN_FLOAT_HEIGHT, viewportH);
+        return {
+            width: Math.max(MIN_PANEL_WIDTH, Math.min(maxW, size.width)),
+            height: Math.max(MIN_FLOAT_HEIGHT, Math.min(maxH, size.height)),
+        };
     }
 
     private openEventStream(streamUrl: string): void {
@@ -512,11 +596,18 @@ export class FlowAssistantService {
 
         this.currentStatus.set(toolStatusFor(parsed));
 
+        this.liveToolCallIdsInternal.update((prev) => {
+            const next = new Set(prev);
+            next.add(parsed.id);
+            return next;
+        });
+
         this.appendMessage({
             role: 'tool',
             content: '',
             tool_call_id: parsed.id,
             name: parsed.name,
+            arguments: parsed.arguments,
         });
     }
 
@@ -712,6 +803,55 @@ export class FlowAssistantService {
         }
     }
 
+    private populateFlowName(graphId: number): void {
+        this.flowsStorageService
+            .getFlowById(graphId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (graph) => this.currentFlowName.set(graph?.name ?? null),
+                error: () => this.currentFlowName.set(null),
+            });
+    }
+
+    private computeDefaultFloatPosition(size: FloatSize): FloatPosition {
+        return {
+            x: Math.max(0, window.innerWidth - size.width - 24),
+            y: Math.max(0, window.innerHeight - size.height - 24),
+        };
+    }
+
+    private persistDockWidth(width: number): void {
+        try {
+            localStorage.setItem(PANEL_WIDTH_KEY, String(width));
+        } catch {
+            // Ignore storage errors
+        }
+    }
+
+    private persistMode(mode: FlowAssistantMode): void {
+        try {
+            localStorage.setItem(PANEL_MODE_KEY, mode);
+        } catch {
+            // Ignore storage errors
+        }
+    }
+
+    private persistFloatPosition(position: FloatPosition): void {
+        try {
+            localStorage.setItem(FLOAT_POSITION_KEY, JSON.stringify(position));
+        } catch {
+            // Ignore storage errors
+        }
+    }
+
+    private persistFloatSize(size: FloatSize): void {
+        try {
+            localStorage.setItem(FLOAT_SIZE_KEY, JSON.stringify(size));
+        } catch {
+            // Ignore storage errors
+        }
+    }
+
     private loadPersistedWidth(): number {
         try {
             const stored = localStorage.getItem(PANEL_WIDTH_KEY);
@@ -719,6 +859,58 @@ export class FlowAssistantService {
             return isFinite(parsed) && parsed >= 300 ? parsed : DEFAULT_PANEL_WIDTH;
         } catch {
             return DEFAULT_PANEL_WIDTH;
+        }
+    }
+
+    private loadPersistedMode(): FlowAssistantMode {
+        try {
+            const stored = localStorage.getItem(PANEL_MODE_KEY);
+            return stored === 'floating' ? 'floating' : 'docked';
+        } catch {
+            return 'docked';
+        }
+    }
+
+    private loadPersistedFloatPosition(): FloatPosition | null {
+        try {
+            const stored = localStorage.getItem(FLOAT_POSITION_KEY);
+            if (!stored) return null;
+            const parsed = JSON.parse(stored) as unknown;
+            if (
+                parsed !== null &&
+                typeof parsed === 'object' &&
+                'x' in parsed &&
+                'y' in parsed &&
+                typeof (parsed as Record<string, unknown>)['x'] === 'number' &&
+                typeof (parsed as Record<string, unknown>)['y'] === 'number'
+            ) {
+                // floatSize is declared before floatPosition, so this.floatSize() is available here.
+                return this.clampPosition(parsed as FloatPosition, this.clampSize(this.floatSize()));
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
+
+    private loadPersistedFloatSize(): FloatSize {
+        try {
+            const stored = localStorage.getItem(FLOAT_SIZE_KEY);
+            if (!stored) return this.clampSize({ ...DEFAULT_FLOAT_SIZE });
+            const parsed = JSON.parse(stored) as unknown;
+            if (
+                parsed !== null &&
+                typeof parsed === 'object' &&
+                'width' in parsed &&
+                'height' in parsed &&
+                typeof (parsed as Record<string, unknown>)['width'] === 'number' &&
+                typeof (parsed as Record<string, unknown>)['height'] === 'number'
+            ) {
+                return this.clampSize(parsed as FloatSize);
+            }
+            return this.clampSize({ ...DEFAULT_FLOAT_SIZE });
+        } catch {
+            return this.clampSize({ ...DEFAULT_FLOAT_SIZE });
         }
     }
 }

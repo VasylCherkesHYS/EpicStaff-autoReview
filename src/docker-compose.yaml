@@ -7,6 +7,7 @@ x-common-env: &common_env
   SESSION_EVENT_CHANNEL: session:event
   SESSION_STATUS_CHANNEL: sessions:session_status
   MEMORY_UPDATE_CHANNEL: memory:update
+  SCHEDULE_CHANNEL: schedule_channel
   REDIS_HOST: ${REDIS_HOST:-redis}
   REDIS_PORT: ${REDIS_PORT:-6379}
   REDIS_PASSWORD: ${REDIS_PASSWORD:-}
@@ -41,6 +42,7 @@ services:
       DJANGO_HOST: ${DJANGO_HOST:-localhost}
       DJANGO_PORT: ${DJANGO_PORT:-8000}
       LOAD_DEBUG_ENV: ${LOAD_DEBUG_ENV}
+      TIMEZONE: ${TIMEZONE:-UTC}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-s3}
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://minio:9000}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-minioadmin}
@@ -141,7 +143,8 @@ services:
       DB_MANAGER_PASSWORD: ${DB_MANAGER_PASSWORD}
       CREW_SAVEFILES_PATH: ${CREW_SAVEFILES_PATH}
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
@@ -292,7 +295,6 @@ services:
       STORAGE_BUCKET_NAME: ${STORAGE_BUCKET_NAME:-epicstaff}
     volumes:
       - sandbox_venvs:${BASE_VENV_PATH}
-      - sandbox_executions:${OUTPUT_PATH}
       - ${CREW_SAVEFILES_PATH}:${CONTAINER_SAVEFILES_PATH}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -448,6 +450,7 @@ services:
       - DOMAIN_NAME=${DOMAIN_NAME}
       - SSL_ENABLE=${SSL_ENABLE}
       - FRONTEND_INTERNAL_PORT=80
+      - WEBHOOK_PORT=${WEBHOOK_PORT:-8051}
     volumes:
       - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -493,8 +496,6 @@ services:
 
 volumes:
   sandbox_venvs:
-    external: true
-  sandbox_executions:
     external: true
   crew_pgdata:
     external: true

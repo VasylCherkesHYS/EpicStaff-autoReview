@@ -114,6 +114,8 @@ async def handle_done_event(
     payload: dict = {"type": "done"}
     if getattr(event, "interrupted", False):
         payload["interrupted"] = True
+    if getattr(event, "reasoning_observed", False):
+        payload["reasoning_observed"] = True
     return ({"event": "done", "data": payload}, True)
 
 
