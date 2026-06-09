@@ -82,16 +82,7 @@ def test_patch_broadcasts_graph_saved(auth_client, regular_user, graph, mocker):
     assert response.status_code == status.HTTP_200_OK, response.content
 
     expected_version = Graph.objects.get(pk=graph.id).save_version
-
-    assert fake_layer.group_send.call_count == 1
-    # Verify every call went to the correct group with the correct message shape.
-    for call_args in fake_layer.group_send.call_args_list:
-        group_name, message = call_args.args
-        assert group_name == f"graph_edit_{graph.id}"
-        assert message["type"] == "graph_saved"
-        assert message["graph_id"] == graph.id
-        assert message["saved_by"]["user_id"] == regular_user.pk
-        assert message["new_save_version"] == expected_version
+    _assert_graph_saved(fake_layer, graph.id, regular_user.pk, expected_version)
 
 
 @pytest.mark.django_db

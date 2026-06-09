@@ -7,6 +7,21 @@ from tables.graph_collab.consumers import GraphEditConsumer
 from tables.graph_collab.graph_state_service import graph_state_service
 
 
+async def _wait_for(
+    condition_coro, timeout: float = 1.0, interval: float = 0.05
+) -> bool:
+    """Poll condition_coro() until it returns truthy or timeout is reached."""
+    import asyncio as _asyncio
+
+    elapsed = 0.0
+    while elapsed < timeout:
+        if await condition_coro():
+            return True
+        await _asyncio.sleep(interval)
+        elapsed += interval
+    return False
+
+
 application = URLRouter(
     [re_path(r"ws/graphs/(?P<graph_id>\d+)/edit/$", GraphEditConsumer.as_asgi())]
 )
@@ -202,7 +217,7 @@ async def _drain_connect(communicator) -> None:
     messages = {(await communicator.receive_json_from())["type"] for _ in range(3)}
     assert "presence_state" in messages
     assert "user_joined" in messages
-    assert messages & {"request_state", "graph_state"}
+    assert "request_state" in messages or "graph_state" in messages
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +227,7 @@ async def _drain_connect(communicator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-async def test_node_created_relayed_to_peer_with_server_editor(
+async def test_server_overrides_spoofed_editor_identity(
     test_graph, test_user, second_user
 ):
     comm_a = _make_communicator(test_graph.pk, test_user)
@@ -498,11 +513,7 @@ async def test_node_created_op_mutates_snapshot(test_graph, test_user):
         }
     )
 
-    # Give the consumer a moment to process the op.
-    import asyncio
-
-    await asyncio.sleep(0.05)
-
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
     snapshot = await graph_state_service.get_snapshot(test_graph.pk)
     assert snapshot is not None
     node_ids = {n["id"] for n in snapshot["nodes"]}
@@ -527,12 +538,10 @@ async def test_graph_state_seed_does_not_overwrite_existing_snapshot(
 
     await comm.send_json_to({"type": "graph_state", "flow": first_flow})
 
-    import asyncio
-
-    await asyncio.sleep(0.05)
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
 
     await comm.send_json_to({"type": "graph_state", "flow": second_flow})
-    await asyncio.sleep(0.05)
+    await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
 
     snapshot = await graph_state_service.get_snapshot(test_graph.pk)
     assert snapshot is not None
@@ -551,13 +560,13 @@ async def test_last_disconnect_clears_snapshot(test_graph, test_user):
 
     await comm.send_json_to({"type": "graph_state", "flow": _SAMPLE_FLOW})
 
-    import asyncio
-
-    await asyncio.sleep(0.05)
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
 
     assert await graph_state_service.get_snapshot(test_graph.pk) is not None
 
     await comm.disconnect()
-    await asyncio.sleep(0.05)
 
-    assert await graph_state_service.get_snapshot(test_graph.pk) is None
+    async def _snapshot_cleared():
+        return await graph_state_service.get_snapshot(test_graph.pk) is None
+
+    assert await _wait_for(_snapshot_cleared)
