@@ -1,5 +1,8 @@
+import types
+
 import pytest
 
+from crewai.agent import temporary_temperature
 from src.crew.utils.llm_wrapper import PatchedLLM
 
 
@@ -90,3 +93,35 @@ def test_supports_stop_words_false_for_o_series(model):
 def test_supports_stop_words_true_for_claude_4x():
     llm = PatchedLLM(model="claude-opus-4-8", api_key="test-key")
     assert llm.supports_stop_words() is True
+
+
+# --- temporary_temperature (knowledge query path) ---
+
+
+def test_temporary_temperature_noop_when_temperature_is_none():
+    """PatchedLLM sets temperature=None for claude-4.x; temporary_temperature must not reintroduce it."""
+    llm = types.SimpleNamespace(temperature=None)
+    with temporary_temperature(llm, temp=0.0):
+        assert llm.temperature is None
+    assert llm.temperature is None
+
+
+def test_temporary_temperature_sets_and_restores():
+    llm = types.SimpleNamespace(temperature=0.7)
+    with temporary_temperature(llm, temp=0.0):
+        assert llm.temperature == 0.0
+    assert llm.temperature == 0.7
+
+
+def test_temporary_temperature_noop_when_no_attribute():
+    llm = types.SimpleNamespace()
+    with temporary_temperature(llm, temp=0.0):
+        pass
+
+
+def test_claude_4x_knowledge_path_never_sends_temperature(capture_completion):
+    """Regression: PatchedLLM + temporary_temperature must not leak temperature=0.0 for claude-4.x."""
+    llm = PatchedLLM(model="claude-opus-4-8", api_key="test-key")
+    with temporary_temperature(llm, temp=0.0):
+        llm.call("Reply with a single word: ok")
+    assert "temperature" not in capture_completion
