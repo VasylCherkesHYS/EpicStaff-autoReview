@@ -218,19 +218,19 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.wsService.nodeCreated$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((msg) => this.flowService.addNode(msg.node));
-        
+
         this.wsService.nodeUpdated$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((msg) => this.flowService.updateNode(msg.node));
 
         this.wsService.nodesDeleted$
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((msg) => this.flowService.deleteSelections({fNodeIds: msg.node_ids, fConnectionIds: []}));
+            .subscribe((msg) => this.flowService.deleteSelections({ fNodeIds: msg.node_ids, fConnectionIds: [] }));
 
         this.wsService.connectionCreated$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((msg) => this.flowService.addConnection(msg.connection));
-        
+
         this.wsService.connectionDeleted$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((msg) => this.flowService.removeConnection(msg.connection_id));
@@ -242,6 +242,13 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.wsService.connectionWaypointsUpdated$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((msg) => this.flowService.updateConnectionWaypoints(msg.connection_id, msg.waypoints));
+
+        this.wsService.stateRequested$
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                filter(() => this.isLoaded())
+            )
+            .subscribe(() => this.wsService.sendGraphState(this.flowService.getFlowState()));
 
     }
 

@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { stableNodeId } from '../../stable-node-id';
 
 import { GetLLMNodeRequest } from '../../../../pages/flows-page/components/flow-visual-programming/models/llm-node.model';
 import { NodeType } from '../../../core/enums/node-type';
@@ -26,7 +26,7 @@ export function mapLLMNodeToModel(ln: GetLLMNodeRequest): LLMNodeModel {
         tags: [],
     };
     return {
-        id: uuidv4(),
+        id: stableNodeId(NodeType.LLM, ln.id),
         backendId: ln.id,
         type: NodeType.LLM,
         node_name: ln.node_name,

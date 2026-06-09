@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { stableNodeId } from '../../stable-node-id';
 
 import {
     GetScheduleTriggerNodeRequest,
@@ -63,7 +63,7 @@ export function mapScheduleTriggerNodeToModel(dto: GetScheduleTriggerNodeRequest
     };
 
     return {
-        id: uuidv4(),
+        id: stableNodeId(NodeType.SCHEDULE_TRIGGER, dto.id),
         backendId: dto.id,
         type: NodeType.SCHEDULE_TRIGGER,
         node_name: dto.node_name,

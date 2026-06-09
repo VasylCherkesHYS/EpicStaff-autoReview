@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { stableNodeId } from '../../stable-node-id';
 
 import { EndNode } from '../../../../pages/flows-page/components/flow-visual-programming/models/end-node.model';
 import { NodeType } from '../../../core/enums/node-type';
@@ -8,7 +8,7 @@ import { mapNodeDtoMetadataToFlowNodeMetadata } from '../node-dto-metadata-to-fl
 export function mapEndNodeToModel(en: EndNode): EndNodeModel {
     const ui = mapNodeDtoMetadataToFlowNodeMetadata(en.metadata, NodeType.END);
     return {
-        id: uuidv4(),
+        id: stableNodeId(NodeType.END, en.id),
         backendId: en.id,
         type: NodeType.END,
         node_name: en.node_name ?? '__end_node__',

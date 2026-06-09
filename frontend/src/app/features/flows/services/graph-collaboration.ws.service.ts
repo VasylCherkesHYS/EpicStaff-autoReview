@@ -15,10 +15,11 @@ export interface EditorInfo {
     avatar_url?: string | null;
 }
 
-type ServerMessage = 
+type ServerMessage =
     | PresenceStateMessage
     | UserJoinedMessage
     | UserLeftMessage
+    | RequestStateMessage
     | GraphStateMessage
     | GraphSavedMessage
     | WsErrorMessage
@@ -37,6 +38,7 @@ type ServerMessage =
 type PresenceStateMessage  = { type: 'presence_state'; editors: EditorInfo[] };
 type UserJoinedMessage     = { type: 'user_joined'; editor: EditorInfo };
 type UserLeftMessage       = { type: 'user_left'; user_id: number };
+type RequestStateMessage   = { type: 'request_state' };
 type WsErrorMessage = { type: 'error'; code: string; message: string };
 
 export type GraphStateMessage                   = { type: 'graph_state';                    flow: FlowModel };
@@ -83,6 +85,7 @@ export class GraphCollaborationWsService {
 
     public graphSaved$ = new Subject<GraphSavedMessage>();
     public graphState$ = new Subject<GraphStateMessage>();
+    public stateRequested$ = new Subject<void>();
     public nodeCreated$ = new Subject<NodeCreatedMessage>();
     public nodeUpdated$ = new Subject<NodeUpdatedMessage>();
     public nodesDeleted$ = new Subject<NodesDeletedMessage>();
@@ -189,6 +192,9 @@ export class GraphCollaborationWsService {
                 editors.filter((e) => e.user_id !== message.user_id)
                 );
                 break;
+            case 'request_state':
+                this.stateRequested$.next();
+                break;
             case 'graph_state':
                 this.graphState$.next(message);
                 break;
@@ -232,6 +238,10 @@ export class GraphCollaborationWsService {
                 console.error(`[WS] Server error [${message.code}]: ${message.message}`);
                 break;
         }
+    }
+
+    public sendGraphState(flow: FlowModel): void {
+        this.sendRaw({ type: 'graph_state', flow });
     }
 
     public sendNodeCreated(node: NodeModel): void {

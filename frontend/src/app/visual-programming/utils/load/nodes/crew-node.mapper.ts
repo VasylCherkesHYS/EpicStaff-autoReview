@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { stableNodeId } from '../../stable-node-id';
 
 import { CrewNode } from '../../../../pages/flows-page/components/flow-visual-programming/models/crew-node.model';
 import { NodeType } from '../../../core/enums/node-type';
@@ -8,7 +8,7 @@ import { mapNodeDtoMetadataToFlowNodeMetadata } from '../node-dto-metadata-to-fl
 export function mapCrewNodeToModel(cn: CrewNode): ProjectNodeModel {
     const ui = mapNodeDtoMetadataToFlowNodeMetadata(cn.metadata, NodeType.PROJECT);
     return {
-        id: uuidv4(),
+        id: stableNodeId(NodeType.PROJECT, cn.id),
         backendId: cn.id,
         type: NodeType.PROJECT,
         node_name: cn.node_name,
