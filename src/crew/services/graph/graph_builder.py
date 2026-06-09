@@ -15,7 +15,6 @@ from services.graph.nodes import (
 )
 
 from services.graph.nodes.code_agent_node import CodeAgentNode
-from services.graph.nodes.llm_node import LLMNode
 from services.graph.nodes.webhook_trigger_node import WebhookTriggerNode
 from services.graph.nodes.telegram_trigger_node import TelegramTriggerNode
 from services.graph.nodes.schedule_trigger_node import ScheduleTriggerNode
@@ -285,17 +284,6 @@ class SessionGraphBuilder:
                 stop_event=self.stop_event,
             )
             self.add_node(audio_transcription_node)
-
-        for llm_node_data in schema.llm_node_list:
-            llm_node = LLMNode(
-                session_id=self.session_id,
-                node_name=llm_node_data.node_name,
-                llm_data=llm_node_data.llm_data,
-                input_map=llm_node_data.input_map,
-                output_variable_path=llm_node_data.output_variable_path,
-                stop_event=self.stop_event,
-            )
-            self.add_node(llm_node)
 
         for ca_data in schema.code_agent_node_list:
             code_agent_node = CodeAgentNode(

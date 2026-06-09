@@ -32,7 +32,9 @@ class PythonCodeToolStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: PythonCodeTool) -> dict:
         return self.serializer_class(instance).data
 
-    def create_entity(self, data: dict, id_mapper: IDMapper) -> PythonCodeTool:
+    def create_entity(
+        self, data: dict, id_mapper: IDMapper, **kwargs
+    ) -> PythonCodeTool:
         python_code_data = data.pop("python_code", {})
         python_tool_config_data = data.pop("python_code_tool_config", [])
 

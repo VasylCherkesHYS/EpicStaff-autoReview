@@ -27,6 +27,16 @@
         }
     }
 
+    .separator-toggle {
+        display: flex;
+        align-items: center;
+        column-gap: 0.5rem;
+        margin-top: 0.5rem;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--color-ks-transparent-text-60);
+    }
+
     .chips {
         display: flex;
         flex-wrap: wrap;

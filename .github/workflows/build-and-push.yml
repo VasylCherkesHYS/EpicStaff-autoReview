@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker compose -f "$COMPOSE_FILE" config --format json > compose.json
+          docker compose --env-file src/.env.example -f "$COMPOSE_FILE" config --format json > compose.json
           ls -la compose.json
 
       - name: Generate build matrix

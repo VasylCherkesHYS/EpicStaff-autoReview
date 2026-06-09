@@ -209,6 +209,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         });
     });
 
+    public hoveredNodeId = signal<string | null>(null);
+
+    public getNodeZIndex(node: NodeModel): number {
+        if (this.hoveredNodeId() === node.id) return 1000;
+        return Math.max(2, 500 - Math.floor(Math.max(0, node.position?.y ?? 0) / 10));
+    }
+
     private readonly destroy$ = new Subject<void>();
     private readonly userAdjustedConnectionIds = new Set<string>();
     private readonly previousBackwardConnectionIds = new Set<string>();
@@ -258,7 +265,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.isLoaded.set(true);
         setTimeout(() => {
             this.rerouteSegmentConnections();
-            this.fCanvasComponent.fitToScreen({ x: 80, y: 80 }, false);
+            this.fCanvasComponent.fitToScreen({ x: 200, y: 100 }, false);
             this.cd.detectChanges();
         }, 0);
     }
@@ -435,6 +442,15 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
         const selections: ICurrentSelection = this.fFlowComponent.getSelection();
         this.deleteSelections(selections);
+    }
+
+    public onDeleteNode(node: NodeModel): void {
+        this.hasUnarrangedChanges.set(true);
+        this.deleteSelections({
+            fNodeIds: [node.id],
+            fGroupIds: [],
+            fConnectionIds: [],
+        });
     }
 
     public onDeleteConnection(event: MouseEvent, connectionId: string): void {
