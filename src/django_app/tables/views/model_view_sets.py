@@ -1333,44 +1333,102 @@ class ClassificationDecisionTableNodeModelViewSet(viewsets.ModelViewSet):
         if partial and condition_groups_data is None and prompt_configs_data is None:
             return node, None
 
-        if instance:
-            ClassificationConditionGroup.objects.filter(
-                classification_decision_table_node=node
-            ).delete()
-
-        if condition_groups_data:
-            groups_to_create = []
-            for group_data in condition_groups_data:
-                gd = {
-                    k: v
-                    for k, v in group_data.items()
-                    if k not in ("id", "classification_decision_table_node")
-                }
-                groups_to_create.append(
-                    ClassificationConditionGroup(
-                        classification_decision_table_node=node, **gd
-                    )
-                )
-            ClassificationConditionGroup.objects.bulk_create(groups_to_create)
-
+        # Upsert prompt_configs by prompt_key (stable identifier).
         if prompt_configs_data is not None:
-            if instance:
-                ClassificationDecisionTablePrompt.objects.filter(cdt_node=node).delete()
+            incoming_keys = {pd["prompt_key"] for pd in prompt_configs_data}
+            ClassificationDecisionTablePrompt.objects.filter(cdt_node=node).exclude(
+                prompt_key__in=incoming_keys
+            ).delete()
+            for prompt_data in prompt_configs_data:
+                defaults = {
+                    k: v
+                    for k, v in prompt_data.items()
+                    if k not in ("prompt_key", "id", "cdt_node")
+                }
+                ClassificationDecisionTablePrompt.objects.update_or_create(
+                    cdt_node=node,
+                    prompt_key=prompt_data["prompt_key"],
+                    defaults=defaults,
+                )
 
-            ClassificationDecisionTablePrompt.objects.bulk_create(
-                [
-                    ClassificationDecisionTablePrompt(
-                        cdt_node=node,
-                        llm_config_id=prompt_data.get("llm_config"),
-                        **{
-                            k: v
-                            for k, v in prompt_data.items()
-                            if k not in ("id", "cdt_node", "llm_config")
-                        },
+        if condition_groups_data is not None:
+            prompt_by_id = {
+                p.id: p
+                for p in ClassificationDecisionTablePrompt.objects.filter(cdt_node=node)
+            }
+            incoming_route_codes = {
+                gd["route_code"] for gd in condition_groups_data if gd.get("route_code")
+            }
+            incoming_names = {
+                gd["group_name"]
+                for gd in condition_groups_data
+                if not gd.get("route_code") and gd.get("group_name")
+            }
+            if instance:
+                node.condition_groups.exclude(route_code__isnull=True).exclude(
+                    route_code__in=incoming_route_codes
+                ).delete()
+                node.condition_groups.filter(route_code__isnull=True).exclude(
+                    group_name__in=incoming_names
+                ).delete()
+
+            existing_by_rc = {}
+            existing_by_name = {}
+            if instance:
+                for g in node.condition_groups.all():
+                    if g.route_code:
+                        existing_by_rc[g.route_code] = g
+                    else:
+                        existing_by_name[g.group_name] = g
+
+            excluded = {"id", "classification_decision_table_node"}
+            to_bulk_update = []
+            to_bulk_create = []
+
+            for group_data in condition_groups_data:
+                gd = {k: v for k, v in group_data.items() if k not in excluded}
+
+                # Resolve prompt FK: frontend sends integer PK.
+                old_prompt_id = gd.pop("prompt", None)
+                if old_prompt_id is not None:
+                    gd["prompt"] = prompt_by_id.get(old_prompt_id)
+
+                rc = gd.get("route_code")
+                existing = (
+                    existing_by_rc.get(rc)
+                    if rc
+                    else existing_by_name.get(gd.get("group_name"))
+                )
+                if existing is not None:
+                    for attr, val in gd.items():
+                        setattr(existing, attr, val)
+                    to_bulk_update.append(existing)
+                else:
+                    to_bulk_create.append(
+                        ClassificationConditionGroup(
+                            classification_decision_table_node=node, **gd
+                        )
                     )
-                    for prompt_data in prompt_configs_data
-                ]
-            )
+
+            if to_bulk_update:
+                ClassificationConditionGroup.objects.bulk_update(
+                    to_bulk_update,
+                    [
+                        "group_name",
+                        "order",
+                        "expression",
+                        "prompt",
+                        "manipulation",
+                        "continue_flag",
+                        "next_node_id",
+                        "dock_visible",
+                        "field_expressions",
+                        "field_manipulations",
+                        "section",
+                    ],
+                )
+            if to_bulk_create:
+                ClassificationConditionGroup.objects.bulk_create(to_bulk_create)
 
         return node, condition_groups_data
 

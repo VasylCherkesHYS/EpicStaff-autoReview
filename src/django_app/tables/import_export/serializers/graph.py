@@ -109,10 +109,14 @@ class ClassificationConditionGroupImportSerializer(serializers.ModelSerializer):
         source="classification_decision_table_node",
         write_only=True,
     )
+    prompt_key = serializers.SerializerMethodField()
+
+    def get_prompt_key(self, obj):
+        return obj.prompt.prompt_key if obj.prompt else None
 
     class Meta:
         model = ClassificationConditionGroup
-        fields = "__all__"
+        exclude = ["prompt"]
 
 
 class ClassificationDecisionTablePromptImportSerializer(serializers.ModelSerializer):

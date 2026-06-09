@@ -158,13 +158,7 @@ def import_classification_decision_table_node(
     serializer.is_valid(raise_exception=True)
     cdt_node = serializer.save()
 
-    for group_data in condition_groups_data:
-        group_data["classification_decision_table_node_id"] = cdt_node.id
-        group_serializer = ClassificationConditionGroupImportSerializer(data=group_data)
-        group_serializer.is_valid(raise_exception=True)
-        group_serializer.save()
-
-    ClassificationDecisionTablePrompt.objects.bulk_create(
+    new_prompts = ClassificationDecisionTablePrompt.objects.bulk_create(
         [
             ClassificationDecisionTablePrompt(
                 cdt_node=cdt_node,
@@ -180,6 +174,17 @@ def import_classification_decision_table_node(
             for pc in prompt_configs_data
         ]
     )
+    new_prompt_map = {p.prompt_key: p for p in new_prompts}
+
+    for group_data in condition_groups_data:
+        group_prompt_key = group_data.pop("prompt_key", None)
+        group_data["classification_decision_table_node_id"] = cdt_node.id
+        group_serializer = ClassificationConditionGroupImportSerializer(data=group_data)
+        group_serializer.is_valid(raise_exception=True)
+        group = group_serializer.save()
+        if group_prompt_key and group_prompt_key in new_prompt_map:
+            group.prompt = new_prompt_map[group_prompt_key]
+            group.save(update_fields=["prompt"])
 
     return cdt_node
 
