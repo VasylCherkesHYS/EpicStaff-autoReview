@@ -137,9 +137,11 @@ export class GraphCollaborationWsService {
                 );
                 break;
             case 'graph_modified':
+                this.updateEditorInfo(message.modified_by);
                 this.graphModified$.next(message);
                 break;
             case 'graph_saved':
+                this.updateEditorInfo(message.saved_by);
                 this.graphSaved$.next(message);
                 break;
             case 'error':
@@ -174,6 +176,16 @@ export class GraphCollaborationWsService {
             this.baseReconnectDelayMs * Math.pow(2, this.reconnectAttempts - 1),
             this.maxReconnectDelayMs
         );
+    }
+
+    private updateEditorInfo(editor: EditorInfo): void {
+        this.editors.update((list) => {
+            const idx = list.findIndex((e) => e.user_id === editor.user_id);
+            if (idx === -1) return list;
+            const updated = [...list];
+            updated[idx] = editor;
+            return updated;
+        });
     }
 
     public sendUserEditing(): void {

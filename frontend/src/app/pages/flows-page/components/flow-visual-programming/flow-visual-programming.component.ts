@@ -87,6 +87,7 @@ import { FlowHeaderComponent } from './components/header/flow-header.component';
 import { ShortcutsModalComponent } from './components/shortcuts-modal/shortcuts-modal.component';
 import { FLOW_SHORTCUT_SECTIONS } from './flow-shortcuts.config';
 import { GraphCollaborationWsService } from 'src/app/features/flows/services/graph-collaboration.ws.service';
+import { ProfileService } from '../../../../services/auth/profile.service';
 
 //.
 @Component({
@@ -107,6 +108,7 @@ import { GraphCollaborationWsService } from 'src/app/features/flows/services/gra
 export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanComponentDeactivate {
     private readonly destroyRef = inject(DestroyRef);
     private readonly wsService = inject(GraphCollaborationWsService);
+    private readonly profileService = inject(ProfileService);
     public readonly isEpicChatEnabled: boolean;
     public initialNodeId: string | null = null;
     public isLoaded = signal(false);
@@ -198,6 +200,9 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.wsService.graphSaved$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((event) => {
+                const currentId = this.profileService.currentUserSignal()?.id;
+                if (event.saved_by.user_id === currentId) return;
+
                 const savedBy = event.saved_by.display_name ?? `User ${event.saved_by.user_id}`;
                 this.toastService.info(`Graph was saved by ${savedBy}`, 4000, 'bottom-right');
 
