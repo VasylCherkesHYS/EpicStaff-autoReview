@@ -7,22 +7,28 @@ runner's orchestration logic is tested in isolation from I/O.
 
 from __future__ import annotations
 
+import json
+from unittest.mock import patch
+
 import pytest
 
 from app.emitters.base import Emitter
-from app.exceptions import AgentServiceError
+from app.exceptions import AgentServiceError, SchemaValidationError
 from app.llm.client import LLMChunk
 from app.loop.agent_loop import AgentLoop
 from app.loop.context import AgentContext
+from app.loop.stop_policy import StopPolicy
 from app.resources.resolver import AgentResolver, ResolvedAgent
 from app.runners.deps import RunnerDependencies
 from app.runners.single_task import SingleTaskRunner
-from app.tools.registry import ToolRegistry
+from app.tools.registry import ToolRegistry, ToolSpec
+from app.tools.system_tools.structured_output import ANSWER_TOOL
 from shared.models.agent_service import (
     AgentRequest,
     AgentSpec,
     LoopResult,
     RunType,
+    TokenUsage,
     ToolResult,
 )
 from shared.models.ai_providers import LLMConfigData, LLMData
@@ -77,6 +83,68 @@ class FakeLoop(AgentLoop):
         return CANNED_RESULT
 
 
+class AnswerToolLoop(AgentLoop):
+    """Loop that calls ANSWER_TOOL with scripted args on each run() call.
+
+    Used to drive the enforcer in integration-style tests without mocking it.
+    Script entries are (args_or_none, token_usage):
+    - args_or_none=None → tool NOT called (simulates LLM ignoring tool).
+    - args_or_none=dict → tool called with those args.
+    Also tracks how many times run() was invoked (split by phase: first call is
+    the main loop, subsequent calls are enforcer turns).
+    """
+
+    def __init__(self, script: list[tuple[dict | None, TokenUsage]]) -> None:
+        self._script = list(script)
+        self.call_count = 0
+
+    async def run(
+        self,
+        context: AgentContext,
+        tools: ToolRegistry,
+        emitter: Emitter,
+        stop: StopPolicy,
+    ) -> LoopResult:
+        self.call_count += 1
+        args, token_usage = self._script.pop(0)
+
+        if args is not None and ANSWER_TOOL in {s.name for s in tools.tool_specs()}:
+            await tools.execute(ANSWER_TOOL, args)
+
+        return LoopResult(
+            final_text="plain text" if args is None else None,
+            tool_invocations=1 if args is not None else 0,
+            iterations=1,
+            stop_reason="no_tool_calls",
+            token_usage=token_usage,
+        )
+
+
+class RaisingEnforcerLoop(AgentLoop):
+    """Always raises SchemaValidationError on the second call (simulating enforcer failure)."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    async def run(
+        self,
+        context: AgentContext,
+        tools: ToolRegistry,
+        emitter: Emitter,
+        stop: StopPolicy,
+    ) -> LoopResult:
+        self.call_count += 1
+        if self.call_count == 1:
+            return LoopResult(
+                final_text="something",
+                tool_invocations=0,
+                iterations=1,
+                stop_reason="no_tool_calls",
+                token_usage=TokenUsage(),
+            )
+        raise SchemaValidationError("schema failed")
+
+
 class FakeResolver:
     """Returns a ResolvedAgent with a real AgentContext and empty ToolRegistry."""
 
@@ -90,6 +158,28 @@ class FakeResolver:
             agent_id=agent.id,
             context=context,
             tools=ToolRegistry(),
+            attachments=[],
+        )
+
+
+class FakeResolverWithTools:
+    """Returns a ResolvedAgent with one registered tool so has_tools=True."""
+
+    def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
+        context = AgentContext(
+            agent=agent,
+            attachments=[],
+            correlation_id=request.correlation_id,
+        )
+        registry = ToolRegistry()
+        registry.register(
+            ToolSpec(name="some_tool", description="a tool"),
+            lambda args: ToolResult(tool_call_id="", content="ok"),
+        )
+        return ResolvedAgent(
+            agent_id=agent.id,
+            context=context,
+            tools=registry,
             attachments=[],
         )
 
@@ -207,3 +297,110 @@ async def test_on_start_called_once_before_loop():
 
     assert len(emitter.started) == 1
     assert emitter.started[0] is request
+
+
+# ---------------------------------------------------------------------------
+# output_schema enforcement tests
+# ---------------------------------------------------------------------------
+
+
+async def test_output_schema_no_tools_skips_plain_loop():
+    """output_schema + no tools → enforcer only, no plain loop.run."""
+    emitter = FakeEmitter()
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "string"}},
+        "required": ["x"],
+    }
+    usage = TokenUsage(prompt_tokens=3, completion_tokens=1, total_tokens=4)
+    answer_loop = AnswerToolLoop([({"x": "result"}, usage)])
+    runner = _runner(loop=answer_loop)
+    request = _request({"task_instructions": "Do X", "output_schema": schema})
+
+    with patch("app.runners.single_task._schema_max_retries", return_value=2):
+        await runner.execute(request, emitter)
+
+    assert emitter.errors == []
+    assert len(emitter.finals) == 1
+    final = emitter.finals[0]
+    assert json.loads(final.final_text) == {"x": "result"}
+    assert final.stop_reason == "schema_satisfied"
+    # Enforcer uses 1 loop call; the plain loop is never called
+    assert answer_loop.call_count == 1
+
+
+async def test_output_schema_with_tools_runs_loop_then_enforces():
+    """output_schema + tools → plain loop first, then enforcer."""
+    emitter = FakeEmitter()
+    schema = {
+        "type": "object",
+        "properties": {"y": {"type": "integer"}},
+        "required": ["y"],
+    }
+    plain_usage = TokenUsage(prompt_tokens=5, completion_tokens=2, total_tokens=7)
+    enforce_usage = TokenUsage(prompt_tokens=3, completion_tokens=1, total_tokens=4)
+    # First call: plain loop (no ANSWER_TOOL registered, args=None handled by AnswerToolLoop)
+    # Second call: enforcer loop (ANSWER_TOOL registered, args provided)
+    answer_loop = AnswerToolLoop(
+        [
+            (None, plain_usage),  # plain loop turn (no ANSWER_TOOL in registry)
+            ({"y": 42}, enforce_usage),  # enforcer turn
+        ]
+    )
+    runner = _runner(resolver=FakeResolverWithTools(), loop=answer_loop)
+    request = _request({"task_instructions": "Do Y", "output_schema": schema})
+
+    with patch("app.runners.single_task._schema_max_retries", return_value=2):
+        await runner.execute(request, emitter)
+
+    assert emitter.errors == []
+    assert len(emitter.finals) == 1
+    final = emitter.finals[0]
+    assert json.loads(final.final_text) == {"y": 42}
+    assert final.stop_reason == "schema_satisfied"
+    # Total token usage = plain_usage + enforce_usage
+    assert final.token_usage.prompt_tokens == 8
+    assert final.token_usage.total_tokens == 11
+    assert answer_loop.call_count == 2
+
+
+async def test_schema_validation_error_calls_on_error():
+    """SchemaValidationError from enforcer → on_error called, on_final not."""
+    emitter = FakeEmitter()
+    schema = {
+        "type": "object",
+        "properties": {"z": {"type": "string"}},
+        "required": ["z"],
+    }
+    # Loop never calls the tool → enforcer exhausts retries → SchemaValidationError
+    # Provide enough None entries for max_retries+1 attempts (2 retries → 3 entries)
+    answer_loop = AnswerToolLoop(
+        [
+            (None, TokenUsage()),
+            (None, TokenUsage()),
+            (None, TokenUsage()),
+        ]
+    )
+    runner = _runner(loop=answer_loop)
+    request = _request({"task_instructions": "Do Z", "output_schema": schema})
+
+    with patch("app.runners.single_task._schema_max_retries", return_value=2):
+        await runner.execute(request, emitter)
+
+    assert len(emitter.errors) == 1
+    assert isinstance(emitter.errors[0], SchemaValidationError)
+    assert emitter.finals == []
+
+
+async def test_no_output_schema_uses_single_plain_loop():
+    """No output_schema → plain loop only, no enforcer, on_final with canned result."""
+    emitter = FakeEmitter()
+    fake_loop = FakeLoop()
+    runner = _runner(loop=fake_loop)
+    request = _request({"task_instructions": "Plain task"})
+
+    await runner.execute(request, emitter)
+
+    assert emitter.errors == []
+    assert emitter.finals == [CANNED_RESULT]
+    assert len(fake_loop.received_messages) == 1

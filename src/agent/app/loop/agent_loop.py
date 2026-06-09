@@ -44,6 +44,9 @@ def _build_model_config(context: AgentContext) -> dict:
     if llm.provider and "/" not in model:
         config["model"] = f"{llm.provider}/{model}"
 
+    if context.tool_choice is not None:
+        config["tool_choice"] = context.tool_choice
+
     return config
 
 

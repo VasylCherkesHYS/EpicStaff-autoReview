@@ -33,6 +33,7 @@ class FakeLLMClient(LLMClient):
 
     Set ``chat_raises`` to an exception instance to make the next ``chat()``
     call raise instead of yielding chunks.
+    Records the model_config passed to each ``chat()`` call in ``received_configs``.
     """
 
     def __init__(
@@ -40,6 +41,7 @@ class FakeLLMClient(LLMClient):
     ) -> None:
         self._responses = list(responses)
         self.chat_raises = chat_raises
+        self.received_configs: list[dict] = []
 
     async def _iter_chunks(self, chunks: list[LLMChunk]) -> AsyncIterator[LLMChunk]:
         for chunk in chunks:
@@ -54,6 +56,8 @@ class FakeLLMClient(LLMClient):
         stream: bool,
         runtime_config: dict | None = None,
     ) -> AsyncIterator[LLMChunk]:
+        self.received_configs.append(dict(model_config))
+
         if self.chat_raises is not None:
             raise self.chat_raises
 
@@ -568,3 +572,47 @@ async def test_token_usage_defaults_to_zero_when_no_usage_chunks():
     assert result.token_usage.prompt_tokens == 0
     assert result.token_usage.completion_tokens == 0
     assert result.token_usage.total_tokens == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: tool_choice forwarded through model_config
+# ---------------------------------------------------------------------------
+
+
+async def test_tool_choice_in_context_appears_in_model_config():
+    """context.tool_choice set → forwarded to LLM as model_config['tool_choice']."""
+    emitter = RecordingEmitter()
+    agent = _make_agent_spec()
+    choice = {"type": "function", "function": {"name": "submit_final_answer"}}
+    context = AgentContext(
+        agent=agent,
+        attachments=[],
+        correlation_id="c",
+        tool_choice=choice,
+    )
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("ok")])
+    loop = DefaultAgentLoop(llm)
+
+    await loop.run(context, tools, emitter, stop)
+
+    assert len(llm.received_configs) == 1
+    assert llm.received_configs[0]["tool_choice"] == choice
+
+
+async def test_tool_choice_none_not_present_in_model_config():
+    """context.tool_choice=None (default) → 'tool_choice' key absent from model_config."""
+    emitter = RecordingEmitter()
+    context = make_context()
+    tools = StubToolRegistry({})
+    stop = MaxIterAndNoToolCalls(max_iter=5)
+
+    llm = FakeLLMClient([text_chunks("ok")])
+    loop = DefaultAgentLoop(llm)
+
+    await loop.run(context, tools, emitter, stop)
+
+    assert len(llm.received_configs) == 1
+    assert "tool_choice" not in llm.received_configs[0]

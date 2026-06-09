@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from loguru import logger
 
 from app.emitters.base import Emitter
@@ -7,15 +9,23 @@ from app.enums import EmitterMode, RunType
 from app.exceptions import AgentServiceError
 from app.logging_utils import redact
 from app.loop.stop_policy import MaxIterAndNoToolCalls
+from app.output.enforcer import StructuredOutputEnforcer
+from app.output.schema import add_usage
 from app.prompt.single_task import SingleTaskPromptBuilder
 from app.runners.base import Runner
-from shared.models.agent_service import AgentRequest, AgentSpec
+from shared.models.agent_service import AgentRequest, AgentSpec, LoopResult
 
 
 def _default_max_iter() -> int:
     from settings import load_settings
 
     return load_settings().agent_default_max_iter
+
+
+def _schema_max_retries() -> int:
+    from settings import load_settings
+
+    return load_settings().agent_schema_max_retries
 
 
 class SingleTaskRunner(Runner):
@@ -84,12 +94,44 @@ class SingleTaskRunner(Runner):
                 resolved.context.append_message(message)
 
             max_iter = agent.max_iter or _default_max_iter()
-            stop = MaxIterAndNoToolCalls(max_iter)
             logger.debug("stop cap max_iter={}", max_iter)
 
-            result = await self._deps.loop.run(
-                resolved.context, resolved.tools, emitter, stop
-            )
+            has_tools = bool(resolved.tools.tool_specs())
+
+            if output_schema and not has_tools:
+                enforcer = StructuredOutputEnforcer(
+                    self._deps.loop, _schema_max_retries()
+                )
+                parsed, usage = await enforcer.enforce(
+                    resolved.context, output_schema, emitter
+                )
+                result = LoopResult(
+                    final_text=json.dumps(parsed),
+                    tool_invocations=0,
+                    iterations=1,
+                    stop_reason="schema_satisfied",
+                    token_usage=usage,
+                )
+            else:
+                stop = MaxIterAndNoToolCalls(max_iter)
+                result = await self._deps.loop.run(
+                    resolved.context, resolved.tools, emitter, stop
+                )
+                if output_schema:
+                    enforcer = StructuredOutputEnforcer(
+                        self._deps.loop, _schema_max_retries()
+                    )
+                    parsed, usage = await enforcer.enforce(
+                        resolved.context, output_schema, emitter
+                    )
+                    result = result.model_copy(
+                        update={
+                            "final_text": json.dumps(parsed),
+                            "token_usage": add_usage(result.token_usage, usage),
+                            "stop_reason": "schema_satisfied",
+                        }
+                    )
+
             logger.info(
                 "single_task done correlation_id={} stop_reason={} iterations={} tool_invocations={}",
                 request.correlation_id,
@@ -105,13 +147,23 @@ class SingleTaskRunner(Runner):
             )
             await emitter.on_final(result)
 
-        except Exception as error:
-            logger.exception(
-                "single_task failed correlation_id={}", request.correlation_id
+        except AgentServiceError as error:
+            logger.error(
+                "single_task failed correlation_id={} error={}",
+                request.correlation_id,
+                error,
             )
             await emitter.on_error(
                 error
-            )  # live emitter reused; lifecycle complete, do NOT re-raise
+            )  # expected domain failure → agent.error; do NOT re-raise
+
+        except Exception as error:
+            logger.exception(
+                "single_task crashed correlation_id={}", request.correlation_id
+            )
+            await emitter.on_error(
+                error
+            )  # unexpected failure → agent.error; do NOT re-raise
 
     def _select_agent(self, request: AgentRequest) -> AgentSpec:
         if not request.agents:

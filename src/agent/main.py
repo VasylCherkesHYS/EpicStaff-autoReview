@@ -9,6 +9,7 @@ from loguru import logger
 from app.data_loader import DataLoader
 from app.enums import RunType
 from app.factory import RunnerFactory
+from app.llm.config import configure_litellm
 from app.llm.litellm_client import LiteLLMClient
 from app.loop.agent_loop import DefaultAgentLoop
 from app.request_handler import RequestHandler
@@ -22,9 +23,10 @@ from shared.redis_streams import RedisStreamClient, StreamEnvelope
 
 async def main() -> None:
     settings = load_settings()
+    configure_litellm(settings.agent_drop_unsupported_llm_params)
 
     logger.remove()
-    logger.add(sys.stderr, level=settings.log_level)
+    logger.add(sys.stderr, level=settings.log_level, backtrace=True, diagnose=False)
 
     consumer_name = f"{socket.gethostname()}-{uuid4().hex[:8]}"
 

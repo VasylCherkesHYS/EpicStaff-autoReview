@@ -13,8 +13,10 @@ class Settings:
     log_level: str
     agent_default_max_retries: int
     agent_default_max_iter: int
+    agent_schema_max_retries: int
     sandbox_request_channel: str
     sandbox_result_channel: str
+    agent_drop_unsupported_llm_params: bool
 
 
 def load_settings() -> Settings:
@@ -28,8 +30,13 @@ def load_settings() -> Settings:
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
         agent_default_max_retries=int(os.environ.get("AGENT_DEFAULT_MAX_RETRIES", "5")),
         agent_default_max_iter=int(os.environ.get("AGENT_DEFAULT_MAX_ITER", "25")),
+        agent_schema_max_retries=int(os.environ.get("AGENT_SCHEMA_MAX_RETRIES", "2")),
         sandbox_request_channel=os.environ.get(
             "SANDBOX_REQUEST_CHANNEL", "code_exec_tasks"
         ),
         sandbox_result_channel=os.environ.get("SANDBOX_RESULT_CHANNEL", "code_results"),
+        agent_drop_unsupported_llm_params=os.environ.get(
+            "AGENT_DROP_UNSUPPORTED_LLM_PARAMS", "true"
+        ).lower()
+        in {"1", "true", "yes"},
     )

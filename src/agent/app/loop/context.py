@@ -26,11 +26,13 @@ class AgentContext:
         attachments: list[ContextAttachment],
         correlation_id: str,
         messages: list[dict] | None = None,
+        tool_choice: dict | None = None,
     ) -> None:
         self.agent = agent
         self.attachments = attachments
         self.correlation_id = correlation_id
         self.messages: list[dict] = messages if messages is not None else []
+        self.tool_choice = tool_choice
 
     def append_message(self, message: dict) -> None:
         """Append a single message dict (OpenAI chat format) to the conversation history."""

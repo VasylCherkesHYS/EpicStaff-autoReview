@@ -3,7 +3,9 @@ RouterPool: process-singleton pool of ``litellm.Router`` instances.
 
 Each unique (model, api_key, base_url, api_version, rpm) combination gets its
 own Router so LiteLLM's in-memory rpm counter accumulates correctly across
-calls sharing the same deployment config.
+calls sharing the same deployment config. Each Router holds a single deployment,
+so cooldowns are disabled — they provide no fallback benefit and would turn
+transient failures into a ~60 s "no deployments available" outage.
 """
 
 from __future__ import annotations
@@ -64,7 +66,9 @@ class RouterPool:
                 "litellm_params": litellm_params,
             }
 
-            router = Router(model_list=[deployment])
+            # Single deployment per router — cooldowns give no fallback benefit and
+            # turn transient failures into a ~60 s "no deployments available" outage.
+            router = Router(model_list=[deployment], disable_cooldowns=True)
             self._routers[key] = router
 
         return router
