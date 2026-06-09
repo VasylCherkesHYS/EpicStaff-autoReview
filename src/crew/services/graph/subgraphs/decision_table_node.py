@@ -8,7 +8,7 @@ from langgraph.types import StreamWriter
 
 from services.graph.events import StopEvent
 from services.graph.custom_message_writer import CustomSessionMessageWriter
-from shared.models import (
+from src.shared.models import (
     ConditionGroupData,
     DecisionTableNodeData,
     PythonCodeData,

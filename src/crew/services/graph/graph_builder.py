@@ -26,7 +26,7 @@ from services.graph.subgraphs.decision_table_node import (
 from services.graph.subgraphs.subgraph_node import SubGraphNode
 from services.crew.crew_parser_service import CrewParserService
 from services.redis_service import RedisService
-from shared.models import (
+from src.shared.models import (
     DecisionTableNodeData,
     PythonCodeData,
     SessionData,

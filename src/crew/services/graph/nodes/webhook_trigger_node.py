@@ -6,7 +6,7 @@ from langgraph.types import StreamWriter
 from services.run_python_code_service import RunPythonCodeService
 
 from services.graph.exceptions import ReturnCodeError
-from shared.models import PythonCodeData
+from src.shared.models import PythonCodeData
 
 from models.graph_models import GraphMessage, PythonMessageData
 from models.state import State

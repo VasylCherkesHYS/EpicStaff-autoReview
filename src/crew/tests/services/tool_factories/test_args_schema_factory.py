@@ -2,7 +2,7 @@ import pytest
 from pydantic_core import PydanticUndefined
 
 from services.crew.tool_factories.args_schema_factory import ArgsSchemaFactory
-from shared.models import VariableType
+from src.shared.models import VariableType
 from tests.services.tool_factories.helpers import make_var
 
 

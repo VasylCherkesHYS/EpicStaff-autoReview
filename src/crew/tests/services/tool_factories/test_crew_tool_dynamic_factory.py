@@ -3,7 +3,7 @@ import pytest
 from services.crew.tool_factories.crew_tool_dynamic_factory import (
     CrewToolDynamicFactory,
 )
-from shared.models import VariableType
+from src.shared.models import VariableType
 from tests.services.tool_factories.helpers import make_var
 
 

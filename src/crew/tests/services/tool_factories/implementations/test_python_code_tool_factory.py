@@ -7,7 +7,7 @@ from crewai.tools.base_tool import Tool
 
 from services.crew.tool_factories import PythonCodeToolFactory
 from services.graph.events import StopEvent
-from shared.models import PythonCodeToolData, PythonCodeData
+from src.shared.models import PythonCodeToolData, PythonCodeData
 
 
 def make_data(

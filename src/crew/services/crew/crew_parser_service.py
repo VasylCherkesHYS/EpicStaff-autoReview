@@ -16,7 +16,7 @@ from services.run_python_code_service import RunPythonCodeService
 from services.knowledge_search_service import KnowledgeSearchService
 from utils.singleton_meta import SingletonMeta
 from services.redis_service import RedisService
-from shared.models import (
+from src.shared.models import (
     AgentData,
     CrewData,
     McpToolData,

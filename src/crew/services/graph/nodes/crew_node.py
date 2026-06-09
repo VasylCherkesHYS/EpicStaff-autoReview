@@ -10,7 +10,7 @@ from services.graph.events import StopEvent
 from services.graph.nodes import BaseNode
 from services.redis_service import RedisService
 from services.knowledge_search_service import KnowledgeSearchService
-from shared.models import CrewData
+from src.shared.models import CrewData
 
 from models.state import State
 

@@ -5,7 +5,7 @@ from typing import Any, Collection, Optional
 from pydantic import BaseModel as PydanticModel, create_model, Field
 from pydantic.fields import FieldInfo
 
-from shared.models import (
+from src.shared.models import (
     variable_adapter,
     VariableTypeInput,
     VariableType,

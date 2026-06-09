@@ -21,7 +21,7 @@ from services.graph.events import StopEvent
 from services.graph.exceptions import StopSession
 from services.graph.nodes import BaseNode
 from services.run_python_code_service import RunPythonCodeService
-from shared.models import PythonCodeData
+from src.shared.models import PythonCodeData
 
 
 CODE_CONTAINER_URL = os.environ.get("CODE_CONTAINER_URL")

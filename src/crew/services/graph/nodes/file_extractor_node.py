@@ -1,7 +1,7 @@
 from services.graph.events import StopEvent
 from services.graph.nodes.python_node import PythonNode
 from services.run_python_code_service import RunPythonCodeService
-from shared.models import PythonCodeData
+from src.shared.models import PythonCodeData
 
 
 class FileContentExtractorNode(PythonNode):

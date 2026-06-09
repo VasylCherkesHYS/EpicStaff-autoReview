@@ -6,7 +6,7 @@ from mcp.types import Tool as FastMCPTool
 
 from crewai.tools.base_tool import Tool as CrewaiTool
 from utils.sync_wrapper import sync_wrapper
-from shared.models import McpToolData
+from src.shared.models import McpToolData
 
 from services.schema_converter.converter import generate_model_from_schema
 from services.graph.events import StopEvent

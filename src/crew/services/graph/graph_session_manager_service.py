@@ -18,7 +18,7 @@ from services.knowledge_search_service import KnowledgeSearchService
 from utils.singleton_meta import SingletonMeta
 from models.graph_models import GraphMessage
 
-from shared.models import SessionData, StopSessionMessage
+from src.shared.models import SessionData, StopSessionMessage
 
 
 @dataclass

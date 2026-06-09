@@ -14,7 +14,7 @@ from constants.constants import (
     GRAPH_RAG_SEARCH_TIMEOUT,
     DEFAULT_RAG_SEARCH_TIMEOUT,
 )
-from shared.models import (
+from src.shared.models import (
     RagSearchConfig,
     NaiveRagSearchConfig,
     GraphRagSearchConfig,

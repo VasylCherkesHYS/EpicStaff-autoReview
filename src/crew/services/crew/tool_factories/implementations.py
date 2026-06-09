@@ -5,7 +5,7 @@ from crewai.tools.base_tool import Tool
 
 from services.run_python_code_service import RunPythonCodeService
 from services.graph.events import StopEvent
-from shared.models import PythonCodeToolData
+from src.shared.models import PythonCodeToolData
 
 from .crew_tool_dynamic_factory import CrewToolDynamicFactory
 
