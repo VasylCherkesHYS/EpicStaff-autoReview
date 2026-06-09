@@ -8,6 +8,12 @@
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     }
 
+    &__separator {
+        height: 1px;
+        background: var(--color-divider-regular, #333);
+        margin: 4px 0;
+    }
+
     &__item {
         display: flex;
         align-items: center;

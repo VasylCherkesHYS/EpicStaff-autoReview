@@ -6,6 +6,7 @@ import {
     computed,
     EventEmitter,
     Input,
+    input,
     Output,
     signal,
 } from '@angular/core';
@@ -75,6 +76,7 @@ export class FlowBaseNodeComponent {
     public isExpanded = signal(false);
     public isToggleDisabled = signal(false);
     @Input() showVariables: boolean = false;
+    multiSelectActive = input<boolean>(false);
 
     @Output() projectExpandToggled = new EventEmitter<ProjectNodeModel>();
 
@@ -175,9 +177,13 @@ export class FlowBaseNodeComponent {
         return this.node.type === NodeType.EDGE ? (this.node as EdgeNodeModel) : null;
     }
 
-    public get tableNode() {
-        return this.node.type === NodeType.TABLE || this.node.type === NodeType.CLASSIFICATION_TABLE
-            ? (this.node as DecisionTableNodeModel | ClassificationDecisionTableNodeModel)
+    public get decisionTableNode(): DecisionTableNodeModel | null {
+        return this.node.type === NodeType.TABLE ? (this.node as DecisionTableNodeModel) : null;
+    }
+
+    public get classificationTableNode(): ClassificationDecisionTableNodeModel | null {
+        return this.node.type === NodeType.CLASSIFICATION_TABLE
+            ? (this.node as ClassificationDecisionTableNodeModel)
             : null;
     }
 

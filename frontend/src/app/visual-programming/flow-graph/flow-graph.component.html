@@ -3,19 +3,24 @@
         appMouseTracker
         (mousePosition)="updateMouseTrackerPosition($event)"
         (contextmenu)="onContextMenu($event)"
-        (click)="onCloseContextMenu()"
+        (click)="onFlowClick($event)"
+        (pointerdown)="onFlowPointerDown($event)"
         fDraggable
+        [fMultiSelectTrigger]="multiSelectTrigger"
+        [fCanvasMoveTrigger]="canvasMoveTrigger"
         [vCellSize]="GRID_CELL_SIZE"
         [hCellSize]="GRID_CELL_SIZE"
         [fCellSizeWhileDragging]="false"
         class="visual-programming-flow"
         appShortcutListener
         (delete)="onDelete()"
+        (escape)="onEscapeKey()"
         (undo)="onUndo()"
         (redo)="onRedo()"
         (copy)="onCopy()"
         (paste)="onPaste()"
         (fLoaded)="onInitialized()"
+        (fSelectionChange)="onSelectionChange($event)"
         (fDragStarted)="onDragStarted($event)"
         (fDragEnded)="onDragEnded()"
         (fCreateConnection)="onConnectionAdded($event)"
@@ -103,6 +108,7 @@
                 <app-flow-base-node
                     [node]="node"
                     [showVariables]="showVariables()"
+                    [multiSelectActive]="multiSelectActive()"
                     [fMinimapClass]="getMinimapClassForNode(node)"
                     fNode
                     fDragHandle
@@ -256,7 +262,7 @@
             }
         </f-canvas>
 
-        <f-selection-area></f-selection-area>
+        <f-selection-area [fTrigger]="selectionAreaTrigger"></f-selection-area>
         <f-minimap [fMinSize]="1000"></f-minimap>
     </f-flow>
 
@@ -268,6 +274,15 @@
             >
                 Domain
             </button>
+
+            <app-flow-shortcuts-button
+                icon="multi-select"
+                label="S"
+                iconSize="14px"
+                [textEnd]="true"
+                [active]="multiSelectActive()"
+                (clicked)="onToggleMultiSelect()"
+            ></app-flow-shortcuts-button>
 
             <div
                 #shortcutsAnchor
@@ -288,6 +303,15 @@
 
     <div class="top-right-controls">
         <div class="top-right-actions">
+            <app-flow-export-import-button
+                [selectedCount]="selectedNodeCount()"
+                [allSelectedAreCdt]="allSelectedAreCdt()"
+                (exportSelectedJson)="onExportSelectedAsJson()"
+                (exportSelectedCsv)="onExportSelectedAsCsv()"
+                (exportJson)="onExportAllAsJson()"
+                (exportCsv)="onExportAllAsCsv()"
+                (import)="onImportNodes()"
+            ></app-flow-export-import-button>
             @if (currentFlowId) {
                 <app-flow-files-button
                     [flowId]="currentFlowId"

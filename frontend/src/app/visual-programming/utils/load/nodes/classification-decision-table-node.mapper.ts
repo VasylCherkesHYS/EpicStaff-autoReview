@@ -31,6 +31,7 @@ export function mapClassificationDecisionTableNodeToModel(
                     const dict: Record<string, unknown> = {};
                     for (const p of n.prompt_configs ?? []) {
                         dict[p.prompt_key] = {
+                            backendId: p.id,
                             prompt_text: p.prompt_text ?? '',
                             llm_config: p.llm_config ?? null,
                             output_schema: p.output_schema ?? null,

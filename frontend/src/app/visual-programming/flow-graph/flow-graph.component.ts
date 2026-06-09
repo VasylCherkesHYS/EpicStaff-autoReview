@@ -26,12 +26,8 @@ import {
     EFZoomDirection,
     F_CONNECTION_BUILDERS,
     FCanvasComponent,
-    FConnectionContent,
-    FConnectionGradient,
-    FConnectionWaypoints,
     FCreateConnectionEvent,
     FCreateNodeEvent,
-    FDragNodeStartEventData,
     FDragStartedEvent,
     FFlowComponent,
     FFlowModule,
@@ -41,12 +37,14 @@ import {
 } from '@foblex/flow';
 import { Subject } from 'rxjs';
 
+import { ImportExportService, PartialExportRequest } from '../../core/services/import-export.service';
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ToggleSwitchComponent } from '../../shared/components/form-controls/toggle-switch/toggle-switch.component';
 import { DomainDialogComponent } from '../components/domain-dialog/domain-dialog.component';
 import { FlowActionPanelComponent } from '../components/flow-action-panel/flow-action-panel.component';
 import { FlowBaseNodeComponent } from '../components/flow-base-node/flow-base-node.component';
+import { FlowExportImportButtonComponent } from '../components/flow-export-import-button/flow-export-import-button.component';
 import { FlowFilesButtonComponent } from '../components/flow-files-button/flow-files-button.component';
 import { FlowGraphContextMenuComponent } from '../components/flow-graph-context-menu/flow-graph-context-menu.component';
 import { FlowShortcutsButtonComponent } from '../components/flow-shortcuts-button/flow-shortcuts-button.component';
@@ -122,10 +120,8 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         FlowShortcutsButtonComponent,
         AppSvgIconComponent,
         ToggleSwitchComponent,
-        FConnectionGradient,
-        FConnectionContent,
-        FConnectionWaypoints,
         WaypointTooltipDirective,
+        FlowExportImportButtonComponent,
         FlowFilesButtonComponent,
     ],
 })
@@ -163,6 +159,29 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     protected showContextMenu = signal(false);
     protected showVariables = signal(false);
     public smartRoutingEnabled = signal<boolean>(false);
+
+    private _dragStartClientX: number | null = null;
+    private _dragStartClientY: number | null = null;
+    private _isReselecting = false;
+
+    public multiSelectActive = signal<boolean>(false);
+    public selectedNodeCount = signal<number>(0);
+    private selectedNodeIds = signal<string[]>([]);
+    public allSelectedAreCdt = computed(() => {
+        const ids = this.selectedNodeIds();
+        if (ids.length === 0) return false;
+        const nodes = this.flowService.nodes();
+        return ids.every((id) => nodes.find((n) => n.id === id)?.type === NodeType.CLASSIFICATION_TABLE);
+    });
+
+    readonly multiSelectTrigger = (event: MouseEvent | TouchEvent | WheelEvent): boolean =>
+        this.multiSelectActive() || (event instanceof MouseEvent && event.shiftKey);
+
+    readonly selectionAreaTrigger = (event: MouseEvent | TouchEvent | WheelEvent): boolean =>
+        this.multiSelectActive() || (event instanceof MouseEvent && event.shiftKey);
+
+    readonly canvasMoveTrigger = (event: MouseEvent | TouchEvent | WheelEvent): boolean =>
+        !this.multiSelectActive() && !(event instanceof MouseEvent && event.shiftKey);
 
     protected readonly nodeColorMap = computed<Map<string, string>>(() => {
         const map = new Map<string, string>();
@@ -219,6 +238,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly cd = inject(ChangeDetectorRef);
     private readonly dialog = inject(Dialog);
     private readonly toastService = inject(ToastService);
+    private readonly importExportService = inject(ImportExportService);
     private readonly injector = inject(Injector);
 
     constructor() {}
@@ -516,6 +536,18 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onOpenNodePanel(node: NodeModel): void {
+        if (this.multiSelectActive()) {
+            const current = this.fFlowComponent.getSelection();
+            const alreadySelected = current.fNodeIds.includes(node.id);
+            const newNodeIds = alreadySelected
+                ? current.fNodeIds.filter((id) => id !== node.id)
+                : [...current.fNodeIds, node.id];
+            this.selectedNodeCount.set(newNodeIds.length);
+            this.selectedNodeIds.set(newNodeIds);
+            this.fFlowComponent.select(newNodeIds, current.fConnectionIds);
+            return;
+        }
+
         if (this.sidePanelService.selectedNodeId() === node.id) {
             return;
         }
@@ -648,7 +680,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.isDragging = true;
         this.draggingElements.clear();
 
-        const dragData = event.data as FDragNodeStartEventData | undefined;
+        const dragData = event.fData as { fNodeIds?: string[] } | undefined;
         if (dragData?.fNodeIds) {
             dragData.fNodeIds.forEach((id: string) => this.draggingElements.add(id));
         }
@@ -885,6 +917,228 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         });
 
         dialogRef.closed.subscribe(() => {});
+    }
+
+    public onFlowPointerDown(event: PointerEvent): void {
+        this._dragStartClientX = event.clientX;
+        this._dragStartClientY = event.clientY;
+    }
+
+    public onFlowClick(event: MouseEvent): void {
+        this.showContextMenu.set(false);
+        if (this.multiSelectActive() && !this.isDragging && !(event.target as Element).closest('app-flow-base-node')) {
+            this.multiSelectActive.set(false);
+            this.selectedNodeCount.set(0);
+            this.selectedNodeIds.set([]);
+            this.fFlowComponent.select([], []);
+        }
+    }
+
+    public onEscapeKey(): void {
+        if (this.multiSelectActive()) {
+            this.multiSelectActive.set(false);
+            this.selectedNodeCount.set(0);
+            this.selectedNodeIds.set([]);
+            this.fFlowComponent.select([], []);
+        }
+    }
+
+    public onToggleMultiSelect(): void {
+        const wasActive = this.multiSelectActive();
+        this.multiSelectActive.update((v) => !v);
+        if (wasActive) {
+            this.selectedNodeCount.set(0);
+            this.selectedNodeIds.set([]);
+            this.fFlowComponent.select([], []);
+        }
+    }
+
+    public onSelectionChange(event: { nodeIds: string[] }): void {
+        if (this._isReselecting) {
+            this._isReselecting = false;
+            return;
+        }
+
+        const nodeIds = event.nodeIds;
+
+        // In multiselect mode, ignore automatic empty-selection events (e.g. from CDK overlay interactions)
+        if (this.multiSelectActive() && nodeIds.length === 0) {
+            return;
+        }
+
+        const isLeftToRight =
+            nodeIds.length > 0 &&
+            this._dragStartClientX !== null &&
+            this.mouseCursorPosition.x - this._dragStartClientX > 10;
+
+        if (isLeftToRight) {
+            const selStart = this.fFlowComponent.getPositionInFlow(
+                PointExtensions.initialize(this._dragStartClientX!, this._dragStartClientY!)
+            );
+            const selEnd = this.fFlowComponent.getPositionInFlow(
+                PointExtensions.initialize(this.mouseCursorPosition.x, this.mouseCursorPosition.y)
+            );
+            const selLeft = Math.min(selStart.x, selEnd.x);
+            const selRight = Math.max(selStart.x, selEnd.x);
+            const selTop = Math.min(selStart.y, selEnd.y);
+            const selBottom = Math.max(selStart.y, selEnd.y);
+
+            const allNodes = this.flowService.nodes();
+            const containedIds = nodeIds.filter((id) => {
+                const node = allNodes.find((n) => n.id === id);
+                if (!node) return false;
+                return (
+                    node.position.x >= selLeft &&
+                    node.position.x + (node.size?.width ?? 0) <= selRight &&
+                    node.position.y >= selTop &&
+                    node.position.y + (node.size?.height ?? 0) <= selBottom
+                );
+            });
+
+            if (containedIds.length !== nodeIds.length) {
+                this._isReselecting = true;
+                this.selectedNodeIds.set(containedIds);
+                this.selectedNodeCount.set(containedIds.length);
+                this.fFlowComponent.select(containedIds, []);
+                return;
+            }
+        }
+
+        this.selectedNodeIds.set(nodeIds);
+        this.selectedNodeCount.set(nodeIds.length);
+    }
+
+    public onExportSelectedAsJson(): void {
+        this.triggerPartialExport(this.selectedNodeIds());
+    }
+
+    public onExportSelectedAsCsv(): void {
+        // CDT-specific CSV export — endpoint TBD by backend
+    }
+
+    public onExportAllAsJson(): void {
+        this.triggerPartialExport([]);
+    }
+
+    public onExportAllAsCsv(): void {
+        // Unused — removed from UI
+    }
+
+    public onImportNodes(): void {
+        if (!this.currentFlowId) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.value = '';
+        input.onchange = (e: Event) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (!file || !this.currentFlowId) return;
+            this.importExportService.partialImport(this.currentFlowId, file).subscribe({
+                next: () => this.toastService.success('Import successful', 3000, 'bottom-right'),
+                error: () => this.toastService.error('Import failed', 3000, 'bottom-right'),
+            });
+        };
+        input.click();
+    }
+
+    private triggerPartialExport(nodeIds: string[]): void {
+        if (!this.currentFlowId) return;
+        const body = this.buildPartialExportBody(nodeIds);
+        const filename = nodeIds.length > 0 ? 'selected-nodes.json' : 'all-nodes.json';
+        this.importExportService.partialExport(this.currentFlowId, body).subscribe({
+            next: (blob) => this.downloadBlob(blob, filename),
+            error: () => this.toastService.error('Export failed', 3000, 'bottom-right'),
+        });
+    }
+
+    private buildPartialExportBody(selectedIds: string[]): PartialExportRequest {
+        const allNodes = this.flowService.nodes();
+        const nodes = selectedIds.length > 0 ? allNodes.filter((n) => selectedIds.includes(n.id)) : allNodes;
+        const selectedIdSet = new Set(nodes.map((n) => n.id));
+
+        const body: PartialExportRequest = {
+            start_node_list: [],
+            crew_node_list: [],
+            python_node_list: [],
+            audio_transcription_node_list: [],
+            file_extractor_node_list: [],
+            end_node_list: [],
+            subgraph_node_list: [],
+            webhook_trigger_node_list: [],
+            telegram_trigger_node_list: [],
+            decision_table_node_list: [],
+            classification_decision_table_node_list: [],
+            graph_note_list: [],
+            code_agent_node_list: [],
+            edge_list: [],
+        };
+
+        for (const node of nodes) {
+            if (node.backendId === null) continue;
+            const id = node.backendId;
+            switch (node.type) {
+                case NodeType.START:
+                    body.start_node_list.push(id);
+                    break;
+                case NodeType.AGENT:
+                case NodeType.TASK:
+                case NodeType.TOOL:
+                case NodeType.PROJECT:
+                case NodeType.LLM:
+                    body.crew_node_list.push(id);
+                    break;
+                case NodeType.PYTHON:
+                    body.python_node_list.push(id);
+                    break;
+                case NodeType.AUDIO_TO_TEXT:
+                    body.audio_transcription_node_list.push(id);
+                    break;
+                case NodeType.FILE_EXTRACTOR:
+                    body.file_extractor_node_list.push(id);
+                    break;
+                case NodeType.END:
+                    body.end_node_list.push(id);
+                    break;
+                case NodeType.SUBGRAPH:
+                    body.subgraph_node_list.push(id);
+                    break;
+                case NodeType.WEBHOOK_TRIGGER:
+                    body.webhook_trigger_node_list.push(id);
+                    break;
+                case NodeType.TELEGRAM_TRIGGER:
+                    body.telegram_trigger_node_list.push(id);
+                    break;
+                case NodeType.TABLE:
+                    body.decision_table_node_list.push(id);
+                    break;
+                case NodeType.CLASSIFICATION_TABLE:
+                    body.classification_decision_table_node_list.push(id);
+                    break;
+                case NodeType.NOTE:
+                    body.graph_note_list.push(id);
+                    break;
+                case NodeType.CODE_AGENT:
+                    body.code_agent_node_list.push(id);
+                    break;
+            }
+        }
+
+        for (const conn of this.flowService.connections()) {
+            if (selectedIdSet.has(conn.sourceNodeId) && selectedIdSet.has(conn.targetNodeId) && conn.data?.id != null) {
+                body.edge_list.push(conn.data.id);
+            }
+        }
+
+        return body;
+    }
+
+    private downloadBlob(blob: Blob, filename: string): void {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     public onOpenShortcuts(anchorEl: HTMLElement): void {
