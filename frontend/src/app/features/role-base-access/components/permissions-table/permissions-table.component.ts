@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { AppSvgIconComponent, CheckboxComponent, SearchComponent } from '@shared/components';
-import { Permission } from '@shared/models';
+import { CatalogAction, CatalogResourceType, CatalogResponse } from '@shared/models';
 
-import {
-    ACTION_ICONS,
-    PERMISSION_ACTIONS,
-    PERMISSION_GROUPS,
-    PermissionAction,
-    PermissionGroupDef,
-} from '../../constants/permission-table.constant';
+import { ACTION_ICONS, GROUP_META, GroupMeta, RESOURCE_META } from '../../constants/permission-table.constant';
+
+interface CatalogGroup {
+    key: string;
+    label: string;
+    icon: string;
+    resources: CatalogResourceType[];
+}
 
 @Component({
     selector: 'app-permissions-table',
@@ -18,60 +19,97 @@ import {
     imports: [AppSvgIconComponent, SearchComponent, CheckboxComponent],
 })
 export class PermissionsTableComponent {
-    selectedPermissions = input.required<Set<Permission>>();
+    catalog = input.required<CatalogResponse>();
+    selectedPermissions = input.required<Set<string>>();
     readonly = input(false);
 
-    permissionToggle = output<Permission>();
+    permissionToggle = output<{ resourceType: string; action: string }>();
     selectAllClick = output<void>();
     clearAllClick = output<void>();
-    groupSelectAllClick = output<PermissionGroupDef>();
-    groupClearClick = output<PermissionGroupDef>();
+    groupSelectAllClick = output<string>();
+    groupClearClick = output<string>();
 
-    // Internal UI state
     searchTerm = signal('');
     collapsedGroups = signal<Set<string>>(new Set());
 
     totalSelected = computed(() => this.selectedPermissions().size);
 
-    filteredGroups = computed(() => {
+    private readonly groupedCatalog = computed<CatalogGroup[]>(() => {
+        const catalog = this.catalog();
+        const groupMap = new Map<string, CatalogResourceType[]>();
+        for (const rt of catalog.resource_types) {
+            const arr = groupMap.get(rt.group) ?? [];
+            arr.push(rt);
+            groupMap.set(rt.group, arr);
+        }
+        return Array.from(groupMap.entries()).map(([key, resources]) => {
+            const meta: GroupMeta = GROUP_META[key] ?? { label: key, icon: 'settings' };
+            return { key, label: meta.label, icon: meta.icon, resources };
+        });
+    });
+
+    filteredGroups = computed<CatalogGroup[]>(() => {
         const term = this.searchTerm().toLowerCase().trim();
-        if (!term) return PERMISSION_GROUPS;
-        return PERMISSION_GROUPS.map((g) => ({
-            ...g,
-            resources: g.resources.filter(
-                (r) => r.name.toLowerCase().includes(term) || r.description.toLowerCase().includes(term)
-            ),
-        }));
+        if (!term) return this.groupedCatalog();
+        return this.groupedCatalog()
+            .map((g) => ({
+                ...g,
+                resources: g.resources.filter((r) => {
+                    const desc = RESOURCE_META[r.code]?.description ?? '';
+                    return r.label.toLowerCase().includes(term) || desc.toLowerCase().includes(term);
+                }),
+            }))
+            .filter((g) => g.resources.length > 0);
     });
 
     groupCounts = computed(() => {
         const selected = this.selectedPermissions();
         return new Map(
-            PERMISSION_GROUPS.map((g) => {
-                const all = g.resources
-                    .flatMap((r) => Object.values(r.actions))
-                    .filter((p): p is Permission => p !== undefined);
-                return [g.name, { selected: all.filter((p) => selected.has(p)).length, total: all.length }];
+            this.groupedCatalog().map((g) => {
+                let total = 0;
+                let selectedCount = 0;
+                for (const rt of g.resources) {
+                    for (const action of rt.applicable_actions) {
+                        total++;
+                        if (selected.has(`${rt.code}:${action}`)) selectedCount++;
+                    }
+                }
+                return [g.key, { selected: selectedCount, total }];
             })
         );
     });
 
-    isGroupCollapsed(groupName: string): boolean {
-        return this.collapsedGroups().has(groupName);
+    isGroupCollapsed(groupKey: string): boolean {
+        return this.collapsedGroups().has(groupKey);
     }
 
-    toggleGroup(groupName: string): void {
+    toggleGroup(groupKey: string): void {
         this.collapsedGroups.update((set) => {
             const next = new Set(set);
-            next.has(groupName) ? next.delete(groupName) : next.add(groupName);
+            next.has(groupKey) ? next.delete(groupKey) : next.add(groupKey);
             return next;
         });
     }
 
-    actionLabel(action: PermissionAction): string {
-        return action.charAt(0).toUpperCase() + action.slice(1);
+    isApplicable(resource: CatalogResourceType, action: CatalogAction): boolean {
+        return resource.applicable_actions.includes(action.code);
     }
 
-    readonly PERMISSION_ACTIONS = PERMISSION_ACTIONS;
-    readonly ACTION_ICONS = ACTION_ICONS;
+    isChecked(resourceCode: string, actionCode: string): boolean {
+        return this.selectedPermissions().has(`${resourceCode}:${actionCode}`);
+    }
+
+    resourceDescription(resourceCode: string): string {
+        return RESOURCE_META[resourceCode]?.description ?? '';
+    }
+
+    actionLabel(action: CatalogAction): string {
+        return action.label || action.code.charAt(0).toUpperCase() + action.code.slice(1);
+    }
+
+    actionIcon(action: CatalogAction): string {
+        return ACTION_ICONS[action.code] ?? 'circle';
+    }
+
+    readonly gridTemplate = computed(() => `minmax(300px, 1fr) repeat(${this.catalog().actions.length}, 100px)`);
 }

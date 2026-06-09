@@ -1,90 +1,49 @@
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { CreateRoleRequest, GetRoleResponse, UpdateRoleRequest, UserRole } from '@shared/models';
-import { Observable, of } from 'rxjs';
+import { GetRoleResponse } from '@shared/models';
+import { StorageService } from '@shared/services';
+import { Observable, of, tap } from 'rxjs';
 
 import { ConfigService } from '../../../../services/config';
-import { BUILT_IN_ROLE_PERMISSIONS } from '../../constants/built-in-role-permissions.constant';
-
-const BUILT_IN_ROLES: GetRoleResponse[] = [
-    {
-        id: UserRole.SUPER_ADMIN,
-        name: 'Super Admin',
-        description: 'Full system access with all permissions',
-        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.SUPER_ADMIN],
-        member_count: 0,
-        updated_at: '2026-03-12T10:00:00Z',
-        is_built_in: true,
-    },
-    {
-        id: UserRole.ORG_ADMIN,
-        name: 'Organization Admin',
-        description: 'Manage users and content within an organization',
-        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.ORG_ADMIN],
-        member_count: 0,
-        updated_at: '2026-03-12T10:00:00Z',
-        is_built_in: true,
-    },
-    {
-        id: UserRole.MEMBER,
-        name: 'Member',
-        description: 'Standard access to workspace resources',
-        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.MEMBER],
-        member_count: 0,
-        updated_at: '2026-03-12T10:00:00Z',
-        is_built_in: true,
-    },
-    {
-        id: UserRole.VIEWER,
-        name: 'Viewer',
-        description: 'Read-only access to workspace resources',
-        permissions: BUILT_IN_ROLE_PERMISSIONS[UserRole.VIEWER],
-        member_count: 0,
-        updated_at: '2026-03-12T10:00:00Z',
-        is_built_in: true,
-    },
-];
 
 @Injectable({
     providedIn: 'root',
 })
-export class RolesService {
+export class RolesService implements StorageService {
     private readonly configService = inject(ConfigService);
+    private readonly http = inject(HttpClient);
 
-    private readonly _roles = signal<GetRoleResponse[]>(BUILT_IN_ROLES);
+    private get apiUrl(): string {
+        return this.configService.apiUrl + 'admin/roles/';
+    }
+
+    private readonly _roles = signal<GetRoleResponse[]>([]);
     readonly roles = this._roles.asReadonly();
 
-    getRoles(): Observable<GetRoleResponse[]> {
-        return of(this._roles());
-    }
+    private _loaded = false;
 
-    createRole(dto: CreateRoleRequest): Observable<GetRoleResponse> {
-        const newRole: GetRoleResponse = {
-            id: Date.now(),
-            name: dto.name,
-            description: dto.description,
-            permissions: dto.permissions,
-            member_count: 0,
-            updated_at: new Date().toISOString(),
-            is_built_in: false,
-        };
-        this._roles.update((roles) => [...roles, newRole]);
-        return of(newRole);
-    }
-
-    updateRole(roleId: number, dto: UpdateRoleRequest): Observable<GetRoleResponse> {
-        let updated!: GetRoleResponse;
-        this._roles.update((roles) =>
-            roles.map((r) => {
-                if (r.id !== roleId) return r;
-                updated = { ...r, ...dto, updated_at: new Date().toISOString() };
-                return updated;
+    loadRoles(): Observable<GetRoleResponse[]> {
+        if (this._loaded) return of(this._roles());
+        return this.http.get<GetRoleResponse[]>(this.apiUrl).pipe(
+            tap((roles) => {
+                this._roles.set(roles);
+                this._loaded = true;
             })
         );
-        return of(updated);
+    }
+
+    getRoleById(id: number): Observable<GetRoleResponse> {
+        return this.http.get<GetRoleResponse>(`${this.apiUrl}${id}/`);
     }
 
     deleteRole(roleId: number): Observable<void> {
-        this._roles.update((roles) => roles.filter((r) => r.id !== roleId));
-        return of(undefined);
+        return this.http
+            .delete<void>(`${this.apiUrl}${roleId}/`)
+            .pipe(tap(() => this._roles.update((roles) => roles.filter((r) => r.id !== roleId))));
+    }
+
+    clear(): void {
+        this._roles.set([]);
+        this._loaded = false;
     }
 }

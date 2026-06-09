@@ -1,5 +1,4 @@
 <div class="dialog">
-    <!-- HEADER -->
     <div class="header">
         <span class="title">{{ isEditMode ? 'Edit Role' : 'Create Role' }}</span>
         <div class="actions">
@@ -9,17 +8,18 @@
             >
                 Cancel
             </app-button>
+            <!-- TODO: re-enable when custom role CRUD is available on the backend -->
+            <!--
             <app-button
                 type="primary"
-                [disabled]="isSubmitting()"
                 (click)="onSubmit()"
             >
                 {{ isEditMode ? 'Save' : 'Create' }}
             </app-button>
+            -->
         </div>
     </div>
 
-    <!-- SUBHEADER: name + description -->
     <form
         class="subheader"
         [formGroup]="form"
@@ -44,13 +44,16 @@
 
     <!-- CONTENT: permissions -->
     <div class="content">
-        <app-permissions-table
-            [selectedPermissions]="selectedPermissions()"
-            (permissionToggle)="onPermissionToggle($event)"
-            (selectAllClick)="onSelectAll()"
-            (clearAllClick)="onClearAll()"
-            (groupSelectAllClick)="onGroupSelectAll($event)"
-            (groupClearClick)="onGroupClear($event)"
-        />
+        @if (catalog(); as cat) {
+            <app-permissions-table
+                [catalog]="cat"
+                [selectedPermissions]="selectedPermissions()"
+                (permissionToggle)="onPermissionToggle($event)"
+                (selectAllClick)="onSelectAll()"
+                (clearAllClick)="onClearAll()"
+                (groupSelectAllClick)="onGroupSelectAll($event)"
+                (groupClearClick)="onGroupClear($event)"
+            />
+        }
     </div>
 </div>
