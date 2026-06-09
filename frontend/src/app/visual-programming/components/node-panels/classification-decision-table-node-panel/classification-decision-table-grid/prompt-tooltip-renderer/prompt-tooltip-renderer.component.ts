@@ -85,21 +85,6 @@ interface PromptTooltipParams extends ICellRendererParams {
                 text-overflow: ellipsis;
                 flex-shrink: 1;
             }
-            .chip-var {
-                font-size: 10px;
-                color: rgba(217, 217, 222, 0.6);
-                font-family: Inter, sans-serif;
-                white-space: nowrap;
-                flex-shrink: 0;
-            }
-            .chip-llm {
-                font-size: 14px;
-                color: rgba(217, 217, 222, 0.6);
-                font-family: Inter, sans-serif;
-                white-space: nowrap;
-                flex-shrink: 0;
-                margin-left: auto;
-            }
             .open-in-library-btn {
                 display: none;
                 align-items: center;

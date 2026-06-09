@@ -12,6 +12,14 @@ import {
 import { IHeaderGroupAngularComp } from 'ag-grid-angular';
 import { IHeaderGroupParams } from 'ag-grid-community';
 
+export interface ParamsGroupHeaderParams extends IHeaderGroupParams {
+    mode?: 'add-only' | 'full';
+    onAdd?: (event: MouseEvent) => void;
+    onFreeze?: () => void;
+    onHide?: () => void;
+    isPinned?: () => boolean;
+}
+
 @Component({
     selector: 'app-params-group-header',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -166,15 +174,7 @@ export class ParamsGroupHeaderComponent implements IHeaderGroupAngularComp, OnDe
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
 
-    agInit(
-        params: IHeaderGroupParams & {
-            mode?: 'add-only' | 'full';
-            onAdd?: (event: MouseEvent) => void;
-            onFreeze?: () => void;
-            onHide?: () => void;
-            isPinned?: () => boolean;
-        }
-    ): void {
+    agInit(params: ParamsGroupHeaderParams): void {
         this.mode = params.mode ?? 'full';
         this.onAdd = params.onAdd;
         this.onFreeze = params.onFreeze;

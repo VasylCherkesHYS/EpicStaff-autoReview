@@ -5,6 +5,14 @@ import { IHeaderParams } from 'ag-grid-community';
 
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 
+export interface IconHeaderParams extends IHeaderParams {
+    iconClass?: string;
+    tooltip?: string;
+    label?: string;
+    variant?: 'default' | 'delete';
+    onIconClick?: (event: MouseEvent) => void;
+}
+
 @Component({
     selector: 'app-icon-header',
     imports: [CommonModule, AppSvgIconComponent],
@@ -105,15 +113,7 @@ export class IconHeaderComponent implements IHeaderAngularComp {
     public variant: 'default' | 'delete' = 'default';
     public onIconClick: ((event: MouseEvent) => void) | undefined = undefined;
 
-    agInit(
-        params: IHeaderParams & {
-            iconClass?: string;
-            tooltip?: string;
-            label?: string;
-            variant?: 'default' | 'delete';
-            onIconClick?: (event: MouseEvent) => void;
-        }
-    ): void {
+    agInit(params: IconHeaderParams): void {
         this.iconClass = params.iconClass || '';
         this.tooltip = params.tooltip || '';
         this.label = params.label || '';

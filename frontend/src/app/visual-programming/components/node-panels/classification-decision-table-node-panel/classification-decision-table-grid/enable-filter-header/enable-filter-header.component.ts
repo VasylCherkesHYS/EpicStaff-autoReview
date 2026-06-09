@@ -7,12 +7,14 @@ import {
     Component,
     ElementRef,
     inject,
+    OnDestroy,
     TemplateRef,
     ViewChild,
     ViewContainerRef,
 } from '@angular/core';
 import { IHeaderAngularComp } from 'ag-grid-angular';
 import { IHeaderParams } from 'ag-grid-community';
+import { Subscription } from 'rxjs';
 
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 
@@ -134,7 +136,7 @@ interface EnableFilterHeaderParams extends IHeaderParams {
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EnableFilterHeaderComponent implements IHeaderAngularComp {
+export class EnableFilterHeaderComponent implements IHeaderAngularComp, OnDestroy {
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
     private cdr = inject(ChangeDetectorRef);
@@ -145,6 +147,7 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp {
     public label = 'Enable';
     public mode: EnableFilterMode = 'enabled';
     private overlayRef: OverlayRef | null = null;
+    private backdropSub: Subscription | null = null;
     private params!: EnableFilterHeaderParams;
 
     agInit(params: EnableFilterHeaderParams): void {
@@ -176,7 +179,7 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp {
             hasBackdrop: true,
             backdropClass: 'cdk-overlay-transparent-backdrop',
         });
-        this.overlayRef.backdropClick().subscribe(() => this.closeMenu());
+        this.backdropSub = this.overlayRef.backdropClick().subscribe(() => this.closeMenu());
         this.overlayRef.attach(new TemplatePortal(this.menuTemplate, this.vcr));
     }
 
@@ -189,8 +192,14 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp {
     }
 
     private closeMenu(): void {
+        this.backdropSub?.unsubscribe();
+        this.backdropSub = null;
         this.overlayRef?.detach();
         this.overlayRef?.dispose();
         this.overlayRef = null;
+    }
+
+    ngOnDestroy(): void {
+        this.closeMenu();
     }
 }

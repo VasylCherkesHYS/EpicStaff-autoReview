@@ -56,6 +56,13 @@ import {
     parseManipulation,
     toDisplayExpression,
 } from '../../../../utils/condition-expression.helper';
+import {
+    CDT_COLUMN_KIND,
+    CDT_FIELD_PREFIX,
+    CDT_GRID_ROW_HEIGHT,
+    CDT_MANIP_PREFIX,
+    CDT_OVERLAY_ROW_HEIGHT,
+} from '../cdt.constants';
 import { ColumnHeaderMenuComponent } from './column-header-menu/column-header-menu.component';
 import { EnableFilterHeaderComponent, EnableFilterMode } from './enable-filter-header/enable-filter-header.component';
 import { ExpressionBuilderCellEditorComponent } from './expression-builder/expression-builder-cell-editor.component';
@@ -111,10 +118,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     public dropIndicatorTop = signal<number | null>(null);
 
     // Ordered list of ALL movable colIds (field_* and expression)
-    private movableColumnOrder = signal<string[]>(['expression']);
+    private movableColumnOrder = signal<string[]>([CDT_COLUMN_KIND.EXPRESSION]);
 
     // Manipulation field columns (manip_* and manipulation)
-    private manipColumnOrder = signal<string[]>(['manipulation']);
+    private manipColumnOrder = signal<string[]>([CDT_COLUMN_KIND.MANIPULATION]);
 
     // Frozen column IDs (pinned left)
     public frozenColIds = signal<Set<string>>(new Set());
@@ -182,12 +189,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         sectionsInData.forEach((id) => merged.add(id));
         this.collapsedGroups.set(merged);
 
-        this.recomputeVisibleRowKeys();
         queueMicrotask(() => this.recomputeGroupOverlays());
-    }
-
-    public recomputeVisibleRowKeys(): void {
-        // no-op: filtering now handled by `displayedRowData` computed
     }
 
     public recomputeGroupOverlays(): void {
@@ -240,7 +242,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const data = node.data as { section?: string | null } | undefined;
             const section = data?.section ?? null;
             const top = node.rowTop;
-            const bottom = top + (node.rowHeight ?? 40);
+            const bottom = top + (node.rowHeight ?? CDT_OVERLAY_ROW_HEIGHT);
             if (!section) return;
             const existing = expandedFirstLast.get(section);
             if (existing) {
@@ -251,7 +253,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             }
         });
 
-        const rowHeight = 40;
+        const rowHeight = CDT_OVERLAY_ROW_HEIGHT;
 
         sectionRange.forEach((range, sectionId) => {
             if (collapsed.has(sectionId)) {
@@ -308,8 +310,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     // Computed: field names in their column order
     public activeFieldColumns = computed(() =>
         this.movableColumnOrder()
-            .filter((id) => id.startsWith('field_'))
-            .map((id) => id.substring(6))
+            .filter((id) => id.startsWith(CDT_FIELD_PREFIX))
+            .map((id) => id.substring(CDT_FIELD_PREFIX.length))
     );
 
     public isEmpty = computed(() => this.rowData().length === 0);
@@ -317,13 +319,13 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     // Manipulation field computed properties
     public activeManipFieldColumns = computed(() =>
         this.manipColumnOrder()
-            .filter((id) => id.startsWith('manip_'))
-            .map((id) => id.substring(6))
+            .filter((id) => id.startsWith(CDT_MANIP_PREFIX))
+            .map((id) => id.substring(CDT_MANIP_PREFIX.length))
     );
 
-    public hasFieldCols = computed(() => this.movableColumnOrder().some((id) => id.startsWith('field_')));
+    public hasFieldCols = computed(() => this.movableColumnOrder().some((id) => id.startsWith(CDT_FIELD_PREFIX)));
 
-    public hasManipCols = computed(() => this.manipColumnOrder().some((id) => id.startsWith('manip_')));
+    public hasManipCols = computed(() => this.manipColumnOrder().some((id) => id.startsWith(CDT_MANIP_PREFIX)));
 
     /** True when at least one above-grid "+" button is visible (i.e. at least one params group is absent). */
     public hasAboveAddButtons = computed(() => !this.hasFieldCols() || !this.hasManipCols());
@@ -444,14 +446,13 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             }
         });
         if (fieldKeys.size > 0 && this.movableColumnOrder().length <= 1) {
-            const colIds = ['expression', ...[...fieldKeys].map((f) => `field_${f}`)];
+            const colIds = [CDT_COLUMN_KIND.EXPRESSION, ...[...fieldKeys].map((f) => `${CDT_FIELD_PREFIX}${f}`)];
             this.movableColumnOrder.set(colIds);
         }
         if (manipKeys.size > 0 && this.manipColumnOrder().length <= 1) {
-            const colIds = ['manipulation', ...[...manipKeys].map((f) => `manip_${f}`)];
+            const colIds = [CDT_COLUMN_KIND.MANIPULATION, ...[...manipKeys].map((f) => `${CDT_MANIP_PREFIX}${f}`)];
             this.manipColumnOrder.set(colIds);
         }
-        this.recomputeVisibleRowKeys();
         this.recomputeGroupOverlays();
     }
 
@@ -559,7 +560,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     public gridOptions: GridOptions = {
         theme: this.myTheme,
-        rowHeight: 50,
+        rowHeight: CDT_GRID_ROW_HEIGHT,
         headerHeight: 45,
         suppressRowTransform: true,
         suppressCellFocus: false,
@@ -567,6 +568,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         domLayout: 'autoHeight',
         rowDragManaged: false,
         animateRows: true,
+        suppressColumnMoveAnimation: true,
         rowSelection: {
             mode: 'multiRow',
             checkboxes: false,
@@ -597,11 +599,15 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const allVisible = colState.map((s) => s.colId!);
 
             // Update expression column order
-            const exprResult = allVisible.filter((id) => id?.startsWith('field_') || id === 'expression');
+            const exprResult = allVisible.filter(
+                (id) => id?.startsWith(CDT_FIELD_PREFIX) || id === CDT_COLUMN_KIND.EXPRESSION
+            );
             this.movableColumnOrder.set(exprResult);
 
             // Update manipulation column order
-            const manipResult = allVisible.filter((id) => id?.startsWith('manip_') || id === 'manipulation');
+            const manipResult = allVisible.filter(
+                (id) => id?.startsWith(CDT_MANIP_PREFIX) || id === CDT_COLUMN_KIND.MANIPULATION
+            );
             this.manipColumnOrder.set(manipResult);
             this.saveGridState();
             setTimeout(() => this.updateAddButtonPositions(), 0);
@@ -682,7 +688,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             state: [{ colId, hide: true }],
         });
         this.saveGridState();
-        setTimeout(() => this.updateBadgePositions(), 50);
+        setTimeout(() => this.updateAddButtonPositions(), 50);
         this.cdr.markForCheck();
     }
 
@@ -702,7 +708,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 state: info.colIds.map((id) => ({ colId: id, hide: false })),
             });
             this.saveGridState();
-            setTimeout(() => this.updateBadgePositions(), 50);
+            setTimeout(() => this.updateAddButtonPositions(), 50);
             this.cdr.markForCheck();
             return;
         }
@@ -713,7 +719,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             state: [{ colId, hide: false }],
         });
         this.saveGridState();
-        setTimeout(() => this.updateBadgePositions(), 50);
+        setTimeout(() => this.updateAddButtonPositions(), 50);
         this.cdr.markForCheck();
     }
 
@@ -760,7 +766,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             state: colIds.map((colId) => ({ colId, hide: true })),
         });
         this.saveGridState();
-        setTimeout(() => this.updateBadgePositions(), 50);
+        setTimeout(() => this.updateAddButtonPositions(), 50);
         this.cdr.markForCheck();
     }
 
@@ -778,7 +784,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             state: colIds.map((colId) => ({ colId, hide: true })),
         });
         this.saveGridState();
-        setTimeout(() => this.updateBadgePositions(), 50);
+        setTimeout(() => this.updateAddButtonPositions(), 50);
         this.cdr.markForCheck();
     }
 
@@ -910,19 +916,19 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     private getColLabel(colId: string): string {
-        if (colId === 'expression') return 'Expression';
-        if (colId === 'manipulation') return 'Manipulation';
+        if (colId === CDT_COLUMN_KIND.EXPRESSION) return 'Expression';
+        if (colId === CDT_COLUMN_KIND.MANIPULATION) return 'Manipulation';
         if (colId === 'prompt_id') return 'Prompt';
         if (colId === 'route_code') return 'Route Code';
         if (colId === 'group_name') return 'Condition Name';
         if (colId === 'next_node') return 'Next Node';
-        if (colId.startsWith('field_')) return colId.substring(6);
-        if (colId.startsWith('manip_')) return colId.substring(6);
+        if (colId.startsWith(CDT_FIELD_PREFIX)) return colId.substring(CDT_FIELD_PREFIX.length);
+        if (colId.startsWith(CDT_MANIP_PREFIX)) return colId.substring(CDT_MANIP_PREFIX.length);
         return colId;
     }
 
     private buildFieldColDef(fieldName: string): ColDef {
-        const colId = `field_${fieldName}`;
+        const colId = `${CDT_FIELD_PREFIX}${fieldName}`;
         return {
             colId,
             headerComponent: ColumnHeaderMenuComponent,
@@ -943,7 +949,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             cellRenderer: MonacoCellRendererComponent,
             cellRendererParams: { singleLine: true },
             rowSpan: (params: RowSpanParams<ConditionGroup>) =>
-                this.getRowSpan(params, `field_${fieldName}`, (d) => d?.field_expressions?.[fieldName] || ''),
+                this.getRowSpan(
+                    params,
+                    `${CDT_FIELD_PREFIX}${fieldName}`,
+                    (d) => d?.field_expressions?.[fieldName] || ''
+                ),
             cellStyle: (params: RowSpanParams<ConditionGroup>) => {
                 const locked = this.isRowLocked(params.data as ConditionGroup);
                 return locked
@@ -965,7 +975,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     private buildManipFieldColDef(fieldName: string): ColDef {
-        const colId = `manip_${fieldName}`;
+        const colId = `${CDT_MANIP_PREFIX}${fieldName}`;
         return {
             colId,
             headerComponent: ColumnHeaderMenuComponent,
@@ -1007,10 +1017,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     private buildManipulationColDef(): ColDef {
         return {
-            colId: 'manipulation',
-            field: 'manipulation',
+            colId: CDT_COLUMN_KIND.MANIPULATION,
+            field: CDT_COLUMN_KIND.MANIPULATION,
             headerComponent: ColumnHeaderMenuComponent,
-            headerComponentParams: this.makeMenuHeaderParams('manipulation', 'Manipulation'),
+            headerComponentParams: this.makeMenuHeaderParams(CDT_COLUMN_KIND.MANIPULATION, 'Manipulation'),
             editable: true,
             flex: 1,
             cellRenderer: MonacoCellRendererComponent,
@@ -1019,7 +1029,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             cellEditorPopupPosition: 'over',
             cellEditorParams: () => ({
                 variables: this.collectExpressionVariables(),
-                mode: 'manipulation',
+                mode: CDT_COLUMN_KIND.MANIPULATION,
             }),
             // Allow plain Enter to insert newlines inside the popup editor.
             // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
@@ -1036,10 +1046,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     private buildExpressionColDef(): ColDef {
         return {
-            colId: 'expression',
-            field: 'expression',
+            colId: CDT_COLUMN_KIND.EXPRESSION,
+            field: CDT_COLUMN_KIND.EXPRESSION,
             headerComponent: ColumnHeaderMenuComponent,
-            headerComponentParams: this.makeMenuHeaderParams('expression', 'Expression'),
+            headerComponentParams: this.makeMenuHeaderParams(CDT_COLUMN_KIND.EXPRESSION, 'Expression'),
             editable: true,
             flex: 1,
             cellRenderer: MonacoCellRendererComponent,
@@ -1051,7 +1061,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
             suppressKeyboardEvent: (params) => params.editing && params.event.key === 'Enter',
             rowSpan: (params: RowSpanParams<ConditionGroup>) =>
-                this.getRowSpan(params, 'expression', (d) => d?.expression || ''),
+                this.getRowSpan(params, CDT_COLUMN_KIND.EXPRESSION, (d) => d?.expression || ''),
             cellStyle: () => ({ fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' }),
             valueGetter: (params: ValueGetterParams<ConditionGroup>) =>
                 toDisplayExpression(params.data?.expression ?? ''),
@@ -1075,10 +1085,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             seen.add(k);
         }
 
-        // Active field_* column names (strip the 'field_' prefix)
+        // Active field_* column names (strip the CDT_FIELD_PREFIX)
         for (const colId of this.movableColumnOrder()) {
-            if (colId.startsWith('field_')) {
-                seen.add(colId.substring(6));
+            if (colId.startsWith(CDT_FIELD_PREFIX)) {
+                seen.add(colId.substring(CDT_FIELD_PREFIX.length));
             }
         }
 
@@ -1108,7 +1118,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 getMode: () => this.enableFilterMode(),
                 setMode: (mode: EnableFilterMode) => {
                     this.enableFilterMode.set(mode);
-                    this.recomputeVisibleRowKeys();
                     this.gridApi?.refreshHeader();
                     this.saveGridState();
                 },
@@ -1140,8 +1149,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
         // Expression section
         const visibleFieldCols: ColDef[] = this.movableColumnOrder()
-            .filter((id) => id.startsWith('field_'))
-            .map((id) => this.buildFieldColDef(id.substring(6)));
+            .filter((id) => id.startsWith(CDT_FIELD_PREFIX))
+            .map((id) => this.buildFieldColDef(id.substring(CDT_FIELD_PREFIX.length)));
 
         const hasFieldCols = visibleFieldCols.length > 0;
         const expressionCol = this.buildExpressionColDef();
@@ -1230,8 +1239,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
         // Manipulation section
         const visibleManipCols: ColDef[] = this.manipColumnOrder()
-            .filter((id) => id.startsWith('manip_'))
-            .map((id) => this.buildManipFieldColDef(id.substring(6)));
+            .filter((id) => id.startsWith(CDT_MANIP_PREFIX))
+            .map((id) => this.buildManipFieldColDef(id.substring(CDT_MANIP_PREFIX.length)));
 
         const hasManipCols = visibleManipCols.length > 0;
         const manipCol = this.buildManipulationColDef();
@@ -1334,7 +1343,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     private getMergeableColIds(): string[] {
-        return [...this.activeFieldColumns().map((f) => `field_${f}`), 'expression'];
+        return [...this.activeFieldColumns().map((f) => `${CDT_FIELD_PREFIX}${f}`), CDT_COLUMN_KIND.EXPRESSION];
     }
 
     // Returns the row range that column `colId` is allowed to merge within,
@@ -1405,13 +1414,13 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     private getMergeableValueFromData(data: ConditionGroup | undefined, colId: string): string {
         if (!data) return '';
-        if (colId === 'expression') return data.expression || '';
-        if (colId.startsWith('field_')) {
-            const field = colId.substring(6);
+        if (colId === CDT_COLUMN_KIND.EXPRESSION) return data.expression || '';
+        if (colId.startsWith(CDT_FIELD_PREFIX)) {
+            const field = colId.substring(CDT_FIELD_PREFIX.length);
             return data.field_expressions?.[field] || '';
         }
-        if (colId.startsWith('manip_')) {
-            const field = colId.substring(6);
+        if (colId.startsWith(CDT_MANIP_PREFIX)) {
+            const field = colId.substring(CDT_MANIP_PREFIX.length);
             return data.field_manipulations?.[field] || '';
         }
         return '';
@@ -1588,7 +1597,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         if (this.hasFieldCols()) {
             this.exprAddPos.set(null);
         } else {
-            const cell = findLeafCell('expression');
+            const cell = findLeafCell(CDT_COLUMN_KIND.EXPRESSION);
             if (cell) {
                 const r = cell.getBoundingClientRect();
                 this.exprAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
@@ -1600,7 +1609,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         if (this.hasManipCols()) {
             this.manipAddPos.set(null);
         } else {
-            const cell = findLeafCell('manipulation');
+            const cell = findLeafCell(CDT_COLUMN_KIND.MANIPULATION);
             if (cell) {
                 const r = cell.getBoundingClientRect();
                 this.manipAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
@@ -1625,7 +1634,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     addFieldColumn(fieldName: string): void {
-        const colId = `field_${fieldName}`;
+        const colId = `${CDT_FIELD_PREFIX}${fieldName}`;
         const order = this.movableColumnOrder();
         if (!order.includes(colId)) {
             this.movableColumnOrder.set([...order, colId]);
@@ -1634,7 +1643,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     removeFieldColumn(fieldName: string): void {
-        const colId = `field_${fieldName}`;
+        const colId = `${CDT_FIELD_PREFIX}${fieldName}`;
         this.movableColumnOrder.set(this.movableColumnOrder().filter((id) => id !== colId));
         this.saveGridState();
     }
@@ -1664,7 +1673,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     addManipFieldColumn(fieldName: string): void {
-        const colId = `manip_${fieldName}`;
+        const colId = `${CDT_MANIP_PREFIX}${fieldName}`;
         const order = this.manipColumnOrder();
         if (!order.includes(colId)) {
             this.manipColumnOrder.set([...order, colId]);
@@ -1673,7 +1682,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     }
 
     removeManipFieldColumn(fieldName: string): void {
-        const colId = `manip_${fieldName}`;
+        const colId = `${CDT_MANIP_PREFIX}${fieldName}`;
         this.manipColumnOrder.set(this.manipColumnOrder().filter((id) => id !== colId));
         this.saveGridState();
     }
@@ -1761,7 +1770,8 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
         if (clickedColId) {
             // Click is on a grid cell
-            const isMergeableCol = clickedColId === 'expression' || clickedColId.startsWith('field_');
+            const isMergeableCol =
+                clickedColId === CDT_COLUMN_KIND.EXPRESSION || clickedColId.startsWith(CDT_FIELD_PREFIX);
 
             if (isMergeableCol && (!currentUnmerged || currentUnmerged.colId !== clickedColId)) {
                 // Only unmerge if the cell is actually spanning multiple rows
@@ -1769,7 +1779,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 if (rowSpan <= 1) return;
 
                 // Determine which row was clicked within a spanned cell
-                const rowHeight = this.gridOptions.rowHeight || 50;
+                const rowHeight = this.gridOptions.rowHeight || CDT_GRID_ROW_HEIGHT;
                 const cellRect = cellEl!.getBoundingClientRect();
                 const rowOffset = Math.floor((event.clientY - cellRect.top) / rowHeight);
                 const rowEl = cellEl!.closest('.ag-row');
@@ -1930,7 +1940,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const activeNames = this.activeFieldColumns();
         const activeManipNames = this.activeManipFieldColumns();
 
-        if (colId === 'expression') {
+        if (colId === CDT_COLUMN_KIND.EXPRESSION) {
             // Expression → params sync
             const newExpr: string = (rowData.expression ?? '').trim();
 
@@ -1964,7 +1974,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             } finally {
                 this.isSyncing = false;
             }
-        } else if (colId.startsWith('field_')) {
+        } else if (colId.startsWith(CDT_FIELD_PREFIX)) {
             // Params → expression sync
             if (this.isRowLocked(rowData)) {
                 // Locked row — don't recompose; the param cells should not be editable anyway
@@ -1991,7 +2001,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                     this.isSyncing = false;
                 }
             }
-        } else if (colId === 'manipulation') {
+        } else if (colId === CDT_COLUMN_KIND.MANIPULATION) {
             // Manipulation → manip params sync
             const newManip: string = (rowData.manipulation ?? '').trim();
 
@@ -2022,7 +2032,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             } finally {
                 this.isSyncing = false;
             }
-        } else if (colId.startsWith('manip_')) {
+        } else if (colId.startsWith(CDT_MANIP_PREFIX)) {
             // Manip params → manipulation sync
             if (this.isManipRowLocked(rowData)) {
                 // Locked row — don't recompose; the manip param cells should not be editable anyway
@@ -2049,10 +2059,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                     this.isSyncing = false;
                 }
             }
-        }
-
-        if (event.colDef.field === 'dock_visible' || event.colDef.colId === 'dock_visible') {
-            this.recomputeVisibleRowKeys();
         }
 
         this.unmergedGroup.set(null);
@@ -2127,7 +2133,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const collapsed = new Set(this.collapsedGroups());
         collapsed.add(sectionId);
         this.collapsedGroups.set(collapsed);
-        this.recomputeVisibleRowKeys();
         this.gridApi?.deselectAll();
         this.emitChanges(updated);
         queueMicrotask(() => this.recomputeGroupOverlays());
@@ -2208,7 +2213,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                     newCollapsed.delete(sectionId);
                     this.collapsedGroups.set(newCollapsed);
                     this.rowData.set(updated);
-                    this.recomputeVisibleRowKeys();
                     this.emitChanges(updated);
                     queueMicrotask(() => this.recomputeGroupOverlays());
                 }
@@ -2225,7 +2229,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const newCollapsed = new Set(this.collapsedGroups());
         newCollapsed.add(sectionId);
         this.collapsedGroups.set(newCollapsed);
-        this.recomputeVisibleRowKeys();
         queueMicrotask(() => this.recomputeGroupOverlays());
     }
 
@@ -2239,7 +2242,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const next = new Set(this.collapsedGroups());
         next.delete(sectionId);
         this.collapsedGroups.set(next);
-        this.recomputeVisibleRowKeys();
         queueMicrotask(() => this.recomputeGroupOverlays());
     }
 
@@ -2249,7 +2251,6 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         this.groupMenuOverlayRef = null;
         this.groupMenuSectionId.set(null);
         this.collapsedGroups.set(new Set());
-        this.recomputeVisibleRowKeys();
         queueMicrotask(() => this.recomputeGroupOverlays());
     }
 
@@ -2263,16 +2264,11 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             if (row.section) allSections.add(row.section);
         }
         this.collapsedGroups.set(allSections);
-        this.recomputeVisibleRowKeys();
         queueMicrotask(() => this.recomputeGroupOverlays());
     }
 
     private getUpdatedRows(): ConditionGroup[] {
-        const rows: ConditionGroup[] = [];
-        this.gridApi.forEachNode((node) => {
-            rows.push(node.data);
-        });
-        return rows.map((row, index) => ({ ...row, order: index + 1 }));
+        return this.rowData().map((row, index) => ({ ...row, order: index + 1 }));
     }
 
     private emitChanges(rows: ConditionGroup[]): void {
