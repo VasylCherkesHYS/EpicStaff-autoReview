@@ -24,7 +24,6 @@ from src.shared.models import (
     GraphRagSearchConfig,
     LLMConfigData,
     LLMData,
-    LLMNodeData,
     McpToolData,
     NaiveRagSearchConfig,
     NgrokConfigData,
@@ -34,6 +33,7 @@ from src.shared.models import (
     PromptConfigData,
     RagSearchConfig,
     RealtimeAgentChatData,
+    ScheduleTriggerNodeData,
     SubGraphNodeData,
     TaskData,
     TelegramTriggerNodeData,
@@ -47,7 +47,6 @@ from tables.models import (
     Crew,
     EmbeddingConfig,
     LLMConfig,
-    LLMNode,
     PythonCode,
     PythonCodeTool,
     Task,
@@ -80,6 +79,7 @@ from tables.models.graph_models import (
     GraphOrganization,
     GraphStorageFile,
     PythonNode,
+    ScheduleTriggerNode,
     SubGraphNode,
     TelegramTriggerNode,
     WebhookTriggerNode,
@@ -767,17 +767,6 @@ class ConverterService(metaclass=SingletonMeta):
             input_map=conditional_edge.input_map,
         )
 
-    def convert_llm_node_to_pydantic(
-        self, llm_node: LLMNode, resolver: NodeNameResolver = SINGLE_LOOKUP_RESOLVER
-    ) -> LLMNodeData:
-        llm_data = self.convert_llm_config_to_pydantic(config=llm_node.llm_config)
-        return LLMNodeData(
-            node_name=resolver(llm_node.id),
-            llm_data=llm_data,
-            input_map=llm_node.input_map,
-            output_variable_path=llm_node.output_variable_path,
-        )
-
     def convert_condition_to_pydantic(self, condition: Condition) -> ConditionData:
         return ConditionData(condition=condition.condition)
 
@@ -937,6 +926,31 @@ class ConverterService(metaclass=SingletonMeta):
         return TelegramTriggerNodeData(
             node_name=resolver(telegram_trigger_node.id),
             field_list=field_data,
+        )
+
+    def convert_schedule_trigger_node_to_pydantic(
+        self,
+        schedule_trigger_node: ScheduleTriggerNode,
+        resolver: NodeNameResolver = SINGLE_LOOKUP_RESOLVER,
+    ) -> ScheduleTriggerNodeData:
+        return ScheduleTriggerNodeData(
+            node_name=resolver(schedule_trigger_node.id),
+            run_mode=schedule_trigger_node.run_mode,
+            start_date_time=(
+                schedule_trigger_node.start_date_time.isoformat()
+                if schedule_trigger_node.start_date_time
+                else None
+            ),
+            every=schedule_trigger_node.every,
+            unit=schedule_trigger_node.unit,
+            weekdays=schedule_trigger_node.weekdays or [],
+            end_type=schedule_trigger_node.end_type,
+            end_date_time=(
+                schedule_trigger_node.end_date_time.isoformat()
+                if schedule_trigger_node.end_date_time
+                else None
+            ),
+            max_runs=schedule_trigger_node.max_runs,
         )
 
     def convert_edge_to_pytdantic(

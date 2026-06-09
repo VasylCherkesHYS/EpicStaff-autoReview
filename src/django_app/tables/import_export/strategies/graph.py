@@ -1,18 +1,14 @@
 import uuid
 from copy import deepcopy
 
-from tables.models import Graph, Crew
-from tables.models.graph_models import (
-    ClassificationConditionGroup,
-    ClassificationDecisionTablePrompt,
-)
-from tables.serializers.model_serializers import (
-    CrewSerializer,
-    GraphOrganization,
-    Organization,
-)
+from tables.models import Graph, Crew, Organization, GraphOrganization
+from tables.models.label_models import Label
+from tables.models.graph_models import ClassificationDecisionTablePrompt
+from tables.serializers.model_serializers import CrewSerializer
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
+
 from tables.import_export.strategies.base import EntityImportExportStrategy
+from tables.import_export.strategies.node_handlers import NODE_HANDLERS
 from tables.import_export.serializers.graph import (
     GraphImportSerializer,
     EdgeImportSerializer,
@@ -23,7 +19,6 @@ from tables.import_export.enums import EntityType
 from tables.import_export.id_mapper import IDMapper
 from tables.import_export.constants import NODE_MAPPING_KEY
 from tables.import_export.utils import ensure_unique_identifier
-from tables.import_export.strategies.node_handlers import NODE_HANDLERS
 
 
 class GraphStrategy(EntityImportExportStrategy):
@@ -59,6 +54,7 @@ class GraphStrategy(EntityImportExportStrategy):
         deps[EntityType.LLM_CONFIG] = set(
             instance.code_agent_node_list.values_list("llm_config_id", flat=True)
         )
+        deps[EntityType.LABEL] = set(instance.labels.values_list("id", flat=True))
         deps[EntityType.LLM_CONFIG] |= set(
             instance.classification_decision_table_node_list.values_list(
                 "default_llm_config_id", flat=True
@@ -75,12 +71,15 @@ class GraphStrategy(EntityImportExportStrategy):
     def export_entity(self, instance: Graph) -> dict:
         data = self.serializer_class(instance).data
         data["nodes"] = self._export_nodes(instance)
+        data["labels"] = list(instance.labels.values_list("id", flat=True))
         return data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Graph:
         preserve_uuids = kwargs.get("preserve_uuids", False)
+        replace_existing = kwargs.get("replace_existing", False)
+        import_labels = kwargs.get("import_labels", True)
         import_data = data.copy()
-        import_data["metadata"] = self._update_metadata(
+        import_data["metadata"] = self.update_metadata(
             import_data["metadata"], id_mapper
         )
 
@@ -93,12 +92,16 @@ class GraphStrategy(EntityImportExportStrategy):
 
         imported_uuid = import_data.pop("uuid", None)
         if preserve_uuids and imported_uuid:
-            Graph.objects.filter(uuid=imported_uuid).update(uuid=uuid.uuid4())
+            if replace_existing:
+                Graph.objects.filter(uuid=imported_uuid).delete()
+            else:
+                Graph.objects.filter(uuid=imported_uuid).update(uuid=uuid.uuid4())
             import_data["uuid"] = imported_uuid
 
         nodes_data = import_data.pop("nodes", [])
         edges_data = import_data.pop("edge_list", [])
         conditional_edges_data = import_data.pop("conditional_edge_list", [])
+        labels_data = import_data.pop("labels", [])
 
         serializer = self.serializer_class(data=import_data)
         serializer.is_valid(raise_exception=True)
@@ -116,6 +119,9 @@ class GraphStrategy(EntityImportExportStrategy):
             },
             id_mapper,
         )
+
+        if import_labels and labels_data:
+            self._attach_labels(graph, id_mapper, labels_data)
 
         return graph
 
@@ -300,6 +306,15 @@ class GraphStrategy(EntityImportExportStrategy):
             graph.metadata = metadata
             graph.save(update_fields=["metadata"])
 
+    def _attach_labels(
+        self, graph: Graph, id_mapper: IDMapper, label_ids: list
+    ) -> None:
+        new_label_ids = [
+            id_mapper.get(EntityType.LABEL, old_id) for old_id in label_ids
+        ]
+        if new_label_ids:
+            graph.labels.add(*Label.objects.filter(id__in=new_label_ids))
+
     def _default_import_node(self, graph: Graph, node_data: dict, config: dict):
         """Default import logic for simple nodes"""
         serializer_class = config["serializer"]
@@ -309,7 +324,7 @@ class GraphStrategy(EntityImportExportStrategy):
         serializer.is_valid(raise_exception=True)
         return serializer.save()
 
-    def _update_metadata(self, metadata: dict, id_mapper: IDMapper) -> dict:
+    def update_metadata(self, metadata: dict, id_mapper: IDMapper) -> dict:
         # TODO: Remove metadata when save functionality reworked
         metadata_copy = deepcopy(metadata)
 

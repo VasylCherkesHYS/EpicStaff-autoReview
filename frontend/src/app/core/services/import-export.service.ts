@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { ConfigService } from '../../services/config/config.service';
+import { ImportResult } from '../models/import-result.model';
 
 export type ExportFormat = 'json' | 'csv';
 
@@ -23,6 +24,19 @@ export interface PartialExportRequest {
     edge_list: number[];
 }
 
+export interface ImportFlowRequestOptions {
+    preserveUuids: boolean;
+    replaceExisting: boolean;
+    importLabels: boolean;
+}
+
+interface ExportAllBody {
+    graph_id?: number;
+    status?: string[];
+    node_name?: string;
+    is_error_cause?: boolean;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -38,7 +52,7 @@ export class ImportExportService {
 
     private get sessionsApiUrl(): string {
         return this.configService.apiUrl + 'sessions/';
-    }
+    }    
 
     partialExport(graphId: number, body: PartialExportRequest): Observable<Blob> {
         return this.http.post(`${this.apiUrl}${graphId}/partial-export/`, body, {
@@ -52,12 +66,14 @@ export class ImportExportService {
         return this.http.post(`${this.apiUrl}${graphId}/partial-import/`, formData);
     }
 
-    importFlow(file: File, preserveUuids: boolean = false): Observable<Record<string, unknown>> {
+    importFlow(file: File, settings: ImportFlowRequestOptions): Observable<ImportResult> {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('preserve_uuids', String(preserveUuids));
+        formData.append('preserve_uuids', String(settings.preserveUuids));
+        formData.append('replace_existing', String(settings.replaceExisting));
+        formData.append('import_labels', String(settings.importLabels));
 
-        return this.http.post<Record<string, unknown>>(`${this.apiUrl}import/`, formData);
+        return this.http.post<ImportResult>(`${this.apiUrl}import/`, formData);
     }
 
     exportFlow(graphId: string): Observable<Blob> {
@@ -92,10 +108,20 @@ export class ImportExportService {
         );
     }
 
-    exportAll(filters: { graph?: number | null; status?: string[] }, format: ExportFormat = 'json'): Observable<Blob> {
-        const body: Record<string, unknown> = {};
-        if (filters.graph != null) body['graph_id'] = filters.graph;
-        if (filters.status != null && filters.status.length > 0) body['status'] = filters.status;
+    exportAll(
+        filters: {
+            graph?: number | null;
+            status?: string[] | null;
+            node_name?: string | null;
+            is_error_cause?: boolean;
+        },
+        format: ExportFormat = 'json'
+    ): Observable<Blob> {
+        const body: ExportAllBody = {};
+        if (filters.graph != null) body.graph_id = filters.graph;
+        if (filters.status != null && filters.status.length > 0) body.status = filters.status;
+        if (filters.node_name != null) body.node_name = filters.node_name;
+        if (filters.is_error_cause === true) body.is_error_cause = true;
         return this.http.post<Blob>(`${this.sessionsApiUrl}export_all/?export_format=${format}`, body, {
             responseType: 'blob' as 'json',
         });

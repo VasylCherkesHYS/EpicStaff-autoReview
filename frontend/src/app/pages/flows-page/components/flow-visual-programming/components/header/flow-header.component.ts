@@ -35,6 +35,7 @@ export class FlowHeaderComponent {
     @Input() graphName?: string;
     @Input() graphId?: number;
     @Input() isAssistantOpen = false;
+    @Input() isEpicChatEnabled = false;
     @Input() graph?: GraphDto;
     @Input() isSaving = false;
     @Input() isRunning = false;
@@ -44,6 +45,7 @@ export class FlowHeaderComponent {
     @Output() viewSessions = new EventEmitter<void>();
     @Output() run = new EventEmitter<void>();
     @Output() getCurl = new EventEmitter<void>();
+    @Output() connectChat = new EventEmitter<void>();
     @Output() toggleAssistant = new EventEmitter<void>();
     @Output() flowEdited = new EventEmitter<GraphDto>();
     @Output() saveVersion = new EventEmitter<void>();
@@ -84,6 +86,10 @@ export class FlowHeaderComponent {
         this.getCurl.emit();
     }
 
+    onConnectChat() {
+        this.connectChat.emit();
+    }
+
     onToggleAssistant() {
         this.toggleAssistant.emit();
     }
@@ -98,6 +104,7 @@ export class FlowHeaderComponent {
                     name: this.graph.name,
                     description: this.graph.description || '',
                     label_ids: this.graph.label_ids || [],
+                    save_version: this.graph.save_version,
                 },
             },
             width: '500px',

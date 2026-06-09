@@ -40,7 +40,7 @@ from tables.services.llm_clients import (
 )
 from . import partial_json as _partial_json
 from .tools import _NODE_TABLES, _TOOL_CALLABLES, TOOL_SPECS
-from .constants import _MAX_TOOL_ITERATIONS
+from .constants import _MAX_TOOL_ITERATIONS, _REASONING_EMPTY_HINT
 from .helpers import (
     _clear_cancel_flag,
     _derive_title,
@@ -282,6 +282,11 @@ class FlowAssistantService:
         # been called so the finally block skips the disconnect-persist path.
         persisted_already: bool = False
 
+        # Per-turn aggregates for the reasoning-empty hint gate.
+        # These persist across tool-call iterations within a single turn.
+        reasoning_observed_this_turn: bool = False
+        tool_calls_this_turn: int = 0
+
         # True once working_messages has gained tool_call or tool entries during
         # this turn — used by the finally block to decide whether a partial
         # persist is worth issuing even when assistant_content_parts is empty.
@@ -347,12 +352,15 @@ class FlowAssistantService:
                 payload = _messages_for_llm(working_messages)
                 async for event in client.stream_completion(payload, TOOL_SPECS):
                     if isinstance(event, DoneEvent):
+                        if event.reasoning_observed:
+                            reasoning_observed_this_turn = True
                         break
                     elif isinstance(event, ToolCallEvent):
                         is_final_turn = False
                         current_tool_calls.append(
                             {"id": event.id, "name": event.name, "args": event.args}
                         )
+                        tool_calls_this_turn += 1
                         yield event
                     else:
                         # TokenEvent — the model is emitting content.
@@ -512,6 +520,16 @@ class FlowAssistantService:
                 final_text = "".join(assistant_content_parts).strip()
                 ef_tables = []
                 action_message = []
+                # Mirror the structured branch: emit one terminal event so the
+                # frontend receives the assembled text even when the model
+                # ignored the response_format schema (e.g. non-JSON free-text
+                # from a proxy-forwarded model that drops response_format).
+                if final_text:
+                    yield StructuredEvent(
+                        message=final_text,
+                        ef_tables=[],
+                        action_message=[],
+                    )
 
             # Append final assistant reply to local working list.
             # Include ef_tables / action_message when present so the persisted
@@ -523,6 +541,22 @@ class FlowAssistantService:
                 if action_message:
                     assistant_msg["action_message"] = action_message
                 working_messages.append(assistant_msg)
+
+            # Reasoning-empty hint gate: model spent its budget on the
+            # reasoning channel and produced no productive output (no text,
+            # no structured fields, no tool calls). Yield a transient
+            # TokenEvent so the FE renders it in the otherwise-empty bubble.
+            # NOT appended to working_messages — keeps next-turn context
+            # clean (the model on the user's next message won't see a fake
+            # "assistant said X").
+            if (
+                reasoning_observed_this_turn
+                and tool_calls_this_turn == 0
+                and not final_text
+                and not ef_tables
+                and not action_message
+            ):
+                yield TokenEvent(content=_REASONING_EMPTY_HINT)
 
             # Single atomic persist — write the completed history in one UPDATE.
             # Never mutate conversation.messages in place before this point.

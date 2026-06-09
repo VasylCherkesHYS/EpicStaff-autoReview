@@ -90,7 +90,6 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
     });
     private cdr = inject(ChangeDetectorRef);
     private fullLlmConfigService = inject(FullLLMConfigService);
-    private destroyRef = inject(DestroyRef);
     private sanitizer = inject(DomSanitizer);
 
     public activeTab = signal<TabType>('table');

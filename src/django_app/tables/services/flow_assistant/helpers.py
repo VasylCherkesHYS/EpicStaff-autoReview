@@ -44,16 +44,58 @@ def _derive_title(message: str) -> str:
     return truncated + "…"
 
 
+def _sanitize_for_llm(msg: dict) -> dict:
+    """Return a copy of *msg* containing only OpenAI-compatible fields.
+
+    FA persists extra per-message metadata (``ef_tables``, ``action_message``,
+    ``interrupted``) for its own rendering needs.  Those fields are valid inside
+    the FA database but are **not** part of the OpenAI messages schema.  Strict
+    OpenAI-compatible providers (e.g. Fireworks) reject unknown message fields
+    with a 400 error, so we must strip them before any LLM call.
+
+    Whitelist approach: only emit fields that the OpenAI chat-completion API
+    accepts.  Any future FA-internal field added to the message store is
+    automatically excluded from outgoing LLM payloads without a separate change
+    here.
+    """
+    role = msg.get("role", "")
+    out: dict = {"role": role}
+
+    # ``content`` is always included; allow None for tool-call assistant turns.
+    if "content" in msg:
+        out["content"] = msg["content"]
+
+    # ``tool_calls`` — assistant role only (but also defensively accepted on
+    # system/user per the OpenAI spec extension).
+    if msg.get("tool_calls") is not None:
+        out["tool_calls"] = msg["tool_calls"]
+
+    # ``tool_call_id`` and ``name`` — tool role only.
+    if msg.get("tool_call_id") is not None:
+        out["tool_call_id"] = msg["tool_call_id"]
+    if msg.get("name") is not None:
+        out["name"] = msg["name"]
+
+    return out
+
+
 def _messages_for_llm(messages: list[dict]) -> list[dict]:
-    """Return a copy of `messages` with stale tool_results stubbed.
+    """Return a sanitized copy of *messages* ready for the LLM.
 
-    "Stale" = any tool message preceding the last user message (i.e., from a
-    prior turn). The current turn's tool results stay intact because the LLM
-    may be mid multi-tool-call loop.
+    Two transforms are applied:
 
-    Eviction is safe only because every Flow Assistant tool is a pure,
-    idempotent read. If a future tool has side effects or non-deterministic
-    output, exclude it from eviction (or add a per-tool whitelist).
+    1. **FA-internal field strip** — ``ef_tables``, ``action_message``,
+       ``interrupted``, and any other non-OpenAI field are removed via
+       :func:`_sanitize_for_llm`.  Strict OpenAI-compatible providers (e.g.
+       Fireworks, Azure with ``strict=true``) reject unknown message fields
+       with a 400 error, so stripping at the assembly boundary is the right
+       place — not inside the shared LiteLLM client.
+
+    2. **Stale tool-result eviction** — any ``tool`` message preceding the
+       *last* user message is replaced with a short stub.  "Stale" is safe to
+       evict here because every FA tool is a pure, idempotent read.  If a
+       future tool has side effects or non-deterministic output, exclude it
+       from eviction (or add a per-tool whitelist).
     """
     # Find the index of the last user message.
     last_user_idx = -1
@@ -61,9 +103,9 @@ def _messages_for_llm(messages: list[dict]) -> list[dict]:
         if msg.get("role") == "user":
             last_user_idx = i
 
-    # No user message or it's the very first message — return a plain copy.
+    # No user message or it's the very first message — return a sanitized copy.
     if last_user_idx <= 0:
-        return list(messages)
+        return [_sanitize_for_llm(m) for m in messages]
 
     # Build tool_call_id → (name, args_str) from assistant messages before the last user turn.
     call_map: dict[str, tuple[str, str]] = {}
@@ -74,25 +116,25 @@ def _messages_for_llm(messages: list[dict]) -> list[dict]:
                 fn = tc.get("function", {})
                 call_map[tc_id] = (fn.get("name", ""), fn.get("arguments", ""))
 
-    # Build output list, stubbing stale tool messages.
+    # Build output list, stubbing stale tool messages, sanitizing all messages.
     result: list[dict] = []
     for i, msg in enumerate(messages):
         if i >= last_user_idx or msg.get("role") != "tool":
-            result.append(msg)
+            result.append(_sanitize_for_llm(msg))
             continue
 
         content = msg.get("content", "")
         if isinstance(content, str) and content.startswith(
             "[tool result from an earlier turn"
         ):
-            # Already stubbed — idempotent pass-through.
-            result.append(msg)
+            # Already stubbed — idempotent pass-through (sanitize anyway).
+            result.append(_sanitize_for_llm(msg))
             continue
 
         tc_id = msg.get("tool_call_id", "")
         if tc_id not in call_map:
-            # Defensive: unknown call id — pass through unchanged.
-            result.append(msg)
+            # Defensive: unknown call id — pass through sanitized.
+            result.append(_sanitize_for_llm(msg))
             continue
 
         name, args = call_map[tc_id]
@@ -103,7 +145,10 @@ def _messages_for_llm(messages: list[dict]) -> list[dict]:
             f"The assistant already used this result; do not re-call unless the user "
             f"explicitly asks for fresh data.]"
         )
-        result.append({**msg, "content": stub})
+        # Build the stubbed message via sanitize then override content.
+        sanitized = _sanitize_for_llm(msg)
+        sanitized["content"] = stub
+        result.append(sanitized)
 
     return result
 

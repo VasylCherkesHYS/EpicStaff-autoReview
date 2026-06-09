@@ -15,6 +15,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { IconButtonComponent } from '@shared/components';
 import { EMPTY, filter, Observable, of, switchMap } from 'rxjs';
 
@@ -23,6 +24,7 @@ import { ConfirmationDialogService } from '../../../../shared/components/cofirm-
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { UnsavedChangesDialogService } from '../../../../shared/components/unsaved-changes-dialog/unsaved-changes-dialog.service';
 import { GraphRestoreResponse, GraphVersionDto } from '../../models/graph.model';
+import { CreateGraphWarningsService } from '../../services/create-graph-warnings.service';
 import { FlowsApiService } from '../../services/flows-api.service';
 
 @Component({
@@ -73,8 +75,15 @@ export class VersionHistoryPanelComponent implements OnInit {
         private unsavedChangesDialogService: UnsavedChangesDialogService,
         private cdr: ChangeDetectorRef,
         @Inject(DIALOG_DATA)
-        public data: { graphId: number; hasUnsavedChanges?: () => boolean; saveCurrentState?: () => Observable<void> },
-        public dialogRef: DialogRef<GraphRestoreResponse | undefined>
+        public data: {
+            graphId: number;
+            graphSaveVersion?: () => number | undefined;
+            hasUnsavedChanges?: () => boolean;
+            saveCurrentState?: () => Observable<void>;
+        },
+        public dialogRef: DialogRef<GraphRestoreResponse | undefined>,
+        private router: Router,
+        private createGraphWarningsService: CreateGraphWarningsService
     ) {}
 
     public ngOnInit(): void {
@@ -226,10 +235,22 @@ export class VersionHistoryPanelComponent implements OnInit {
                 switchMap((result) => {
                     if (result === 'save') {
                         const save$ = this.data.saveCurrentState?.() ?? of(void 0);
-                        return save$.pipe(switchMap(() => this.flowApiService.restoreGraphVersion(version.id, true)));
+                        return save$.pipe(
+                            switchMap(() =>
+                                this.flowApiService.restoreGraphVersion(
+                                    version.id,
+                                    true,
+                                    this.data.graphSaveVersion?.()
+                                )
+                            )
+                        );
                     }
                     if (result === 'dont-save') {
-                        return this.flowApiService.restoreGraphVersion(version.id, false);
+                        return this.flowApiService.restoreGraphVersion(
+                            version.id,
+                            false,
+                            this.data.graphSaveVersion?.()
+                        );
                     }
                     return EMPTY;
                 }),
@@ -263,6 +284,25 @@ export class VersionHistoryPanelComponent implements OnInit {
                     console.error('Failed to load graph versions', err);
                     this.isLoading = false;
                 },
+            });
+    }
+
+    public createFlowFromVersion(version: GraphVersionDto, $event: MouseEvent): void {
+        $event.stopPropagation();
+        this.openMenuId = null;
+        this.flowApiService
+            .createGraphFromVersion(version.id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (response) => {
+                    this.toastService.success('New flow created');
+                    if (response.warnings.length) {
+                        this.createGraphWarningsService.setPending(response.warnings);
+                    }
+                    this.dialogRef.close();
+                    this.router.navigate(['/flows', response.graph_id]);
+                },
+                error: () => this.toastService.error('Failed to create flow'),
             });
     }
 }

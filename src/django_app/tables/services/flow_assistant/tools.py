@@ -32,7 +32,6 @@ from tables.models.graph_models import (
     Edge,
     EndNode,
     FileExtractorNode,
-    LLMNode,
     PythonNode,
     StartNode,
     SubGraphNode,
@@ -52,7 +51,6 @@ _SECRET_PATTERN = re.compile(r"api_key|secret|token", re.IGNORECASE)
 _NODE_TABLES: list[tuple[str, type, bool]] = [
     ("crew", CrewNode, True),
     ("python", PythonNode, True),
-    ("llm", LLMNode, True),
     ("file_extractor", FileExtractorNode, True),
     ("audio_transcription", AudioTranscriptionNode, True),
     ("subgraph", SubGraphNode, True),

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 
 import { FlowModel } from '../core/models/flow.model';
 import { FlowService } from './flow.service';
@@ -7,8 +7,11 @@ import { FlowService } from './flow.service';
     providedIn: 'root',
 })
 export class UndoRedoService {
-    private undoStack: FlowModel[] = [];
-    private redoStack: FlowModel[] = [];
+    private undoStack = signal<FlowModel[]>([]);
+    private redoStack = signal<FlowModel[]>([]);
+
+    readonly canUndo = computed(() => this.undoStack().length > 0);
+    readonly canRedo = computed(() => this.redoStack().length > 0);
 
     constructor(private flowService: FlowService) {}
 
@@ -25,48 +28,53 @@ export class UndoRedoService {
     }
 
     public stateChanged(): void {
-        this.undoStack.push(this.snapshotCurrentState());
-        this.redoStack = [];
+        const snapshot = this.snapshotCurrentState();
+        this.undoStack.update((s) => [...s, snapshot]);
+        this.redoStack.set([]);
     }
 
     public onUndo(): void {
-        if (!this.undoStack.length) {
+        if (!this.undoStack().length) {
             console.warn('Nothing to undo!');
             return;
         }
 
         const currentState = this.snapshotCurrentState();
-        const previousState = this.undoStack.pop()!;
-        this.redoStack.push(currentState);
+        const stack = this.undoStack();
+        const previousState = stack[stack.length - 1];
+        this.undoStack.update((s) => s.slice(0, -1));
+        this.redoStack.update((s) => [...s, currentState]);
 
         this.applyFlowState(previousState);
     }
 
     public onRedo(): void {
-        if (!this.redoStack.length) {
+        if (!this.redoStack().length) {
             console.warn('Nothing to redo!');
             return;
         }
         const currentState = this.snapshotCurrentState();
-        const nextState = this.redoStack.pop()!;
-        this.undoStack.push(currentState);
+        const stack = this.redoStack();
+        const nextState = stack[stack.length - 1];
+        this.redoStack.update((s) => s.slice(0, -1));
+        this.undoStack.update((s) => [...s, currentState]);
 
         this.applyFlowState(nextState);
     }
 
     public getUndoStack(): FlowModel[] {
-        return this.undoStack;
+        return this.undoStack();
     }
 
     public setUndoStack(stack: FlowModel[]): void {
-        this.undoStack = stack;
+        this.undoStack.set(stack);
     }
 
     public getRedoStack(): FlowModel[] {
-        return this.redoStack;
+        return this.redoStack();
     }
 
     public setRedoStack(stack: FlowModel[]): void {
-        this.redoStack = stack;
+        this.redoStack.set(stack);
     }
 }

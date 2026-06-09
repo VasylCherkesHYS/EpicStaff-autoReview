@@ -1,0 +1,43 @@
+<div
+    class="filter-menu"
+    role="menu"
+    (click)="$event.stopPropagation()"
+>
+    <button
+        type="button"
+        class="menu-item"
+        role="menuitem"
+        (click)="onSelect('sort_asc')"
+    >
+        <span class="label">Sort from A to Z</span>
+    </button>
+    <button
+        type="button"
+        class="menu-item"
+        role="menuitem"
+        (click)="onSelect('sort_desc')"
+    >
+        <span class="label">Sort from Z to A</span>
+    </button>
+    <button
+        type="button"
+        class="menu-item"
+        role="menuitem"
+        (click)="onSelect('include_exclude')"
+    >
+        <span class="label">Include / Exclude</span>
+        <app-svg-icon
+            icon="arrow-right"
+            size="0.7rem"
+            class="chevron"
+        />
+    </button>
+    <button
+        type="button"
+        class="menu-item"
+        role="menuitem"
+        (click)="onSelect('custom_filter')"
+    >
+        <span class="label">Custom filter</span>
+    </button>
+</div>

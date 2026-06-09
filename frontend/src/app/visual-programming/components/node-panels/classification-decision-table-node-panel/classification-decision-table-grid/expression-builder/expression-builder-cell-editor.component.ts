@@ -30,7 +30,7 @@ export interface ExpressionBuilderCellEditorParams extends ICellEditorParams {
                 z-index: 10;
                 position: relative;
                 background: #1f1f23;
-                min-width: 480px;
+                width: 660px;
                 min-height: 320px;
             }
         `,
@@ -73,9 +73,11 @@ export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularC
         }
         if (!wrapper) return;
 
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const popupWidth = wrapperRect.width;
+        const FIXED_WIDTH = 660;
+        wrapper.style.width = `${FIXED_WIDTH}px`;
+        const popupWidth = FIXED_WIDTH;
 
+        const wrapperRect = wrapper.getBoundingClientRect();
         const targetTop = cellRect.top;
         const targetLeft = this.mode === 'manipulation' ? cellRect.right - popupWidth : cellRect.left;
 

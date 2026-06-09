@@ -141,11 +141,12 @@
 
         &.warning {
             color: #ffffff;
-            background: #e65100;
-            border: none;
+            background: #685fff;
+            border-color: #685fff;
 
             &:hover {
-                background: #cc4700;
+                background: #574fd6;
+                border-color: #574fd6;
             }
         }
 
@@ -195,7 +196,7 @@
     color: #f44336;
 }
 .dialog-container.warning .dialog-icon {
-    color: #e65100;
+    color: #ffcf00;
 }
 .dialog-container.info .dialog-icon {
     color: #685fff;

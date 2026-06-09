@@ -9,6 +9,7 @@ import {
     ElementRef,
     Inject,
     inject,
+    OnDestroy,
     OnInit,
     signal,
     ViewChild,
@@ -21,16 +22,20 @@ import {
     IconButtonComponent,
     PaginationControlsComponent,
 } from '@shared/components';
-import { finalize, Subject, takeUntil } from 'rxjs';
+import { catchError, EMPTY, finalize, interval, map, merge, Subject, switchMap, takeUntil } from 'rxjs';
 import { NodeGroup } from 'src/app/shared/models/node-group.model';
 
 import { ExportFormat, ImportExportService } from '../../../../core/services/import-export.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
 import { downloadBlob } from '../../../../shared/utils/download-blob.util';
 import { GraphDto } from '../../models/graph.model';
-import { GraphSessionLight, GraphSessionService, GraphSessionStatus } from '../../services/flows-sessions.service';
+import {
+    GraphSessionLight,
+    GraphSessionService,
+    GraphSessionStatus,
+    isTerminalSessionStatus,
+} from '../../services/flows-sessions.service';
 import { FlowSessionNodeFilterDropdownComponent } from './flow-session-node-filter-dropdown.component';
-import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-filter-dropdown.component';
 import { FlowSessionsTableComponent } from './flow-sessions-table.component';
 
 @Component({
@@ -42,14 +47,13 @@ import { FlowSessionsTableComponent } from './flow-sessions-table.component';
         CommonModule,
         FlowSessionsTableComponent,
         PaginationControlsComponent,
-        FlowSessionStatusFilterDropdownComponent,
         FlowSessionNodeFilterDropdownComponent,
         IconButtonComponent,
         ActionDropdownButtonComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlowSessionsListComponent implements OnInit {
+export class FlowSessionsListComponent implements OnInit, OnDestroy {
     public flow!: GraphDto;
     public sessions = signal<GraphSessionLight[]>([]);
     public isLoaded = signal<boolean>(false);
@@ -64,6 +68,7 @@ export class FlowSessionsListComponent implements OnInit {
     public availableNodeGroups = signal<NodeGroup[]>([]);
     public selectedIds = signal<Set<number>>(new Set());
     public isExporting = signal(false);
+    public isDeleting = signal(false);
     private cancelLoad$ = new Subject<void>();
     private readonly destroyRef = inject(DestroyRef);
     private readonly importExportService = inject(ImportExportService);
@@ -73,6 +78,10 @@ export class FlowSessionsListComponent implements OnInit {
         { label: 'Export as JSON', value: 'json' },
         { label: 'Export as CSV', value: 'csv' },
     ];
+    private cancelPolling$ = new Subject<void>();
+    private destroy$ = new Subject<void>();
+    private pendingIds = new Set<number>();
+    private static readonly POLL_INTERVAL_MS = 5000;
 
     @ViewChild('sessionSearchInput')
     sessionSearchInput!: ElementRef<HTMLInputElement>;
@@ -193,6 +202,8 @@ export class FlowSessionsListComponent implements OnInit {
         isErrorCause: boolean = false
     ): void {
         this.cancelLoad$.next();
+        this.cancelPolling$.next();
+        this.pendingIds.clear();
         this.isLoaded.set(false);
         if (this.flow && this.flow.id) {
             this.graphSessionService
@@ -204,6 +215,7 @@ export class FlowSessionsListComponent implements OnInit {
                         this.isLoaded.set(true);
                         this.totalCount = sessions.count;
                         this.cdr.markForCheck();
+                        this.startStatusPolling();
                     },
                     error: () => {
                         this.totalCount = 0;
@@ -218,17 +230,94 @@ export class FlowSessionsListComponent implements OnInit {
         }
     }
 
+    private startStatusPolling(): void {
+        this.pendingIds = new Set(
+            this.sessions()
+                .filter((s) => !isTerminalSessionStatus(s.status))
+                .map((s) => s.id)
+        );
+        if (this.pendingIds.size === 0) return;
+
+        interval(FlowSessionsListComponent.POLL_INTERVAL_MS)
+            .pipe(
+                switchMap(() => {
+                    const ids = Array.from(this.pendingIds);
+                    if (ids.length === 0) {
+                        this.cancelPolling$.next();
+                        return EMPTY;
+                    }
+                    return merge(
+                        ...ids.map((id) =>
+                            this.graphSessionService.getSessionUpdates(String(id)).pipe(
+                                map((update) => ({ id, status: update.status })),
+                                catchError(() => EMPTY)
+                            )
+                        )
+                    );
+                }),
+                takeUntil(this.cancelPolling$)
+            )
+            .subscribe(({ id, status }) => this.handleStatusUpdate(id, status));
+    }
+
+    private handleStatusUpdate(id: number, status: GraphSessionStatus): void {
+        const currentSession = this.sessions().find((s) => s.id === id);
+        if (!currentSession) {
+            this.pendingIds.delete(id);
+            return;
+        }
+        if (isTerminalSessionStatus(currentSession.status)) {
+            this.pendingIds.delete(id);
+            return;
+        }
+        if (currentSession.status === status) return;
+
+        this.sessions.update((sessions) => sessions.map((s) => (s.id === id ? { ...s, status } : s)));
+
+        if (isTerminalSessionStatus(status)) {
+            this.pendingIds.delete(id);
+            this.graphSessionService
+                .getSessionById(id)
+                .pipe(
+                    takeUntil(this.destroy$),
+                    catchError(() => EMPTY)
+                )
+                .subscribe((fullSession) => {
+                    this.sessions.update((sessions) =>
+                        sessions.map((s) =>
+                            s.id === id ? { ...s, status: fullSession.status, finished_at: fullSession.finished_at } : s
+                        )
+                    );
+                });
+            if (this.pendingIds.size === 0) {
+                this.cancelPolling$.next();
+            }
+        }
+    }
+
     public onDeleteSelected(ids: number[]): void {
         if (ids.length === 0) return;
 
-        this.graphSessionService.bulkDeleteSessions(ids).subscribe({
-            next: () => {
-                this.reloadAfterDeletion(ids);
-            },
-            error: (err) => {
-                console.error('Failed to bulk delete sessions', err);
-            },
-        });
+        this.isDeleting.set(true);
+        this.graphSessionService
+            .bulkDeleteSessions(ids)
+            .pipe(
+                finalize(() => this.isDeleting.set(false)),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe({
+                next: () => {
+                    this.selectedIds.update((prev) => {
+                        const next = new Set(prev);
+                        ids.forEach((id) => next.delete(id));
+                        return next;
+                    });
+                    this.reloadAfterDeletion(ids);
+                },
+                error: (err) => {
+                    console.error('Failed to bulk delete sessions', err);
+                },
+            });
     }
 
     private reloadAfterDeletion(deletedIds: number[]): void {
@@ -258,6 +347,10 @@ export class FlowSessionsListComponent implements OnInit {
                             : s
                     )
                 );
+                this.pendingIds.delete(sessionId);
+                if (this.pendingIds.size === 0) {
+                    this.cancelPolling$.next();
+                }
             },
             error: (err) => {
                 console.error('Failed to stop session', err);
@@ -269,19 +362,32 @@ export class FlowSessionsListComponent implements OnInit {
         this.currentPage.set(page);
     }
 
+    onPageSizeChange(size: number) {
+        this.pageSize.set(size);
+        this.currentPage.set(1);
+    }
+
     onStatusFilterChange(values: string[]) {
         this.currentPage.set(1);
         this.statusFilter.set(values);
     }
 
     public ngOnDestroy() {
+        this.destroy$.next();
+        this.destroy$.complete();
         this.cancelLoad$.complete();
+        this.cancelPolling$.next();
+        this.cancelPolling$.complete();
+        this.pendingIds.clear();
         this.sessions.set([]);
     }
 
     onNodeFilterChange(value: string | null) {
         this.currentPage.set(1);
         this.nodeFilter.set(value);
+        if (!value) {
+            this.isErrorCauseFilter.set(false);
+        }
     }
 
     public onSelectedIdsChange(ids: Set<number>): void {
@@ -298,10 +404,19 @@ export class FlowSessionsListComponent implements OnInit {
             return;
         }
         this.isExporting.set(true);
+        const activeStatuses = this.statusFilter().filter((s) => s !== 'all');
         const obs$ =
             this.selectedIds().size > 0
                 ? this.importExportService.bulkExportSessions(Array.from(this.selectedIds()), format)
-                : this.importExportService.exportAll({ graph: this.flow.id }, format);
+                : this.importExportService.exportAll(
+                      {
+                          graph: this.flow.id,
+                          status: activeStatuses.length > 0 ? activeStatuses : undefined,
+                          node_name: this.nodeFilter() ?? undefined,
+                          is_error_cause: this.isErrorCauseFilter() || undefined,
+                      },
+                      format
+                  );
 
         obs$.pipe(
             finalize(() => this.isExporting.set(false)),

@@ -191,12 +191,18 @@ export class FlowService {
 
         let connectionSnapshot = this.connections();
 
-        const validGroupsWithNextNode = groups.filter(
-            (group) => group.valid !== false && group.dock_visible !== false && !!group.next_node
-        );
-
         const nodeType = allNodes.find((n) => n.id === tableNodeId)?.type;
         const isClassificationTable = nodeType === NodeType.CLASSIFICATION_TABLE;
+
+        const validGroupsWithNextNode = groups.filter(
+            (group) =>
+                group.valid !== false &&
+                group.dock_visible !== false &&
+                !!group.next_node &&
+                // Classification tables route by route_code; a group with no
+                // route code has no output port, so don't recreate a connection.
+                (!isClassificationTable || !!group.route_code)
+        );
 
         validGroupsWithNextNode.forEach((group) => {
             const portRole = isClassificationTable
@@ -292,9 +298,11 @@ export class FlowService {
             };
         });
 
-        if (shouldResetDecisionTableConnections && !skipDecisionTableReset) {
-            if (updatedNode.type !== NodeType.TABLE && updatedNode.type !== NodeType.CLASSIFICATION_TABLE) return;
-
+        if (
+            shouldResetDecisionTableConnections &&
+            !skipDecisionTableReset &&
+            (updatedNode.type === NodeType.TABLE || updatedNode.type === NodeType.CLASSIFICATION_TABLE)
+        ) {
             const tableData = updatedNode.data.table;
             const conditionGroups = tableData.condition_groups || [];
 
@@ -304,6 +312,32 @@ export class FlowService {
                 tableData.default_next_node || null,
                 tableData.next_error_node || null
             );
+        }
+
+        // Remove any decision-table source connection whose port no longer
+        // exists on the node (e.g. its route code was cleared/deleted).
+        if (
+            !skipDecisionTableReset &&
+            (updatedNode.type === NodeType.TABLE || updatedNode.type === NodeType.CLASSIFICATION_TABLE)
+        ) {
+            this.pruneOrphanDecisionTableConnections(updatedNode);
+        }
+    }
+
+    private pruneOrphanDecisionTableConnections(tableNode: NodeModel): void {
+        const validPortIds = new Set((tableNode.ports ?? []).map((port) => `${port.id}`));
+
+        const orphanConnectionIds = this.connections()
+            .filter(
+                (connection) =>
+                    connection.sourceNodeId === tableNode.id &&
+                    this.isDecisionTableSourcePort(connection.sourcePortId, tableNode.id) &&
+                    !validPortIds.has(`${connection.sourcePortId}`)
+            )
+            .map((connection) => connection.id);
+
+        if (orphanConnectionIds.length) {
+            this.removeConnectionsInBatch(orphanConnectionIds);
         }
     }
 

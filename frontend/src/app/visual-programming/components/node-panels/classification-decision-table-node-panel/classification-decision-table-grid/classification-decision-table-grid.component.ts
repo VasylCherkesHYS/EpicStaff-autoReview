@@ -20,6 +20,7 @@ import {
 } from '@angular/core';
 import { AgGridModule } from 'ag-grid-angular';
 import {
+    BodyScrollEvent,
     CellClickedEvent,
     CellValueChangedEvent,
     ColDef,
@@ -40,6 +41,7 @@ import { themeQuartz } from 'ag-grid-community';
 
 import { AppSvgIconComponent } from '../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { ButtonComponent } from '../../../../../shared/components/buttons/button/button.component';
+import { ConfirmationDialogService } from '../../../../../shared/components/cofirm-dialog/confimation-dialog.service';
 import { HelpTooltipComponent } from '../../../../../shared/components/help-tooltip/help-tooltip.component';
 import { MultiSelectComponent } from '../../../../../shared/components/multi-select/multi-select.component';
 import { SelectItem } from '../../../../../shared/components/select/select.component';
@@ -99,6 +101,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
     private renderer = inject(Renderer2);
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
+    private confirmDialog = inject(ConfirmationDialogService);
 
     private gridApi!: GridApi;
     private outsideClickUnlisten: (() => void) | null = null;
@@ -1018,6 +1021,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
                 variables: this.collectExpressionVariables(),
                 mode: 'manipulation',
             }),
+            // Allow plain Enter to insert newlines inside the popup editor.
+            // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
+            suppressKeyboardEvent: (params) => params.editing && params.event.key === 'Enter',
             cellStyle: { fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' },
             valueGetter: (params: ValueGetterParams<ConditionGroup>) =>
                 toDisplayExpression(params.data?.manipulation ?? ''),
@@ -1041,6 +1047,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             cellEditorPopup: true,
             cellEditorPopupPosition: 'over',
             cellEditorParams: () => ({ variables: this.collectExpressionVariables() }),
+            // Allow plain Enter to insert newlines inside the popup editor.
+            // Ctrl/Cmd+Enter (handled by ExpressionBuilderComponent) commits.
+            suppressKeyboardEvent: (params) => params.editing && params.event.key === 'Enter',
             rowSpan: (params: RowSpanParams<ConditionGroup>) =>
                 this.getRowSpan(params, 'expression', (d) => d?.expression || ''),
             cellStyle: () => ({ fontSize: '13px', fontFamily: 'monospace', color: '#d4d4d4' }),
@@ -1563,6 +1572,10 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const wrapperEl = this.elRef.nativeElement.querySelector('.grid-wrapper') as HTMLElement | null;
         const containerEl = wrapperEl ?? this.elRef.nativeElement;
         const containerRect = containerEl.getBoundingClientRect();
+        const containerWidth = containerEl.clientWidth;
+        const btnHalfWidth = 20; // half of ~40px button width used for clamping margin
+
+        const clampX = (rawX: number): number => Math.max(btnHalfWidth, Math.min(rawX, containerWidth - btnHalfWidth));
 
         const findLeafCell = (colId: string): HTMLElement | null => {
             const cells = Array.from(
@@ -1578,7 +1591,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const cell = findLeafCell('expression');
             if (cell) {
                 const r = cell.getBoundingClientRect();
-                this.exprAddPos.set({ x: r.right - containerRect.left, y: 0 });
+                this.exprAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
             } else {
                 this.exprAddPos.set(null);
             }
@@ -1590,7 +1603,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             const cell = findLeafCell('manipulation');
             if (cell) {
                 const r = cell.getBoundingClientRect();
-                this.manipAddPos.set({ x: r.right - containerRect.left, y: 0 });
+                this.manipAddPos.set({ x: clampX(r.right - containerRect.left), y: 0 });
             } else {
                 this.manipAddPos.set(null);
             }
@@ -1720,6 +1733,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         }, 100);
         this.positionResizeObserver = new ResizeObserver(() => this.updateAddButtonPositions());
         this.positionResizeObserver.observe(this.elRef.nativeElement);
+    }
+
+    onBodyScroll(event: BodyScrollEvent): void {
+        if (event.direction === 'horizontal') {
+            this.updateAddButtonPositions();
+        }
     }
 
     private bodyClickHandler = (event: MouseEvent) => {
@@ -2171,14 +2190,29 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         this.groupMenuOverlayRef = null;
         this.groupMenuSectionId.set(null);
         if (!sectionId) return;
-        const updated = this.rowData().map((row) => (row.section === sectionId ? { ...row, section: null } : row));
-        const newCollapsed = new Set(this.collapsedGroups());
-        newCollapsed.delete(sectionId);
-        this.collapsedGroups.set(newCollapsed);
-        this.rowData.set(updated);
-        this.recomputeVisibleRowKeys();
-        this.emitChanges(updated);
-        queueMicrotask(() => this.recomputeGroupOverlays());
+        this.confirmDialog
+            .confirm({
+                title: 'Ungroup these rows?',
+                message: 'Are you sure you want to ungroup these rows?',
+                confirmText: 'Ungroup',
+                cancelText: 'Cancel',
+                type: 'warning',
+                isShownBorder: true,
+            })
+            .subscribe((result) => {
+                if (result === true) {
+                    const updated = this.rowData().map((row) =>
+                        row.section === sectionId ? { ...row, section: null } : row
+                    );
+                    const newCollapsed = new Set(this.collapsedGroups());
+                    newCollapsed.delete(sectionId);
+                    this.collapsedGroups.set(newCollapsed);
+                    this.rowData.set(updated);
+                    this.recomputeVisibleRowKeys();
+                    this.emitChanges(updated);
+                    queueMicrotask(() => this.recomputeGroupOverlays());
+                }
+            });
     }
 
     public handleGroupMenuCollapse(): void {
@@ -2252,14 +2286,46 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const sourceIdx = rows.indexOf(source.data);
         const overIdx = rows.indexOf(over.data);
         if (sourceIdx === -1 || overIdx === -1) return;
+
+        const original: string | null = (source.data as ConditionGroup).section ?? null;
+
         const next = [...rows];
         const [moved] = next.splice(sourceIdx, 1);
         let insertIdx = overIdx > sourceIdx ? overIdx - 1 : overIdx;
         if (!insertBefore) insertIdx += 1;
         next.splice(insertIdx, 0, moved);
-        const ordered = next.map((r, i) => ({ ...r, order: i + 1 }));
-        this.rowData.set(ordered);
-        this.emitChanges(ordered);
-        queueMicrotask(() => this.recomputeGroupOverlays());
+        const prev = next[insertIdx - 1];
+        const after = next[insertIdx + 1];
+        const movedSection: string | null =
+            prev != null && after != null && prev.section != null && prev.section === after.section
+                ? prev.section
+                : null;
+
+        const isCrossGroup = original != null && movedSection != null && original !== movedSection;
+
+        const commit = (): void => {
+            next[insertIdx] = { ...moved, section: movedSection };
+            const ordered = next.map((r, i) => ({ ...r, order: i + 1 }));
+            this.rowData.set(ordered);
+            this.emitChanges(ordered);
+            queueMicrotask(() => this.recomputeGroupOverlays());
+        };
+
+        if (isCrossGroup) {
+            this.confirmDialog
+                .confirm({
+                    title: 'Move row between groups?',
+                    message: 'Are you sure you want to move this row?',
+                    confirmText: 'Move Row',
+                    cancelText: 'Cancel',
+                    type: 'warning',
+                    isShownBorder: true,
+                })
+                .subscribe((result) => {
+                    if (result === true) commit();
+                });
+        } else {
+            commit();
+        }
     }
 }

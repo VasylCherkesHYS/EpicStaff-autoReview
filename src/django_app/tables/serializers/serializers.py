@@ -110,10 +110,13 @@ class BulkExportSerializer(serializers.Serializer):
 
 class SessionExportAllSerializer(serializers.Serializer):
     graph_id = serializers.IntegerField(required=False, min_value=1)
+    graph_name = serializers.CharField(required=False)
     status = serializers.ListField(
         child=serializers.ChoiceField(choices=Session.SessionStatus.choices),
         required=False,
     )
+    node_name = serializers.CharField(required=False)
+    is_error_cause = serializers.BooleanField(required=False)
     created_at_after = serializers.DateTimeField(required=False)
     created_at_before = serializers.DateTimeField(required=False)
     finished_at_after = serializers.DateTimeField(required=False)
@@ -123,6 +126,17 @@ class SessionExportAllSerializer(serializers.Serializer):
 class ImportRequestSerializer(serializers.Serializer):
     file = serializers.FileField()
     preserve_uuids = serializers.BooleanField(default=False, required=False)
+    replace_existing = serializers.BooleanField(default=False, required=False)
+    import_labels = serializers.BooleanField(default=True, required=False)
+
+    def validate(self, attrs):
+        if attrs.get("replace_existing") and not attrs.get("preserve_uuids"):
+            raise serializers.ValidationError(
+                {
+                    "replace_existing": "replace_existing=True requires preserve_uuids=True."
+                }
+            )
+        return attrs
 
 
 class RunPythonCodeSerializer(serializers.Serializer):

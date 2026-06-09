@@ -581,7 +581,15 @@ def test_title_not_overwritten_on_second_message(
 async def test_stream_yields_tokens_and_done(
     graph, llm_config, user_a, org_a, default_role, db
 ):
-    """stub LLM → [TokenEvent('hi'), DoneEvent()] → stream_reply yields them."""
+    """Stub LLM → plain-text [TokenEvent('hi'), DoneEvent()] → stream_reply emits
+    a terminal StructuredEvent(message='hi') followed by DoneEvent.
+
+    When the model ignores response_format and returns free-form text, the
+    partial-JSON extractor finds no `message` field delta, so no TokenEvents
+    are forwarded during streaming.  The fallback branch must emit one
+    StructuredEvent carrying the full joined text before DoneEvent so the
+    frontend renders a non-empty bubble.
+    """
     from tables.services.flow_assistant import FlowAssistantService
     from tables.models.flow_assistant_models import (
         FlowAssistant,
@@ -623,10 +631,21 @@ async def test_stream_yields_tokens_and_done(
             events.append(event)
 
     types = [e.type for e in events]
-    assert "token" in types
+
+    # Terminal StructuredEvent must carry the plain-text content.
+    structured_events = [e for e in events if e.type == "structured"]
+    assert len(structured_events) == 1
+    assert structured_events[0].message == "hi"
+    assert structured_events[0].ef_tables == []
+    assert structured_events[0].action_message == []
+
+    # DoneEvent must be the last event.
     assert types[-1] == "done"
-    token_events = [e for e in events if e.type == "token"]
-    assert token_events[0].content == "hi"
+
+    # StructuredEvent must precede DoneEvent.
+    structured_idx = next(i for i, e in enumerate(events) if e.type == "structured")
+    done_idx = next(i for i, e in enumerate(events) if e.type == "done")
+    assert structured_idx < done_idx
 
 
 @pytest.mark.asyncio
@@ -693,12 +712,17 @@ async def test_tool_call_roundtrip(graph, llm_config, user_a, org_a, default_rol
     tool_result_events = [e for e in events if e.type == "tool_result"]
     assert len(tool_result_events) == 1
 
-    # Final reply token must be present
-    token_events = [e for e in events if e.type == "token"]
-    assert any(
-        "flow" in e.content.lower() or "nodes" in e.content.lower()
-        for e in token_events
-    )
+    # Final reply is plain text → fallback branch emits one StructuredEvent
+    # carrying the joined content (no TokenEvents during final turn because
+    # the partial-JSON extractor finds no `message` field in the raw text).
+    structured_events = [e for e in events if e.type == "structured"]
+    assert len(structured_events) == 1
+    final_message = structured_events[0].message
+    assert (
+        "flow" in final_message.lower() or "nodes" in final_message.lower()
+    ), f"Expected 'flow' or 'nodes' in final message: {final_message!r}"
+    assert structured_events[0].ef_tables == []
+    assert structured_events[0].action_message == []
 
     # Done event last
     assert events[-1].type == "done"
@@ -709,6 +733,99 @@ async def test_tool_call_roundtrip(graph, llm_config, user_a, org_a, default_rol
     roles = [m["role"] for m in messages_snapshot]
     assert "tool" in roles
     assert "assistant" in roles
+
+
+# ── Plain-text (non-JSON) fallback tests ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_stream_reply_plain_text_emits_structured_event(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Production repro: model ignores response_format and returns multi-chunk plain prose.
+
+    When the LLM emits free-form text (not JSON), the partial-JSON extractor
+    produces no deltas, so no TokenEvents reach the frontend during streaming.
+    The fallback branch must emit one terminal StructuredEvent carrying the
+    fully-joined text so the frontend renders a non-empty bubble.
+
+    This mirrors the exact failure mode seen with the gpt-oss-120b model served
+    via a LiteLLM proxy with `drop_params: true` — the proxy silently drops
+    `response_format`, the model returns prose, and without the fix the FE shows
+    an empty assistant bubble.
+    """
+    from tables.services.flow_assistant import FlowAssistantService
+    from tables.models.flow_assistant_models import FlowAssistant
+    from asgiref.sync import sync_to_async
+
+    user_message = "What do you do?"
+    plain_text_reply = "This is a plain text reply."
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    # Emit as multiple chunks to mirror real streaming (not a single token).
+    chunks = ["This ", "is ", "a ", "plain ", "text ", "reply."]
+
+    async def fake_stream(messages, tools):
+        for chunk in chunks:
+            yield TokenEvent(content=chunk)
+        yield DoneEvent()
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    # Exactly one StructuredEvent must carry the assembled plain text.
+    structured_events = [e for e in events if e.type == "structured"]
+    assert len(structured_events) == 1, (
+        f"Expected 1 StructuredEvent, got {len(structured_events)}. "
+        f"All event types: {[e.type for e in events]}"
+    )
+    terminal = structured_events[0]
+    assert terminal.message == plain_text_reply, (
+        f"Expected message={plain_text_reply!r}, got {terminal.message!r}"
+    )
+    assert terminal.ef_tables == []
+    assert terminal.action_message == []
+
+    # DoneEvent must be the last event.
+    assert events[-1].type == "done"
+
+    # StructuredEvent must precede DoneEvent.
+    structured_idx = next(i for i, e in enumerate(events) if e.type == "structured")
+    done_idx = next(i for i, e in enumerate(events) if e.type == "done")
+    assert structured_idx < done_idx
+
+    # The reply must be persisted in the conversation.
+    from asgiref.sync import sync_to_async
+
+    await sync_to_async(conversation.refresh_from_db)()
+    messages_snapshot = await sync_to_async(lambda: list(conversation.messages))()
+    assistant_msgs = [m for m in messages_snapshot if m.get("role") == "assistant"]
+    assert len(assistant_msgs) == 1
+    assert assistant_msgs[0]["content"] == plain_text_reply
 
 
 # ── Rich response format (structured output) tests ───────────────────────────
@@ -1015,6 +1132,211 @@ def test_messages_for_llm_truncates_long_args():
     stub = result[3]["content"]
     assert "…" in stub  # truncation marker present
     assert len(stub) < 500  # stub itself stays small (longer fixed prefix, but bounded)
+
+
+# ── action_message / ef_tables strip test (Fix: strict-provider compat) ────────
+
+
+@pytest.mark.django_db
+def test_messages_for_llm_strips_fa_internal_fields():
+    """_messages_for_llm must remove ef_tables, action_message, and interrupted
+    from every message before it is sent to the LLM.
+
+    Root cause of the Fireworks bug: the second turn loaded the persisted
+    assistant message (which had action_message set) and forwarded it verbatim.
+    Fireworks rejects unknown message fields with a 400 'Extra inputs are not
+    permitted' error. OpenAI silently ignores them, masking the bug.
+
+    The fix must:
+    - Strip action_message, ef_tables, interrupted from outgoing messages.
+    - Preserve the fields in the source dicts (no mutation of the input list).
+    - Preserve all LLM-compliant fields (role, content, tool_calls,
+      tool_call_id, name).
+    """
+    from tables.services.flow_assistant.helpers import _messages_for_llm
+
+    action_items = [
+        {"type": "prompt", "text": "What do you do?"},
+        {"type": "prompt", "text": "Show me recent runs"},
+    ]
+    ef_tables_data = [{"headers": ["col"], "rows": [["val"]]}]
+
+    messages = [
+        {"role": "system", "content": "You are the FA."},
+        {"role": "user", "content": "Test"},
+        # Persisted assistant message from turn 1 — has FA-internal fields.
+        {
+            "role": "assistant",
+            "content": "Got it.",
+            "ef_tables": ef_tables_data,
+            "action_message": action_items,
+            "interrupted": False,
+        },
+        # Second user turn — the one that triggers the 400 on strict providers.
+        {"role": "user", "content": "What do you do?"},
+    ]
+
+    result = _messages_for_llm(messages)
+
+    # FA-internal fields must not appear in any outgoing message.
+    _FA_ONLY_FIELDS = {"ef_tables", "action_message", "interrupted"}
+    for i, out_msg in enumerate(result):
+        for bad_field in _FA_ONLY_FIELDS:
+            assert bad_field not in out_msg, (
+                f"Field '{bad_field}' must be stripped from message[{i}] "
+                f"before sending to the LLM, but it was present: {out_msg}"
+            )
+
+    # LLM-compliant fields must be preserved.
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "You are the FA."
+    assert result[2]["role"] == "assistant"
+    assert result[2]["content"] == "Got it."
+    assert result[3]["role"] == "user"
+    assert result[3]["content"] == "What do you do?"
+
+    # Source dicts must NOT have been mutated.
+    assert "action_message" in messages[2], "Source dict must not be mutated"
+    assert "ef_tables" in messages[2], "Source dict must not be mutated"
+
+
+@pytest.mark.django_db
+def test_messages_for_llm_strips_fa_fields_on_all_message_roles():
+    """Stripping applies to every role, not just assistant.
+
+    If FA ever stores extra fields on system/user/tool messages those would also
+    be stripped — this test documents the whitelist covers all roles.
+    """
+    from tables.services.flow_assistant.helpers import _messages_for_llm
+
+    messages = [
+        # system with a hypothetical future FA field
+        {"role": "system", "content": "sys", "ef_tables": []},
+        # user with a hypothetical FA field
+        {"role": "user", "content": "hello", "action_message": []},
+        # assistant with real FA fields
+        {
+            "role": "assistant",
+            "content": "reply",
+            "action_message": [{"type": "prompt", "text": "next"}],
+            "ef_tables": [],
+            "interrupted": False,
+        },
+        # tool role with LLM-compliant fields — must be preserved
+        {
+            "role": "tool",
+            "tool_call_id": "call_99",
+            "name": "get_flow_overview",
+            "content": '{"nodes": []}',
+        },
+        # second user turn — this is the "current" turn boundary
+        {"role": "user", "content": "second"},
+    ]
+
+    result = _messages_for_llm(messages)
+
+    _FA_ONLY_FIELDS = {"ef_tables", "action_message", "interrupted"}
+    for i, out_msg in enumerate(result):
+        for bad_field in _FA_ONLY_FIELDS:
+            assert bad_field not in out_msg, (
+                f"Field '{bad_field}' found in message[{i}]: {out_msg}"
+            )
+
+    # LLM-compliant tool fields must survive.
+    tool_msg = next(m for m in result if m["role"] == "tool")
+    assert tool_msg["tool_call_id"] == "call_99"
+    assert tool_msg["name"] == "get_flow_overview"
+    assert tool_msg["content"] == '{"nodes": []}'
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_stream_reply_second_turn_does_not_send_action_message_to_llm(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """End-to-end: after turn 1 persists action_message on the assistant row,
+    the second turn's call to stream_completion must NOT receive a messages list
+    that contains action_message.
+
+    This is the exact repro for the Fireworks 400 'Extra inputs are not
+    permitted, field: messages[2].action_message' error.
+    """
+    import fakeredis
+    from asgiref.sync import sync_to_async
+    from unittest.mock import call as mock_call
+
+    user_message_1 = "Test"
+    user_message_2 = "What do you do?"
+    action_items = [
+        {"type": "prompt", "text": "What do you do?"},
+        {"type": "prompt", "text": "Show me recent runs"},
+    ]
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+
+    # Seed the conversation as it looks AFTER turn 1 has been persisted:
+    # system + user1 + assistant-with-action_message + user2.
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "You are the FA."},
+            {"role": "user", "content": user_message_1},
+            {
+                "role": "assistant",
+                "content": "Got it.",
+                "action_message": action_items,
+            },
+            {"role": "user", "content": user_message_2},
+        ],
+    )
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+    captured_calls: list[list[dict]] = []
+
+    async def fake_stream(messages, tools):
+        # Capture the exact messages list sent to the LLM.
+        captured_calls.append(list(messages))
+        yield TokenEvent(
+            content='{"message": "I assist with your flow.", "ef_tables": [], "action_message": []}'
+        )
+        yield DoneEvent()
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message_2):
+            events.append(event)
+
+    assert events[-1].type == "done"
+    assert len(captured_calls) == 1, "Expected exactly one LLM call for a simple turn"
+
+    sent_messages = captured_calls[0]
+    _FA_ONLY_FIELDS = {"ef_tables", "action_message", "interrupted"}
+    for i, msg in enumerate(sent_messages):
+        for bad_field in _FA_ONLY_FIELDS:
+            assert bad_field not in msg, (
+                f"FA-internal field '{bad_field}' found in message[{i}] sent to LLM: {msg}\n"
+                f"This would cause a 400 'Extra inputs are not permitted' on strict providers "
+                f"such as Fireworks."
+            )
 
 
 # ── Tool-call SSE enrichment test ─────────────────────────────────────────────
@@ -1575,6 +1897,46 @@ def test_get_node_crew_includes_crew_summary(graph, db):
     tasks = summary["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["name"] == "data_ingestion"
+
+
+# ── system_prompt build smoke test ───────────────────────────────────────────
+
+
+def test_build_system_prompt_file_load_and_substitution():
+    """Smoke test for the file-based system_prompt build path.
+
+    Verifies that:
+    (a) build_system_prompt returns a non-empty string,
+    (b) the substituted flow name appears in the output,
+    (c) the rich-format marker 'ef_tables' appears (proves rich_format.md loaded),
+    (d) no literal '${' remains (proves all Template placeholders were substituted),
+    (e) 'particular kind of being' appears (proves personality.md loaded),
+    (f) '## Operational rules' appears (proves instructions.md loaded with new header).
+    """
+    from tables.services.flow_assistant.system_prompt import (
+        SystemPromptInputs,
+        build_system_prompt,
+    )
+
+    inputs = SystemPromptInputs(
+        flow_name="Smoke Test Flow",
+        flow_description="A flow used in automated tests.",
+        today_iso="2026-05-18",
+        yesterday_iso="2026-05-17",
+        tomorrow_iso="2026-05-19",
+        node_summary="  - crew: 1\n  - end: 1",
+        nodes_section="Nodes in this flow:\n  - id=1 type=crew name=\"intake\"",
+        subflow_summary="  (none)",
+    )
+
+    result = build_system_prompt(inputs)
+
+    assert isinstance(result, str) and len(result) > 0
+    assert "Smoke Test Flow" in result, "substituted flow_name must appear in output"
+    assert "ef_tables" in result, "rich_format.md marker 'ef_tables' must be present"
+    assert "${" not in result, "all Template placeholders must be substituted"
+    assert "flow is your job description" in result, "personality.md must be loaded"
+    assert "## Operational rules" in result, "instructions.md must be loaded with new section header"
 
 
 # ── Phase F (Fix 16): python_code_summary in get_node ────────────────────────
@@ -2478,3 +2840,194 @@ async def test_stream_reply_disconnect_persists_partial(
     assert partial.get("interrupted") is True
     # The partial content should contain whatever tokens were streamed.
     assert "hello" in partial.get("content", "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_empty_and_no_tool_injects_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Reasoning model exhausted budget on reasoning, no final content → hint emitted and NOT persisted."""
+    import fakeredis
+    from asgiref.sync import sync_to_async
+
+    user_message = "summarize this flow"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
+    async def fake_stream(messages, tools):
+        # Model only reasoned: no content tokens, no tool calls.
+        yield DoneEvent(reasoning_observed=True)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    # Hint must appear in the streamed token output.
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert any(hint_substring in c for c in token_contents), (
+        f"Expected hint substring in streamed tokens, got: {token_contents}"
+    )
+
+    # Hint must NOT be persisted to conversation history.
+    refreshed = await sync_to_async(FlowAssistantConversation.objects.get)(
+        pk=conversation.pk
+    )
+    persisted_messages = await sync_to_async(lambda: list(refreshed.messages))()
+    for msg in persisted_messages:
+        assert hint_substring not in (msg.get("content") or ""), (
+            f"Hint leaked into persisted history: {msg}"
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_with_content_does_not_inject_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Model reasoned AND produced final content → hint must NOT appear."""
+    import fakeredis
+    from asgiref.sync import sync_to_async
+
+    user_message = "hi"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    async def fake_stream(messages, tools):
+        yield TokenEvent(content="hello")
+        yield DoneEvent(reasoning_observed=True)
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert not any(hint_substring in c for c in token_contents), (
+        f"Hint should have been suppressed when content was produced: {token_contents}"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_reasoning_with_tool_call_does_not_inject_hint(
+    graph, llm_config, user_a, org_a, default_role, db
+):
+    """Model reasoned then called a tool → tool call IS the productive output → no hint."""
+    import fakeredis
+    from asgiref.sync import sync_to_async
+
+    user_message = "what nodes are in this flow?"
+
+    org_user = await sync_to_async(OrganizationUser.objects.create)(
+        user=user_a, org=org_a, role=default_role
+    )
+    assistant = await sync_to_async(FlowAssistant.objects.create)(
+        graph=graph, llm_config=llm_config
+    )
+    conversation = await sync_to_async(_make_conversation_with_messages)(
+        assistant,
+        org_user,
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    call_count = {"n": 0}
+
+    async def fake_stream(messages, tools):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            # First iteration: model reasoned and called a tool.
+            yield ToolCallEvent(id="call_1", name="get_flow_overview", args={})
+            yield DoneEvent(reasoning_observed=True)
+        else:
+            # Second iteration: model produces final answer using tool result.
+            yield TokenEvent(content="Flow has 0 nodes.")
+            yield DoneEvent(reasoning_observed=False)
+
+    fake_redis = fakeredis.FakeRedis(decode_responses=False)
+
+    with patch(
+        "tables.services.flow_assistant.service.get_llm_client"
+    ) as mock_get_client, patch(
+        "tables.services.flow_assistant.helpers.RedisService",
+    ) as MockRedisService:
+        mock_client = MagicMock()
+        mock_client.stream_completion = fake_stream
+        mock_get_client.return_value = mock_client
+
+        mock_redis_instance = MagicMock()
+        mock_redis_instance.redis_client = fake_redis
+        MockRedisService.return_value = mock_redis_instance
+
+        service = FlowAssistantService()
+        events = []
+        async for event in service.stream_reply(conversation, user_message):
+            events.append(event)
+
+    hint_substring = "increasing `max_tokens`"
+    token_contents = [e.content for e in events if e.type == "token"]
+    assert not any(hint_substring in c for c in token_contents), (
+        f"Hint should have been suppressed when a tool was called: {token_contents}"
+    )
