@@ -30,7 +30,6 @@ from rag.graph_rag.utils import (
     build_drift_search_reduce_prompt,
     build_global_search_map_prompt,
     build_global_search_reduce_prompt,
-    build_global_search_knowledge_prompt,
 )
 
 
@@ -435,12 +434,14 @@ class GraphRagConfigBuilder:
         config.global_search.map_prompt = build_global_search_map_prompt(
             params.map_prompt
         )
+        # General-knowledge permission is folded into the reduce prompt (the stage
+        # where upstream GlobalSearch applied it). The vendored `knowledge_prompt`
+        # path is left unused so we don't depend on edits to the vendored library.
         config.global_search.reduce_prompt = build_global_search_reduce_prompt(
-            params.reduce_prompt
+            params.reduce_prompt,
+            params.knowledge_prompt,
         )
-        config.global_search.knowledge_prompt = build_global_search_knowledge_prompt(
-            params.knowledge_prompt
-        )
+        config.global_search.knowledge_prompt = None
         config.global_search.max_context_tokens = params.max_context_tokens
         config.global_search.data_max_tokens = params.data_max_tokens
         config.global_search.map_max_length = params.map_max_length

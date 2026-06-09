@@ -15,6 +15,9 @@ import pandas as pd
 
 from graphrag.callbacks.query_callbacks import QueryCallbacks
 from graphrag.language_model.protocol.base import ChatModel
+from graphrag.prompts.query.global_search_knowledge_system_prompt import (
+    GENERAL_KNOWLEDGE_INSTRUCTION,
+)
 from graphrag.prompts.query.global_search_map_system_prompt import (
     MAP_SYSTEM_PROMPT,
 )
@@ -75,7 +78,9 @@ class GlobalSearch(BaseSearch[GlobalContextBuilder]):
         self.reduce_system_prompt = reduce_system_prompt or REDUCE_SYSTEM_PROMPT
         self.response_type = response_type
         self.allow_general_knowledge = allow_general_knowledge
-        self.general_knowledge_inclusion_prompt = general_knowledge_inclusion_prompt
+        self.general_knowledge_inclusion_prompt = (
+            general_knowledge_inclusion_prompt or GENERAL_KNOWLEDGE_INSTRUCTION
+        )
         self.callbacks = callbacks or []
         self.max_data_tokens = max_data_tokens
 
@@ -369,7 +374,7 @@ class GlobalSearch(BaseSearch[GlobalContextBuilder]):
                 response_type=self.response_type,
                 max_length=self.reduce_max_length,
             )
-            if self.general_knowledge_inclusion_prompt:
+            if self.allow_general_knowledge:
                 search_prompt += "\n" + self.general_knowledge_inclusion_prompt
             search_messages = [
                 {"role": "system", "content": search_prompt},
@@ -474,7 +479,7 @@ class GlobalSearch(BaseSearch[GlobalContextBuilder]):
             response_type=self.response_type,
             max_length=max_length,
         )
-        if self.general_knowledge_inclusion_prompt:
+        if self.allow_general_knowledge:
             search_prompt += "\n" + self.general_knowledge_inclusion_prompt
         search_messages = [
             {"role": "system", "content": search_prompt},
