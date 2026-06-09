@@ -29,6 +29,7 @@ from tables.swagger_schemas.knowledge_schemas.document_management_schemas import
     DOCUMENTS_UPLOAD_POST,
     DOCUMENTS_BULK_DELETE_POST,
     DOCUMENTS_DOWNLOAD_GET,
+    DOCUMENTS_PREVIEW_GET,
     DOCUMENTS_COPY_POST,
     COLLECTION_DOCUMENTS_LIST_GET,
 )
@@ -52,14 +53,55 @@ def _document_bytes(document: DocumentMetadata) -> bytes:
     return bytes(content.content)
 
 
+# Explicit content types per known file_type — more reliable for inline preview
+# than guessing from the file name (e.g. .md / .json are not always registered).
+PREVIEW_CONTENT_TYPES = {
+    DocumentMetadata.DocumentFileType.PDF: "application/pdf",
+    DocumentMetadata.DocumentFileType.CSV: "text/csv; charset=utf-8",
+    DocumentMetadata.DocumentFileType.DOCX: (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ),
+    DocumentMetadata.DocumentFileType.TXT: "text/plain; charset=utf-8",
+    DocumentMetadata.DocumentFileType.JSON: "application/json; charset=utf-8",
+    DocumentMetadata.DocumentFileType.HTML: "text/html; charset=utf-8",
+    DocumentMetadata.DocumentFileType.MD: "text/markdown; charset=utf-8",
+}
+
+
+def _file_response(
+    content: bytes,
+    content_type: str,
+    filename: str,
+    disposition: str = "attachment",
+) -> HttpResponse:
+    """Serve raw bytes with the given content type and Content-Disposition."""
+    response = HttpResponse(content, content_type=content_type)
+    response["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+    return response
+
+
 def _build_file_response(document: DocumentMetadata) -> HttpResponse:
     """Build an attachment response for a single document."""
     content_type = (
         mimetypes.guess_type(document.file_name)[0] or "application/octet-stream"
     )
-    response = HttpResponse(_document_bytes(document), content_type=content_type)
-    response["Content-Disposition"] = f'attachment; filename="{document.file_name}"'
-    return response
+    return _file_response(_document_bytes(document), content_type, document.file_name)
+
+
+def _build_preview_response(document: DocumentMetadata) -> HttpResponse:
+    """
+    Build an inline response for a single document so the browser can render it
+    in place (preview) instead of downloading it. DOCX has no native browser
+    preview and will still be downloaded by the browser regardless of this header.
+    """
+    content_type = (
+        PREVIEW_CONTENT_TYPES.get(document.file_type)
+        or mimetypes.guess_type(document.file_name)[0]
+        or "application/octet-stream"
+    )
+    return _file_response(
+        _document_bytes(document), content_type, document.file_name, "inline"
+    )
 
 
 def _build_archive_response(
@@ -76,9 +118,7 @@ def _build_archive_response(
                 _document_bytes(document),
             )
 
-    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
-    response["Content-Disposition"] = f'attachment; filename="{archive_name}"'
-    return response
+    return _file_response(buffer.getvalue(), "application/zip", archive_name)
 
 
 def _unique_name(name: str, used_names: dict) -> str:
@@ -240,6 +280,20 @@ class DocumentViewSet(
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
+    @extend_schema(**DOCUMENTS_PREVIEW_GET)
+    @action(detail=True, methods=["get"], url_path="preview")
+    def preview(self, request, *args, **kwargs):
+        """
+        Return the raw binary content of a single document for inline preview.
+
+        Unlike ``download`` (which forces an attachment), this response uses
+        ``Content-Disposition: inline`` so the browser can render supported
+        formats (pdf, txt, md, json, html, csv) in place. DOCX has no native
+        browser preview and will be downloaded instead.
+        """
+        document = self.get_object()
+        return _build_preview_response(document)
+
     @extend_schema(**DOCUMENTS_DESTROY_DELETE)
     def destroy(self, request, *args, **kwargs):
         """
@@ -311,19 +365,29 @@ class DocumentViewSet(
         serializer.is_valid(raise_exception=True)
 
         try:
-            copied_documents = DocumentManagementService.copy_documents_to_collection(
-                collection_id=serializer.validated_data["collection_id"],
-                document_ids=serializer.validated_data["document_ids"],
+            copied_documents, skipped_documents = (
+                DocumentManagementService.copy_documents_to_collection(
+                    collection_id=serializer.validated_data["collection_id"],
+                    document_ids=serializer.validated_data["document_ids"],
+                )
             )
 
-            response_serializer = DocumentMetadataSerializer(
-                copied_documents, many=True
-            )
+            message = f"Successfully copied {len(copied_documents)} document(s)"
+            if skipped_documents:
+                message += (
+                    f", skipped {len(skipped_documents)} already present "
+                    "in the target collection"
+                )
 
             return Response(
                 {
-                    "message": f"Successfully copied {len(copied_documents)} document(s)",
-                    "documents": response_serializer.data,
+                    "message": message,
+                    "documents": DocumentMetadataSerializer(
+                        copied_documents, many=True
+                    ).data,
+                    "skipped": DocumentMetadataSerializer(
+                        skipped_documents, many=True
+                    ).data,
                 },
                 status=status.HTTP_201_CREATED,
             )
