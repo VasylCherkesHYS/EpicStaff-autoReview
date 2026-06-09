@@ -1,5 +1,5 @@
 // ── Design tokens ──────────────────────────────────────────────────────────────
-$accent: #685fff;
+$accent: var(--accent-color);
 $accent-light: #a89fff;
 $accent-bg: rgba(104, 95, 255, 0.15);
 $bg: #1f1f23;
@@ -119,7 +119,7 @@ $radius: 8px;
     // Logical & keyword — cyan-blue text
     &--logical,
     &--keyword {
-        color: #48cbff;
+        color: var(--color-ks-status-blue);
 
         &:hover {
             background: rgba(72, 203, 255, 0.12);
@@ -128,7 +128,7 @@ $radius: 8px;
 
     // Comparison — light gray text
     &--comparison {
-        color: #d9d9de;
+        color: var(--color-text-primary);
 
         &:hover {
             background: rgba(217, 217, 222, 0.08);
@@ -137,7 +137,7 @@ $radius: 8px;
 
     // Math — cyan-blue text, fixed square-ish width
     &--math {
-        color: #48cbff;
+        color: var(--color-ks-status-blue);
         width: 28px;
         padding: 2px 0;
 
@@ -304,7 +304,7 @@ $radius: 8px;
     background: transparent;
     border: none;
     outline: none;
-    color: #d9d9de;
+    color: var(--color-text-primary);
     font-size: 13px;
 
     &::placeholder {
@@ -324,7 +324,7 @@ $radius: 8px;
 .eb-var-row {
     padding: 6px 8px;
     font-size: 13px;
-    color: #d9d9de;
+    color: var(--color-text-primary);
     cursor: pointer;
     background: transparent;
     border: 1px solid #2b2d30;

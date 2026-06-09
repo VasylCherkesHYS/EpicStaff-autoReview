@@ -14,6 +14,7 @@ import {
 import { FormsModule } from '@angular/forms';
 
 import { CDT_COLUMN_KIND } from '../../cdt.constants';
+import { filterByQuery } from '../../cdt-search-filter.util';
 
 export type ExpressionBuilderMode = 'expression' | 'manipulation';
 
@@ -119,10 +120,7 @@ export class ExpressionBuilderComponent implements OnInit {
     // ── Search / right panel ──────────────────────────────────────────────────
     searchTerm = signal<string>('');
 
-    filteredVars = computed(() => {
-        const q = this.searchTerm().toLowerCase();
-        return this.variables().filter((v) => v.toLowerCase().includes(q));
-    });
+    filteredVars = computed(() => filterByQuery(this.variables(), this.searchTerm(), (v) => v));
 
     // ── Inline @ typeahead ────────────────────────────────────────────────────
     mentionActive = signal<boolean>(false);

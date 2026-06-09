@@ -10,8 +10,9 @@ import {
     ViewChild,
     ViewEncapsulation,
 } from '@angular/core';
-import { ICellRendererAngularComp } from 'ag-grid-angular';
 import { ICellRendererParams } from 'ag-grid-community';
+
+import { BaseCellRenderer } from '../shared/base-cell-renderer';
 
 interface MonacoWindow extends Window {
     monaco?: {
@@ -118,7 +119,10 @@ function ensureMonacoLoaded(): Promise<void> {
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
 })
-export class MonacoCellRendererComponent implements ICellRendererAngularComp, AfterViewInit, OnDestroy {
+export class MonacoCellRendererComponent
+    extends BaseCellRenderer<ICellRendererParams>
+    implements AfterViewInit, OnDestroy
+{
     @ViewChild('codeContainer', { static: true }) codeContainer!: ElementRef<HTMLDivElement>;
 
     private cdr = inject(ChangeDetectorRef);
@@ -128,13 +132,13 @@ export class MonacoCellRendererComponent implements ICellRendererAngularComp, Af
     public colorized = false;
     private destroyed = false;
 
-    agInit(params: ICellRendererParams): void {
+    override agInit(params: ICellRendererParams): void {
         this.value = params.value || '';
         this.updateDisplayText();
         ensureMonacoLoaded();
     }
 
-    refresh(params: ICellRendererParams): boolean {
+    override refresh(params: ICellRendererParams): boolean {
         const newValue = params.value || '';
         if (newValue !== this.value) {
             this.value = newValue;

@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ICellEditorAngularComp } from 'ag-grid-angular';
 import { ICellEditorParams } from 'ag-grid-community';
 
 import { PromptConfig } from '../../../../../core/models/classification-decision-table.model';
+import { resolveLlmLabel } from '../../cdt-llm-label.util';
+import { filterByQuery } from '../../cdt-search-filter.util';
+import { BaseCellEditor } from '../shared/base-cell-editor';
 
 interface LlmOption {
     id: number;
@@ -135,7 +137,7 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 flex: 1;
                 height: 40px;
                 background: #2b2d30;
-                color: #d9d9de;
+                color: var(--color-text-primary);
                 border: 1px solid rgba(217, 217, 222, 0.16);
                 border-radius: 4px;
                 padding: 0 16px;
@@ -155,7 +157,7 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 width: 40px;
                 height: 40px;
                 flex-shrink: 0;
-                background: #685fff;
+                background: var(--accent-color);
                 border: none;
                 border-radius: 8px;
                 color: #fff;
@@ -205,7 +207,7 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 font-size: 14px;
                 font-family: Inter, sans-serif;
                 line-height: 1.3;
-                color: #d9d9de;
+                color: var(--color-text-primary);
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -244,12 +246,12 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 height: 28px;
                 flex-shrink: 0;
                 background: transparent;
-                border: 1px solid #685fff;
+                border: 1px solid var(--accent-color);
                 border-radius: 4px;
                 box-shadow: none;
                 cursor: pointer;
                 padding: 0;
-                color: #685fff;
+                color: var(--accent-color);
                 font-size: 16px;
             }
             .pe-item:hover .pe-item-open-btn {
@@ -271,7 +273,7 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 font-size: 14px;
                 font-family: Inter, sans-serif;
                 line-height: 1.3;
-                color: #d9d9de;
+                color: var(--color-text-primary);
             }
             .pe-empty-hint {
                 font-size: 12px;
@@ -289,9 +291,9 @@ interface PromptIdEditorParams extends ICellEditorParams {
                 padding: 6px 16px;
                 height: 32px;
                 background: transparent;
-                border: 1px solid #685fff;
+                border: 1px solid var(--accent-color);
                 border-radius: 6px;
-                color: #685fff;
+                color: var(--accent-color);
                 font-size: 14px;
                 font-family: Inter, sans-serif;
                 font-weight: 400;
@@ -308,9 +310,8 @@ interface PromptIdEditorParams extends ICellEditorParams {
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PromptIdCellEditorComponent implements ICellEditorAngularComp, AfterViewInit {
+export class PromptIdCellEditorComponent extends BaseCellEditor<PromptIdEditorParams> implements AfterViewInit {
     private cdr = inject(ChangeDetectorRef);
-    private params!: PromptIdEditorParams;
 
     public value: string = '';
     public searchText: string = '';
@@ -319,8 +320,8 @@ export class PromptIdCellEditorComponent implements ICellEditorAngularComp, Afte
     private allPrompts: { id: string; config: PromptConfig }[] = [];
     public filteredPrompts: { id: string; config: PromptConfig }[] = [];
 
-    agInit(params: PromptIdEditorParams): void {
-        this.params = params;
+    override agInit(params: PromptIdEditorParams): void {
+        super.agInit(params);
         this.value = params.value || '';
         this.searchText = '';
 
@@ -336,10 +337,6 @@ export class PromptIdCellEditorComponent implements ICellEditorAngularComp, Afte
 
     getValue(): string | null {
         return this.value || null;
-    }
-
-    isPopup(): boolean {
-        return true;
     }
 
     getPopupPosition(): 'over' | 'under' | undefined {
@@ -386,8 +383,8 @@ export class PromptIdCellEditorComponent implements ICellEditorAngularComp, Afte
     }
 
     filterPrompts(): void {
-        const q = (this.searchText || '').toLowerCase().trim();
-        this.filteredPrompts = q ? this.allPrompts.filter((p) => p.id.toLowerCase().includes(q)) : [...this.allPrompts];
+        const q = (this.searchText || '').trim();
+        this.filteredPrompts = filterByQuery(this.allPrompts, q, (p) => p.id);
     }
 
     onSearchChange(value: string): void {
@@ -397,8 +394,6 @@ export class PromptIdCellEditorComponent implements ICellEditorAngularComp, Afte
     }
 
     resolveLlmLabel(llmId: number | null | undefined): string {
-        if (llmId == null) return 'Default LLM';
-        const found = this.llmOptions.find((l) => l.id === llmId);
-        return found ? found.label : 'Default LLM';
+        return resolveLlmLabel(llmId, this.llmOptions);
     }
 }

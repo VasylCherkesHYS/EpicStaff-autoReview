@@ -1,9 +1,9 @@
 import { Component, ElementRef, inject } from '@angular/core';
-import { ICellEditorAngularComp } from 'ag-grid-angular';
 import { ICellEditorParams } from 'ag-grid-community';
 
 import { toDisplayExpression, toStoredExpression } from '../../../../../utils/condition-expression.helper';
 import { CDT_COLUMN_KIND, CDT_EXPRESSION_EDITOR_POPUP_WIDTH } from '../../cdt.constants';
+import { BaseCellEditor } from '../shared/base-cell-editor';
 import { ExpressionBuilderComponent } from './expression-builder.component';
 
 export interface ExpressionBuilderCellEditorParams extends ICellEditorParams {
@@ -37,17 +37,16 @@ export interface ExpressionBuilderCellEditorParams extends ICellEditorParams {
         `,
     ],
 })
-export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularComp {
+export class ExpressionBuilderCellEditorComponent extends BaseCellEditor<ExpressionBuilderCellEditorParams> {
     initialDisplay = '';
     variables: string[] = [];
     mode: 'expression' | 'manipulation' = CDT_COLUMN_KIND.EXPRESSION;
 
     private currentDisplay = '';
-    private params!: ExpressionBuilderCellEditorParams;
     private readonly elRef = inject(ElementRef);
 
-    agInit(params: ExpressionBuilderCellEditorParams): void {
-        this.params = params;
+    override agInit(params: ExpressionBuilderCellEditorParams): void {
+        super.agInit(params);
         this.initialDisplay = toDisplayExpression(params.value ?? '');
         this.currentDisplay = this.initialDisplay;
         this.mode = params.mode ?? CDT_COLUMN_KIND.EXPRESSION;
@@ -89,10 +88,6 @@ export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularC
 
     getValue(): string {
         return toStoredExpression(this.currentDisplay);
-    }
-
-    isPopup(): boolean {
-        return true;
     }
 
     getPopupPosition(): 'over' | 'under' {

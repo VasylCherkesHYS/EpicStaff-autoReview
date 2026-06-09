@@ -35,3 +35,8 @@ export const CDT_OVERLAY_ROW_HEIGHT = 40;
 
 /** Fixed pixel width of the expression-builder popup editor. */
 export const CDT_EXPRESSION_EDITOR_POPUP_WIDTH = 660;
+
+// ── LLM label fallback ────────────────────────────────────────────────────────
+
+/** Fallback display label used when no LLM config is selected. */
+export const CDT_DEFAULT_LLM_LABEL = 'Default LLM';

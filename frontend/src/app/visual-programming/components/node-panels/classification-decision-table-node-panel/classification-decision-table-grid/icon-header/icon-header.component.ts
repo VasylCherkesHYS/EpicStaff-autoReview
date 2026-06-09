@@ -66,6 +66,7 @@ export interface IconHeaderParams extends IHeaderParams {
                 color: rgba(255, 255, 255, 0.7);
                 flex-shrink: 0;
             }
+            /* NOTE: kept in sync with .chm-icon-clickable in column-header-menu.component.ts */
             .icon-header-clickable {
                 cursor: pointer;
                 background: rgba(104, 95, 255, 0.25);

@@ -1,5 +1,4 @@
-import { Overlay, OverlayRef } from '@angular/cdk/overlay';
-import { TemplatePortal } from '@angular/cdk/portal';
+import { Overlay } from '@angular/cdk/overlay';
 import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
@@ -14,9 +13,9 @@ import {
 } from '@angular/core';
 import { IHeaderAngularComp } from 'ag-grid-angular';
 import { IHeaderParams } from 'ag-grid-community';
-import { Subscription } from 'rxjs';
 
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { OverlayMenuController } from '../shared/overlay-menu.util';
 
 export type EnableFilterMode = 'all' | 'enabled' | 'disabled';
 
@@ -121,7 +120,7 @@ interface EnableFilterHeaderParams extends IHeaderParams {
             .ef-item {
                 padding: 8px 12px;
                 font-size: 13px;
-                color: #d9d9de;
+                color: var(--color-text-primary);
                 border-radius: 4px;
                 cursor: pointer;
                 user-select: none;
@@ -146,9 +145,8 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp, OnDestro
 
     public label = 'Enable';
     public mode: EnableFilterMode = 'enabled';
-    private overlayRef: OverlayRef | null = null;
-    private backdropSub: Subscription | null = null;
     private params!: EnableFilterHeaderParams;
+    private menuCtrl = new OverlayMenuController(this.overlay, this.vcr);
 
     agInit(params: EnableFilterHeaderParams): void {
         this.params = params;
@@ -164,23 +162,13 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp, OnDestro
         return true;
     }
 
+    // Config that reproduces enable-filter-header's original single-position,
+    // no-withPush behaviour (distinct from the two-position default used by
+    // column-header-menu and params-group-header).
+    private readonly menuCfg = { withFlipFallback: false, withPush: false };
+
     public openMenu(): void {
-        if (this.overlayRef) {
-            this.closeMenu();
-            return;
-        }
-        const positionStrategy = this.overlay
-            .position()
-            .flexibleConnectedTo(this.anchorEl.nativeElement)
-            .withPositions([{ originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 4 }]);
-        this.overlayRef = this.overlay.create({
-            positionStrategy,
-            scrollStrategy: this.overlay.scrollStrategies.close(),
-            hasBackdrop: true,
-            backdropClass: 'cdk-overlay-transparent-backdrop',
-        });
-        this.backdropSub = this.overlayRef.backdropClick().subscribe(() => this.closeMenu());
-        this.overlayRef.attach(new TemplatePortal(this.menuTemplate, this.vcr));
+        this.menuCtrl.toggle(this.anchorEl.nativeElement, this.menuTemplate, this.menuCfg);
     }
 
     public select(mode: EnableFilterMode): void {
@@ -188,18 +176,10 @@ export class EnableFilterHeaderComponent implements IHeaderAngularComp, OnDestro
         this.mode = mode;
         this.label = mode === 'all' ? 'En/Dis' : 'Enable';
         this.cdr.markForCheck();
-        this.closeMenu();
-    }
-
-    private closeMenu(): void {
-        this.backdropSub?.unsubscribe();
-        this.backdropSub = null;
-        this.overlayRef?.detach();
-        this.overlayRef?.dispose();
-        this.overlayRef = null;
+        this.menuCtrl.close();
     }
 
     ngOnDestroy(): void {
-        this.closeMenu();
+        this.menuCtrl.dispose();
     }
 }
