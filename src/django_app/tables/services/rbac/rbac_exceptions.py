@@ -246,3 +246,33 @@ class AvatarTooLargeError(CustomAPIExeption):
     status_code = 400
     default_detail = "Avatar file exceeds the maximum allowed size."
     default_code = "avatar_too_large"
+
+
+class BuiltInRoleImmutableError(CustomAPIExeption):
+    """Raised by RoleManagementService when an edit or delete targets a
+    Role with is_built_in=True. The four built-in roles (Superadmin,
+    Org Admin, Member, Viewer) are immutable by spec."""
+
+    status_code = 403
+    default_detail = "Built-in roles cannot be edited or deleted."
+    default_code = "built_in_role_immutable"
+
+
+class OrgContextRequiredError(CustomAPIExeption):
+    """Raised by OrgContextService when an endpoint requires an
+    X-Organization-Id header (or URL kwarg) and neither is present
+    or parseable as an int."""
+
+    status_code = 400
+    default_detail = "X-Organization-Id header is required for this endpoint."
+    default_code = "org_context_required"
+
+
+class OrgMembershipRequiredError(CustomAPIExeption):
+    """Raised by OrgContextService when the caller is not a member of
+    the requested org and is not superadmin. Membership against an
+    inactive org also raises this."""
+
+    status_code = 403
+    default_detail = "You are not a member of this organization."
+    default_code = "org_membership_required"
