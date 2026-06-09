@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from django.db import models
 from django.db import transaction
 from django.core.files.uploadedfile import UploadedFile
@@ -449,10 +449,19 @@ class DocumentManagementService:
     @transaction.atomic
     def copy_documents_to_collection(
         collection_id: int, document_ids: List[int]
-    ) -> List[DocumentMetadata]:
+    ) -> Tuple[List[DocumentMetadata], List[DocumentMetadata]]:
         """
         Copy documents into a target collection without duplicating binary content.
         New DocumentMetadata records point to the same DocumentContent.
+
+        Documents whose content is already present in the target collection are
+        skipped (a file is considered "present" when the collection already has a
+        record referencing the same DocumentContent). This also guards against
+        copying into the source collection itself and against duplicate ids within
+        a single request.
+
+        Returns:
+            A tuple of (copied_documents, skipped_documents).
 
         Raises:
             CollectionNotFoundException: If the target collection is missing.
@@ -463,19 +472,34 @@ class DocumentManagementService:
             document_ids
         )
 
-        copied_documents = [
-            DocumentManagementService.create_document_metadata(
-                collection=collection,
-                document_content=source_doc.document_content,
-                file_name=source_doc.file_name,
-                file_type=source_doc.file_type,
-                file_size=source_doc.file_size,
+        existing_content_ids = set(
+            DocumentMetadata.objects.filter(source_collection=collection).values_list(
+                "document_content_id", flat=True
             )
-            for source_doc in source_documents
-        ]
-
-        logger.info(
-            f"Copied {len(copied_documents)} document(s) into collection {collection_id}"
         )
 
-        return copied_documents
+        copied_documents: List[DocumentMetadata] = []
+        skipped_documents: List[DocumentMetadata] = []
+        for source_doc in source_documents:
+            if source_doc.document_content_id in existing_content_ids:
+                skipped_documents.append(source_doc)
+                continue
+
+            copied_documents.append(
+                DocumentManagementService.create_document_metadata(
+                    collection=collection,
+                    document_content=source_doc.document_content,
+                    file_name=source_doc.file_name,
+                    file_type=source_doc.file_type,
+                    file_size=source_doc.file_size,
+                )
+            )
+            # Guard against duplicate content appearing twice in the same batch.
+            existing_content_ids.add(source_doc.document_content_id)
+
+        logger.info(
+            f"Copied {len(copied_documents)} document(s) into collection "
+            f"{collection_id}, skipped {len(skipped_documents)} already present"
+        )
+
+        return copied_documents, skipped_documents
