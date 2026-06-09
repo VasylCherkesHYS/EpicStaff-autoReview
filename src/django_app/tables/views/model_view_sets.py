@@ -241,10 +241,20 @@ from tables.serializers.model_serializers import (
     TelegramTriggerNodeSerializer,
     TelegramTriggerNodeFieldSerializer,
 )
+from django.http import HttpResponse
+
 from tables.serializers.serializers import (
     BulkExportSerializer,
+    GraphNodesBulkExportSerializer,
     ImportRequestSerializer,
 )
+from tables.import_export.registry import entity_registry
+from tables.import_export.services.bulk_export_service import (
+    GraphBulkExportService,
+    NodeRef,
+    LIST_KEY_TO_ENTITY_TYPE,
+)
+from tables.utils.helpers import generate_file_name
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
 from tables.import_export.services.import_service import ImportSettings
@@ -762,6 +772,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         self.import_export_service = ViewSetImportExportService(
             entity_type=EntityType.GRAPH, export_prefix="graph", filename_attr="name"
         )
+        self._bulk_export_service = GraphBulkExportService(entity_registry)
 
     def get_queryset(self):
         qs = (
@@ -847,6 +858,36 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             )
 
         return self.import_export_service.bulk_export(entity_ids)
+
+    @extend_schema(request=GraphNodesBulkExportSerializer, responses={200: None})
+    @action(detail=True, methods=["post"], url_path="partial-export")
+    def partial_export(self, request, pk=None):
+        serializer = GraphNodesBulkExportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        graph = self.get_object()
+        node_refs = [
+            NodeRef(entity_type=entity_type, node_id=node_id)
+            for list_key, entity_type in LIST_KEY_TO_ENTITY_TYPE.items()
+            for node_id in serializer.validated_data.get(list_key, [])
+        ]
+
+        result = self._bulk_export_service.export(
+            node_refs,
+            edge_ids=serializer.validated_data.get("edge_list", []),
+        )
+
+        if result.has_errors:
+            return Response(
+                {"errors": result.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        filename = generate_file_name(f"nodes_{graph.name}", prefix="graph_nodes")
+        response = HttpResponse(
+            json.dumps(result.data, indent=4), content_type="application/json"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):

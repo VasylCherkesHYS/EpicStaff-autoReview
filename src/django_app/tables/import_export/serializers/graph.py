@@ -109,20 +109,17 @@ class ClassificationConditionGroupImportSerializer(serializers.ModelSerializer):
         source="classification_decision_table_node",
         write_only=True,
     )
-    prompt_key = serializers.SerializerMethodField()
-
-    def get_prompt_key(self, obj):
-        return obj.prompt.prompt_key if obj.prompt else None
 
     class Meta:
         model = ClassificationConditionGroup
-        exclude = ["prompt"]
+        exclude = ["created_at", "updated_at"]
 
 
 class ClassificationDecisionTablePromptImportSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClassificationDecisionTablePrompt
         fields = [
+            "id",
             "prompt_key",
             "prompt_text",
             "llm_config",
@@ -237,7 +234,7 @@ class GraphNoteImportSerializer(BaseNodeImportSerializer):
 class EdgeImportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Edge
-        exclude = ["created_at", "updated_at"]
+        exclude = ["created_at", "updated_at", "graph"]
 
 
 class ConditionalEdgeImportSerializer(serializers.ModelSerializer):

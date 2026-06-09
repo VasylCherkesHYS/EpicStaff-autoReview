@@ -108,6 +108,60 @@ class BulkExportSerializer(serializers.Serializer):
     )
 
 
+class GraphNodesBulkExportSerializer(serializers.Serializer):
+    start_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    crew_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    python_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    audio_transcription_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    file_extractor_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    end_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    subgraph_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    webhook_trigger_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    telegram_trigger_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    decision_table_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    classification_decision_table_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    graph_note_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    code_agent_node_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+    edge_list = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
+
+    def validate(self, attrs):
+        from tables.import_export.services.bulk_export_service import (
+            LIST_KEY_TO_ENTITY_TYPE,
+        )
+
+        if not any(attrs.get(key) for key in LIST_KEY_TO_ENTITY_TYPE):
+            raise serializers.ValidationError("At least one node must be provided.")
+        return attrs
+
+
 class SessionExportAllSerializer(serializers.Serializer):
     graph_id = serializers.IntegerField(required=False, min_value=1)
     graph_name = serializers.CharField(required=False)

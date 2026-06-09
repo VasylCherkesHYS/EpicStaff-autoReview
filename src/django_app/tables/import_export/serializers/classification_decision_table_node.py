@@ -22,7 +22,7 @@ class ClassificationConditionGroupImportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClassificationConditionGroup
-        fields = "__all__"
+        exclude = ["created_at", "updated_at"]
 
 
 class ClassificationDecisionTablePromptImportSerializer(serializers.ModelSerializer):
