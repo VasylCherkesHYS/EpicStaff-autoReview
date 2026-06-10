@@ -186,7 +186,6 @@ class GraphStrategy(EntityImportExportStrategy):
 
     def _create_edges(self, edges_data: list, graph: Graph, id_mapper: IDMapper):
         for edge_data in edges_data:
-            edge_data["graph"] = graph.id
             edge_data["start_node_id"] = id_mapper.get(
                 NODE_MAPPING_KEY, edge_data["start_node_id"]
             )
@@ -196,7 +195,7 @@ class GraphStrategy(EntityImportExportStrategy):
 
             serializer = EdgeImportSerializer(data=edge_data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            serializer.save(graph=graph)
 
     def _create_conditional_edges(
         self, conditional_edges_data: list, graph: Graph, id_mapper: IDMapper

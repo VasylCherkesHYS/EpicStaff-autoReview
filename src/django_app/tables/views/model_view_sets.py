@@ -254,6 +254,7 @@ from tables.import_export.services.bulk_export_service import (
     NodeRef,
     LIST_KEY_TO_ENTITY_TYPE,
 )
+from tables.import_export.services.partial_import_service import PartialImportService
 from tables.utils.helpers import generate_file_name
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
@@ -904,6 +905,24 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             ),
         )
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="partial-import")
+    def partial_import(self, request, pk=None):
+        file_serializer = ImportRequestSerializer(data=request.data)
+        file_serializer.is_valid(raise_exception=True)
+
+        try:
+            data = json.load(file_serializer.validated_data["file"])
+        except json.JSONDecodeError:
+            return Response(
+                {"detail": "Invalid JSON file."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        graph = self.get_object()
+        partial_import_service = PartialImportService(entity_registry)
+        id_mapper = partial_import_service.import_data(data, graph)
+        summary = id_mapper.get_detailed_summary(entity_registry)
+        return Response(summary, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="save")
     @extend_schema(**_SAVE_FLOW_SWAGGER)
