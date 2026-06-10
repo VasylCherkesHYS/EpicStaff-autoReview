@@ -121,6 +121,7 @@
                             <app-collection-details-files
                                 [(documents)]="documents"
                                 (downloadRequested)="onFileDownload($event)"
+                                (previewRequested)="onFilePreview($event)"
                             />
                         </div>
                     }

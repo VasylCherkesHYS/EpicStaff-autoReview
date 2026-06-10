@@ -232,6 +232,17 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
         });
     }
 
+    onFilePreview(id: number): void {
+        const collection = this.fullCollection();
+        if (!collection) return;
+        this.dialog.open(CreateCollectionDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            data: { collection_id: collection.collection_id, isUpdate: true, initialDocumentId: id },
+            disableClose: true,
+        });
+    }
+
     onFileDownload(id: number): void {
         const doc = this.documents().find((d) => d.document_id === id);
         if (!doc) return;

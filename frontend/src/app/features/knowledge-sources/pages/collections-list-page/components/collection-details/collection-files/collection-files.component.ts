@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, model, output } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AppSvgIconComponent } from '@shared/components';
+import { AppSvgIconComponent, ConfirmationDialogService } from '@shared/components';
+import { filter, of, switchMap } from 'rxjs';
 
 import { ListComponent } from '../../../../../../../shared/components/list/list.component';
 import { ListActionsComponent } from '../../../../../../../shared/components/list/list-actions/list-actions.component';
@@ -19,8 +20,10 @@ import { DocumentsStorageService } from '../../../../../services/documents-stora
 export class CollectionFilesComponent {
     documents = model<DisplayedListDocument[]>([]);
     downloadRequested = output<number>();
+    previewRequested = output<number>();
 
     private documentsStorageService = inject(DocumentsStorageService);
+    private confirmationDialogService = inject(ConfirmationDialogService);
     private destroyRef = inject(DestroyRef);
 
     onDownload(id: number): void {
@@ -28,22 +31,21 @@ export class CollectionFilesComponent {
     }
 
     onDelete({ document_id, file_name }: DisplayedListDocument): void {
-        if (!document_id) {
-            this.documents.update((document) => {
-                return document.filter((d) => d.file_name !== file_name);
-            });
-            return;
-        }
-
-        this.documentsStorageService
-            .deleteDocumentById(document_id)
-            .pipe(takeUntilDestroyed(this.destroyRef))
+        this.confirmationDialogService
+            .confirmDelete(file_name)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                filter((result) => result === true),
+                switchMap(() => (document_id ? this.documentsStorageService.deleteDocumentById(document_id) : of(true)))
+            )
             .subscribe((res) => {
                 if (!res) return;
 
-                this.documents.update((document) => {
-                    return document.filter((d) => d.document_id !== document_id);
-                });
+                this.documents.update((docs) =>
+                    document_id
+                        ? docs.filter((d) => d.document_id !== document_id)
+                        : docs.filter((d) => d.file_name !== file_name)
+                );
             });
     }
 }

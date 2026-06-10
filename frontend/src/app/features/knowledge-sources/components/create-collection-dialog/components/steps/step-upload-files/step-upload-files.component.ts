@@ -18,7 +18,6 @@ import {
     HelpTooltipComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
-import { MATERIAL_FORMS } from '@shared/material-forms';
 import {
     catchError,
     debounceTime,
@@ -53,7 +52,6 @@ interface PreviewState {
     styleUrls: ['./step-upload-files.component.scss'],
     imports: [
         HelpTooltipComponent,
-        MATERIAL_FORMS,
         ReactiveFormsModule,
         FileUploaderComponent,
         FilesListComponent,
@@ -74,6 +72,7 @@ export class StepUploadFilesComponent implements OnInit {
     collectionName: FormControl = new FormControl('', [Validators.required, Validators.maxLength(255)]);
     collection = input.required<CreateCollectionDtoResponse>();
     documents = model<DisplayedListDocument[]>([]);
+    initialDocumentId = input<number | undefined>(undefined);
     selectedDocument = signal<DisplayedListDocument | null>(null);
 
     previewState = toSignal(
@@ -91,6 +90,13 @@ export class StepUploadFilesComponent implements OnInit {
     );
 
     constructor() {
+        effect(() => {
+            const id = this.initialDocumentId();
+            if (!id || this.selectedDocument()) return;
+            const doc = this.documents().find((d) => d.document_id === id);
+            if (doc) this.selectedDocument.set(doc);
+        });
+
         effect(() => {
             const documents = this.documentsStorageService
                 .documents()

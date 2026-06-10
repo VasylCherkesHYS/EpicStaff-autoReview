@@ -30,6 +30,14 @@
             <div class="files__size-column">
                 <span class="files__size">{{ item.file_size | fileSize }}</span>
                 <app-list-actions>
+                    @if (item.document_id) {
+                        <app-svg-icon
+                            icon="eye"
+                            size="0.875rem"
+                            class="files__close-action"
+                            (click)="previewRequested.emit(item.document_id)"
+                        />
+                    }
                     <app-svg-icon
                         icon="download"
                         size="0.875rem"

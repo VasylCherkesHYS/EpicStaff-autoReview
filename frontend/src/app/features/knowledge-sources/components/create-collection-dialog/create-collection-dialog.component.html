@@ -43,6 +43,7 @@
                 class="dialog__content"
                 [collection]="collection()"
                 [(documents)]="selectedDocuments"
+                [initialDocumentId]="data.initialDocumentId"
             />
         }
         @case (CreateCollectionStep.SELECT_RAG) {
