@@ -39,3 +39,7 @@ class DuplicateToolNameError(AgentServiceError):
 
 class SchemaValidationError(AgentServiceError):
     """Raised when output fails output_schema after all enforcement retries."""
+
+
+class McpToolError(AgentServiceError):
+    """Raised when an MCP tool call or discovery fails."""

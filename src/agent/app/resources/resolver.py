@@ -25,6 +25,7 @@ from app.exceptions import (
 )
 from app.loop.context import AgentContext
 from app.sandbox.client import SandboxClient
+from app.tools.mcp.gateway import McpToolGateway
 from app.tools.registry import ToolRegistry
 from app.tools.registry_builder import ToolRegistryBuilder
 from shared.models.agent_service import (
@@ -71,10 +72,11 @@ class AgentResolver:
     5. Return ``ResolvedAgent``.
     """
 
-    def __init__(self, sandbox: SandboxClient) -> None:
+    def __init__(self, sandbox: SandboxClient, mcp_gateway: McpToolGateway) -> None:
         self._sandbox = sandbox
+        self._mcp_gateway = mcp_gateway
 
-    def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
+    async def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
         """Resolve all refs for ``agent`` against the pools in ``request``."""
         tool_pool: dict[str, BaseToolData] = {
             entry.unique_name: entry for entry in request.tools
@@ -82,7 +84,7 @@ class AgentResolver:
         rag_pool: dict[str, RagSpec] = {spec.unique_name: spec for spec in request.rags}
         s3_pool: dict[int, S3FileSpec] = {spec.id: spec for spec in request.s3_files}
 
-        registry = self._build_tool_registry(agent, tool_pool)
+        registry = await self._build_tool_registry(agent, tool_pool)
         names = [s.name for s in registry.tool_specs()]
         logger.debug("agent_id={} resolved {} tool(s): {}", agent.id, len(names), names)
         self._validate_rag_refs(agent, rag_pool)
@@ -118,12 +120,14 @@ class AgentResolver:
             attachments=[],
         )
 
-    def _build_tool_registry(
+    async def _build_tool_registry(
         self,
         agent: AgentSpec,
         tool_pool: dict[str, BaseToolData],
     ) -> ToolRegistry:
-        builder = ToolRegistryBuilder(self._sandbox).add_system_tools()
+        builder = ToolRegistryBuilder(
+            self._sandbox, self._mcp_gateway
+        ).add_system_tools()
 
         for ref in agent.tool_refs:
             if ref not in tool_pool:
@@ -140,14 +144,12 @@ class AgentResolver:
 
             elif prefix == "mcp-tool":
                 assert isinstance(entry.data, McpToolData)
-                # McpToolData has no name/description/args_schema — use unique_name
-                # leaf as name and empty schema until MCP metadata is available.
-                tool_name = ref.split(":", 1)[1] if ":" in ref else ref
+                desc = await self._mcp_gateway.describe(entry.data)
                 builder.add_mcp_tool(
                     entry.data,
-                    name=tool_name,
-                    description=f"MCP tool {ref}",
-                    args_schema={},
+                    name=entry.data.tool_name,
+                    description=desc.description,
+                    args_schema=desc.input_schema,
                 )
 
             else:

@@ -71,7 +71,7 @@ class SingleTaskRunner(Runner):
             if output_schema:
                 logger.opt(lazy=True).debug("output_schema={}", lambda: output_schema)
 
-            resolved = self._deps.resolver.resolve(agent, request)
+            resolved = await self._deps.resolver.resolve(agent, request)
             logger.debug(
                 "resolved tools={} attachments={}",
                 [s.name for s in resolved.tools.tool_specs()],

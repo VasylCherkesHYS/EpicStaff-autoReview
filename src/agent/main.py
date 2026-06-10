@@ -14,6 +14,8 @@ from app.llm.litellm_client import LiteLLMClient
 from app.loop.agent_loop import DefaultAgentLoop
 from app.request_handler import RequestHandler
 from app.resources.resolver import AgentResolver
+from app.tools.mcp.client_factory import FastMCPClientFactory
+from app.tools.mcp.gateway import McpToolGateway
 from app.runners.deps import RunnerDependencies
 from app.runners.single_task import SingleTaskRunner
 from app.sandbox.client import SandboxClient
@@ -60,8 +62,9 @@ async def main() -> None:
     await loader.connect()
 
     llm = LiteLLMClient()
+    mcp_gateway = McpToolGateway(FastMCPClientFactory())
     deps = RunnerDependencies(
-        resolver=AgentResolver(sandbox_client),
+        resolver=AgentResolver(sandbox_client, mcp_gateway),
         loop=DefaultAgentLoop(llm, settings.agent_context_warning_ratio),
     )
     factory = RunnerFactory(deps)

@@ -152,7 +152,7 @@ class RaisingEnforcerLoop(AgentLoop):
 class FakeResolver:
     """Returns a ResolvedAgent with a real AgentContext and empty ToolRegistry."""
 
-    def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
+    async def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
         context = AgentContext(
             agent=agent,
             attachments=[],
@@ -169,7 +169,7 @@ class FakeResolver:
 class FakeResolverWithTools:
     """Returns a ResolvedAgent with one registered tool so has_tools=True."""
 
-    def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
+    async def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
         context = AgentContext(
             agent=agent,
             attachments=[],
@@ -191,7 +191,7 @@ class FakeResolverWithTools:
 class RaisingResolver:
     """Raises on resolve to simulate resolver failure."""
 
-    def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
+    async def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
         raise RuntimeError("resolver exploded")
 
 

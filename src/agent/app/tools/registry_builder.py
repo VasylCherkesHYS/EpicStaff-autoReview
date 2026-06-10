@@ -5,10 +5,11 @@ from typing import Self
 
 from shared.models.tools import McpToolData, PythonCodeToolData
 
-from app.exceptions import DuplicateToolNameError
+from app.exceptions import AgentServiceError, DuplicateToolNameError
 from app.sandbox.client import SandboxClient
+from app.tools.executors.mcp_tool import McpToolExecutor
 from app.tools.executors.python_code import PythonCodeToolExecutor
-from app.tools.executors.stubs import mcp_tool_executor
+from app.tools.mcp.gateway import McpToolGateway
 from app.tools.registry import ToolRegistry, ToolSpec
 from app.tools.system_registry import SystemToolRegistry, get_system_registry
 
@@ -40,8 +41,13 @@ class ToolRegistryBuilder:
         derives them from the tool pool entry metadata).
     """
 
-    def __init__(self, sandbox: SandboxClient) -> None:
+    def __init__(
+        self,
+        sandbox: SandboxClient,
+        mcp_gateway: McpToolGateway | None = None,
+    ) -> None:
         self._sandbox = sandbox
+        self._mcp_gateway = mcp_gateway
         self._registry = ToolRegistry()
         self._names: set[str] = set()
         self._built = False
@@ -106,7 +112,12 @@ class ToolRegistryBuilder:
             description=description,
             parameters_schema=args_schema,
         )
-        executor = mcp_tool_executor(data, name)
+        if self._mcp_gateway is None:
+            raise AgentServiceError(
+                "McpToolGateway is not configured — cannot register MCP tools"
+            )
+
+        executor = McpToolExecutor(self._mcp_gateway, data, name)
         self._registry.register(spec, executor)
         return self
 

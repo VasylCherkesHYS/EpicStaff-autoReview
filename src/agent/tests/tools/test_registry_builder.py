@@ -4,11 +4,12 @@ Tests for ToolRegistryBuilder.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.exceptions import DuplicateToolNameError
+from app.exceptions import AgentServiceError, DuplicateToolNameError
+from app.tools.mcp.gateway import McpToolGateway
 from app.tools.registry_builder import ToolRegistryBuilder
 from app.tools.system_registry import (
     SystemToolRegistry,
@@ -33,6 +34,12 @@ def clear_global_registry():
 
 def _fake_sandbox() -> MagicMock:
     return MagicMock()
+
+
+def _fake_gateway(return_value: str = "ok") -> McpToolGateway:
+    gateway = MagicMock(spec=McpToolGateway)
+    gateway.call = AsyncMock(return_value=return_value)
+    return gateway
 
 
 def _python_tool_data(name: str = "my_tool") -> PythonCodeToolData:
@@ -82,7 +89,7 @@ async def test_python_code_tool_uses_clean_name():
 
 
 async def test_mcp_tool_uses_clean_name():
-    builder = ToolRegistryBuilder(_fake_sandbox())
+    builder = ToolRegistryBuilder(_fake_sandbox(), _fake_gateway())
     registry = builder.add_mcp_tool(
         _mcp_tool_data("connector"),
         name="connector",
@@ -161,8 +168,9 @@ async def test_build_blocks_further_add_after_build():
         builder.add_python_code_tool(_python_tool_data("after_build"))
 
 
-async def test_mcp_stub_executor_raises_not_implemented():
-    builder = ToolRegistryBuilder(_fake_sandbox())
+async def test_mcp_executor_calls_gateway_and_returns_result():
+    gateway = _fake_gateway(return_value="tool output")
+    builder = ToolRegistryBuilder(_fake_sandbox(), gateway)
     registry = builder.add_mcp_tool(
         _mcp_tool_data("my_mcp"),
         name="my_mcp",
@@ -170,10 +178,22 @@ async def test_mcp_stub_executor_raises_not_implemented():
         args_schema={},
     ).build()
 
-    with pytest.raises(
-        NotImplementedError, match="MCP tool execution is not implemented yet"
-    ):
-        await registry.execute("my_mcp", {})
+    result = await registry.execute("my_mcp", {})
+
+    assert result.is_error is False
+    assert result.content == "tool output"
+
+
+async def test_add_mcp_tool_without_gateway_raises_agent_service_error():
+    builder = ToolRegistryBuilder(_fake_sandbox(), mcp_gateway=None)
+
+    with pytest.raises(AgentServiceError, match="McpToolGateway"):
+        builder.add_mcp_tool(
+            _mcp_tool_data("my_mcp"),
+            name="my_mcp",
+            description="An MCP tool.",
+            args_schema={},
+        )
 
 
 async def test_system_tool_executor_callable_via_registry():
@@ -190,7 +210,7 @@ async def test_system_tool_executor_callable_via_registry():
 async def test_tool_specs_returns_all_registered():
     _register_system_tool("spec_tool")
 
-    builder = ToolRegistryBuilder(_fake_sandbox())
+    builder = ToolRegistryBuilder(_fake_sandbox(), _fake_gateway())
     registry = (
         builder.add_system_tools()
         .add_python_code_tool(_python_tool_data("code_tool"))
