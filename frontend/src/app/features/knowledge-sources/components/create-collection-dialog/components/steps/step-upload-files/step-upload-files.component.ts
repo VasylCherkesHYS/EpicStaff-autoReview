@@ -1,21 +1,51 @@
 import { UpperCasePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, model, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    model,
+    OnInit,
+    signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { FileUploaderComponent, HelpTooltipComponent, ValidationErrorsComponent } from '@shared/components';
+import {
+    BlobPreviewComponent,
+    FileUploaderComponent,
+    HelpTooltipComponent,
+    ValidationErrorsComponent,
+} from '@shared/components';
 import { MATERIAL_FORMS } from '@shared/material-forms';
-import { EMPTY, filter } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
+import {
+    catchError,
+    debounceTime,
+    distinctUntilChanged,
+    EMPTY,
+    filter,
+    map,
+    Observable,
+    of,
+    startWith,
+    switchMap,
+} from 'rxjs';
 
 import { ToastService } from '../../../../../../../services/notifications';
 import { FILE_TYPES } from '../../../../../constants/constants';
 import { CreateCollectionDtoResponse } from '../../../../../models/collection.model';
 import { DisplayedListDocument } from '../../../../../models/document.model';
 import { CollectionsStorageService } from '../../../../../services/collections-storage.service';
+import { DocumentsApiService } from '../../../../../services/documents-api.service';
 import { DocumentsStorageService } from '../../../../../services/documents-storage.service';
 import { FileListService } from '../../../../../services/files-list.service';
-import { FilePreviewComponent } from './file-preview/file-preview.component';
 import { FilesListComponent } from './files-list/files-list.component';
+
+interface PreviewState {
+    blob: Blob | null;
+    fileName: string;
+}
 
 @Component({
     selector: 'app-step-upload-files',
@@ -27,7 +57,7 @@ import { FilesListComponent } from './files-list/files-list.component';
         ReactiveFormsModule,
         FileUploaderComponent,
         FilesListComponent,
-        FilePreviewComponent,
+        BlobPreviewComponent,
         UpperCasePipe,
         ValidationErrorsComponent,
     ],
@@ -37,12 +67,28 @@ export class StepUploadFilesComponent implements OnInit {
     private destroyRef = inject(DestroyRef);
     private collectionsStorageService = inject(CollectionsStorageService);
     private documentsStorageService = inject(DocumentsStorageService);
+    private documentsApiService = inject(DocumentsApiService);
     private fileListService = inject(FileListService);
     private readonly toastService = inject(ToastService);
 
     collectionName: FormControl = new FormControl('', [Validators.required, Validators.maxLength(255)]);
     collection = input.required<CreateCollectionDtoResponse>();
     documents = model<DisplayedListDocument[]>([]);
+    selectedDocument = signal<DisplayedListDocument | null>(null);
+
+    previewState = toSignal(
+        toObservable(this.selectedDocument).pipe(
+            switchMap((doc): Observable<PreviewState> => {
+                if (!doc?.document_id) return of({ blob: null, fileName: '' });
+                return this.documentsApiService.previewDocumentBlob(doc.document_id).pipe(
+                    map((blob) => ({ blob, fileName: doc.file_name })),
+                    startWith({ blob: null, fileName: doc.file_name }),
+                    catchError(() => of({ blob: null, fileName: doc.file_name }))
+                );
+            })
+        ),
+        { initialValue: { blob: null, fileName: '' } as PreviewState }
+    );
 
     constructor() {
         effect(() => {

@@ -1,8 +1,9 @@
 import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../services/notifications/toast.service';
@@ -52,16 +53,24 @@ export class FilesListPageComponent {
 
     readonly searchTerm = this.filesSearchService.searchTerm;
 
+    private readonly currentUrl = toSignal(
+        this.router.events.pipe(
+            filter((e) => e instanceof NavigationEnd),
+            map((e) => (e as NavigationEnd).urlAfterRedirects),
+            startWith(this.router.url)
+        )
+    );
+
     activeTabBtn = computed(() => {
-        const url = this.router.url;
-        if (url.includes('/storage')) {
+        const url = this.currentUrl();
+        if (url?.includes('/storage')) {
             return {
                 label: 'Add files',
                 action: () => this.onCreateFolderClick(),
             };
         }
 
-        if (url.includes('/knowledge-sources')) {
+        if (url?.includes('/knowledge-sources')) {
             return {
                 label: 'Add collection',
                 action: () => this.onCreateCollectionClick(),

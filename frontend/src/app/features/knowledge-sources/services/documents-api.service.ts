@@ -38,6 +38,10 @@ export class DocumentsApiService {
         );
     }
 
+    previewDocumentBlob(id: number): Observable<Blob> {
+        return this.http.get(`${this.apiUrl}/${id}/preview/`, { responseType: 'blob' });
+    }
+
     copyDocuments(dto: CopyDocumentsRequest): Observable<CopyDocumentsResponse> {
         return this.http.post<CopyDocumentsResponse>(`${this.apiUrl}/copy/`, dto);
     }
