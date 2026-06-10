@@ -642,8 +642,12 @@ class TestRemovedEndpoints:
 
 
 @pytest.mark.django_db
-def test_profile_no_header_returns_null_active_org(auth_client, regular_user):
-    response = auth_client.get("/api/profile/")
+def test_profile_no_header_returns_null_active_org(
+    api_client, regular_user, jwt_tokens
+):
+    # Auth only, deliberately no X-Organization-Id (auth_client sets a sticky one).
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_tokens['access']}")
+    response = api_client.get("/api/profile/")
     assert response.status_code == 200
     body = response.json()
     assert body["active_organization_id"] is None
@@ -665,11 +669,14 @@ def test_profile_valid_header_returns_active_permissions(
 
 
 @pytest.mark.django_db
-def test_profile_invalid_header_soft_fails(auth_client, regular_user, db):
+def test_profile_invalid_header_soft_fails(api_client, regular_user, jwt_tokens, db):
     from tables.models.rbac_models import Organization
 
+    # Auth only, then pass an org the caller is not a member of as a per-request
+    # header (auth_client's sticky default would otherwise override it).
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_tokens['access']}")
     other = Organization.objects.create(name="Other Inc (profile tests)")
-    response = auth_client.get("/api/profile/", HTTP_X_ORGANIZATION_ID=str(other.id))
+    response = api_client.get("/api/profile/", HTTP_X_ORGANIZATION_ID=str(other.id))
     # NOT 403 — profile is the FE boot endpoint.
     assert response.status_code == 200
     body = response.json()

@@ -45,6 +45,7 @@ from tables.models import (
     PythonCodeTool,
     PythonCode,
     RealtimeAgent,
+    Organization,
 )
 
 from tests.helpers import data_to_json_file
@@ -145,7 +146,10 @@ def wikipedia_tool_config(wikipedia_tool) -> ToolConfig:
 
 @pytest.fixture
 def wikipedia_agent(
-    gpt_4o_llm: LLMModel, llm_config: LLMConfig, wikipedia_tool_config: ToolConfig
+    gpt_4o_llm: LLMModel,
+    llm_config: LLMConfig,
+    wikipedia_tool_config: ToolConfig,
+    default_org: Organization,
 ) -> Agent:
     agent = Agent(
         role="Wikipedia searcher",
@@ -156,6 +160,7 @@ def wikipedia_agent(
         max_iter=25,
         llm_config=llm_config,
         fcm_llm_config=llm_config,
+        org=default_org,
     )
     agent.save()
 
@@ -204,6 +209,7 @@ def crew(
     embedding_config: EmbeddingConfig,
     llm_config: LLMConfig,
     test_task: Task,
+    default_org: Organization,
 ) -> Crew:
     crew = Crew(
         name="Test Crew",
@@ -213,6 +219,7 @@ def crew(
         embedding_config=embedding_config,
         manager_llm_config=llm_config,
         memory_llm_config=llm_config,
+        org=default_org,
     )
 
     crew.save()
@@ -225,8 +232,8 @@ def crew(
 
 
 @pytest.fixture
-def graph() -> Graph:
-    return Graph.objects.create(name="test")
+def graph(default_org: Organization) -> Graph:
+    return Graph.objects.create(name="test", org=default_org)
 
 
 @pytest.fixture

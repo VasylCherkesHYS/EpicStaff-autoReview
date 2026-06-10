@@ -31,8 +31,22 @@ def export_service():
 
 
 @pytest.fixture
-def import_service():
-    return ImportService(entity_registry)
+def import_service(default_org):
+    # Default org_id to the test default_org so import tests that don't pass it
+    # explicitly land created Graph/Agent/Crew rows in a real org (NOT NULL).
+    service = ImportService(entity_registry)
+    _original = service.import_data
+
+    def _import_data(export_data, main_entity, preserve_uuids=False, org_id=None):
+        return _original(
+            export_data,
+            main_entity,
+            preserve_uuids=preserve_uuids,
+            org_id=org_id if org_id is not None else default_org.id,
+        )
+
+    service.import_data = _import_data
+    return service
 
 
 @pytest.fixture
@@ -42,6 +56,7 @@ def rich_seeded_db(
     embedding_config,
     openai_realtime_model_config,
     realtime_transcription_config,
+    default_org,
 ):
     """
     Extended seeded_db with LLM configs, embedding configs, realtime configs,
@@ -68,11 +83,13 @@ def rich_seeded_db(
         goal="goal1",
         backstory="backstory1",
         llm_config=llm_config,
+        org=default_org,
     )
     agent2 = Agent.objects.create(
         role="agent2",
         goal="goal2",
         backstory="backstory2",
+        org=default_org,
     )
 
     agents = [agent1, agent2]
@@ -94,6 +111,7 @@ def rich_seeded_db(
         name="crew1",
         embedding_config=embedding_config,
         manager_llm_config=llm_config,
+        org=default_org,
     )
     crew1.agents.set([agent1, agent2])
 
@@ -119,6 +137,7 @@ def rich_seeded_db(
     graph = Graph.objects.create(
         name="graph1",
         metadata={"nodes": [], "edges": []},
+        org=default_org,
     )
 
     start_node = StartNode.objects.create(graph=graph, variables={})
