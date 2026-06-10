@@ -2,11 +2,10 @@ from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
+from tables.graph_collab.utils import build_editor_info
 from tables.graph_collab.presence_service import presence_service
 from tables.graph_collab.protocol import (
-    EditorInfo,
     ErrorMessage,
-    GraphModifiedMessage,
     PresenceStateMessage,
     UserJoinedMessage,
     UserLeftMessage,
@@ -53,7 +52,7 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             "User {} connected to graph {} edit channel", user.pk, self.graph_id
         )
 
-        editor = self._build_editor_info(user)
+        editor = build_editor_info(user)
         presence_service.add(self.graph_id, self.channel_name, editor)
 
         await self.send_json(
@@ -82,26 +81,18 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(group, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
+        """
+        Fallback for messages that sended from FE
+        (not available right now, so marked as unknown)
+        """
         message_type = content.get("type")
 
-        if message_type == "graph_modified":
-            await self._handle_graph_modified()
-        else:
-            await self.send_json(
-                ErrorMessage(
-                    code="unknown_message_type",
-                    message=f"Unknown message type: {message_type!r}",
-                ).model_dump()
-            )
-
-    async def _handle_graph_modified(self):
-        user = self.scope["user"]
-        editor = self._build_editor_info(user)
-        message = GraphModifiedMessage(
-            graph_id=self.graph_id,
-            modified_by=editor,
+        await self.send_json(
+            ErrorMessage(
+                code="unknown_message_type",
+                message=f"Unknown message type: {message_type!r}",
+            ).model_dump()
         )
-        await self.channel_layer.group_send(self.group, message.model_dump())
 
     # --- Channel layer handlers ---
 
@@ -120,22 +111,10 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
     async def presence_state(self, event):
         await self.send_json(event)
 
+    async def presence_state_updated(self, event):
+        await self.send_json(event)
+
     # --- Helpers ---
-    @staticmethod
-    def _build_editor_info(user) -> EditorInfo:
-        avatar_url: str | None = None
-        avatar = getattr(user, "avatar", None)
-        if avatar and avatar.name:
-            try:
-                avatar_url = avatar.url
-            except ValueError:
-                avatar_url = None
-        return EditorInfo(
-            user_id=user.pk,
-            display_name=getattr(user, "display_name", None)
-            or getattr(user, "email", None),
-            avatar_url=avatar_url,
-        )
 
     @staticmethod
     def _graph_exists(graph_id: int) -> bool:

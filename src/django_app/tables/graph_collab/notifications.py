@@ -1,9 +1,12 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from tables.graph_collab.utils import build_editor_info
+from tables.graph_collab.presence_service import presence_service
 from tables.graph_collab.protocol import (
     EditorInfo,
     GraphSavedMessage,
+    PresenceStateUpdatedMessage,
 )
 from utils.logger import logger
 
@@ -40,6 +43,16 @@ class GraphEditNotifier:
             saved_at=saved_at,
         )
         GraphEditNotifier._send(graph_id, message.model_dump())
+
+    @staticmethod
+    def notify_profile_updated(user) -> None:
+        editor = build_editor_info(user)
+        affected = presence_service.update_editor_for_user(user.pk, editor)
+        if not affected:
+            return
+        message = PresenceStateUpdatedMessage(editor=editor).model_dump()
+        for graph_id in affected:
+            GraphEditNotifier._send(graph_id, message)
 
     @staticmethod
     def _send(graph_id: int, message: dict) -> None:
