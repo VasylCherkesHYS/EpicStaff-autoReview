@@ -311,6 +311,9 @@ class NaiveRagService:
             )
             new_configs.append(config)
 
+        if new_configs:
+            naive_rag.update_rag_status()
+
         logger.info(
             f"Initialized {len(new_configs)} new document configs for NaiveRag {naive_rag_id}. "
             f"Existing configs unchanged: {len(existing_config_doc_ids)}"
