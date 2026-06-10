@@ -1,4 +1,5 @@
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from tables.models import Graph
 from tables.import_export.id_mapper import IDMapper
@@ -41,6 +42,10 @@ class PartialImportService:
         self.registry = registry
 
     def import_data(self, export_data: dict, graph: Graph) -> IDMapper:
+        nodes_data = self._collect_nodes(export_data)
+        if not nodes_data:
+            raise ValidationError({"detail": "No nodes found in the import file."})
+
         id_mapper = IDMapper()
 
         with transaction.atomic():
@@ -51,7 +56,6 @@ class PartialImportService:
             # and create nodes + edges inside the existing graph
             graph_strategy: GraphStrategy = self.registry.get_strategy(EntityType.GRAPH)
 
-            nodes_data = self._collect_nodes(export_data)
             edges_data = export_data.get("edge_list", [])
             conditional_edges_data = export_data.get("conditional_edge_list", [])
 

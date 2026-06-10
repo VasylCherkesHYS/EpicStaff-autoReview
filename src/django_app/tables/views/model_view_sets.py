@@ -913,9 +913,9 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
         try:
             data = json.load(file_serializer.validated_data["file"])
-        except json.JSONDecodeError:
-            return Response(
-                {"detail": "Invalid JSON file."}, status=status.HTTP_400_BAD_REQUEST
+        except (json.JSONDecodeError, UnicodeDecodeError, Exception):
+            raise DRFValidationError(
+                {"detail": "File format is incorrect. Please upload a valid JSON file."}
             )
 
         graph = self.get_object()
