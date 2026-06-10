@@ -1,10 +1,22 @@
+import unittest.mock
+
+import fakeredis
 import pytest
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
+from django.urls import re_path
+from channels.routing import URLRouter
+from channels.testing import WebsocketCommunicator
 
 from tables.models import Graph
+from tables.graph_collab.consumers import GraphEditConsumer
 from tables.graph_collab.presence_service import presence_service
+
+
+application = URLRouter(
+    [re_path(r"ws/graphs/(?P<graph_id>\d+)/edit/$", GraphEditConsumer.as_asgi())]
+)
 
 
 CHANNEL_LAYERS_OVERRIDE = {
@@ -15,7 +27,7 @@ CHANNEL_LAYERS_OVERRIDE = {
 
 
 @pytest.fixture
-def channel_layer_settings():
+def channel_layer_settings(autouse=True):
     """Override channel layers so each test gets a fresh in-memory layer."""
     with override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE):
         yield
@@ -46,9 +58,31 @@ def second_user(db):
     )
 
 
+@pytest.fixture
+def fake_redis():
+    fake = fakeredis.FakeStrictRedis()
+    with unittest.mock.patch(
+        "tables.graph_collab.ws_auth.get_redis_connection",
+        return_value=fake,
+    ):
+        yield fake
+
+
 @pytest.fixture(autouse=True)
 def reset_presence_store():
     """Reset the module-level presence store between tests to prevent state leakage."""
     presence_service._store.clear()
     yield
     presence_service._store.clear()
+
+
+@pytest.fixture
+def make_communicator():
+    from django.contrib.auth.models import AnonymousUser
+
+    def _make(graph_id: int, user=None):
+        communicator = WebsocketCommunicator(application, f"ws/graphs/{graph_id}/edit/")
+        communicator.scope["user"] = user or AnonymousUser()
+        return communicator
+
+    return _make

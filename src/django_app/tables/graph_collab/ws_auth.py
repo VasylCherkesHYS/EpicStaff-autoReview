@@ -1,5 +1,4 @@
 import secrets
-from typing import Optional
 
 from asgiref.sync import sync_to_async
 from channels.middleware import BaseMiddleware
@@ -35,7 +34,7 @@ class WsTicketService:
         self._redis().set(self._key(ticket), user.pk, ex=self._ttl)
         return ticket
 
-    def consume(self, ticket: str) -> Optional[object]:
+    def consume(self, ticket: str) -> object | None:
         if not ticket:
             return None
         raw = self._redis().getdel(self._key(ticket))
