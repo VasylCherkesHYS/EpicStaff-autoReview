@@ -73,7 +73,6 @@ from tables.views.views import (
     RunSession,
     GetUpdates,
     StopSession,
-    CrewDeleteAPIView,
     DefaultLLMConfigAPIView,
     DefaultEmbeddingConfigAPIView,
     DefaultAgentConfigAPIView,
@@ -248,7 +247,6 @@ urlpatterns = [
         name="get-updates",
     ),
     path("sessions/<int:session_id>/stop/", StopSession.as_view(), name="stop-session"),
-    path("crews/<int:id>/delete/", CrewDeleteAPIView.as_view(), name="delete-crew"),
     path(
         "environment/config/",
         EnvironmentConfig.as_view(),
