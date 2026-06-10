@@ -161,7 +161,7 @@ from tables.models.llm_models import (
 )
 from tables.models.knowledge_models.naive_rag_models import AgentNaiveRag
 from tables.models.mcp_models import McpTool
-from tables.models.python_models import PythonCodeToolConfig, PythonCodeToolConfigField
+from tables.models.python_models import PythonCodeToolConfig
 from tables.models.realtime_models import (
     RealtimeAgent,
     RealtimeAgentChat,
@@ -217,7 +217,6 @@ from tables.serializers.model_serializers import (
     ProviderSerializer,
     PythonCodeResultSerializer,
     PythonCodeSerializer,
-    PythonCodeToolConfigFieldSerializer,
     PythonCodeToolConfigSerializer,
     PythonCodeToolSerializer,
     PythonNodeSerializer,
@@ -391,11 +390,6 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
             "python_code_tools",
             queryset=AgentPythonCodeTools.objects.select_related(
                 "pythoncodetool__python_code"
-            ).prefetch_related(
-                Prefetch(
-                    "pythoncodetool__tool_fields",
-                    queryset=PythonCodeToolConfigField.objects.all(),
-                )
             ),
             to_attr="prefetched_python_code_tools",
         ),
@@ -572,9 +566,7 @@ class TaskReadWriteViewSet(ModelViewSet):
     queryset = Task.objects.prefetch_related(
         Prefetch(
             "task_python_code_tool_list",
-            queryset=TaskPythonCodeTools.objects.select_related(
-                "tool__python_code"
-            ).prefetch_related("tool__tool_fields"),
+            queryset=TaskPythonCodeTools.objects.select_related("tool__python_code"),
         ),
         Prefetch(
             "task_python_code_tool_config_list",
@@ -588,9 +580,7 @@ class TaskReadWriteViewSet(ModelViewSet):
         ),
         Prefetch(
             "task_configured_tool_list",
-            queryset=TaskConfiguredTools.objects.select_related(
-                "tool__tool"
-            ).prefetch_related("tool__tool__tool_fields"),
+            queryset=TaskConfiguredTools.objects.select_related("tool__tool"),
         ),
         Prefetch(
             "task_mcp_tool_list",
@@ -701,11 +691,7 @@ class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
     copy_service_class = PythonCodeToolCopyService
     copy_serializer_class = PythonCodeToolSerializer
 
-    queryset = (
-        PythonCodeTool.objects.all()
-        .select_related("python_code")
-        .prefetch_related("tool_fields")
-    )
+    queryset = PythonCodeTool.objects.all().select_related("python_code")
     serializer_class = PythonCodeToolSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["name", "python_code"]
@@ -718,26 +704,10 @@ class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
 
 class PythonCodeToolConfigViewSet(viewsets.ModelViewSet):
-    queryset = PythonCodeToolConfig.objects.select_related("tool").prefetch_related(
-        Prefetch(
-            "tool__tool_fields",
-            queryset=PythonCodeToolConfigField.objects.all(),
-            to_attr="prefetched_config_fields",
-        )
-    )
+    queryset = PythonCodeToolConfig.objects.select_related("tool")
     serializer_class = PythonCodeToolConfigSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["tool", "name"]
-
-
-class PythonCodeToolConfigFieldViewSet(viewsets.ModelViewSet):
-    """
-    A viewset for viewing and editing PythonCodeToolConfigFields instances.
-    """
-
-    queryset = PythonCodeToolConfigField.objects.all()
-    serializer_class = PythonCodeToolConfigFieldSerializer
-    filter_backends = [DjangoFilterBackend]
 
 
 class PythonCodeResultReadViewSet(ReadOnlyModelViewSet):
