@@ -1,4 +1,5 @@
 import { inject, Injectable, signal } from '@angular/core';
+import { StorageService } from '@shared/services';
 import { catchError, delay, Observable, of, tap, throwError } from 'rxjs';
 import { shareReplay } from 'rxjs/operators';
 
@@ -12,7 +13,7 @@ import { CollectionsApiService } from './collections-api.service';
 @Injectable({
     providedIn: 'root',
 })
-export class CollectionsStorageService {
+export class CollectionsStorageService implements StorageService {
     // List of collection preview
     private collectionsSignal = signal<GetCollectionRequest[]>([]);
     private collectionsLoaded = signal<boolean>(false);
@@ -95,6 +96,24 @@ export class CollectionsStorageService {
         );
     }
 
+    updateDocumentCount(collectionId: number, newCount: number): void {
+        this.collectionsSignal.update((collections) => {
+            const index = collections.findIndex((c) => c.collection_id === collectionId);
+            if (index < 0) return collections;
+            const updated = [...collections];
+            updated[index] = { ...updated[index], document_count: newCount };
+            return updated;
+        });
+
+        this.fullCollectionsSignal.update((collections) => {
+            const index = collections.findIndex((c) => c.collection_id === collectionId);
+            if (index < 0) return collections;
+            const updated = [...collections];
+            updated[index] = { ...updated[index], document_count: newCount };
+            return updated;
+        });
+    }
+
     private updateOrCreateCollectionInCache(updated: CreateCollectionDtoResponse): void {
         const { rag_configurations, ...rest } = updated;
 
@@ -121,6 +140,13 @@ export class CollectionsStorageService {
             }
             return [...collections];
         });
+    }
+
+    clear(): void {
+        this.collectionsSignal.set([]);
+        this.collectionsLoaded.set(false);
+        this.fullCollectionsSignal.set([]);
+        this.fullCollectionsLoaded.set(false);
     }
 
     private deleteCollectionFromCache(id: number) {

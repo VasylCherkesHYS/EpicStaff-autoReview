@@ -16,6 +16,7 @@ from tables.models import (
 from tables.models.realtime_models import RealtimeAgent
 from tables.import_export.enums import EntityType
 from tables.import_export.registry import entity_registry
+from tables.import_export.services.import_service import ImportSettings
 
 
 # ──────────────────────────────────────────
@@ -176,7 +177,7 @@ class TestGraphRoundTrip:
         export_data = export_service.export_entities(EntityType.GRAPH, [graph.id])
 
         id_mapper, _ = import_service.import_data(
-            export_data, EntityType.GRAPH, preserve_uuids=True
+            export_data, EntityType.GRAPH, settings=ImportSettings(preserve_uuids=True)
         )
 
         new_graph_id = id_mapper.get_new_ids(EntityType.GRAPH)[0]

@@ -7,7 +7,6 @@ from tables.models import (
     PythonNode,
     DecisionTableNode,
     CrewNode,
-    LLMNode,
     FileExtractorNode,
     WebhookTriggerNode,
     TelegramTriggerNode,
@@ -139,12 +138,6 @@ class AudioTranscriptionNodeImportSerializer(BaseNodeImportSerializer):
         exclude = ["created_at", "updated_at"]
 
 
-class LLMNodeImportSerializer(BaseNodeImportSerializer):
-    class Meta(BaseNodeImportSerializer.Meta):
-        model = LLMNode
-        exclude = ["created_at", "updated_at"]
-
-
 class CrewNodeImportSerializer(BaseNodeImportSerializer):
     class Meta(BaseNodeImportSerializer.Meta):
         model = CrewNode
@@ -195,7 +188,7 @@ class GraphImportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Graph
-        exclude = ["tags", "created_at", "updated_at", "labels"]
+        exclude = ["tags", "created_at", "updated_at", "labels", "save_version"]
 
 
 class ScheduleTriggerNodeImportSerializer(BaseNodeImportSerializer):

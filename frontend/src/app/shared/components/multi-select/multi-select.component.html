@@ -45,6 +45,10 @@
                         [class.multi-select__item--selected]="isChecked(item.value)"
                         (click)="toggleValue(item.value)"
                     >
+                        <app-checkbox
+                            color="secondary"
+                            [checked]="isChecked(item.value)"
+                        />
                         <span>
                             {{ item.name }}
                             @if (item.tip) {
@@ -53,10 +57,6 @@
                                 </span>
                             }
                         </span>
-                        <app-checkbox
-                            mod="multiselect"
-                            [checked]="isChecked(item.value)"
-                        />
                     </div>
                 }
             }

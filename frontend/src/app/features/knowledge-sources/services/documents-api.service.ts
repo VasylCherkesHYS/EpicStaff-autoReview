@@ -3,7 +3,12 @@ import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { ConfigService } from '../../../services/config/config.service';
-import { DeleteDocumentResponse, UploadDocumentResponse } from '../models/document.model';
+import {
+    CopyDocumentsRequest,
+    CopyDocumentsResponse,
+    DeleteDocumentResponse,
+    UploadDocumentResponse,
+} from '../models/document.model';
 
 @Injectable({
     providedIn: 'root',
@@ -31,6 +36,14 @@ export class DocumentsApiService {
             `${this.apiUrl}/source-collection/${collectionId}/upload/`,
             formData
         );
+    }
+
+    previewDocumentBlob(id: number): Observable<Blob> {
+        return this.http.get(`${this.apiUrl}/${id}/preview/`, { responseType: 'blob' });
+    }
+
+    copyDocuments(dto: CopyDocumentsRequest): Observable<CopyDocumentsResponse> {
+        return this.http.post<CopyDocumentsResponse>(`${this.apiUrl}/copy/`, dto);
     }
 
     deleteDocumentById(id: number): Observable<DeleteDocumentResponse> {

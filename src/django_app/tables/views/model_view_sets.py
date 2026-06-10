@@ -52,6 +52,7 @@ from tables.exceptions import (
     BuiltInToolModificationError,
     BulkSaveValidationError,
     TaskSerializerError,
+    GraphSaveVersionConflictError,
 )
 from tables.serializers.graph_bulk_save_serializers import GraphBulkSaveInputSerializer
 from tables.services.graph_bulk_save_service import GraphBulkSaveService
@@ -60,6 +61,7 @@ from tables.graph_versioning.serializers import (
     GraphVersionCreateSerializer,
     GraphVersionReadSerializer,
     GraphVersionUpdateSerializer,
+    RestoreVersionInputSerializer,
 )
 
 from tables.import_export.enums import EntityType
@@ -144,7 +146,6 @@ from tables.models.graph_models import (
     EndNode,
     GraphOrganization,
     GraphOrganizationUser,
-    LLMNode,
     GraphNote,
     TelegramTriggerNode,
     TelegramTriggerNodeField,
@@ -209,7 +210,6 @@ from tables.serializers.model_serializers import (
     GraphSerializer,
     GraphSessionMessageSerializer,
     LabelSerializer,
-    LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
     NgrokWebhookConfigModelSerializer,
@@ -242,6 +242,7 @@ from tables.serializers.serializers import (
 )
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
+from tables.import_export.services.import_service import ImportSettings
 from tables.services.redis_service import RedisService
 from tables.swagger_schemas.twilio_schemas import (
     TWILIO_PHONE_NUMBERS_GET,
@@ -784,10 +785,6 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     queryset=ConditionalEdge.objects.select_related("python_code"),
                 ),
                 Prefetch(
-                    "llm_node_list",
-                    queryset=LLMNode.objects.select_related("llm_config"),
-                ),
-                Prefetch(
                     "webhook_trigger_node_list",
                     queryset=WebhookTriggerNode.objects.all(),
                 ),
@@ -822,6 +819,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         created_graph = serializer.save()
+        # TODO: RESOLVE BY X-Organization-Id header
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.create(graph=created_graph, organization=organization)
 
@@ -851,9 +849,14 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         file_serializer = ImportRequestSerializer(data=request.data)
         file_serializer.is_valid(raise_exception=True)
 
+        vd = file_serializer.validated_data
         data = self.import_export_service.import_entity(
-            file_serializer.validated_data["file"],
-            preserve_uuids=file_serializer.validated_data["preserve_uuids"],
+            vd["file"],
+            settings=ImportSettings(
+                preserve_uuids=vd["preserve_uuids"],
+                replace_existing=vd["replace_existing"],
+                import_labels=vd["import_labels"],
+            ),
         )
         return Response(data, status=status.HTTP_200_OK)
 
@@ -871,6 +874,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             GraphBulkSaveService().save(graph, input_serializer.validated_data)
         except BulkSaveValidationError as exc:
             return Response({"errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+        # GraphSaveVersionConflictError propagates → DRF returns 409 automatically.
 
         refreshed = self.get_queryset().get(pk=pk)
         return Response(GraphSerializer(refreshed).data, status=status.HTTP_200_OK)
@@ -894,7 +898,7 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     restore=extend_schema(
-        request=None,
+        request=RestoreVersionInputSerializer,
         responses={
             200: inline_serializer(
                 name="RestoreResponse",
@@ -970,9 +974,17 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="restore")
     def restore(self, request, *args, **kwargs):
+        input_serializer = RestoreVersionInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        expected_save_version = input_serializer.validated_data["save_version"]
+
         version = self.get_object()
         backup = request.query_params.get("backup", "").lower() == "true"
-        result = GraphVersioningService().restore_version(version, backup=backup)
+        result = GraphVersioningService().restore_version(
+            version,
+            expected_save_version=expected_save_version,
+            backup=backup,
+        )
         return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="create-graph")
@@ -1036,13 +1048,6 @@ class AudioTranscriptionNodeViewSet(
     serializer_class = AudioTranscriptionNodeSerializer
 
 
-class LLMNodeViewSet(
-    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
-):
-    queryset = LLMNode.objects.all()
-    serializer_class = LLMNodeSerializer
-
-
 class CodeAgentNodeViewSet(IdempotentNodeCreateMixin, viewsets.ModelViewSet):
     queryset = CodeAgentNode.objects.all()
     serializer_class = CodeAgentNodeSerializer
@@ -1058,11 +1063,28 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
     serializer_class = ConditionalEdgeSerializer
 
 
+class GraphSessionMessageFilter(FilterSet):
+    session_id = NumberFilter(field_name="session_id", lookup_expr="exact")
+    parent_subgraph_execution_id = filters.UUIDFilter(
+        field_name="parent_subgraph_execution_id", lookup_expr="exact"
+    )
+
+    class Meta:
+        model = GraphSessionMessage
+        fields = ["session_id", "parent_subgraph_execution_id"]
+
+
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
     queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["session_id"]
+    filterset_class = GraphSessionMessageFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not self.request.query_params.get("parent_subgraph_execution_id"):
+            qs = qs.filter(parent_subgraph_execution_id__isnull=True)
+        return qs
 
 
 class MemoryFilter(FilterSet):

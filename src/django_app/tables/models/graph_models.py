@@ -4,6 +4,7 @@ import uuid
 
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 from loguru import logger
 
@@ -15,6 +16,7 @@ from tables.models.base_models import (
     SoftDeleteMixin,
 )
 from tables.models.label_models import Label
+from tables.exceptions import GraphSaveVersionConflictError
 
 
 class GraphManager(models.Manager):
@@ -62,6 +64,25 @@ class Graph(TimestampMixin, models.Model):
     epicchat_enabled = models.BooleanField(
         default=False, help_text="If 'True' -> flow is connected to EpicChat widget."
     )
+    save_version = models.BigIntegerField(default=1)
+
+    @classmethod
+    def increment_version_if_current(cls, pk: int, expected: int) -> int:
+        """
+        Atomically increment save_version if the row's current save_version equals `expected`.
+        Returns the new save_version on success. Raises GraphSaveVersionConflictError on mismatch.
+        Must be called inside a transaction.atomic block by the caller.
+        """
+
+        updated = cls.objects.filter(pk=pk, save_version=expected).update(
+            save_version=F("save_version") + 1
+        )
+        if not updated:
+            current = (
+                cls.objects.filter(pk=pk).values_list("save_version", flat=True).first()
+            )
+            raise GraphSaveVersionConflictError(current_version=current)
+        return expected + 1
 
 
 class BaseNode(BaseGraphEntity, BaseGlobalNode):
@@ -139,13 +160,6 @@ class AudioTranscriptionNode(BaseNode):
     graph = models.ForeignKey(
         "Graph", on_delete=models.CASCADE, related_name="audio_transcription_node_list"
     )
-
-
-class LLMNode(BaseNode):
-    graph = models.ForeignKey(
-        "Graph", on_delete=models.CASCADE, related_name="llm_node_list"
-    )
-    llm_config = models.ForeignKey("LLMConfig", blank=False, on_delete=models.CASCADE)
 
 
 class EndNode(BaseGraphEntity, BaseGlobalNode):
@@ -291,6 +305,17 @@ class GraphSessionMessage(models.Model):
     execution_order = models.IntegerField(default=0)
     message_data = models.JSONField()
     uuid = models.UUIDField(null=False, editable=False, unique=True)
+    parent_subgraph_execution_id = models.UUIDField(
+        null=True, blank=True, db_index=True
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["session", "parent_subgraph_execution_id", "id"],
+                name="gsm_session_parent_id_idx",
+            ),
+        ]
 
 
 class StartNode(BaseGraphEntity, BaseGlobalNode):

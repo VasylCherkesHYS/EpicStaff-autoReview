@@ -45,6 +45,7 @@ export class FilesListComponent {
     @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
     documents = model<DisplayedListDocument[]>([]);
     filesUploaded = output<FileList>();
+    documentSelected = output<DisplayedListDocument>();
 
     hasInvalidFiles = computed(() => this.documents().some((d) => !d.isValidType || !d.isValidSize));
 

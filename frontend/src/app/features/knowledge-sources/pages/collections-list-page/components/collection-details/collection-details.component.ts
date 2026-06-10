@@ -24,6 +24,7 @@ import { catchError, debounceTime, distinctUntilChanged, finalize, switchMap } f
 
 import { ToastService } from '../../../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
+import { CopyCollectionFilesDialogComponent } from '../../../../components/copy-collection-files-dialog/copy-collection-files-dialog.component';
 import { CreateCollectionDialogComponent } from '../../../../components/create-collection-dialog/create-collection-dialog.component';
 import { FILE_TYPES } from '../../../../constants/constants';
 import { RagType } from '../../../../models/base-rag.model';
@@ -210,6 +211,23 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
             this.onFilesDropped(input.files);
             input.value = '';
         }
+    }
+
+    openCopyFilesDialog(): void {
+        const collection = this.fullCollection();
+        if (!collection) return;
+
+        const documents = this.documentsStorageService
+            .documents()
+            .filter((d) => d.source_collection === collection.collection_id);
+
+        this.dialog.open(CopyCollectionFilesDialogComponent, {
+            data: {
+                sourceCollectionId: collection.collection_id,
+                documents,
+                allCollections: this.collectionsStorageService.collections(),
+            },
+        });
     }
 
     createRagInCollection(type?: RagType) {

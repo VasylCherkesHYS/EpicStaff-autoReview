@@ -33,7 +33,10 @@
                     let-item
                     let-i="index"
                 >
-                    <app-list-row class="list__file">
+                    <app-list-row
+                        class="list__file"
+                        (click)="documentSelected.emit(item)"
+                    >
                         <div class="list__name-column">
                             <span class="list__file-index">{{ i + 1 }}</span>
                             <app-svg-icon

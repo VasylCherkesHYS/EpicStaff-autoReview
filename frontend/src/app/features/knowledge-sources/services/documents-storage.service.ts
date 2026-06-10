@@ -1,16 +1,23 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { StorageService } from '@shared/services';
+import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { ToastService } from '../../../services/notifications/toast.service';
-import { CollectionDocument, DeleteDocumentResponse, UploadDocumentResponse } from '../models/document.model';
+import {
+    CollectionDocument,
+    CopyDocumentsResponse,
+    DeleteDocumentResponse,
+    UploadDocumentResponse,
+} from '../models/document.model';
 import { CollectionsApiService } from './collections-api.service';
+import { CollectionsStorageService } from './collections-storage.service';
 import { DocumentsApiService } from './documents-api.service';
 
 @Injectable({
     providedIn: 'root',
 })
-export class DocumentsStorageService {
+export class DocumentsStorageService implements StorageService {
     private documentsSignal = signal<CollectionDocument[]>([]);
     private documentsLoaded = signal<boolean>(false);
     public readonly documents = this.documentsSignal.asReadonly();
@@ -18,6 +25,7 @@ export class DocumentsStorageService {
 
     private readonly documentsApiService = inject(DocumentsApiService);
     private readonly collectionsApiService = inject(CollectionsApiService);
+    private readonly collectionsStorageService = inject(CollectionsStorageService);
     private readonly toastService = inject(ToastService);
 
     uploadDocuments(collectionId: number, files: File[]): Observable<UploadDocumentResponse | undefined> {
@@ -51,6 +59,24 @@ export class DocumentsStorageService {
         return of(cached);
     }
 
+    copyDocumentsToCollections(documentIds: number[], collectionIds: number[]): Observable<CopyDocumentsResponse[]> {
+        const requests = collectionIds.map((collection_id) =>
+            this.documentsApiService.copyDocuments({ collection_id, document_ids: documentIds })
+        );
+
+        return forkJoin(requests).pipe(
+            tap((responses) => {
+                const allDocs = responses.flatMap((r) => r.documents);
+                this.addDocumentsToCache(allDocs);
+                this.toastService.success('Documents copied successfully');
+            }),
+            catchError(() => {
+                this.toastService.error('Failed to copy documents');
+                return of([]);
+            })
+        );
+    }
+
     deleteDocumentById(id: number): Observable<DeleteDocumentResponse | undefined> {
         return this.documentsApiService.deleteDocumentById(id).pipe(
             tap(() => {
@@ -67,16 +93,29 @@ export class DocumentsStorageService {
     private addDocumentsToCache(documents: CollectionDocument[]) {
         this.documentsSignal.update((currentDocs) => {
             const existingIds = new Set(currentDocs.map((d) => d.document_id));
-
             const newDocs = documents.filter((d) => !existingIds.has(d.document_id));
-
             return [...currentDocs, ...newDocs];
         });
+
+        const affectedIds = [...new Set(documents.map((d) => d.source_collection))];
+        for (const collectionId of affectedIds) {
+            const count = this.documentsSignal().filter((d) => d.source_collection === collectionId).length;
+            this.collectionsStorageService.updateDocumentCount(collectionId, count);
+        }
+    }
+
+    clear(): void {
+        this.documentsSignal.set([]);
+        this.documentsLoaded.set(false);
     }
 
     private deleteDocumentFromCache(id: number) {
-        const currentDocuments = this.documentsSignal();
-        const updatedDocuments = currentDocuments.filter((d) => d.document_id !== id);
-        this.documentsSignal.set(updatedDocuments);
+        const doc = this.documentsSignal().find((d) => d.document_id === id);
+        this.documentsSignal.update((docs) => docs.filter((d) => d.document_id !== id));
+
+        if (doc) {
+            const count = this.documentsSignal().filter((d) => d.source_collection === doc.source_collection).length;
+            this.collectionsStorageService.updateDocumentCount(doc.source_collection, count);
+        }
     }
 }

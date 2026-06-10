@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
+import { StorageService } from '@shared/services';
 import { EMPTY, Observable, throwError } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
@@ -30,7 +31,7 @@ import { NaiveRagService } from './naive-rag.service';
 @Injectable({
     providedIn: 'root',
 })
-export class NaiveRagDocumentsStorageService {
+export class NaiveRagDocumentsStorageService implements StorageService {
     private documentsSignal = signal<TableDocument[]>([]);
     public documents = this.documentsSignal.asReadonly();
 
@@ -396,6 +397,11 @@ export class NaiveRagDocumentsStorageService {
 
             return nextMap;
         });
+    }
+
+    clear(): void {
+        this.documentsSignal.set([]);
+        this.documentStatesSignal.set(new Map());
     }
 
     private handleSuccessBulkDelete(res: BulkDeleteNaiveRagDocumentDtoResponse) {
