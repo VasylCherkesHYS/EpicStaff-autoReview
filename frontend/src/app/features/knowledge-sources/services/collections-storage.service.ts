@@ -95,6 +95,24 @@ export class CollectionsStorageService {
         );
     }
 
+    updateDocumentCount(collectionId: number, newCount: number): void {
+        this.collectionsSignal.update((collections) => {
+            const index = collections.findIndex((c) => c.collection_id === collectionId);
+            if (index < 0) return collections;
+            const updated = [...collections];
+            updated[index] = { ...updated[index], document_count: newCount };
+            return updated;
+        });
+
+        this.fullCollectionsSignal.update((collections) => {
+            const index = collections.findIndex((c) => c.collection_id === collectionId);
+            if (index < 0) return collections;
+            const updated = [...collections];
+            updated[index] = { ...updated[index], document_count: newCount };
+            return updated;
+        });
+    }
+
     private updateOrCreateCollectionInCache(updated: CreateCollectionDtoResponse): void {
         const { rag_configurations, ...rest } = updated;
 

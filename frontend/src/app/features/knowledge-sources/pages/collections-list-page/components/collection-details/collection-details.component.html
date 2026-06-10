@@ -90,10 +90,10 @@
                                     <!--                                    [items]="[]"-->
                                     <!--                                />-->
                                     <app-svg-icon
-                                        style="cursor: not-allowed"
                                         icon="files-filled"
                                         class="details__action details__action--medium"
                                         size="0.75rem"
+                                        (click)="openCopyFilesDialog()"
                                     />
 
                                     <label (click)="fileInput.click()">
