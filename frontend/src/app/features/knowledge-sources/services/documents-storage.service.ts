@@ -1,4 +1,5 @@
 import { inject, Injectable, signal } from '@angular/core';
+import { StorageService } from '@shared/services';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
@@ -16,7 +17,7 @@ import { DocumentsApiService } from './documents-api.service';
 @Injectable({
     providedIn: 'root',
 })
-export class DocumentsStorageService {
+export class DocumentsStorageService implements StorageService {
     private documentsSignal = signal<CollectionDocument[]>([]);
     private documentsLoaded = signal<boolean>(false);
     public readonly documents = this.documentsSignal.asReadonly();
@@ -101,6 +102,11 @@ export class DocumentsStorageService {
             const count = this.documentsSignal().filter((d) => d.source_collection === collectionId).length;
             this.collectionsStorageService.updateDocumentCount(collectionId, count);
         }
+    }
+
+    clear(): void {
+        this.documentsSignal.set([]);
+        this.documentsLoaded.set(false);
     }
 
     private deleteDocumentFromCache(id: number) {

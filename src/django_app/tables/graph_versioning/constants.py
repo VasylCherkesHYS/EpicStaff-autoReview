@@ -11,6 +11,7 @@ _EXCLUDED_GRAPH_SCALARS = (
     "uuid",
     "created_at",
     "updated_at",
+    "save_version",
 )
 
 
@@ -32,7 +33,6 @@ _GRAPH_RELATION_NAMES = (
     "crew_node_list",
     "subgraph_node_list",
     "python_node_list",
-    "llm_node_list",
     "webhook_trigger_node_list",
     "file_extractor_node_list",
     "audio_transcription_node_list",

@@ -146,6 +146,10 @@ export class JsonEditorComponent implements OnChanges {
     private setValueAndFormat(value: string): void {
         this.isProgrammaticChange = true;
         this.monacoEditor?.setValue(value);
+        if (!this.jsonIsValid) {
+            this.jsonIsValid = true;
+            this.validationChange.emit(true);
+        }
         this.monacoEditor
             ?.getAction('editor.action.formatDocument')
             ?.run()
