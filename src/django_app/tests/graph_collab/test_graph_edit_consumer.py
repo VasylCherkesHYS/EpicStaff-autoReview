@@ -1,12 +1,25 @@
 import pytest
 from django.urls import re_path
 from channels.testing import WebsocketCommunicator
-from django.test import override_settings
 from channels.routing import URLRouter
 
 from tables.graph_collab.consumers import GraphEditConsumer
+from tables.graph_collab.graph_state_service import graph_state_service
 
-from tests.graph_collab.conftest import CHANNEL_LAYERS_OVERRIDE
+
+async def _wait_for(
+    condition_coro, timeout: float = 1.0, interval: float = 0.05
+) -> bool:
+    """Poll condition_coro() until it returns truthy or timeout is reached."""
+    import asyncio as _asyncio
+
+    elapsed = 0.0
+    while elapsed < timeout:
+        if await condition_coro():
+            return True
+        await _asyncio.sleep(interval)
+        elapsed += interval
+    return False
 
 
 application = URLRouter(
@@ -29,7 +42,6 @@ def _make_communicator(graph_id: int, user=None):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_connect_authenticated_receives_no_error(test_graph, test_user):
     communicator = _make_communicator(test_graph.pk, test_user)
     connected, _ = await communicator.connect()
@@ -39,7 +51,6 @@ async def test_connect_authenticated_receives_no_error(test_graph, test_user):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_connect_anonymous_is_rejected(test_graph):
     communicator = _make_communicator(test_graph.pk, user=None)
     connected, code = await communicator.connect()
@@ -49,7 +60,6 @@ async def test_connect_anonymous_is_rejected(test_graph):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_connect_nonexistent_graph_is_rejected(test_user):
     communicator = _make_communicator(999999, test_user)
     connected, code = await communicator.connect()
@@ -59,12 +69,12 @@ async def test_connect_nonexistent_graph_is_rejected(test_user):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_unknown_message_type_returns_error(test_graph, test_user):
     communicator = _make_communicator(test_graph.pk, test_user)
     await communicator.connect()
 
-    # Drain presence_state and user_joined sent on connect.
+    # Drain presence_state, user_joined, and request_state/graph_state.
+    await communicator.receive_json_from()
     await communicator.receive_json_from()
     await communicator.receive_json_from()
 
@@ -79,7 +89,6 @@ async def test_unknown_message_type_returns_error(test_graph, test_user):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_graph_saved_pushed_via_notifier(test_graph, test_user):
     from asgiref.sync import sync_to_async
     from django.utils import timezone
@@ -89,7 +98,8 @@ async def test_graph_saved_pushed_via_notifier(test_graph, test_user):
     communicator = _make_communicator(test_graph.pk, test_user)
     await communicator.connect()
 
-    # Drain presence_state and user_joined sent on connect.
+    # Drain presence_state, user_joined, and request_state/graph_state.
+    await communicator.receive_json_from()
     await communicator.receive_json_from()
     await communicator.receive_json_from()
 
@@ -114,7 +124,6 @@ async def test_graph_saved_pushed_via_notifier(test_graph, test_user):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_first_user_connect_receives_presence_state_with_self(
     test_graph, test_user
 ):
@@ -132,7 +141,6 @@ async def test_first_user_connect_receives_presence_state_with_self(
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_second_user_connect_first_receives_user_joined(
     test_graph, test_user, second_user
 ):
@@ -142,6 +150,7 @@ async def test_second_user_connect_first_receives_user_joined(
     await comm1.connect()
     # Drain comm1 initial messages.
     await comm1.receive_json_from()  # presence_state
+    await comm1.receive_json_from()  # request_state (first connector, no snapshot yet)
     await comm1.receive_json_from()  # user_joined (self)
 
     await comm2.connect()
@@ -164,7 +173,6 @@ async def test_second_user_connect_first_receives_user_joined(
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_user_disconnect_remaining_receives_user_left(
     test_graph, test_user, second_user
 ):
@@ -173,11 +181,15 @@ async def test_user_disconnect_remaining_receives_user_left(
 
     await comm1.connect()
     await comm1.receive_json_from()  # presence_state
+    await comm1.receive_json_from()  # request_state
     await comm1.receive_json_from()  # user_joined (self)
 
     await comm2.connect()
     await comm1.receive_json_from()  # user_joined for second_user
     await comm2.receive_json_from()  # presence_state
+    await (
+        comm2.receive_json_from()
+    )  # request_state (no snapshot yet since comm1 hasn't seeded)
     await comm2.receive_json_from()  # user_joined (self)
 
     await comm1.disconnect()
@@ -196,11 +208,16 @@ async def test_user_disconnect_remaining_receives_user_left(
 
 
 async def _drain_connect(communicator) -> None:
-    """Consume the initial presence_state and user_joined messages after connect."""
-    msg = await communicator.receive_json_from()
-    assert msg["type"] == "presence_state"
-    msg = await communicator.receive_json_from()
-    assert msg["type"] == "user_joined"
+    """Consume the initial messages sent on connect:
+    1. presence_state
+    2. request_state OR graph_state (live snapshot seeding/serving)
+    3. user_joined (self)
+    """
+
+    messages = {(await communicator.receive_json_from())["type"] for _ in range(3)}
+    assert "presence_state" in messages
+    assert "user_joined" in messages
+    assert "request_state" in messages or "graph_state" in messages
 
 
 # ---------------------------------------------------------------------------
@@ -210,8 +227,7 @@ async def _drain_connect(communicator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
-async def test_node_created_relayed_to_peer_with_server_editor(
+async def test_server_overrides_spoofed_editor_identity(
     test_graph, test_user, second_user
 ):
     comm_a = _make_communicator(test_graph.pk, test_user)
@@ -251,7 +267,6 @@ async def test_node_created_relayed_to_peer_with_server_editor(
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_node_updated_relayed_to_peer(test_graph, test_user, second_user):
     comm_a = _make_communicator(test_graph.pk, test_user)
     comm_b = _make_communicator(test_graph.pk, second_user)
@@ -286,7 +301,6 @@ async def test_node_updated_relayed_to_peer(test_graph, test_user, second_user):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_nodes_deleted_relayed_to_peer(test_graph, test_user, second_user):
     comm_a = _make_communicator(test_graph.pk, test_user)
     comm_b = _make_communicator(test_graph.pk, second_user)
@@ -320,7 +334,6 @@ async def test_nodes_deleted_relayed_to_peer(test_graph, test_user, second_user)
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_connection_created_relayed_to_peer(test_graph, test_user, second_user):
     comm_a = _make_communicator(test_graph.pk, test_user)
     comm_b = _make_communicator(test_graph.pk, second_user)
@@ -355,7 +368,6 @@ async def test_connection_created_relayed_to_peer(test_graph, test_user, second_
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_group_isolation_across_graphs(
     test_graph, second_graph, test_user, second_user
 ):
@@ -390,7 +402,6 @@ async def test_group_isolation_across_graphs(
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-@override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE)
 async def test_malformed_payload_returns_invalid_payload_error(test_graph, test_user):
     communicator = _make_communicator(test_graph.pk, test_user)
     await communicator.connect()
@@ -419,3 +430,143 @@ async def test_malformed_payload_returns_invalid_payload_error(test_graph, test_
     assert msg["code"] == "unknown_message_type"
 
     await communicator.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Block 2: live state seeding + serving
+# ---------------------------------------------------------------------------
+
+
+_SAMPLE_FLOW = {
+    "nodes": [{"id": "n1", "type": "agent"}],
+    "connections": [{"id": "c1", "source": "n1", "target": "n1"}],
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_first_connector_receives_request_state(test_graph, test_user):
+    """First connector (no snapshot yet) must receive request_state."""
+    communicator = _make_communicator(test_graph.pk, test_user)
+    await communicator.connect()
+
+    await communicator.receive_json_from()  # presence_state
+
+    msg = await communicator.receive_json_from()
+    assert msg["type"] == "request_state"
+
+    await communicator.receive_json_from()  # user_joined
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_second_connector_receives_graph_state_after_seed(
+    test_graph, test_user, second_user
+):
+    """Second connector must receive graph_state carrying the flow seeded by first."""
+    comm1 = _make_communicator(test_graph.pk, test_user)
+    await comm1.connect()
+    await comm1.receive_json_from()  # presence_state
+    await comm1.receive_json_from()  # request_state
+    await comm1.receive_json_from()  # user_joined
+
+    # Comm1 seeds the live state.
+    await comm1.send_json_to({"type": "graph_state", "flow": _SAMPLE_FLOW})
+
+    comm2 = _make_communicator(test_graph.pk, second_user)
+    await comm2.connect()
+    await comm1.receive_json_from()  # user_joined for second_user
+
+    await comm2.receive_json_from()  # presence_state
+
+    msg = await comm2.receive_json_from()
+    assert msg["type"] == "graph_state"
+    assert msg["flow"] == _SAMPLE_FLOW
+
+    await comm2.receive_json_from()  # user_joined
+    await comm1.disconnect()
+    await comm2.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_node_created_op_mutates_snapshot(test_graph, test_user):
+    """node_created op must be reflected in the stored snapshot."""
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    # Seed the live state first.
+    await comm.send_json_to({"type": "graph_state", "flow": _SAMPLE_FLOW})
+
+    # Send a node_created op.
+    await comm.send_json_to(
+        {
+            "type": "node_created",
+            "node": {"id": "n2", "type": "code"},
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
+    snapshot = await graph_state_service.get_snapshot(test_graph.pk)
+    assert snapshot is not None
+    node_ids = {n["id"] for n in snapshot["nodes"]}
+    assert "n1" in node_ids
+    assert "n2" in node_ids
+
+    await comm.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_graph_state_seed_does_not_overwrite_existing_snapshot(
+    test_graph, test_user
+):
+    """A second graph_state C→S must NOT overwrite an already-seeded snapshot."""
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    first_flow = {"nodes": [{"id": "original"}], "connections": []}
+    second_flow = {"nodes": [{"id": "overwrite_attempt"}], "connections": []}
+
+    await comm.send_json_to({"type": "graph_state", "flow": first_flow})
+
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
+
+    await comm.send_json_to({"type": "graph_state", "flow": second_flow})
+    await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
+
+    snapshot = await graph_state_service.get_snapshot(test_graph.pk)
+    assert snapshot is not None
+    assert snapshot["nodes"][0]["id"] == "original"
+
+    await comm.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_last_disconnect_clears_snapshot(test_graph, test_user):
+    """Snapshot must be cleared once the last editor leaves."""
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    await comm.send_json_to({"type": "graph_state", "flow": _SAMPLE_FLOW})
+
+    assert await _wait_for(lambda: graph_state_service.get_snapshot(test_graph.pk))
+
+    assert await graph_state_service.get_snapshot(test_graph.pk) is not None
+
+    await comm.disconnect()
+
+    async def _snapshot_cleared():
+        return await graph_state_service.get_snapshot(test_graph.pk) is None
+
+    assert await _wait_for(_snapshot_cleared)

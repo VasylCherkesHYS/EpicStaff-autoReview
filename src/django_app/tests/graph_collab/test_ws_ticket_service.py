@@ -78,7 +78,7 @@ def test_consume_is_single_use(mocker):
 
 
 @pytest.mark.django_db
-def test_consume_empty_ticket_returns_none(mocker):
+def test_consume_empty_or_none_ticket_returns_none(mocker):
     service, fake = _make_service(mocker)
 
     assert service.consume("") is None
@@ -161,16 +161,18 @@ def test_extract_ticket_empty_string():
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
 async def test_middleware_sets_user_for_valid_ticket(mocker):
+    from asgiref.sync import sync_to_async
+
     fake = fakeredis.FakeStrictRedis()
     mocker.patch(
         "tables.graph_collab.ws_auth.get_redis_connection",
         return_value=fake,
     )
-    # Issue a ticket using the module-level service (patched to our fake redis).
     service = WsTicketService()
-    User = get_user_model()
-    from asgiref.sync import sync_to_async
+    # Patch the module-level singleton so TicketAuthMiddleware uses the same instance.
+    mocker.patch("tables.graph_collab.ws_auth._service", service)
 
+    User = get_user_model()
     user = await sync_to_async(User.objects.create_user)(
         email="mw1@example.com", password="Pass123!"
     )
