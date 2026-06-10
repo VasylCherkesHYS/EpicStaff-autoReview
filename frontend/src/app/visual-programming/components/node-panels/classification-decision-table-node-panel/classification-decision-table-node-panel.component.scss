@@ -91,6 +91,8 @@
     color: #e0e0e0;
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
+    box-sizing: border-box;
+    height: 32px;
     outline: none;
     transition: border-color 0.15s ease;
     width: 100%;
@@ -112,6 +114,8 @@
     color: #e0e0e0;
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
+    box-sizing: border-box;
+    height: 32px;
     width: 100%;
     outline: none;
     cursor: pointer;

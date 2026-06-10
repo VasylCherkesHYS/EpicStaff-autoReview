@@ -5,6 +5,7 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
+    effect,
     ElementRef,
     EventEmitter,
     inject,
@@ -87,17 +88,9 @@ import { FlowService } from '../services/flow.service';
 import { FlowSettingsService } from '../services/flow-settings.service';
 import { NodeFactoryService } from '../services/node-factory.service';
 import { SidePanelService } from '../services/side-panel.service';
-import { BackwardConnectionBuilder } from '../core/connection-builders/backward-connection.builder';
 import { UndoRedoService } from '../services/undo-redo.service';
 import { createFlowConnection } from '../utils/connection.factory';
 import { normalizeFlowPorts } from '../utils/load';
-import {
-    generatePortsForClassificationDecisionTableNode,
-} from '../core/helpers/helpers';
-
-const connectionBuilders = {
-    ['backward']: new BackwardConnectionBuilder(),
-};
 
 function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
     if (a.length !== b.length) return false;
@@ -243,7 +236,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly toastService = inject(ToastService);
     private readonly injector = inject(Injector);
 
-    constructor() {}
+    private lastSeenFullSaveRequest = 0;
+
+    constructor() {
+        effect(() => {
+            const requestCount = this.sidePanelService.fullSaveRequest();
+            if (requestCount > this.lastSeenFullSaveRequest) {
+                this.lastSeenFullSaveRequest = requestCount;
+                this.emitSave();
+            }
+        });
+    }
 
     public ngOnInit(): void {
         this.applyIncomingFlowState(this.flowState);
@@ -675,7 +678,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             if (updatedNode === null) {
                 return;
             }
-            this.flowService.updateNode(updatedNode);
+            // Skip the writeback if the captured node was removed from the flow
+            // (e.g. during DT→CDT conversion the old panel instance lingers briefly
+            //  before the outlet swaps to the newly-selected node's panel).
+            if (this.flowService.nodes().some((n) => n.id === updatedNode.id)) {
+                this.flowService.updateNode(updatedNode);
+            }
         }
         this.save.emit(this.flowService.getFlowState());
     }
