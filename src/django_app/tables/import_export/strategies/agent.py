@@ -67,12 +67,13 @@ class AgentStrategy(EntityImportExportStrategy):
         return self.serializer_class(instance).data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Agent:
+        org_id = kwargs.get("org_id")
         llm_config, fcm_llm_config = self._get_llm_configs(data, id_mapper)
         python_tools, mcp_tools = self._get_tools(data, id_mapper)
         realtime_data = data.pop("realtime_agent", None)
         naive_search_config_data = data.pop("naive_search_config", None)
 
-        agent = self._create_agent(data)
+        agent = self._create_agent(data, org_id)
         self._assign_tools(agent, python_tools, mcp_tools)
         self._create_realtime_agent(agent, realtime_data, id_mapper)
         self._create_naive_search_config(agent, naive_search_config_data)

@@ -102,13 +102,18 @@ from tables.serializers.default_config_serializers import DefaultModelsSerialize
 from tables.filters import SessionFilter  # CollectionFilter,
 from tables.services.import_export_service import ViewSetImportExportService
 from tables.import_export.enums import EntityType
+from rest_framework.permissions import IsAuthenticated
+from tables.views.mixins import OrgScopedChildViewSetMixin
+from tables.services.rbac.permissions import HasOrgPermission
+from tables.services.rbac.permission_action_map import DEFAULT_ACTION_MAP
+from tables.services.rbac.session_access import assert_session_org_access
+from tables.models.rbac_models.rbac_enums import Permission, ResourceType
 from tables.import_export.export_format_strategies import (
     JsonExportFormatStrategy,
     CsvExportFormatStrategy,
 )
 from tables.import_export.tabular.session import SessionTabularProjection
 
-from tables.swagger_schemas.crews_schema import CREW_DELETE
 from tables.swagger_schemas.default_config_schemas import (
     DEFAULT_EMBEDDING_CONFIG_GET,
     DEFAULT_EMBEDDING_CONFIG_PUT,
@@ -164,6 +169,7 @@ quickstart_service = QuickstartService()
     destroy=extend_schema(**SESSION_DESTROY_DELETE),
 )
 class SessionViewSet(
+    OrgScopedChildViewSetMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.DestroyModelMixin,
@@ -174,8 +180,24 @@ class SessionViewSet(
 
     Supports listing, retrieving, deleting sessions,
     bulk deletion, and reporting aggregated status counts.
+
+    Sessions are executions of a flow, so they are scoped as children of the
+    graph (FLOWS): view/status -> READ, export -> EXPORT, delete -> DELETE.
     """
 
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.FLOWS
+    rbac_action_map = {
+        **DEFAULT_ACTION_MAP,
+        "export": Permission.EXPORT,
+        "bulk_export": Permission.EXPORT,
+        "export_all": Permission.EXPORT,
+        "statuses": Permission.READ,
+        "bulk_delete": Permission.DELETE,
+        "get_session_warnings": Permission.READ,
+        "output_files": Permission.READ,
+    }
+    org_filter_path = "graph__org_id"
     serializer_class = SessionSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
 
@@ -212,7 +234,9 @@ class SessionViewSet(
         return SessionSerializer
 
     def get_queryset(self):
-        qs = Session.objects.select_related("graph")
+        qs = Session.objects.select_related("graph").filter(
+            graph__org_id=self.get_active_org_id()
+        )
         detailed = self.request.query_params.get("detailed", "true").lower()
 
         if detailed == "false":
@@ -269,9 +293,9 @@ class SessionViewSet(
         serializer.is_valid(raise_exception=True)
         entity_ids = serializer.validated_data["ids"]
 
-        existing_ids = Session.objects.filter(id__in=entity_ids).values_list(
-            "id", flat=True
-        )
+        existing_ids = Session.objects.filter(
+            id__in=entity_ids, graph__org_id=self.get_active_org_id()
+        ).values_list("id", flat=True)
         if len(existing_ids) != len(entity_ids):
             return Response(
                 {"message": "Some entity IDs do not exist"},
@@ -300,13 +324,16 @@ class SessionViewSet(
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        active_org_id = self.get_active_org_id()
         if (
             "graph_id" in data
-            and not Graph.objects.filter(id=data["graph_id"]).exists()
+            and not Graph.objects.filter(
+                id=data["graph_id"], org_id=active_org_id
+            ).exists()
         ):
             raise NotFound(f"Graph {data['graph_id']} not found")
 
-        qs = Session.objects.filter(parent_session_id=None)
+        qs = Session.objects.filter(parent_session_id=None, graph__org_id=active_org_id)
 
         if "graph_id" in data:
             qs = qs.filter(graph_id=data["graph_id"])
@@ -373,7 +400,9 @@ class SessionViewSet(
             )
 
         with transaction.atomic():
-            session_list = Session.objects.filter(id__in=ids)
+            session_list = Session.objects.filter(
+                id__in=ids, graph__org_id=self.get_active_org_id()
+            )
             deleted_count = session_list.count()
             for session in session_list:
                 session.delete()
@@ -434,7 +463,6 @@ class RunSession(APIView):
         files_dict = {}
         graph_id = serializer.validated_data.get("graph_id")
         graph_uuid = serializer.validated_data.get("graph_uuid")
-        username = serializer.validated_data.get("username")
         graph_organization_user = None
         warning_messages = []
 
@@ -450,42 +478,31 @@ class RunSession(APIView):
             )
 
         graph_id = graph.id
-        # TODO: rbac refactor
-        graph_organization = GraphOrganization.objects.filter(
-            graph__id=graph_id
-        ).first()
 
-        if graph_organization:
-            if not username and graph_organization.user_variables:
-                warning_messages.append(SessionWarningType.USER_VARS_WITH_NO_USER.value)
-
-        if username and not graph_organization:
-            return Response(
-                {"message": "No GraphOrganization exists for this flow."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if username and graph_organization:
-            # NOTE (RBAC Story 0): the old graph-domain OrganizationUser was keyed by
-            # a free-form `name` string. RBAC replaces it with (User x Org x Role);
-            # the `username` request param is now interpreted as the User's email.
-            # TODO (RBAC Story 2+): drop `username` from the payload entirely and
-            # derive the membership from `request.user` + X-Organization-Id header.
+        # Resolve the running user's membership in the flow's organization.
+        # Superadmin may run any flow without a membership row.
+        is_superadmin = getattr(request.user, "is_superadmin", False)
+        membership = None
+        if not is_superadmin:
             membership = OrganizationUser.objects.filter(
-                user__email=username, org=graph_organization.organization
+                user=request.user, org_id=graph.org_id, org__is_active=True
             ).first()
-
-            if not membership:
+            if membership is None:
                 return Response(
-                    {
-                        "message": (
-                            f"Provided user does not exist or does not belong to "
-                            f"organization {graph_organization.organization.name}"
-                        )
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
+                    {"message": "You cannot run a flow outside your organization."},
+                    status=status.HTTP_403_FORBIDDEN,
                 )
-            # TODO: rbac refactor
+        # TODO: refactor in scope of persistant variables story
+        graph_organization = GraphOrganization.objects.filter(graph=graph).first()
+
+        if (
+            graph_organization
+            and graph_organization.user_variables
+            and membership is None
+        ):
+            warning_messages.append(SessionWarningType.USER_VARS_WITH_NO_USER.value)
+
+        if membership is not None and graph_organization is not None:
             graph_organization_user, _ = GraphOrganizationUser.objects.get_or_create(
                 organization_user=membership,
                 graph=graph,
@@ -513,7 +530,7 @@ class RunSession(APIView):
         try:
             # Publish session to: crew, maanger
             session_id = session_manager_service.run_session(
-                graph_id=graph_id, variables=variables, username=username
+                graph_id=graph_id, variables=variables, user=request.user
             )
             logger.info(f"Session {session_id} successfully started.")
         except Exception as e:
@@ -549,15 +566,13 @@ class GetUpdates(APIView):
         if session_id is None:
             return Response("Session id not found", status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            session_status = session_manager_service.get_session_status(
-                session_id=session_id
-            )
-        except Session.DoesNotExist:
+        session = Session.objects.select_related("graph").filter(pk=session_id).first()
+        if session is None:
             return Response("Session not found", status=status.HTTP_404_NOT_FOUND)
+        assert_session_org_access(request.user, session)
 
         return Response(
-            data={"status": session_status},
+            data={"status": session.status},
             status=status.HTTP_200_OK,
         )
 
@@ -568,6 +583,12 @@ class StopSession(APIView):
         session_id = kwargs.get("session_id", None)
         if session_id is None:
             return Response("Session id is missing", status=status.HTTP_404_NOT_FOUND)
+
+        session = Session.objects.select_related("graph").filter(pk=session_id).first()
+        if session is None:
+            return Response("Session not found", status=status.HTTP_404_NOT_FOUND)
+        assert_session_org_access(request.user, session)
+
         try:
             required_listeners = 2  # manager and crew
             received_n = session_manager_service.stop_session(session_id=session_id)
@@ -685,39 +706,6 @@ class AnswerToLLM(APIView):
         )
 
         return Response(status=status.HTTP_202_ACCEPTED)
-
-
-class CrewDeleteAPIView(APIView):
-    @extend_schema(**CREW_DELETE)
-    def delete(self, request, id):
-        delete_sessions = request.query_params.get("delete_sessions", "false").lower()
-        if delete_sessions not in {"true", "false"}:
-            raise ValidationError(
-                {"error": "Invalid value for delete_sessions. Use 'true' or 'false'."}
-            )
-
-        delete_sessions = delete_sessions == "true"
-
-        crew = Crew.objects.filter(id=id).first()
-        if not crew:
-            raise NotFound({"error": "Crew not found"})
-
-        try:
-            with transaction.atomic():
-                if delete_sessions:
-                    Session.objects.filter(crew=crew).delete()
-                else:
-                    Session.objects.filter(crew=crew).update(crew=None)
-
-                crew.delete()
-
-            return Response(
-                {"message": "Crew deleted successfully"}, status=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 
 class DefaultLLMConfigAPIView(APIView):

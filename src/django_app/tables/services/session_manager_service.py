@@ -85,7 +85,7 @@ class SessionManagerService(metaclass=SingletonMeta):
         self,
         graph_id: int,
         variables: dict | None = None,
-        username: str | None = None,
+        user=None,
         entrypoint: str | None = None,
     ) -> Session:
         if variables is None:
@@ -102,12 +102,19 @@ class SessionManagerService(metaclass=SingletonMeta):
 
         variables = self._get_actual_variables(variables)
 
-        time_to_live = Graph.objects.get(pk=graph_id).time_to_live
-        # TODO: rbac refactor, replace with
-        # request.user + org context instead of email lookup.
-        graph_user = GraphOrganizationUser.objects.filter(
-            organization_user__user__email=username, graph_id=graph_id
-        ).first()
+        graph = Graph.objects.get(pk=graph_id)
+        time_to_live = graph.time_to_live
+        # Per-user persistent state is resolved from the authenticated user and
+        # the flow's organization. Superadmin (or unauthenticated trigger runs)
+        # have no membership row, so graph_user stays None.
+        graph_user = None
+        if user is not None and not getattr(user, "is_superadmin", False):
+            # TODO: refactor in scope of persistant variables story
+            graph_user = GraphOrganizationUser.objects.filter(
+                organization_user__user=user,
+                organization_user__org_id=graph.org_id,
+                graph_id=graph_id,
+            ).first()
         session = Session.objects.create(
             graph_id=graph_id,
             status=Session.SessionStatus.PENDING,
@@ -138,7 +145,7 @@ class SessionManagerService(metaclass=SingletonMeta):
         self,
         graph_id: int,
         variables: dict | None = None,
-        username: str | None = None,
+        user=None,
         entrypoint: str | None = None,
     ) -> int:
         variables = self._get_actual_variables(variables)
@@ -150,7 +157,7 @@ class SessionManagerService(metaclass=SingletonMeta):
         session: Session = self.create_session(
             graph_id=graph_id,
             variables=variables,
-            username=username,
+            user=user,
             entrypoint=entrypoint,
         )
         try:

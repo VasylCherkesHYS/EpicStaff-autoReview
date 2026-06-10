@@ -64,6 +64,7 @@ class CrewStrategy(EntityImportExportStrategy):
         return self.serializer_class(instance).data
 
     def create_entity(self, data: dict, id_mapper: IDMapper, **kwargs) -> Crew:
+        org_id = kwargs.get("org_id")
         if "name" in data:
             existing_names = Crew.objects.values_list("name", flat=True)
             data["name"] = ensure_unique_identifier(
@@ -81,7 +82,7 @@ class CrewStrategy(EntityImportExportStrategy):
 
         serializer = self.serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
-        crew = serializer.save()
+        crew = serializer.save(org_id=org_id)
 
         if memory_llm_config_id:
             crew.memory_llm_config = self._get_llm_config(

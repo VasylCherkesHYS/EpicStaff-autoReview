@@ -43,11 +43,7 @@ class ViewSetImportExportService:
         base_name = f"bulk_{len(entity_ids)}"
         return strategy.render(data, self.entity_type, self.export_prefix, base_name)
 
-    def import_entity(
-        self,
-        file,
-        settings: ImportSettings = None,
-    ):
+    def import_entity(self, file, settings: ImportSettings = None, org_id: int = None):
         try:
             data = json.load(file)
         except json.JSONDecodeError:
@@ -63,9 +59,7 @@ class ViewSetImportExportService:
         data = VersionConverter.convert(data)
 
         id_mapper, registry = self.import_service.import_data(
-            data,
-            self.entity_type,
-            settings=settings,
+            data, self.entity_type, settings=settings, org_id=org_id
         )
         summary = id_mapper.get_detailed_summary(registry)
 

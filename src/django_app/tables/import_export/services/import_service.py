@@ -19,6 +19,7 @@ class ImportService:
         export_data: dict,
         main_entity: str,
         settings: ImportSettings = None,
+        org_id: int = None,
     ):
         if settings is None:
             settings = ImportSettings()
@@ -41,6 +42,7 @@ class ImportService:
                             strategy,
                             id_mapper,
                             entity_type == main_entity,
+                            org_id=org_id,
                             settings=settings,
                         )
                 else:
@@ -52,6 +54,7 @@ class ImportService:
                             id_mapper,
                             entity_type == main_entity,
                             settings=settings,
+                            org_id=org_id,
                         )
 
         return id_mapper, self.registry
@@ -69,6 +72,11 @@ class ImportService:
 
         return sorted_keys
 
+    # Org-scoped entity types: these get org_id forwarded so newly created rows
+    # land in the active organization. Other (global / Phase B) strategies must
+    # not receive org_id.
+    _ORG_SCOPED_TYPES = (EntityType.GRAPH, EntityType.CREW, EntityType.AGENT)
+
     def _import_single_entity(
         self,
         entity_data,
@@ -77,6 +85,7 @@ class ImportService:
         id_mapper,
         is_main,
         settings: ImportSettings = None,
+        org_id=None,
         **kwargs,
     ):
         old_id = entity_data["id"]
@@ -86,6 +95,9 @@ class ImportService:
             existing = strategy.find_existing(entity_data, id_mapper)
 
         was_created = existing is None
+
+        if entity_type in self._ORG_SCOPED_TYPES:
+            kwargs["org_id"] = org_id
 
         instance = strategy.import_entity(
             entity_data, id_mapper, is_main, settings=settings
