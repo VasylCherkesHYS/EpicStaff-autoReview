@@ -31,6 +31,7 @@ from tables.models.embedding_models import EmbeddingConfig
 from tables.models.llm_models import LLMConfig
 from tables.models.python_models import PythonCodeTool, PythonCodeToolConfig
 from tables.models.realtime_models import RealtimeAgent
+from tables.serializers.org_scoped_fields import OrgScopedPrimaryKeyRelatedField
 from tables.serializers.knowledge_serializers import (
     NestedSearchConfigSerializer,
     RagInputSerializer,
@@ -539,6 +540,14 @@ class TaskWriteSerializer(ToolsConnectionMixin, serializers.ModelSerializer):
         child=serializers.CharField(),
         required=False,
     )
+    # Org isolation: a task may only reference an agent/crew from the caller's
+    # active org (covers both create and update).
+    agent = OrgScopedPrimaryKeyRelatedField(
+        queryset=Agent.objects.all(), required=False, allow_null=True
+    )
+    crew = OrgScopedPrimaryKeyRelatedField(
+        queryset=Crew.objects.all(), required=False, allow_null=True
+    )
 
     class Meta:
         model = Task
@@ -665,7 +674,8 @@ class CrewSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    agents = serializers.PrimaryKeyRelatedField(
+    # Org isolation: only agents from the caller's active org are assignable.
+    agents = OrgScopedPrimaryKeyRelatedField(
         queryset=Agent.objects.all(),
         many=True,
         required=False,

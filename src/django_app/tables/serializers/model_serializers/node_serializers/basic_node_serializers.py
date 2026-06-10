@@ -11,12 +11,17 @@ from tables.models.graph_models import (
     CrewNode,
     Edge,
     FileExtractorNode,
+    Graph,
     PythonNode,
     SubGraphNode,
 )
 from tables.serializers.base_serializer import (
     BaseGraphEntityMixin,
     ContentHashWritableMixin,
+)
+from tables.serializers.org_scoped_fields import (
+    OrgScopedPrimaryKeyRelatedField,
+    resolve_active_org_id,
 )
 from tables.serializers.utils.mixins import NestedPythonCodeMixin
 
@@ -31,7 +36,13 @@ class CrewNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
         read_only_fields = ["crew"]
 
     def validate_crew_id(self, value):
-        if not Crew.objects.only("id").filter(id=value).exists():
+        # Org isolation: the referenced crew must be in the caller's active org.
+        # Out-of-org and non-existent ids are rejected identically (no leak).
+        crews = Crew.objects.only("id")
+        request = self.context.get("request")
+        if request is not None:
+            crews = crews.filter(org_id=resolve_active_org_id(request))
+        if not crews.filter(id=value).exists():
             raise serializers.ValidationError("Invalid crew_id: crew does not exist.")
         return value
 
@@ -80,6 +91,11 @@ class EdgeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
 
 
 class SubGraphNodeSerializer(ContentHashWritableMixin, serializers.ModelSerializer):
+    # Org isolation: the referenced sub-flow must be in the caller's active org.
+    subgraph = OrgScopedPrimaryKeyRelatedField(
+        queryset=Graph.objects.all(), required=False, allow_null=True
+    )
+
     class Meta(BaseGraphEntityMixin.Meta):
         model = SubGraphNode
         fields = "__all__"
