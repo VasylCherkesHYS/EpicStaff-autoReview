@@ -50,6 +50,19 @@ class FakeTextContent:
     text: str
 
 
+@dataclass
+class FakeImageContent:
+    data: str
+    type: str = "image"
+    mimeType: str = "image/png"
+
+
+@dataclass
+class FakeResourceLink:
+    uri: str
+    type: str = "resource_link"
+
+
 def _make_client(list_tools_result=None, call_tool_result=None, raise_on_enter=None):
     """Build a fake fastmcp Client that supports 'async with'."""
     client = MagicMock()
@@ -173,6 +186,44 @@ async def test_call_returns_text_content_joined():
     output = await gateway.call(_mcp_data("search"), {})
 
     assert output == "hello world"
+
+
+async def test_call_renders_image_content_marker():
+    result = FakeCallResult(content=[FakeImageContent(data="QUJDRA==")])
+    client = _make_client(call_tool_result=result)
+    gateway = McpToolGateway(_factory(client))
+
+    output = await gateway.call(_mcp_data("screenshot"), {})
+
+    assert output  # non-empty
+    assert "image" in output
+    assert "image/png" in output
+    assert "omitted" in output
+
+
+async def test_call_renders_mixed_text_and_image():
+    result = FakeCallResult(
+        content=[FakeTextContent("Here is the page"), FakeImageContent(data="QUJD")]
+    )
+    client = _make_client(call_tool_result=result)
+    gateway = McpToolGateway(_factory(client))
+
+    output = await gateway.call(_mcp_data("screenshot"), {})
+
+    assert output.startswith("Here is the page")
+    assert "omitted" in output
+
+
+async def test_call_renders_resource_link_marker():
+    result = FakeCallResult(content=[FakeResourceLink(uri="file:///x.png")])
+    client = _make_client(call_tool_result=result)
+    gateway = McpToolGateway(_factory(client))
+
+    output = await gateway.call(_mcp_data("fetch_resource"), {})
+
+    assert "resource_link" in output
+    assert "file:///x.png" in output
+    assert "omitted" in output
 
 
 async def test_call_falls_back_to_str_data():

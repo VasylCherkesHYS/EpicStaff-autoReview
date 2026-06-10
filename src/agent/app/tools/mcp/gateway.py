@@ -54,6 +54,26 @@ class McpToolGateway:
             input_schema=dict(tool.inputSchema) if tool.inputSchema else {},
         )
 
+    @staticmethod
+    def _render_content_block(block) -> str:
+        text = getattr(block, "text", None)
+        if text is not None:
+            return text
+
+        btype = getattr(block, "type", None) or type(block).__name__
+        data = getattr(block, "data", None)
+        mime = getattr(block, "mimeType", None)
+
+        if isinstance(data, str) and data:
+            kb = max(1, (len(data) * 3 // 4) // 1024)  # base64 -> ~bytes -> KB
+            return f"[{btype} omitted: {mime or 'unknown'}, ~{kb}KB]"
+
+        uri = getattr(block, "uri", None)
+        if uri is not None:
+            return f"[{btype} omitted: {uri}]"
+
+        return f"[{btype} omitted]"
+
     async def call(self, data: McpToolData, args: dict) -> str:
         """Invoke the MCP tool and return its output as a string.
 
@@ -77,6 +97,6 @@ class McpToolGateway:
             return json.dumps(result.structured_content)
 
         if result.content:
-            return " ".join(c.text for c in result.content if hasattr(c, "text"))
+            return " ".join(self._render_content_block(c) for c in result.content)
 
         return str(result.data)
