@@ -13,11 +13,12 @@ from app.request_handler import RequestHandler
 from shared.models.agent_service import (
     AgentRequest,
     AgentSpec,
+    CollectionSpec,
     ContextAttachment,
     LoopResult,
-    RagSpec,
     RunType,
     S3FileSpec,
+    SearchConfigEntry,
     ToolResult,
 )
 
@@ -28,7 +29,8 @@ __all__ = [
     "RunType",
     "AgentRequest",
     "AgentSpec",
-    "RagSpec",
+    "CollectionSpec",
+    "SearchConfigEntry",
     "S3FileSpec",
     "ToolResult",
     "ContextAttachment",

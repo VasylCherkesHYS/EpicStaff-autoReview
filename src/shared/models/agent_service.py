@@ -7,15 +7,16 @@ service producer (django_app / DataLoader) and the agent service consumer
 
 Hierarchy
 ---------
-``AgentRequest``  — top-level envelope produced by ``DataLoader``.
-    ``AgentSpec``     — per-agent configuration with resource references.
-    ``BaseToolData``  — (imported from shared.models.tools) pool entry.
-    ``RagSpec``       — pool entry for a RAG collection.
-    ``S3FileSpec``    — pool entry for an S3-hosted file.
-``RunType``       — execution-mode enum; kept here so no agent→shared dep exists.
-``LoopResult``    — summary returned by ``AgentLoop.run``.
-``ToolResult``    — outcome of a single tool execution.
-``ContextAttachment`` — message injected before the first LLM call.
+``AgentRequest``        — top-level envelope produced by ``DataLoader``.
+    ``AgentSpec``           — per-agent configuration with resource references.
+    ``BaseToolData``        — (imported from shared.models.tools) pool entry.
+    ``CollectionSpec``      — pool entry for a source collection with one or more RAGs.
+        ``SearchConfigEntry``   — one RAG strategy within a collection.
+    ``S3FileSpec``          — pool entry for an S3-hosted file.
+``RunType``             — execution-mode enum; kept here so no agent→shared dep exists.
+``LoopResult``          — summary returned by ``AgentLoop.run``.
+``ToolResult``          — outcome of a single tool execution.
+``ContextAttachment``   — message injected before the first LLM call.
 """
 
 from __future__ import annotations
@@ -42,12 +43,51 @@ class RunType(str, Enum):
     LIST_OF_TASKS = "LIST_OF_TASKS"
 
 
+class SearchConfigEntry(BaseModel):
+    """One RAG strategy available within a source collection.
+
+    A collection may expose multiple entries (e.g. naive + graph-basic +
+    graph-local).  ``AgentResolver`` builds one search tool per entry so the
+    LLM can choose the appropriate strategy at runtime.
+
+    ``embedder`` is carried for forward-compatibility; it is NOT included in
+    the ``BaseKnowledgeSearchMessage`` wire format.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    rag_id: int
+    rag_type: Literal["naive", "graph"]
+    search_config: RagSearchConfig
+    embedder: EmbedderData
+
+
+class CollectionSpec(BaseModel):
+    """Immutable pool entry for a source collection.
+
+    Carried on ``AgentRequest.collections``; referenced by
+    ``AgentSpec.collection_refs`` via ``unique_name``.  A collection bundles
+    one or more ``SearchConfigEntry`` items — each becomes a distinct tool
+    registered by ``ToolRegistryBuilder.add_knowledge_tools``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    unique_name: str
+    collection_id: int
+    name: str
+    description: str | None = None
+    """Optional LLM-facing context appended to each generated tool description."""
+    search_configs: list[SearchConfigEntry] = Field(min_length=1)
+    """At least one search strategy must be present."""
+
+
 class AgentSpec(BaseModel):
     """Immutable per-agent configuration with resource references.
 
-    ``tool_refs``, ``rag_refs``, and ``s3_refs`` are identifiers into the
-    top-level resource pools on ``AgentRequest``.  ``AgentResolver`` resolves
-    them into live executors / attachments before the loop starts.
+    ``tool_refs``, ``collection_refs``, and ``s3_refs`` are identifiers into
+    the top-level resource pools on ``AgentRequest``.  ``AgentResolver``
+    resolves them into live executors / attachments before the loop starts.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -68,29 +108,10 @@ class AgentSpec(BaseModel):
     default_temperature: float | None = None
     tool_refs: list[str] = Field(default_factory=list)
     """unique_name values referencing entries in ``AgentRequest.tools``."""
-    rag_refs: list[str] = Field(default_factory=list)
-    """unique_name values referencing entries in ``AgentRequest.rags``."""
+    collection_refs: list[str] = Field(default_factory=list)
+    """unique_name values referencing entries in ``AgentRequest.collections``."""
     s3_refs: list[int] = Field(default_factory=list)
     """id values referencing entries in ``AgentRequest.s3_files``."""
-
-
-class RagSpec(BaseModel):
-    """Immutable pool entry for a RAG collection.
-
-    Carried on ``AgentRequest.rags``; referenced by ``AgentSpec.rag_refs``
-    via ``unique_name``.  RAG execution is out of scope for this pass —
-    ``AgentResolver`` validates presence and carries the spec without building
-    an executor.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    unique_name: str
-    collection_id: int
-    rag_id: int
-    rag_type: Literal["naive", "graph"]
-    search_config: RagSearchConfig
-    embedder: EmbedderData
 
 
 class S3FileSpec(BaseModel):
@@ -114,8 +135,8 @@ class AgentRequest(BaseModel):
     ``correlation_id`` is injected by ``DataLoader`` from the envelope; it is
     NOT present in the wire JSON blob stored at the Redis key.  ``RunnerFactory``
     selects a ``Runner`` based on ``run_type``.  ``AgentResolver`` resolves
-    per-agent resource refs against the top-level pools (``tools``, ``rags``,
-    ``s3_files``).
+    per-agent resource refs against the top-level pools (``tools``,
+    ``collections``, ``s3_files``).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -124,7 +145,7 @@ class AgentRequest(BaseModel):
     run_type: RunType
     agents: list[AgentSpec]
     tools: list[BaseToolData] = Field(default_factory=list)
-    rags: list[RagSpec] = Field(default_factory=list)
+    collections: list[CollectionSpec] = Field(default_factory=list)
     s3_files: list[S3FileSpec] = Field(default_factory=list)
     payload: dict = Field(default_factory=dict)
 

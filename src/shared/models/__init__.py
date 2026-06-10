@@ -1,7 +1,8 @@
 from .agent_service import (
     RunType,
+    SearchConfigEntry,
+    CollectionSpec,
     AgentSpec,
-    RagSpec,
     S3FileSpec,
     AgentRequest,
     ToolResult,
@@ -90,8 +91,9 @@ from .tools import (
 __all__ = [
     # agent_service
     "RunType",
+    "SearchConfigEntry",
+    "CollectionSpec",
     "AgentSpec",
-    "RagSpec",
     "S3FileSpec",
     "AgentRequest",
     "ToolResult",

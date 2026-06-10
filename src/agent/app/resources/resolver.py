@@ -9,6 +9,7 @@ Collaborators
 - ``ToolRegistryBuilder`` — builds the ToolRegistry for this agent.
 - ``AgentContext``     — mutable conversation state seeded from AgentSpec.
 - ``SandboxClient``    — injected into ToolRegistryBuilder for python-code tools.
+- ``KnowledgeClient``  — injected into ToolRegistryBuilder for knowledge search tools.
 """
 
 from __future__ import annotations
@@ -19,10 +20,11 @@ from loguru import logger
 
 from app.exceptions import (
     AgentServiceError,
-    UnknownRagRefError,
+    UnknownCollectionRefError,
     UnknownS3RefError,
     UnknownToolRefError,
 )
+from app.knowledge.client import KnowledgeClient
 from app.loop.context import AgentContext
 from app.sandbox.client import SandboxClient
 from app.tools.mcp.gateway import McpToolGateway
@@ -31,8 +33,8 @@ from app.tools.registry_builder import ToolRegistryBuilder
 from shared.models.agent_service import (
     AgentRequest,
     AgentSpec,
+    CollectionSpec,
     ContextAttachment,
-    RagSpec,
     S3FileSpec,
 )
 from shared.models.tools import BaseToolData, McpToolData, PythonCodeToolData
@@ -56,38 +58,47 @@ class ResolvedAgent:
 class AgentResolver:
     """Resolves ``AgentSpec`` resource refs against the ``AgentRequest`` pools.
 
-    Construction-time dependency: ``SandboxClient`` (passed to
-    ``ToolRegistryBuilder`` for python-code tool execution).
+    Construction-time dependencies: ``SandboxClient``, ``McpToolGateway``,
+    and ``KnowledgeClient`` (all passed to ``ToolRegistryBuilder``).
 
     Resolution steps
     ----------------
-    1. Index the request pools by key (``unique_name`` for tools/rags, ``id``
-       for s3_files).
+    1. Index the request pools by key (``unique_name`` for tools/collections,
+       ``id`` for s3_files).
     2. For each ``agent.tool_refs``: look up in pool → raise
        ``UnknownToolRefError`` if missing → dispatch by unique_name prefix to
        the appropriate builder method.
-    3. For each ``agent.rag_refs`` / ``agent.s3_refs``: validate presence
-       (raise on missing) and carry — no executor built yet.
-    4. Build ``AgentContext`` from ``AgentSpec``.
-    5. Return ``ResolvedAgent``.
+    3. For each ``agent.collection_refs``: look up in collection pool → raise
+       ``UnknownCollectionRefError`` if missing → register knowledge search tools.
+    4. For each ``agent.s3_refs``: validate presence (raise on missing) and carry.
+    5. Build ``AgentContext`` from ``AgentSpec``.
+    6. Return ``ResolvedAgent``.
     """
 
-    def __init__(self, sandbox: SandboxClient, mcp_gateway: McpToolGateway) -> None:
+    def __init__(
+        self,
+        sandbox: SandboxClient,
+        mcp_gateway: McpToolGateway,
+        knowledge_client: KnowledgeClient | None = None,
+    ) -> None:
         self._sandbox = sandbox
         self._mcp_gateway = mcp_gateway
+        self._knowledge_client = knowledge_client
 
     async def resolve(self, agent: AgentSpec, request: AgentRequest) -> ResolvedAgent:
         """Resolve all refs for ``agent`` against the pools in ``request``."""
         tool_pool: dict[str, BaseToolData] = {
             entry.unique_name: entry for entry in request.tools
         }
-        rag_pool: dict[str, RagSpec] = {spec.unique_name: spec for spec in request.rags}
+        collection_pool: dict[str, CollectionSpec] = {
+            spec.unique_name: spec for spec in request.collections
+        }
         s3_pool: dict[int, S3FileSpec] = {spec.id: spec for spec in request.s3_files}
 
-        registry = await self._build_tool_registry(agent, tool_pool)
+        registry = await self._build_tool_registry(agent, tool_pool, collection_pool)
         names = [s.name for s in registry.tool_specs()]
         logger.debug("agent_id={} resolved {} tool(s): {}", agent.id, len(names), names)
-        self._validate_rag_refs(agent, rag_pool)
+
         s3_paths = self._validate_s3_refs(agent, s3_pool)
 
         if s3_paths:
@@ -96,15 +107,6 @@ class AgentResolver:
                 agent.id,
                 len(s3_paths),
                 s3_paths,
-            )
-
-        rag_carried = [rag_pool[ref] for ref in agent.rag_refs]
-        if rag_carried:
-            logger.info(
-                "agent_id={} carrying {} rag ref(s) (not resolved this pass): {}",
-                agent.id,
-                len(rag_carried),
-                [r.unique_name for r in rag_carried],
             )
 
         context = AgentContext(
@@ -124,9 +126,12 @@ class AgentResolver:
         self,
         agent: AgentSpec,
         tool_pool: dict[str, BaseToolData],
+        collection_pool: dict[str, CollectionSpec],
     ) -> ToolRegistry:
         builder = ToolRegistryBuilder(
-            self._sandbox, self._mcp_gateway
+            self._sandbox,
+            self._mcp_gateway,
+            self._knowledge_client,
         ).add_system_tools()
 
         for ref in agent.tool_refs:
@@ -159,18 +164,15 @@ class AgentResolver:
                     "(configured-tool and proxy-tool are crew-only)"
                 )
 
-        return builder.build()
-
-    def _validate_rag_refs(
-        self,
-        agent: AgentSpec,
-        rag_pool: dict[str, RagSpec],
-    ) -> None:
-        for ref in agent.rag_refs:
-            if ref not in rag_pool:
-                raise UnknownRagRefError(
-                    f"agent_id={agent.id}: rag_ref '{ref}' not found in request.rags pool"
+        for ref in agent.collection_refs:
+            if ref not in collection_pool:
+                raise UnknownCollectionRefError(
+                    f"agent_id={agent.id}: collection_ref '{ref}' not found in request.collections pool"
                 )
+
+            builder.add_knowledge_tools(collection_pool[ref])
+
+        return builder.build()
 
     def _validate_s3_refs(
         self,

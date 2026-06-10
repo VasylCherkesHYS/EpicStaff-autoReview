@@ -9,6 +9,7 @@ from loguru import logger
 from app.data_loader import DataLoader
 from app.enums import RunType
 from app.factory import RunnerFactory
+from app.knowledge.client import KnowledgeClient
 from app.llm.config import configure_litellm
 from app.llm.litellm_client import LiteLLMClient
 from app.loop.agent_loop import DefaultAgentLoop
@@ -54,6 +55,15 @@ async def main() -> None:
     )
     await sandbox_client.start()
 
+    knowledge_client = KnowledgeClient(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+        request_channel=settings.knowledge_search_request_channel,
+        response_channel=settings.knowledge_search_response_channel,
+    )
+    await knowledge_client.start()
+
     loader = DataLoader(
         host=settings.redis_host,
         port=settings.redis_port,
@@ -64,7 +74,7 @@ async def main() -> None:
     llm = LiteLLMClient()
     mcp_gateway = McpToolGateway(FastMCPClientFactory())
     deps = RunnerDependencies(
-        resolver=AgentResolver(sandbox_client, mcp_gateway),
+        resolver=AgentResolver(sandbox_client, mcp_gateway, knowledge_client),
         loop=DefaultAgentLoop(llm, settings.agent_context_warning_ratio),
     )
     factory = RunnerFactory(deps)
@@ -129,6 +139,7 @@ async def main() -> None:
     await loader.close()
     await client.close()
     await sandbox_client.stop()
+    await knowledge_client.stop()
     logger.info("agent shut down cleanly")
 
 

@@ -1,8 +1,8 @@
 """
 Integration tests for AgentResolver.
 
-Verifies ref→pool resolution, error paths, unsupported tool types, rag/s3
-carried-not-resolved semantics, and multi-agent pool sharing.
+Verifies ref→pool resolution, error paths, unsupported tool types,
+collection/s3 carried-not-resolved semantics, and multi-agent pool sharing.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 from app.exceptions import (
     AgentServiceError,
     McpToolError,
-    UnknownRagRefError,
+    UnknownCollectionRefError,
     UnknownS3RefError,
     UnknownToolRefError,
 )
@@ -23,9 +23,10 @@ from app.tools.mcp.gateway import McpToolDescription, McpToolGateway
 from shared.models.agent_service import (
     AgentRequest,
     AgentSpec,
-    RagSpec,
+    CollectionSpec,
     RunType,
     S3FileSpec,
+    SearchConfigEntry,
 )
 from shared.models.ai_providers import (
     EmbedderConfigData,
@@ -33,7 +34,12 @@ from shared.models.ai_providers import (
     LLMConfigData,
     LLMData,
 )
-from shared.models.knowledge import NaiveRagSearchConfig
+from shared.models.knowledge import (
+    GraphRagBasicSearchParams,
+    GraphRagLocalSearchParams,
+    GraphRagSearchConfig,
+    NaiveRagSearchConfig,
+)
 from shared.models.tools import (
     ArgsSchema,
     BaseToolData,
@@ -52,9 +58,16 @@ def _llm() -> LLMData:
     return LLMData(provider="openai", config=LLMConfigData(model="gpt-4o"))
 
 
+def _embedder() -> EmbedderData:
+    return EmbedderData(
+        provider="openai",
+        config=EmbedderConfigData(model="text-embedding-3-small"),
+    )
+
+
 def _agent_spec(
     tool_refs: list[str] | None = None,
-    rag_refs: list[str] | None = None,
+    collection_refs: list[str] | None = None,
     s3_refs: list[int] | None = None,
     agent_id: int = 1,
 ) -> AgentSpec:
@@ -65,7 +78,7 @@ def _agent_spec(
         instructions="You research topics thoroughly.",
         llm=_llm(),
         tool_refs=tool_refs or [],
-        rag_refs=rag_refs or [],
+        collection_refs=collection_refs or [],
         s3_refs=s3_refs or [],
     )
 
@@ -93,17 +106,42 @@ def _mcp_tool_data(tool_name: str = "mcp_tool") -> McpToolData:
     return McpToolData(transport="http://localhost/sse", tool_name=tool_name)
 
 
-def _rag_spec(unique_name: str = "naive:3") -> RagSpec:
-    return RagSpec(
-        unique_name=unique_name,
-        collection_id=7,
-        rag_id=3,
+def _naive_entry(rag_id: int = 3) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
         rag_type="naive",
         search_config=NaiveRagSearchConfig(),
-        embedder=EmbedderData(
-            provider="openai",
-            config=EmbedderConfigData(model="text-embedding-3-small"),
-        ),
+        embedder=_embedder(),
+    )
+
+
+def _graph_basic_entry(rag_id: int = 4) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
+        rag_type="graph",
+        search_config=GraphRagSearchConfig(search_params=GraphRagBasicSearchParams()),
+        embedder=_embedder(),
+    )
+
+
+def _graph_local_entry(rag_id: int = 5) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
+        rag_type="graph",
+        search_config=GraphRagSearchConfig(search_params=GraphRagLocalSearchParams()),
+        embedder=_embedder(),
+    )
+
+
+def _collection_spec(
+    unique_name: str = "collection:7",
+    entries: list[SearchConfigEntry] | None = None,
+) -> CollectionSpec:
+    return CollectionSpec(
+        unique_name=unique_name,
+        collection_id=7,
+        name="test_knowledge_base",
+        search_configs=entries or [_naive_entry()],
     )
 
 
@@ -114,7 +152,7 @@ def _s3_spec(file_id: int = 88, path: str = "reports/q1.pdf") -> S3FileSpec:
 def _request(
     agents: list[AgentSpec],
     tools: list[BaseToolData] | None = None,
-    rags: list[RagSpec] | None = None,
+    collections: list[CollectionSpec] | None = None,
     s3_files: list[S3FileSpec] | None = None,
 ) -> AgentRequest:
     return AgentRequest(
@@ -122,7 +160,7 @@ def _request(
         run_type=RunType.SINGLE_TASK,
         agents=agents,
         tools=tools or [],
-        rags=rags or [],
+        collections=collections or [],
         s3_files=s3_files or [],
         payload={"prompt": "Go."},
     )
@@ -149,8 +187,19 @@ def _fake_gateway(
     return gateway
 
 
-def _resolver(gateway: McpToolGateway | None = None) -> AgentResolver:
-    return AgentResolver(sandbox=MagicMock(), mcp_gateway=gateway or _fake_gateway())
+def _fake_knowledge_client() -> MagicMock:
+    return MagicMock()
+
+
+def _resolver(
+    gateway: McpToolGateway | None = None,
+    knowledge_client=None,
+) -> AgentResolver:
+    return AgentResolver(
+        sandbox=MagicMock(),
+        mcp_gateway=gateway or _fake_gateway(),
+        knowledge_client=knowledge_client or _fake_knowledge_client(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +226,6 @@ async def test_mcp_tool_ref_resolves_to_registry():
     resolved = await _resolver().resolve(agent, request)
 
     names = {spec.name for spec in resolved.tools.tool_specs()}
-    # tool_name "mcp_tool" used as the LLM-facing name (not the numeric id "4")
     assert "mcp_tool" in names
 
 
@@ -218,27 +266,53 @@ async def test_mcp_gateway_failure_raises_mcp_tool_error():
 
 
 # ---------------------------------------------------------------------------
-# RAG / S3 carried-not-resolved
+# Collection resolution
 # ---------------------------------------------------------------------------
 
 
-async def test_rag_ref_validates_and_carries():
-    rag = _rag_spec("naive:3")
-    agent = _agent_spec(rag_refs=["naive:3"])
-    request = _request([agent], rags=[rag])
+async def test_collection_ref_registers_knowledge_tools():
+    collection = _collection_spec("collection:7", entries=[_naive_entry()])
+    agent = _agent_spec(collection_refs=["collection:7"])
+    request = _request([agent], collections=[collection])
 
     resolved = await _resolver().resolve(agent, request)
 
-    # No attachment built (out of scope), but resolution succeeds
-    assert resolved.attachments == []
+    names = {spec.name for spec in resolved.tools.tool_specs()}
+    assert any("_naive" in n for n in names)
 
 
-async def test_unknown_rag_ref_raises():
-    agent = _agent_spec(rag_refs=["naive:99"])
-    request = _request([agent], rags=[])
+async def test_collection_ref_multi_entry_fan_out():
+    """Naive + graph-basic + graph-local (same rag_id) → 2 tools: _naive + _graph."""
+    collection = _collection_spec(
+        "collection:7",
+        entries=[
+            _naive_entry(rag_id=3),
+            _graph_basic_entry(rag_id=4),
+            _graph_local_entry(rag_id=4),
+        ],
+    )
+    agent = _agent_spec(collection_refs=["collection:7"])
+    request = _request([agent], collections=[collection])
 
-    with pytest.raises(UnknownRagRefError, match="naive:99"):
+    resolved = await _resolver().resolve(agent, request)
+
+    names = {spec.name for spec in resolved.tools.tool_specs()}
+    assert any("_naive" in n for n in names)
+    assert any("_graph" in n and "_naive" not in n for n in names)
+    assert len(names) == 2
+
+
+async def test_unknown_collection_ref_raises():
+    agent = _agent_spec(collection_refs=["collection:99"])
+    request = _request([agent], collections=[])
+
+    with pytest.raises(UnknownCollectionRefError, match="collection:99"):
         await _resolver().resolve(agent, request)
+
+
+# ---------------------------------------------------------------------------
+# S3 resolution
+# ---------------------------------------------------------------------------
 
 
 async def test_s3_ref_validates_and_carries_path():
@@ -248,7 +322,6 @@ async def test_s3_ref_validates_and_carries_path():
 
     resolved = await _resolver().resolve(agent, request)
 
-    # No executor built (out of scope), but resolution succeeds
     assert resolved.attachments == []
 
 
@@ -281,7 +354,6 @@ async def test_two_agents_share_pool_each_gets_own_registry():
     names_b = {spec.name for spec in resolved_b.tools.tool_specs()}
     assert "shared_tool" in names_a
     assert "shared_tool" in names_b
-    # Registries are separate objects
     assert resolved_a.tools is not resolved_b.tools
 
 

@@ -37,7 +37,7 @@ EXAMPLE_BLOB = {
             "max_retry_limit": 5,
             "default_temperature": 0.7,
             "tool_refs": ["python-code-tool:1", "mcp-tool:4"],
-            "rag_refs": ["naive:3"],
+            "collection_refs": ["collection:7"],
             "s3_refs": [88],
         }
     ],
@@ -78,21 +78,39 @@ EXAMPLE_BLOB = {
             },
         },
     ],
-    "rags": [
+    "collections": [
         {
-            "unique_name": "naive:3",
+            "unique_name": "collection:7",
             "collection_id": 7,
-            "rag_id": 3,
-            "rag_type": "naive",
-            "search_config": {
-                "rag_type": "naive",
-                "search_limit": 3,
-                "similarity_threshold": 0.2,
-            },
-            "embedder": {
-                "provider": "openai",
-                "config": {"model": "text-embedding-3-small"},
-            },
+            "name": "research_docs",
+            "description": None,
+            "search_configs": [
+                {
+                    "rag_id": 3,
+                    "rag_type": "naive",
+                    "search_config": {
+                        "rag_type": "naive",
+                        "search_limit": 3,
+                        "similarity_threshold": 0.2,
+                    },
+                    "embedder": {
+                        "provider": "openai",
+                        "config": {"model": "text-embedding-3-small"},
+                    },
+                },
+                {
+                    "rag_id": 4,
+                    "rag_type": "graph",
+                    "search_config": {
+                        "rag_type": "graph",
+                        "search_params": {"search_method": "basic"},
+                    },
+                    "embedder": {
+                        "provider": "openai",
+                        "config": {"model": "text-embedding-3-small"},
+                    },
+                },
+            ],
         }
     ],
     "s3_files": [{"id": 88, "path": "reports/2026/q1.pdf"}],
@@ -115,10 +133,11 @@ def test_agent_request_validates_example_blob():
     assert request.agents[0].llm.provider == "openai"
     assert request.agents[0].llm.config.model == "gpt-4o"
     assert request.agents[0].tool_refs == ["python-code-tool:1", "mcp-tool:4"]
-    assert request.agents[0].rag_refs == ["naive:3"]
+    assert request.agents[0].collection_refs == ["collection:7"]
     assert request.agents[0].s3_refs == [88]
     assert len(request.tools) == 2
-    assert len(request.rags) == 1
+    assert len(request.collections) == 1
+    assert len(request.collections[0].search_configs) == 2
     assert len(request.s3_files) == 1
     assert request.s3_files[0].path == "reports/2026/q1.pdf"
     assert request.payload == {"prompt": "Summarize Q1."}
@@ -128,9 +147,7 @@ def test_agent_request_validates_example_blob():
 def test_agent_request_round_trips():
     request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
     dumped = request.model_dump()
-    # correlation_id round-trips
     assert dumped["correlation_id"] == "corr-1"
-    # run_type serialises as string value
     assert dumped["run_type"] == "SINGLE_TASK"
 
 
@@ -138,6 +155,23 @@ def test_agent_request_frozen():
     request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
     with pytest.raises(Exception):
         request.correlation_id = "mutated"  # type: ignore[misc]
+
+
+def test_collection_spec_search_configs_accessible():
+    request = AgentRequest(correlation_id="corr-1", **EXAMPLE_BLOB)
+    collection = request.collections[0]
+
+    assert collection.unique_name == "collection:7"
+    assert collection.collection_id == 7
+    assert collection.name == "research_docs"
+
+    naive_entry = collection.search_configs[0]
+    assert naive_entry.rag_type == "naive"
+    assert naive_entry.rag_id == 3
+
+    graph_entry = collection.search_configs[1]
+    assert graph_entry.rag_type == "graph"
+    assert graph_entry.rag_id == 4
 
 
 # ---------------------------------------------------------------------------
@@ -151,8 +185,6 @@ async def test_data_loader_injects_correlation_id():
     """
     from shared.redis_streams import StreamEnvelope
 
-    # Build a valid request, dump to JSON (without correlation_id) — this
-    # is what the producer stores at the Redis key.
     template = AgentRequest(correlation_id="ignored", **EXAMPLE_BLOB)
     dumped = template.model_dump(exclude={"correlation_id"})
     blob_without_correlation_id = json.dumps(dumped)

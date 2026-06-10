@@ -57,7 +57,7 @@ class SingleTaskRunner(Runner):
                 agent.llm.config.model,
                 agent.max_iter,
                 len(agent.tool_refs),
-                len(agent.rag_refs),
+                len(agent.collection_refs),
                 len(agent.s3_refs),
             )
 

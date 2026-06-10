@@ -16,7 +16,14 @@ from app.tools.system_registry import (
     get_system_registry,
     system_tool,
 )
-from shared.models.agent_service import ToolResult
+from shared.models.agent_service import CollectionSpec, SearchConfigEntry, ToolResult
+from shared.models.ai_providers import EmbedderConfigData, EmbedderData
+from shared.models.knowledge import (
+    GraphRagBasicSearchParams,
+    GraphRagLocalSearchParams,
+    GraphRagSearchConfig,
+    NaiveRagSearchConfig,
+)
 from shared.models.tools import (
     ArgsSchema,
     McpToolData,
@@ -34,6 +41,58 @@ def clear_global_registry():
 
 def _fake_sandbox() -> MagicMock:
     return MagicMock()
+
+
+def _fake_knowledge_client() -> MagicMock:
+    return MagicMock()
+
+
+def _embedder() -> EmbedderData:
+    return EmbedderData(
+        provider="openai",
+        config=EmbedderConfigData(model="text-embedding-3-small"),
+    )
+
+
+def _naive_entry(rag_id: int = 1) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
+        rag_type="naive",
+        search_config=NaiveRagSearchConfig(),
+        embedder=_embedder(),
+    )
+
+
+def _graph_basic_entry(rag_id: int = 2) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
+        rag_type="graph",
+        search_config=GraphRagSearchConfig(search_params=GraphRagBasicSearchParams()),
+        embedder=_embedder(),
+    )
+
+
+def _graph_local_entry(rag_id: int = 3) -> SearchConfigEntry:
+    return SearchConfigEntry(
+        rag_id=rag_id,
+        rag_type="graph",
+        search_config=GraphRagSearchConfig(search_params=GraphRagLocalSearchParams()),
+        embedder=_embedder(),
+    )
+
+
+def _collection_spec(
+    name: str = "company_docs",
+    entries: list[SearchConfigEntry] | None = None,
+    description: str | None = None,
+) -> CollectionSpec:
+    return CollectionSpec(
+        unique_name=f"collection:{name}",
+        collection_id=10,
+        name=name,
+        description=description,
+        search_configs=entries or [_naive_entry()],
+    )
 
 
 def _fake_gateway(return_value: str = "ok") -> McpToolGateway:
@@ -235,17 +294,240 @@ async def test_tool_name_is_sanitized():
     names = [spec.name for spec in registry.tool_specs()]
     assert "My_Tool" in names
 
-    # Sandbox is a MagicMock; executor catches the non-awaitable and returns
-    # an error ToolResult — confirms dispatch reaches the executor without
-    # raising a registry KeyError on the sanitized name.
     result = await registry.execute("My_Tool", {})
     assert isinstance(result, ToolResult)
 
 
 async def test_sanitized_collision_raises():
-    # "My Tool" and "My_Tool" both sanitize to "My_Tool"
     builder = ToolRegistryBuilder(_fake_sandbox())
     builder.add_python_code_tool(_python_tool_data("My Tool"))
 
     with pytest.raises(DuplicateToolNameError):
         builder.add_python_code_tool(_python_tool_data("My_Tool"))
+
+
+# ---------------------------------------------------------------------------
+# add_knowledge_tools: fan-out
+# ---------------------------------------------------------------------------
+
+
+async def test_knowledge_tools_fan_out_naive_and_one_graph_tool():
+    """Naive + graph-basic + graph-local (same rag_id) → 2 tools: _naive + _graph."""
+    collection = _collection_spec(
+        name="wiki",
+        entries=[
+            _naive_entry(rag_id=1),
+            _graph_basic_entry(rag_id=2),
+            _graph_local_entry(rag_id=2),
+        ],
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    assert "search_wiki_naive" in names
+    assert "search_wiki_graph" in names
+    assert len(names) == 2
+
+
+async def test_knowledge_tools_suffix_naive():
+    collection = _collection_spec(name="docs", entries=[_naive_entry()])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    assert "search_docs_naive" in names
+
+
+async def test_knowledge_tools_suffix_graph():
+    collection = _collection_spec(name="docs", entries=[_graph_basic_entry(rag_id=2)])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    assert "search_docs_graph" in names
+
+
+async def test_knowledge_tools_graph_schema_both_methods():
+    """Graph tool with basic + local entries → enum contains both methods."""
+    collection = _collection_spec(
+        name="wiki",
+        entries=[_graph_basic_entry(rag_id=2), _graph_local_entry(rag_id=2)],
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    schema = specs["search_wiki_graph"].parameters_schema
+    methods = schema["properties"]["search_method"]["enum"]
+    assert set(methods) == {"basic", "local"}
+    assert schema["properties"]["search_method"]["default"] == "basic"
+
+
+async def test_knowledge_tools_graph_schema_only_basic():
+    """Graph tool with only basic entry → enum is ['basic'], default 'basic'."""
+    collection = _collection_spec(name="docs", entries=[_graph_basic_entry(rag_id=2)])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    schema = specs["search_docs_graph"].parameters_schema
+    methods = schema["properties"]["search_method"]["enum"]
+    assert methods == ["basic"]
+    assert schema["properties"]["search_method"]["default"] == "basic"
+
+
+async def test_knowledge_tools_graph_schema_only_local():
+    """Graph tool with only local entry → enum is ['local'], default 'local'."""
+    collection = _collection_spec(name="docs", entries=[_graph_local_entry(rag_id=2)])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    schema = specs["search_docs_graph"].parameters_schema
+    methods = schema["properties"]["search_method"]["enum"]
+    assert methods == ["local"]
+    assert schema["properties"]["search_method"]["default"] == "local"
+
+
+async def test_knowledge_tools_graph_schema_search_method_not_required():
+    """search_method must not be in 'required'."""
+    collection = _collection_spec(
+        name="wiki",
+        entries=[_graph_basic_entry(rag_id=2), _graph_local_entry(rag_id=2)],
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    schema = specs["search_wiki_graph"].parameters_schema
+    required = schema.get("required", [])
+    assert "search_method" not in required
+    assert "query" in required
+
+
+async def test_knowledge_tools_two_graph_rags_separate_tools():
+    """Two different rag_ids for graph → two separate _graph tools."""
+    collection = _collection_spec(
+        name="corp",
+        entries=[_graph_basic_entry(rag_id=2), _graph_basic_entry(rag_id=3)],
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    assert "search_corp_graph" in names
+    assert "search_corp_graph_3" in names
+
+
+async def test_knowledge_tools_same_naive_type_dedup_appends_rag_id():
+    """Two naive entries in one collection → second gets _{rag_id} suffix."""
+    entries = [_naive_entry(rag_id=1), _naive_entry(rag_id=2)]
+    collection = _collection_spec(name="corp", entries=entries)
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    assert "search_corp_naive" in names
+    assert "search_corp_naive_2" in names
+
+
+async def test_knowledge_tools_name_sanitization():
+    collection = _collection_spec(name="My Docs!", entries=[_naive_entry()])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    # sanitized: "search_My_Docs__naive" or similar — suffix must be present
+    assert any("_naive" in n for n in names)
+
+
+async def test_knowledge_tools_suffix_survives_truncation():
+    """Long collection name must not eat the suffix after truncation."""
+    long_name = "a" * 60
+    collection = _collection_spec(name=long_name, entries=[_naive_entry()])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    names = {spec.name for spec in registry.tool_specs()}
+    name = next(iter(names))
+    assert name.endswith("_naive")
+    assert len(name) <= 64
+
+
+async def test_knowledge_tools_description_naive():
+    collection = _collection_spec(name="wiki", entries=[_naive_entry()])
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    desc = specs["search_wiki_naive"].description
+    assert "Fast semantic chunk search" in desc
+    assert "'wiki'" in desc
+    assert "factual lookups" in desc
+
+
+async def test_knowledge_tools_description_graph():
+    collection = _collection_spec(
+        name="wiki",
+        entries=[_graph_basic_entry(rag_id=2), _graph_local_entry(rag_id=2)],
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    desc = specs["search_wiki_graph"].description
+    assert "Knowledge-graph search" in desc
+    assert "'wiki'" in desc
+    assert "synthesis" in desc
+    assert "entities" in desc
+
+
+async def test_knowledge_tools_collection_description_appended():
+    collection = _collection_spec(
+        name="wiki",
+        entries=[_naive_entry()],
+        description="Internal company knowledge.",
+    )
+    builder = ToolRegistryBuilder(
+        _fake_sandbox(), knowledge_client=_fake_knowledge_client()
+    )
+    registry = builder.add_knowledge_tools(collection).build()
+
+    specs = {spec.name: spec for spec in registry.tool_specs()}
+    desc = specs["search_wiki_naive"].description
+    assert "Internal company knowledge." in desc
+
+
+async def test_knowledge_tools_without_client_raises():
+    collection = _collection_spec()
+    builder = ToolRegistryBuilder(_fake_sandbox(), knowledge_client=None)
+
+    with pytest.raises(AgentServiceError, match="KnowledgeClient"):
+        builder.add_knowledge_tools(collection)

@@ -21,8 +21,8 @@ class UnknownToolRefError(AgentServiceError):
     """Raised when AgentResolver finds a tool_ref not present in request.tools pool."""
 
 
-class UnknownRagRefError(AgentServiceError):
-    """Raised when AgentResolver finds a rag_ref not present in request.rags pool."""
+class UnknownCollectionRefError(AgentServiceError):
+    """Raised when AgentResolver finds a collection_ref not present in request.collections pool."""
 
 
 class UnknownS3RefError(AgentServiceError):
