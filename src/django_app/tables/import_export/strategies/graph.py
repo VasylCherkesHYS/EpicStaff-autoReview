@@ -1,3 +1,4 @@
+import re
 import uuid
 from copy import deepcopy
 
@@ -167,12 +168,20 @@ class GraphStrategy(EntityImportExportStrategy):
     def _create_nodes(
         self, nodes_data: list, graph: Graph, node_mapper: IDMapper, id_mapper: IDMapper
     ) -> None:
+        counter = self._max_node_name_number(graph)
+
         for node_data in nodes_data:
             node_type = node_data.pop("node_type")
             # Backwards compat: old exports used "NoteNode"
             if node_type == "NoteNode":
                 node_type = "GraphNote"
             old_id = node_data.get("id")
+
+            if node_data.get("node_name"):
+                counter += 1
+                node_data["node_name"] = re.sub(
+                    r"\d+$", str(counter), node_data["node_name"]
+                )
 
             config = NODE_HANDLERS[node_type]
 
@@ -183,6 +192,30 @@ class GraphStrategy(EntityImportExportStrategy):
 
             if old_id and node:
                 node_mapper.map(NODE_MAPPING_KEY, old_id, node.id)
+
+    def _max_node_name_number(self, graph: Graph) -> int:
+        """Return the highest trailing integer across all node_names in the graph."""
+        max_num = 0
+        for config in NODE_HANDLERS.values():
+            relation = config["relation"]
+            if not hasattr(graph, relation):
+                continue
+            qs = getattr(graph, relation)
+            if not hasattr(qs, "values_list"):
+                continue
+            model = qs.model
+            if not any(
+                f.name == "node_name"
+                for f in model._meta.get_fields()
+                if hasattr(f, "column")
+            ):
+                continue
+            for name in qs.values_list("node_name", flat=True):
+                if name:
+                    m = re.search(r"(\d+)$", name)
+                    if m:
+                        max_num = max(max_num, int(m.group(1)))
+        return max_num
 
     def _create_edges(self, edges_data: list, graph: Graph, id_mapper: IDMapper):
         for edge_data in edges_data:
