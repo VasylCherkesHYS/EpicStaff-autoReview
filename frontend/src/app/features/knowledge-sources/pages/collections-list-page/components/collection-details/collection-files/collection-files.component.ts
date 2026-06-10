@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, model, output } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppSvgIconComponent } from '@shared/components';
 
@@ -18,9 +18,14 @@ import { DocumentsStorageService } from '../../../../../services/documents-stora
 })
 export class CollectionFilesComponent {
     documents = model<DisplayedListDocument[]>([]);
+    downloadRequested = output<number>();
 
     private documentsStorageService = inject(DocumentsStorageService);
     private destroyRef = inject(DestroyRef);
+
+    onDownload(id: number): void {
+        this.downloadRequested.emit(id);
+    }
 
     onDelete({ document_id, file_name }: DisplayedListDocument): void {
         if (!document_id) {

@@ -90,6 +90,12 @@
                                     <!--                                    [items]="[]"-->
                                     <!--                                />-->
                                     <app-svg-icon
+                                        icon="download"
+                                        class="details__action details__action--medium"
+                                        size="0.875rem"
+                                        (click)="downloadAllFiles()"
+                                    />
+                                    <app-svg-icon
                                         icon="files-filled"
                                         class="details__action details__action--medium"
                                         size="0.75rem"
@@ -112,7 +118,10 @@
                                     />
                                 </div>
                             </div>
-                            <app-collection-details-files [(documents)]="documents" />
+                            <app-collection-details-files
+                                [(documents)]="documents"
+                                (downloadRequested)="onFileDownload($event)"
+                            />
                         </div>
                     }
                 </div>

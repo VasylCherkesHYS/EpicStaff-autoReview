@@ -31,6 +31,12 @@
                 <span class="files__size">{{ item.file_size | fileSize }}</span>
                 <app-list-actions>
                     <app-svg-icon
+                        icon="download"
+                        size="0.875rem"
+                        class="files__close-action"
+                        (click)="onDownload(item.document_id)"
+                    />
+                    <app-svg-icon
                         icon="x"
                         size="1rem"
                         class="files__close-action"

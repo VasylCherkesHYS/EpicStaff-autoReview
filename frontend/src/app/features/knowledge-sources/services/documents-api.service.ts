@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -36,6 +36,11 @@ export class DocumentsApiService {
             `${this.apiUrl}/source-collection/${collectionId}/upload/`,
             formData
         );
+    }
+
+    downloadDocuments(ids: number[]): Observable<Blob> {
+        const params = new HttpParams().set('document_ids', ids.join(','));
+        return this.http.get(`${this.apiUrl}/download/`, { responseType: 'blob', params });
     }
 
     previewDocumentBlob(id: number): Observable<Blob> {
