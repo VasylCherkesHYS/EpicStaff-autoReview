@@ -34,9 +34,9 @@ class PartialImportService:
     existing graph identified by graph_id.
 
     The export file contains standalone nodes (with their transitive
-    dependencies) and optionally edges/conditional_edges.  The graph itself
-    is NOT re-created; nodes are appended to the existing graph and all IDs
-    are remapped via IDMapper.
+    dependencies) and optionally edges.  The graph itself is NOT re-created;
+    nodes are appended to the existing graph and all IDs are remapped via
+    IDMapper.
     """
 
     def __init__(self, registry: EntityRegistry):
@@ -58,14 +58,12 @@ class PartialImportService:
             graph_strategy: GraphStrategy = self.registry.get_strategy(EntityType.GRAPH)
 
             edges_data = export_data.get("edge_list", [])
-            conditional_edges_data = export_data.get("conditional_edge_list", [])
 
             graph_strategy.recreate_graph_children(
                 graph,
                 {
                     "nodes": nodes_data,
                     "edge_list": edges_data,
-                    "conditional_edge_list": conditional_edges_data,
                 },
                 id_mapper,
             )

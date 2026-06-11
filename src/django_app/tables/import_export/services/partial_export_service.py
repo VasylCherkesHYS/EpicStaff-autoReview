@@ -1,13 +1,10 @@
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-from tables.models.graph_models import Edge, ConditionalEdge
+from tables.models.graph_models import Edge
 from tables.import_export.registry import EntityRegistry
 from tables.import_export.enums import EntityType
-from tables.import_export.serializers.graph import (
-    EdgeImportSerializer,
-    ConditionalEdgeImportSerializer,
-)
+from tables.import_export.serializers.graph import EdgeImportSerializer
 
 # Map bulk-save list_key -> EntityType for strategy lookup
 LIST_KEY_TO_ENTITY_TYPE: dict[str, EntityType] = {
@@ -63,7 +60,6 @@ class GraphPartialExportService:
         self,
         node_refs: list[NodeRef],
         edge_ids: list[int] = None,
-        conditional_edge_ids: list[int] = None,
     ) -> PartialExportResult:
         result = PartialExportResult()
 
@@ -111,21 +107,6 @@ class GraphPartialExportService:
             if edges:
                 collected["edge_list"] = {e.id: e for e in edges}
 
-        if conditional_edge_ids:
-            cond_edges = list(
-                ConditionalEdge.objects.filter(id__in=conditional_edge_ids)
-            )
-            missing = set(conditional_edge_ids) - {e.id for e in cond_edges}
-            for eid in missing:
-                result.errors.append(
-                    {
-                        "conditional_edge_id": eid,
-                        "error": f"ConditionalEdge with id={eid} not found.",
-                    }
-                )
-            if cond_edges:
-                collected["conditional_edge_list"] = {e.id: e for e in cond_edges}
-
         # Pass 4: serialize everything
         result.data = self._serialize(collected)
         return result
@@ -165,15 +146,10 @@ class GraphPartialExportService:
         result = {}
 
         for entity_type, instances in collected.items():
-            # Edges are serialized separately — they use dedicated serializers
+            # Edges are serialized separately — they use a dedicated serializer
             if entity_type == "edge_list":
                 result["edge_list"] = [
                     EdgeImportSerializer(e).data for e in instances.values()
-                ]
-                continue
-            if entity_type == "conditional_edge_list":
-                result["conditional_edge_list"] = [
-                    ConditionalEdgeImportSerializer(e).data for e in instances.values()
                 ]
                 continue
 
