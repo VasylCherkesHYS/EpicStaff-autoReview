@@ -17,10 +17,13 @@ type ServerMessage =
     | GraphModifiedMessage
     | GraphSavedMessage
     | WsErrorMessage
+    | PresenceStateUpdated
+    
 
 type PresenceStateMessage  = { type: 'presence_state'; editors: EditorInfo[] };
 type UserJoinedMessage     = { type: 'user_joined'; editor: EditorInfo };
 type UserLeftMessage       = { type: 'user_left'; user_id: number };
+type PresenceStateUpdated  = { type: 'presence_state_updated'; editor: EditorInfo};
 export type GraphModifiedMessage = { 
     type: 'graph_modified'; 
     graph_id: number; 
@@ -146,6 +149,11 @@ export class GraphCollaborationWsService {
                 break;
             case 'error':
                 console.error(`[WS] Server error [${message.code}]: ${message.message}`);
+                break;
+            case 'presence_state_updated':
+                this.editors.update((editors) => 
+                editors.map((e) => e.user_id === message.editor.user_id ? message.editor : e)
+                );
                 break;
         }
     }
