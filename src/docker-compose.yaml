@@ -142,9 +142,6 @@ services:
       DB_MANAGER_USER: ${DB_MANAGER_USER}
       DB_MANAGER_PASSWORD: ${DB_MANAGER_PASSWORD}
       CREW_SAVEFILES_PATH: ${CREW_SAVEFILES_PATH}
-    env_file:
-      - path: .env
-        required: false
     volumes:
       - ${DOCKER_SOCK_PATH}:${DOCKER_SOCK_PATH}
       - ${DOCKER_BIN_PATH}:${DOCKER_BIN_PATH}
