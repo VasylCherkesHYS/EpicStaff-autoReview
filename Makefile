@@ -16,7 +16,8 @@ endif
         dev-voice dev-ngrok \
         prod-setup prod-init prod prod-build prod-up start-prod prod-down prod-logs prod-voice prod-ngrok \
         clean docker-generate-certs \
-        integration-test
+        integration-test \
+        gen-env check-env
 
 # --- Help ---
 
@@ -152,6 +153,18 @@ prod-voice:
 prod-ngrok:
 	@echo "--- Starting ngrok tunnel (production) ---"
 	@cd src && docker compose -f docker-compose.yaml -f docker-compose.override.yaml --env-file ./.env $(PROD_ENV_ARG) --profile voice up ngrok
+
+# ==========================================
+# ENV FILE GENERATION
+# ==========================================
+
+gen-env:
+	@echo "--- Regenerating src/.dev.env, src/debug.env, src/.env.example from src/env.yaml ---"
+	@python scripts/generate_env.py
+
+check-env:
+	@echo "--- Checking generated env files match src/env.yaml ---"
+	@python scripts/generate_env.py --check
 
 # ==========================================
 # UTILITIES

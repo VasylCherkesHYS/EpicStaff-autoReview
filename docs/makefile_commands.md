@@ -10,6 +10,7 @@ All commands must be run from the **project root directory** (where `Makefile` l
 - [Development Environment](#development-environment)
 - [Production Environment](#production-environment)
 - [Branch Switching](#branch-switching)
+- [Env File Generation](#env-file-generation)
 - [Utilities](#utilities)
 - [Local Django Development](#local-django-development)
 - [Typical Workflows](#typical-workflows)
@@ -203,6 +204,41 @@ Restores the DB volume from `make_scripts/backups/<current-branch>.tar`. If no b
 
 ```bash
 make apply-backup
+```
+
+---
+
+## Env File Generation
+
+`src/env.yaml` is the single source of truth for all three env files. Edit it,
+then regenerate. Never hand-edit the generated files — `--check` will catch drift.
+
+### `make gen-env`
+
+Regenerate `src/.dev.env`, `src/debug.env`, and `src/.env.example` from `src/env.yaml`.
+
+```bash
+make gen-env
+```
+
+### `make check-env`
+
+Compare the three env files on disk to what `src/env.yaml` would generate. Exits 1 with a
+unified diff if any file has drifted; exits 0 if all files are clean. Use in CI or as a
+pre-commit check. `make check-env` always checks all three files; to check a single file
+use the CLI directly (`python scripts/generate_env.py --check --env debug`).
+
+```bash
+make check-env
+```
+
+You can also target a single file:
+
+```bash
+python scripts/generate_env.py --env dev
+python scripts/generate_env.py --env debug
+python scripts/generate_env.py --env example
+python scripts/generate_env.py --check --env debug
 ```
 
 ---
