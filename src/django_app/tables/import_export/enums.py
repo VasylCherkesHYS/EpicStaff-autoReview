@@ -40,6 +40,7 @@ class EntityType(str, Enum):
     END_NODE = "EndNode"
     NOTE_NODE = "GraphNote"
     CODE_AGENT_NODE = "CodeAgentNode"
+    SCHEDULE_TRIGGER_NODE = "ScheduleTriggerNode"
 
 
 class NodeType(str, Enum):
