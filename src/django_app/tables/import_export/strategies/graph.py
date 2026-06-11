@@ -9,7 +9,11 @@ from tables.serializers.model_serializers import CrewSerializer
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 
 from tables.import_export.strategies.base import EntityImportExportStrategy
-from tables.import_export.strategies.node_handlers import NODE_HANDLERS
+from tables.import_export.strategies.node_handlers import (
+    NODE_RELATIONS,
+    NODE_TYPE_TO_ENTITY_TYPE,
+)
+from tables.import_export.registry import entity_registry
 from tables.import_export.serializers.graph import (
     GraphImportSerializer,
     EdgeImportSerializer,
@@ -152,14 +156,14 @@ class GraphStrategy(EntityImportExportStrategy):
     def _export_nodes(self, instance: Graph) -> list:
         nodes = []
 
-        for node_type, config in NODE_HANDLERS.items():
-            relation_name = config["relation"]
-            serializer_class = config["serializer"]
+        for node_type, relation_name in NODE_RELATIONS.items():
+            entity_type = NODE_TYPE_TO_ENTITY_TYPE[node_type]
+            strategy = entity_registry.get_strategy(entity_type)
 
             node_queryset = getattr(instance, relation_name).all()
 
             for node in node_queryset:
-                node_data = serializer_class(node).data
+                node_data = strategy.export_entity(node)
                 node_data["node_type"] = node_type
                 nodes.append(node_data)
 
@@ -183,12 +187,22 @@ class GraphStrategy(EntityImportExportStrategy):
                     r"\d+$", str(counter), node_data["node_name"]
                 )
 
-            config = NODE_HANDLERS[node_type]
+            # Node strategies resolve their parent graph via
+            # id_mapper.get_or_none(GRAPH, node_data["graph"]). The exported node
+            # carries no "graph" key (it's write-only on the serializer), and the
+            # parent graph's id mapping isn't registered yet (the import service
+            # records it only after this method returns). Stamp the real graph id
+            # onto the node and register an identity mapping for it, so the
+            # strategy resolves the graph to this freshly-created instance.
+            # Guard against overwriting a real GRAPH mapping (e.g. an imported
+            # subgraph whose exported id happens to equal this graph's new id).
+            node_data["graph"] = graph.id
+            if not id_mapper.has_mapping(EntityType.GRAPH, graph.id):
+                id_mapper.map(EntityType.GRAPH, graph.id, graph.id, was_created=False)
 
-            if "import_hook" in config:
-                node = config["import_hook"](graph, node_data, id_mapper)
-            else:
-                node = self._default_import_node(graph, node_data, config)
+            entity_type = NODE_TYPE_TO_ENTITY_TYPE[node_type]
+            strategy = entity_registry.get_strategy(entity_type)
+            node = strategy.create_entity(node_data, id_mapper)
 
             if old_id and node:
                 node_mapper.map(NODE_MAPPING_KEY, old_id, node.id)
@@ -196,8 +210,7 @@ class GraphStrategy(EntityImportExportStrategy):
     def _max_node_name_number(self, graph: Graph) -> int:
         """Return the highest trailing integer across all node_names in the graph."""
         max_num = 0
-        for config in NODE_HANDLERS.values():
-            relation = config["relation"]
+        for relation in NODE_RELATIONS.values():
             if not hasattr(graph, relation):
                 continue
             qs = getattr(graph, relation)
@@ -346,15 +359,6 @@ class GraphStrategy(EntityImportExportStrategy):
         ]
         if new_label_ids:
             graph.labels.add(*Label.objects.filter(id__in=new_label_ids))
-
-    def _default_import_node(self, graph: Graph, node_data: dict, config: dict):
-        """Default import logic for simple nodes"""
-        serializer_class = config["serializer"]
-        node_data["graph"] = graph.id
-
-        serializer = serializer_class(data=node_data)
-        serializer.is_valid(raise_exception=True)
-        return serializer.save()
 
     def update_metadata(self, metadata: dict, id_mapper: IDMapper) -> dict:
         # TODO: Remove metadata when save functionality reworked
