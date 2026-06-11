@@ -263,8 +263,9 @@
                     ></f-connection-waypoints>
                 </f-connection>
             }
+            <app-graph-live-cursors [cursors]="remoteCursors()" />
         </f-canvas>
-
+        
         <f-selection-area></f-selection-area>
         <f-minimap [fMinSize]="1000"></f-minimap>
     </f-flow>

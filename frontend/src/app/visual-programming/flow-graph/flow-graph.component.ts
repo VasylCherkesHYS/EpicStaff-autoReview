@@ -40,7 +40,7 @@ import {
     FZoomDirective,
     ICurrentSelection,
 } from '@foblex/flow';
-import { Subject } from 'rxjs';
+import { Subject, takeUntil } from 'rxjs';
 
 import { ToastService } from '../../services/notifications/toast.service';
 import { AppSvgIconComponent } from '../../shared/components/app-svg-icon/app-svg-icon.component';
@@ -54,6 +54,7 @@ import { FlowShortcutsButtonComponent } from '../components/flow-shortcuts-butto
 import { NodePanelShellComponent } from '../components/node-panels/node-panel-shell/node-panel-shell.component';
 import { NodesSearchComponent } from '../components/nodes-search/nodes-search.component';
 import { NoteEditDialogComponent } from '../components/note-edit-dialog/note-edit-dialog.component';
+import { GraphLiveCursorsComponent, CursorState } from './graph-live-cursors/graph-live-cursors.component';
 import { ProjectDialogComponent } from '../components/project-dialog/project-dialog.component';
 import { MouseTrackerDirective } from '../core/directives/mouse-tracker.directive';
 import { ShortcutListenerDirective } from '../core/directives/shortcut-listener.directive';
@@ -130,6 +131,7 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         FConnectionWaypoints,
         WaypointTooltipDirective,
         FlowFilesButtonComponent,
+        GraphLiveCursorsComponent,
     ],
 })
 export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
@@ -235,7 +237,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly dialog = inject(Dialog);
     private readonly toastService = inject(ToastService);
     private readonly injector = inject(Injector);
-    private readonly wsService = inject(GraphCollaborationWsService)
+    private readonly wsService = inject(GraphCollaborationWsService);
+    public readonly remoteCursors = signal<Map<number, CursorState>>(new Map());
+    private readonly cursorTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 
     constructor() {}
 
@@ -244,6 +248,40 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (this.initialNodeId) {
             this.openNodePanel(this.initialNodeId);
         }
+
+        this.wsService.cursorMoved$
+            .pipe(takeUntil(this.destroy$))
+            .subscribe((msg) => {
+                const userId = msg.editor.user_id;
+
+                const prev = this.cursorTimeouts.get(userId);
+                if (prev) clearTimeout(prev);
+
+                this.remoteCursors.update((m) => {
+                    const next = new Map(m);
+                    next.set(userId, { x: msg.x, y: msg.y, editor: msg.editor, fading: false });
+                    return next;
+                });
+
+                const fadeTimeout = setTimeout(() => {
+                    this.remoteCursors.update((m) => {
+                        const next = new Map(m);
+                        const cursor = next.get(userId);
+                        if (cursor) next.set(userId, { ...cursor, fading: true });
+                        return next;
+                    });
+                    setTimeout(() => {
+                        this.remoteCursors.update((m) => {
+                            const next = new Map(m);
+                            next.delete(userId);
+                            return next;
+                        });
+                        this.cursorTimeouts.delete(userId);
+                    }, 400);
+                }, 3000);
+
+                this.cursorTimeouts.set(userId, fadeTimeout);
+            });
     }
 
     public ngOnChanges(changes: SimpleChanges): void {
@@ -259,6 +297,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (this.arrangeAnimationId !== null) {
             cancelAnimationFrame(this.arrangeAnimationId);
         }
+        this.cursorTimeouts.forEach((t) => clearTimeout(t));
+        this.cursorTimeouts.clear();
+
         this.destroy$.next();
         this.destroy$.complete();
     }
@@ -909,6 +950,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     public updateMouseTrackerPosition(event: IPoint): void {
         this.mouseCursorPosition = event;
+        if (this.fFlowComponent && this.isLoaded()) {
+            const flowPos = this.toFlowPosition(event);
+            this.wsService.sendCursorMoved(flowPos.x, flowPos.y);
+        }
     }
 
     public onAutoArrange(): void {
