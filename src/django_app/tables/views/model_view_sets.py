@@ -6,6 +6,7 @@ import urllib.request
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.http import HttpResponse
 from django.db.models import NOT_PROVIDED, IntegerField, Prefetch
 from django.db.models.functions import Cast
 from django_filters import rest_framework as filters
@@ -65,6 +66,10 @@ from tables.graph_versioning.serializers import (
 )
 
 from tables.import_export.enums import EntityType
+from tables.import_export.tabular.classification_decision_table import (
+    export_condition_groups_csv,
+)
+
 from tables.models import (
     Agent,
     AudioTranscriptionNode,
@@ -136,7 +141,6 @@ from django_filters.rest_framework import (
 from rest_framework import viewsets, mixins, status, filters as drf_filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
 from django.db import transaction
 from django.db.models import Prefetch
 from tables.models.graph_models import (
@@ -245,12 +249,12 @@ from django.http import HttpResponse
 
 from tables.serializers.serializers import (
     BulkExportSerializer,
-    GraphNodesBulkExportSerializer,
+    GraphNodesPartialExportSerializer,
     ImportRequestSerializer,
 )
 from tables.import_export.registry import entity_registry
-from tables.import_export.services.bulk_export_service import (
-    GraphBulkExportService,
+from tables.import_export.services.partial_export_service import (
+    GraphPartialExportService,
     NodeRef,
     LIST_KEY_TO_ENTITY_TYPE,
 )
@@ -530,6 +534,17 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
     def export(self, request, pk: int):
         return self.import_export_service.export_entity(self.get_object())
 
+    @extend_schema(
+        request={
+            "multipart/form-data": {
+                "type": "object",
+                "properties": {
+                    "file": {"type": "string", "format": "binary"},
+                },
+                "required": ["file"],
+            }
+        }
+    )
     @action(detail=False, methods=["post"], url_path="import")
     def import_entity(self, request):
         file_serializer = ImportRequestSerializer(data=request.data)
@@ -773,7 +788,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
         self.import_export_service = ViewSetImportExportService(
             entity_type=EntityType.GRAPH, export_prefix="graph", filename_attr="name"
         )
-        self._bulk_export_service = GraphBulkExportService(entity_registry)
+        self._partial_export_service = GraphPartialExportService(entity_registry)
 
     def get_queryset(self):
         qs = (
@@ -860,10 +875,10 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
         return self.import_export_service.bulk_export(entity_ids)
 
-    @extend_schema(request=GraphNodesBulkExportSerializer, responses={200: None})
+    @extend_schema(request=GraphNodesPartialExportSerializer, responses={200: None})
     @action(detail=True, methods=["post"], url_path="partial-export")
     def partial_export(self, request, pk=None):
-        serializer = GraphNodesBulkExportSerializer(data=request.data)
+        serializer = GraphNodesPartialExportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         graph = self.get_object()
@@ -873,7 +888,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             for node_id in serializer.validated_data.get(list_key, [])
         ]
 
-        result = self._bulk_export_service.export(
+        result = self._partial_export_service.export(
             node_refs,
             edge_ids=serializer.validated_data.get("edge_list", []),
         )
@@ -1416,6 +1431,10 @@ class ClassificationDecisionTableNodeModelViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["graph"]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._partial_export_service = GraphPartialExportService(entity_registry)
+
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         node, _ = self._create_or_update_node(data=request.data)
@@ -1540,6 +1559,60 @@ class ClassificationDecisionTableNodeModelViewSet(viewsets.ModelViewSet):
                 ClassificationConditionGroup.objects.bulk_create(to_bulk_create)
 
         return node, condition_groups_data
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="export_format",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                enum=["json", "csv"],
+                description="Export format. Defaults to 'json'.",
+            )
+        ],
+        responses={200: OpenApiTypes.BINARY},
+    )
+    @action(detail=True, methods=["get"], url_path="export")
+    def export(self, request, pk=None):
+        export_format = request.query_params.get("export_format", "json").lower()
+        if export_format not in ("json", "csv"):
+            raise DRFValidationError(
+                {"export_format": "Unsupported format. Use 'json' or 'csv'."}
+            )
+
+        if export_format == "csv":
+            node = ClassificationDecisionTableNode.objects.select_related(
+                "default_llm_config__model"
+            ).get(pk=pk)
+            buf = export_condition_groups_csv(node)
+            filename = f"CDT_{node.node_name}.csv"
+            response = HttpResponse(buf.getvalue(), content_type="text/csv")
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return response
+
+        # JSON: reuse the partial-export pipeline so the file is identical in
+        # structure to a partial export (and re-importable via partial-import).
+        node = self.get_object()
+        result = self._partial_export_service.export(
+            [
+                NodeRef(
+                    entity_type=EntityType.CLASSIFICATION_DECISION_TABLE_NODE,
+                    node_id=node.id,
+                )
+            ]
+        )
+        if result.has_errors:
+            return Response(
+                {"errors": result.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        filename = generate_file_name(f"{node.node_name}", prefix="CDT")
+        response = HttpResponse(
+            json.dumps(result.data, indent=4), content_type="application/json"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class McpToolViewSet(CopyActionMixin, viewsets.ModelViewSet):

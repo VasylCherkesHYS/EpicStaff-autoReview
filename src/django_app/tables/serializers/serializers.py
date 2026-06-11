@@ -108,7 +108,7 @@ class BulkExportSerializer(serializers.Serializer):
     )
 
 
-class GraphNodesBulkExportSerializer(serializers.Serializer):
+class GraphNodesPartialExportSerializer(serializers.Serializer):
     start_node_list = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, default=list
     )
@@ -153,7 +153,7 @@ class GraphNodesBulkExportSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        from tables.import_export.services.bulk_export_service import (
+        from tables.import_export.services.partial_export_service import (
             LIST_KEY_TO_ENTITY_TYPE,
         )
 

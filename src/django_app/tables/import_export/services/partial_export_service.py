@@ -34,7 +34,7 @@ class NodeRef:
 
 
 @dataclass
-class BulkExportResult:
+class PartialExportResult:
     data: dict = field(default_factory=dict)
     errors: list[dict] = field(default_factory=list)
 
@@ -43,12 +43,12 @@ class BulkExportResult:
         return bool(self.errors)
 
 
-class GraphBulkExportService:
+class GraphPartialExportService:
     """
     Export one or several nodes from a graph together with their dependencies.
 
-    When multiple nodes are exported, edges between those nodes (both Edge and
-    ConditionalEdge) are included in the result so the selection can be
+    When multiple nodes are exported, edges between those nodes
+    are included in the result so the selection can be
     re-imported as a coherent unit.
 
     Errors are collected rather than raised — callers should check
@@ -63,8 +63,8 @@ class GraphBulkExportService:
         node_refs: list[NodeRef],
         edge_ids: list[int] = None,
         conditional_edge_ids: list[int] = None,
-    ) -> BulkExportResult:
-        result = BulkExportResult()
+    ) -> PartialExportResult:
+        result = PartialExportResult()
 
         if not node_refs:
             result.errors.append({"error": "No nodes provided for export."})

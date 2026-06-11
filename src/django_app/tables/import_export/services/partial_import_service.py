@@ -29,7 +29,7 @@ _NODE_ENTITY_TYPES = {
 
 class PartialImportService:
     """
-    Import the output of GraphBulkExportService (partial-export) into an
+    Import the output of GraphPartialExportService (partial-export) into an
     existing graph identified by graph_id.
 
     The export file contains standalone nodes (with their transitive
