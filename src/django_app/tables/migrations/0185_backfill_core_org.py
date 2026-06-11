@@ -1,11 +1,12 @@
 from django.db import migrations
 
-from tables.migrations._helpers import assign_default_org
+from tables.migrations._helpers import assign_default_org, resolve_default_org
 
 
 def forwards(apps, schema_editor):
+    org = resolve_default_org(apps)
     for label in ("tables.Graph", "tables.Agent", "tables.Crew"):
-        assign_default_org(apps, label)
+        assign_default_org(apps, label, org)
 
 
 class Migration(migrations.Migration):
