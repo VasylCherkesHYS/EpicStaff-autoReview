@@ -42,8 +42,8 @@ export class UserMenuComponent {
             .switchOrg(orgId)
             .pipe(
                 finalize(() => this.switching.set(false)),
-                catchError(() => {
-                    this.toast.error('You no longer have access to this organization.');
+                catchError((err) => {
+                    this.toast.error(err.error.message);
                     return EMPTY;
                 })
             )
