@@ -31,7 +31,21 @@ make help
 
 ## Development Environment
 
-Uses `docker-compose.yaml` + `docker-compose.dev.yaml` with env files `.env` and `dev/dev.env`.
+Uses `docker-compose.yaml` + `docker-compose.dev.yaml` with env file `.dev.env`.
+
+> **Note:** `src/.dev.env` is generated from `src/env.yaml` and is gitignored. On a fresh clone, run `make gen-env` once before `make dev` to create it.
+
+### `make dev-init`
+
+Create all external Docker volumes and the `mcp-network` required by the dev stack. Idempotent — safe to run when volumes already exist.
+
+Creates: `sandbox_venvs`, `crew_pgdata`, `media_data`, `graph_data`, `mcp-network`.
+
+`make dev`, `make rebuild-dev`, `make dev-voice`, and `make dev-ngrok` all run `dev-init` automatically as a prerequisite, so you rarely need to call this directly.
+
+```bash
+make dev-init
+```
 
 ### `make dev`
 
@@ -372,6 +386,18 @@ curl -X POST http://localhost:8000/api/auth/reset-user/ \
 ---
 
 ## Typical Workflows
+
+### First-time dev setup (fresh clone)
+
+```bash
+# Generate src/.dev.env from src/env.yaml (run once, and again after env.yaml changes)
+make gen-env
+
+# Create external volumes/network and start all dev services
+make dev
+```
+
+Open http://localhost (or http://localhost:4200 for the direct live-reload server).
 
 ### Start the development environment
 
