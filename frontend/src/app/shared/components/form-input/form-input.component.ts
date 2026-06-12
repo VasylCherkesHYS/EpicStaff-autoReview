@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, forwardRef, Input } from '@angular/core';
+import { Component, EventEmitter, forwardRef, Input, Output } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
@@ -34,7 +34,7 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
                     [name]="name"
                     [placeholder]="placeholder"
                     [(ngModel)]="value"
-                    (blur)="onTouched()"
+                    (blur)="onTouched(); blur.emit()"
                     class="text-input"
                     [class.has-toggle]="type === 'password'"
                     [class.error]="errorMessage"
@@ -174,6 +174,8 @@ export class CustomInputComponent implements ControlValueAccessor {
     @Input() required: boolean = false;
     @Input() activeColor: string = '#685fff';
     @Input() errorMessage: string = '';
+
+    @Output() blur = new EventEmitter<void>();
 
     passwordVisible: boolean = false;
 

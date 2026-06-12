@@ -18,7 +18,6 @@ from tables.import_export.serializers.graph import (
     StartNodeImportSerializer,
     CrewNodeImportSerializer,
     PythonNodeImportSerializer,
-    LLMNodeImportSerializer,
     CodeAgentNodeImportSerializer,
     WebhookTriggerNodeImportSerializer,
     FileExtractorNodeImportSerializer,
@@ -179,10 +178,6 @@ NODE_HANDLERS = {
         "serializer": PythonNodeImportSerializer,
         "relation": "python_node_list",
         "import_hook": import_python_node,
-    },
-    NodeType.LLM_NODE: {
-        "serializer": LLMNodeImportSerializer,
-        "relation": "llm_node_list",
     },
     NodeType.WEBHOOK_TRIGGER_NODE: {
         "serializer": WebhookTriggerNodeImportSerializer,

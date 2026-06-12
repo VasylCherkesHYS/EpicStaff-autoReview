@@ -4,9 +4,13 @@ First off, thank you for considering contributing to EpicStaff! We're thrilled y
 
 This document provides a set of guidelines for contributing to EpicStaff. These are mostly guidelines, not strict rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
 
+## Contributor License Agreement (CLA)
+
+By submitting a pull request, you agree to our [Contributor License Agreement](CLA.md). For first-time contributors, the signing process is automated via a CLA bot.
+
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [EpicStaff Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to **contact@epicstaff.ai**.
+This project and everyone participating in it is governed by the [EpicStaff Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to **contact@epicstaff.com**.
 
 ## How Can I Contribute?
 

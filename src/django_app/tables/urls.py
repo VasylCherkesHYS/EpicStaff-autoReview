@@ -15,13 +15,11 @@ from tables.views.model_view_sets import (
     McpToolViewSet,
     LocalhostWebhookConfigViewSet,
     NgrokWebhookConfigViewSet,
-    PythonCodeToolConfigFieldViewSet,
     PythonCodeToolConfigViewSet,
     PythonNodeViewSet,
     FileExtractorNodeViewSet,
     AudioTranscriptionNodeViewSet,
     CodeAgentNodeViewSet,
-    LLMNodeViewSet,
     StartNodeModelViewSet,
     RealtimeConfigModelViewSet,
     RealtimeSessionItemViewSet,
@@ -131,6 +129,10 @@ from tables.views.sse_views import (
 )
 
 from tables.views.organization_admin_views import OrganizationAdminViewSet
+from tables.views.role_admin_views import (
+    OrgScopedRoleAdminViewSet,
+    RoleAdminViewSet,
+)
 from tables.views.user_management_views import (
     OrganizationMembershipAdminViewSet,
     UserAdminViewSet,
@@ -164,7 +166,6 @@ router.register(r"crewnodes", CrewNodeViewSet)
 router.register(r"pythonnodes", PythonNodeViewSet)
 router.register(r"file-extractor-nodes", FileExtractorNodeViewSet)
 router.register(r"audio-transcription-nodes", AudioTranscriptionNodeViewSet)
-router.register(r"llmnodes", LLMNodeViewSet)
 router.register(r"startnodes", StartNodeModelViewSet)
 router.register(r"endnodes", EndNodeModelViewSet)
 router.register(r"subgraph-nodes", SubGraphNodeModelViewSet)
@@ -207,7 +208,6 @@ router.register(r"webhook-triggers", WebhookTriggerViewSet)
 router.register(r"telegram-trigger-nodes", TelegramTriggerNodeViewSet)
 router.register(r"telegram-trigger-node-fields", TelegramTriggerNodeFieldViewSet)
 router.register(r"python-code-tool-configs", PythonCodeToolConfigViewSet)
-router.register(r"python-code-tool-config-fields", PythonCodeToolConfigFieldViewSet)
 router.register(r"graph-notes", GraphNoteViewSet)
 router.register(r"ngrok-config", NgrokWebhookConfigViewSet)
 router.register(r"localhost-config", LocalhostWebhookConfigViewSet)
@@ -221,6 +221,7 @@ admin_router.register(
     r"organizations", OrganizationAdminViewSet, basename="admin-organization"
 )
 admin_router.register(r"users", UserAdminViewSet, basename="admin-user")
+admin_router.register(r"roles", RoleAdminViewSet, basename="admin-role")
 
 urlpatterns = [
     path(
@@ -244,6 +245,11 @@ urlpatterns = [
         "admin/organizations/<int:org_id>/assign-users/",
         OrganizationMembershipAdminViewSet.as_view({"post": "assign_users"}),
         name="admin-org-users-assign",
+    ),
+    path(
+        "admin/organizations/<int:org_id>/roles/",
+        OrgScopedRoleAdminViewSet.as_view({"get": "list"}),
+        name="admin-org-roles-list",
     ),
     path("admin/", include(admin_router.urls)),
     path("", include(router.urls)),

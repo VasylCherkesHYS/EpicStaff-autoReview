@@ -100,7 +100,8 @@ export function buildBulkSavePayload(
     nodeDiff: NodeDiffByType,
     connectionDiff: ConnectionDiff,
     current: FlowModel,
-    idMap: Map<string, number>
+    idMap: Map<string, number>,
+    saveVersion: number
 ): Record<string, unknown> {
     const nodeItems = <T extends { id: string; backendId: number | null }>(
         diff: NodeDiff<T>,
@@ -160,6 +161,7 @@ export function buildBulkSavePayload(
     };
 
     return {
+        save_version: saveVersion,
         start_node_list: nodeItems(nodeDiff.startNodes, (n) => ({
             graph: graphId,
             variables: n.data.initialState ?? {},

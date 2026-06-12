@@ -57,6 +57,7 @@ from tables.exceptions import (
     BuiltInToolModificationError,
     BulkSaveValidationError,
     TaskSerializerError,
+    GraphSaveVersionConflictError,
 )
 from tables.services.rbac.authentication import IsAuthenticatedOrApiKey
 from tables.serializers.graph_bulk_save_serializers import GraphBulkSaveInputSerializer
@@ -66,6 +67,7 @@ from tables.graph_versioning.serializers import (
     GraphVersionCreateSerializer,
     GraphVersionReadSerializer,
     GraphVersionUpdateSerializer,
+    RestoreVersionInputSerializer,
 )
 
 from tables.import_export.enums import EntityType
@@ -150,7 +152,6 @@ from tables.models.graph_models import (
     EndNode,
     GraphOrganization,
     GraphOrganizationUser,
-    LLMNode,
     GraphNote,
     TelegramTriggerNode,
     TelegramTriggerNodeField,
@@ -165,7 +166,7 @@ from tables.models.llm_models import (
 )
 from tables.models.knowledge_models.naive_rag_models import AgentNaiveRag
 from tables.models.mcp_models import McpTool
-from tables.models.python_models import PythonCodeToolConfig, PythonCodeToolConfigField
+from tables.models.python_models import PythonCodeToolConfig
 from tables.models.realtime_models import (
     RealtimeAgent,
     RealtimeAgentChat,
@@ -222,7 +223,6 @@ from tables.serializers.model_serializers import (
     GraphSerializer,
     GraphSessionMessageSerializer,
     LabelSerializer,
-    LLMNodeSerializer,
     McpToolSerializer,
     MemorySerializer,
     LocalhostWebhookConfigModelSerializer,
@@ -230,7 +230,6 @@ from tables.serializers.model_serializers import (
     ProviderSerializer,
     PythonCodeResultSerializer,
     PythonCodeSerializer,
-    PythonCodeToolConfigFieldSerializer,
     PythonCodeToolConfigSerializer,
     PythonCodeToolSerializer,
     PythonNodeSerializer,
@@ -415,11 +414,6 @@ class AgentViewSet(CopyActionMixin, ModelViewSet):
             "python_code_tools",
             queryset=AgentPythonCodeTools.objects.select_related(
                 "pythoncodetool__python_code"
-            ).prefetch_related(
-                Prefetch(
-                    "pythoncodetool__tool_fields",
-                    queryset=PythonCodeToolConfigField.objects.all(),
-                )
             ),
             to_attr="prefetched_python_code_tools",
         ),
@@ -617,9 +611,7 @@ class TaskReadWriteViewSet(ModelViewSet):
     queryset = Task.objects.prefetch_related(
         Prefetch(
             "task_python_code_tool_list",
-            queryset=TaskPythonCodeTools.objects.select_related(
-                "tool__python_code"
-            ).prefetch_related("tool__tool_fields"),
+            queryset=TaskPythonCodeTools.objects.select_related("tool__python_code"),
         ),
         Prefetch(
             "task_python_code_tool_config_list",
@@ -633,9 +625,7 @@ class TaskReadWriteViewSet(ModelViewSet):
         ),
         Prefetch(
             "task_configured_tool_list",
-            queryset=TaskConfiguredTools.objects.select_related(
-                "tool__tool"
-            ).prefetch_related("tool__tool__tool_fields"),
+            queryset=TaskConfiguredTools.objects.select_related("tool__tool"),
         ),
         Prefetch(
             "task_mcp_tool_list",
@@ -746,11 +736,7 @@ class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
     copy_service_class = PythonCodeToolCopyService
     copy_serializer_class = PythonCodeToolSerializer
 
-    queryset = (
-        PythonCodeTool.objects.all()
-        .select_related("python_code")
-        .prefetch_related("tool_fields")
-    )
+    queryset = PythonCodeTool.objects.all().select_related("python_code")
     serializer_class = PythonCodeToolSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["name", "python_code"]
@@ -763,26 +749,10 @@ class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
 
 class PythonCodeToolConfigViewSet(viewsets.ModelViewSet):
-    queryset = PythonCodeToolConfig.objects.select_related("tool").prefetch_related(
-        Prefetch(
-            "tool__tool_fields",
-            queryset=PythonCodeToolConfigField.objects.all(),
-            to_attr="prefetched_config_fields",
-        )
-    )
+    queryset = PythonCodeToolConfig.objects.select_related("tool")
     serializer_class = PythonCodeToolConfigSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["tool", "name"]
-
-
-class PythonCodeToolConfigFieldViewSet(viewsets.ModelViewSet):
-    """
-    A viewset for viewing and editing PythonCodeToolConfigFields instances.
-    """
-
-    queryset = PythonCodeToolConfigField.objects.all()
-    serializer_class = PythonCodeToolConfigFieldSerializer
-    filter_backends = [DjangoFilterBackend]
 
 
 class PythonCodeResultReadViewSet(ReadOnlyModelViewSet):
@@ -832,10 +802,6 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
                     queryset=ConditionalEdge.objects.select_related("python_code"),
                 ),
                 Prefetch(
-                    "llm_node_list",
-                    queryset=LLMNode.objects.select_related("llm_config"),
-                ),
-                Prefetch(
                     "webhook_trigger_node_list",
                     queryset=WebhookTriggerNode.objects.all(),
                 ),
@@ -870,6 +836,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         created_graph = serializer.save()
+        # TODO: RESOLVE BY X-Organization-Id header
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.create(graph=created_graph, organization=organization)
 
@@ -932,6 +899,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
             GraphBulkSaveService().save(graph, input_serializer.validated_data)
         except BulkSaveValidationError as exc:
             return Response({"errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+        # GraphSaveVersionConflictError propagates → DRF returns 409 automatically.
 
         refreshed = self.get_queryset().get(pk=pk)
         return Response(GraphSerializer(refreshed).data, status=status.HTTP_200_OK)
@@ -955,7 +923,7 @@ class GraphLightViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     restore=extend_schema(
-        request=None,
+        request=RestoreVersionInputSerializer,
         responses={
             200: inline_serializer(
                 name="RestoreResponse",
@@ -1031,9 +999,17 @@ class GraphVersionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="restore")
     def restore(self, request, *args, **kwargs):
+        input_serializer = RestoreVersionInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        expected_save_version = input_serializer.validated_data["save_version"]
+
         version = self.get_object()
         backup = request.query_params.get("backup", "").lower() == "true"
-        result = GraphVersioningService().restore_version(version, backup=backup)
+        result = GraphVersioningService().restore_version(
+            version,
+            expected_save_version=expected_save_version,
+            backup=backup,
+        )
         return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="create-graph")
@@ -1097,13 +1073,6 @@ class AudioTranscriptionNodeViewSet(
     serializer_class = AudioTranscriptionNodeSerializer
 
 
-class LLMNodeViewSet(
-    IdempotentNodeCreateMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
-):
-    queryset = LLMNode.objects.all()
-    serializer_class = LLMNodeSerializer
-
-
 class CodeAgentNodeViewSet(IdempotentNodeCreateMixin, viewsets.ModelViewSet):
     queryset = CodeAgentNode.objects.all()
     serializer_class = CodeAgentNodeSerializer
@@ -1119,11 +1088,28 @@ class ConditionalEdgeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet
     serializer_class = ConditionalEdgeSerializer
 
 
+class GraphSessionMessageFilter(FilterSet):
+    session_id = NumberFilter(field_name="session_id", lookup_expr="exact")
+    parent_subgraph_execution_id = filters.UUIDFilter(
+        field_name="parent_subgraph_execution_id", lookup_expr="exact"
+    )
+
+    class Meta:
+        model = GraphSessionMessage
+        fields = ["session_id", "parent_subgraph_execution_id"]
+
+
 class GraphSessionMessageReadOnlyViewSet(ReadOnlyModelViewSet):
     queryset = GraphSessionMessage.objects.all().order_by("id")
     serializer_class = GraphSessionMessageSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["session_id"]
+    filterset_class = GraphSessionMessageFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not self.request.query_params.get("parent_subgraph_execution_id"):
+            qs = qs.filter(parent_subgraph_execution_id__isnull=True)
+        return qs
 
 
 class MemoryFilter(FilterSet):
