@@ -110,14 +110,8 @@ class ProcessRagIndexingSerializer(serializers.Serializer):
     )
 
     def validate_document_config_ids(self, value):
-        # dedupe while preserving order
-        seen = set()
-        deduped = []
-        for v in value:
-            if v not in seen:
-                seen.add(v)
-                deduped.append(v)
-        return deduped
+        # order-preserving dedupe
+        return list(dict.fromkeys(value))
 
 
 class BulkExportSerializer(serializers.Serializer):

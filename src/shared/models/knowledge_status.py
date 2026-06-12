@@ -1,9 +1,8 @@
 """Single source of truth for NaiveRag indexing-status rules.
 
-Imported by BOTH the Django app (`tables.*`) and the knowledge worker
-(`rag.*`). MUST stay pure Python — no Django, no SQLAlchemy imports — so it can
-load in either process. Each service still owns its own DB read/write (different
-ORMs); only the *rules and string values* live here.
+Imported by both the Django app and the knowledge worker, so it MUST stay pure
+Python (no Django/SQLAlchemy) to load in either process. Only the rules and
+string values live here; each service owns its own DB I/O.
 """
 
 from __future__ import annotations
@@ -53,10 +52,8 @@ CHUNK_PARAM_FIELDS = (
     "additional_params",
 )
 
-# Doc statuses that make the RAG roll up to PROCESSING.
-# NOTE: deliberately DIFFERENT from the Django-only race-guard
-# (`RACE_GUARD_IN_PROGRESS` below). `chunked` belongs here (a previewed-but-not-
-# indexed doc keeps the RAG "in progress") but NOT in the race-guard.
+# Doc statuses that roll the RAG up to PROCESSING. Includes `chunked` (a
+# previewed-but-not-indexed doc keeps the RAG busy), unlike the race-guard below.
 AGGREGATION_IN_PROGRESS = frozenset(
     {
         DocumentStatus.CHUNKING.value,
@@ -65,9 +62,8 @@ AGGREGATION_IN_PROGRESS = frozenset(
     }
 )
 
-# Doc statuses meaning "a worker is actively mutating this row right now".
-# Used only by the Django IndexingService / apply_param_updates as a race-guard.
-# `chunked` is intentionally excluded: it is a preview/editing state, not work.
+# Doc statuses meaning "a worker is actively mutating this row" — the race-guard.
+# `chunked` is excluded: it's a preview/editing state, not active work.
 RACE_GUARD_IN_PROGRESS = frozenset(
     {DocumentStatus.CHUNKING.value, DocumentStatus.INDEXING.value}
 )
@@ -90,11 +86,12 @@ def compute_rag_status(doc_statuses: Iterable[str]) -> str:
         return RagStatus.NEW.value
     if statuses & AGGREGATION_IN_PROGRESS:
         return RagStatus.PROCESSING.value
-    if statuses == {DocumentStatus.COMPLETED.value}:
-        return RagStatus.COMPLETED.value
-    if statuses == {DocumentStatus.FAILED.value}:
-        return RagStatus.FAILED.value
-    return RagStatus.WARNING.value
+    # Uniform terminal states map 1:1; any mix falls through to WARNING.
+    uniform = {
+        frozenset({DocumentStatus.COMPLETED.value}): RagStatus.COMPLETED.value,
+        frozenset({DocumentStatus.FAILED.value}): RagStatus.FAILED.value,
+    }
+    return uniform.get(frozenset(statuses), RagStatus.WARNING.value)
 
 
 def summarize_rag_error(doc_statuses: Iterable[str]) -> str | None:
@@ -131,10 +128,8 @@ def is_snapshot_current(live: Mapping, indexed: Mapping) -> bool:
 def format_error_message(exc: BaseException) -> str:
     """`"TypeName: text"` truncated to ERROR_MESSAGE_MAX_LENGTH (with ellipsis).
 
-    For DB errors, prefer the underlying DBAPI exception (`exc.orig`): SQLAlchemy
-    stringifies with the full SQL statement and bound parameters, which would
-    leak document/chunk content into logs and the stored error_message. The
-    DBAPI error carries only the message + key (e.g. the violated constraint).
+    Prefers the DBAPI exception (`exc.orig`) for DB errors: SQLAlchemy's own
+    str() includes the SQL + bound params, leaking document content into logs.
     """
     base = getattr(exc, "orig", None) or exc
     raw = f"{type(exc).__name__}: {base}"

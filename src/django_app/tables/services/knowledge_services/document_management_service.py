@@ -450,22 +450,14 @@ class DocumentManagementService:
     def copy_documents_to_collection(
         collection_id: int, document_ids: List[int]
     ) -> Tuple[List[DocumentMetadata], List[DocumentMetadata]]:
-        """
-        Copy documents into a target collection without duplicating binary content.
-        New DocumentMetadata records point to the same DocumentContent.
-
-        Documents whose content is already present in the target collection are
-        skipped (a file is considered "present" when the collection already has a
-        record referencing the same DocumentContent). This also guards against
-        copying into the source collection itself and against duplicate ids within
-        a single request.
-
-        Returns:
-            A tuple of (copied_documents, skipped_documents).
+        """Copy documents into a collection without duplicating binary content
+        (new DocumentMetadata rows share the same DocumentContent). Documents
+        already present are skipped, as are duplicate ids and copies into the
+        source collection itself. Returns (copied, skipped).
 
         Raises:
-            CollectionNotFoundException: If the target collection is missing.
-            DocumentsNotFoundException: If any source document is missing.
+            CollectionNotFoundException: target collection missing.
+            DocumentsNotFoundException: a source document missing.
         """
         collection = DocumentManagementService.get_collection(collection_id)
         source_documents = DocumentManagementService.get_documents_with_content(

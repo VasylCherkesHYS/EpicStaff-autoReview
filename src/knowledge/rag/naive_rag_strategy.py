@@ -8,6 +8,9 @@ import cachetools
 from services.cancellation_token import CancellationToken
 
 from psycopg2.errors import ForeignKeyViolation
+from sqlalchemy.orm.exc import StaleDataError
+
+_DOC_VANISHED_ERRORS = (ForeignKeyViolation, StaleDataError)
 
 from src.shared.models import (
     NaiveRagSearchConfig,
@@ -28,11 +31,9 @@ from utils.indexing_error_classifier import IndexingErrorClassifier
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
 
-# Per-document locks serialize concurrent (re)index jobs for the SAME config
-# within this worker process. Without it, two jobs racing on the same document
-# both delete+insert chunks and collide on the (config, chunk_index) unique
-# constraint (UniqueViolation). NOTE: process-local — multi-replica workers
-# would additionally need a DB advisory lock.
+# Serialize concurrent (re)index jobs for the SAME config within this worker
+# process, else they collide on the (config, chunk_index) unique constraint.
+# Process-local — multi-replica workers would also need a DB advisory lock.
 _doc_index_locks: dict[int, threading.Lock] = defaultdict(threading.Lock)
 
 
@@ -220,12 +221,10 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         tuples so per-doc txs don't share a long-lived session."""
         with uow.start() as ctx:
             if document_config_ids:
-                # IndexingService is the primary gatekeeper. The filter below is
-                # NOT a redundant in-process check — it's a process-boundary
-                # safety net for this Redis consumer: `c is not None` skips
-                # configs deleted between dispatch and pickup (TOCTOU), and the
-                # naive_rag_id match rejects stale/foreign IDs from ever being
-                # indexed under this RAG's embedder.
+                # Process-boundary safety net for this Redis consumer (not a
+                # redundant check): `c is not None` skips configs deleted between
+                # dispatch and pickup (TOCTOU); the naive_rag_id match rejects
+                # stale/foreign IDs.
                 raw = [
                     ctx.naive_rag_storage.get_naive_rag_document_config_by_id(cid)
                     for cid in document_config_ids
@@ -258,7 +257,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                     naive_rag_document_config_id=config_id, status="indexing"
                 )
             return True
-        except ForeignKeyViolation:
+        except _DOC_VANISHED_ERRORS:
             logger.warning(f"Document {file_name}: deleted before indexing")
             return False
 
@@ -304,7 +303,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                         f"Failed to mark config {config_id} completed after embedding"
                     )
             logger.success(f"Document {file_name}: embedded")
-        except ForeignKeyViolation:
+        except _DOC_VANISHED_ERRORS:
             logger.warning(f"Document {file_name}: deleted mid-processing")
         except Exception as e:
             self._persist_doc_failure(uow, config_id, file_name, phase, e)

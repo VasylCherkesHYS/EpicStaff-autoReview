@@ -9,6 +9,7 @@ from tables.models.knowledge_models import (
     DocumentMetadata,
     GraphRag,
     GraphRagDocument,
+    SourceCollection,
 )
 from tables.exceptions import (
     NaiveRagNotFoundException,
@@ -104,7 +105,11 @@ class IndexingService:
         }
 
     @staticmethod
-    def _resolve_naive_configs(naive_rag_id, collection, document_config_ids):
+    def _resolve_naive_configs(
+        naive_rag_id: int,
+        collection: SourceCollection,
+        document_config_ids: Optional[List[int]],
+    ) -> List[NaiveRagDocumentConfig]:
         if document_config_ids:
             configs = list(
                 NaiveRagDocumentConfig.objects.filter(
@@ -186,10 +191,9 @@ class IndexingService:
 
     @staticmethod
     def mark_indexing_dispatched(rag_id: int, rag_type: str) -> None:
-        """Optimistically flag the RAG as PROCESSING the moment work is handed to
-        the worker, so polling clients see a consistent status immediately
-        instead of the stale pre-dispatch status until the worker picks the job
-        up. Uses .update() to set the column directly (no status recompute)."""
+        """Flag the RAG PROCESSING the moment work is dispatched, so polling
+        clients don't see the stale pre-dispatch status. Direct .update(), no
+        status recompute."""
         if rag_type == "naive":
             NaiveRag.objects.filter(naive_rag_id=rag_id).update(
                 rag_status=NaiveRag.NaiveRagStatus.PROCESSING

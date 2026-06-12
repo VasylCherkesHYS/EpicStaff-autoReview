@@ -1,9 +1,6 @@
-"""Classifies exceptions raised inside the NaiveRag indexing pipeline into a
-(code, formatted_message) pair persisted on `NaiveRagDocumentConfig`.
-
-Codes mirror `tables.NaiveRagDocumentConfig.DocumentErrorCode` on the Django
-side so the frontend can render category-specific UI without parsing message
-text."""
+"""Classifies NaiveRag indexing-pipeline exceptions into a (code, message) pair
+persisted on `NaiveRagDocumentConfig`. Codes mirror the Django-side
+`DocumentErrorCode` so the frontend can render category-specific UI."""
 
 from __future__ import annotations
 
@@ -21,11 +18,9 @@ class IndexingErrorClassifier:
 
     @classmethod
     def for_embedding(cls, exc: BaseException) -> tuple[str, str]:
-        # We deliberately do NOT guess auth / rate-limit from exception names or
-        # HTTP status here — that heuristic was brittle across providers (a new
-        # provider with different exception names silently fell through). Embedder
-        # credential/connectivity problems are validated at model-connection time
-        # via test requests; here any embedding failure is just EMBEDDING_FAILED.
+        # No auth/rate-limit guessing from exception names: that heuristic was
+        # brittle across providers. Credential/connectivity issues are caught at
+        # model-connection time; here any embedding failure is EMBEDDING_FAILED.
         return cls.EMBEDDING_FAILED, cls.format_message(exc)
 
     @classmethod

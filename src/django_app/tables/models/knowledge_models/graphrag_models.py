@@ -10,10 +10,7 @@ from ..crew_models import Agent
 
 class GraphRag(models.Model):
     class GraphRagStatus(models.TextChoices):
-        """
-        Status of GraphRag.
-        Note: WARNING was previously declared but never set anywhere; removed.
-        """
+        """Status of GraphRag."""
 
         NEW = "new"
         PROCESSING = "processing"

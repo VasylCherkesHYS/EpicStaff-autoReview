@@ -297,10 +297,8 @@ class CollectionManagementService:
 
     @staticmethod
     def rag_configurations_prefetch():
-        """
-        Prefetch chain that `get_rag_configurations_for_collection` needs to run
-        without extra queries. Use as `queryset.prefetch_related(*...())`.
-        """
+        """Prefetch chain for get_rag_configurations_for_collection; spread into
+        queryset.prefetch_related(*...())."""
         naive_rag_qs = NaiveRag.objects.select_related("embedder").prefetch_related(
             "naive_rag_configs__chunks",
             "naive_rag_configs__embeddings",

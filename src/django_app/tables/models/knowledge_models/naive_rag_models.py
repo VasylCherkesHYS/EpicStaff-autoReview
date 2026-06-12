@@ -116,9 +116,8 @@ class NaiveRagDocumentConfig(models.Model):
 
     ERROR_MESSAGE_MAX_LENGTH = 2000
 
-    # Race-guard: "a worker is actively touching this row right now".
-    # CHUNKED is NOT here — it means "preview ready, awaiting user action".
-    # Distinct from the aggregation set used by compute_rag_status.
+    # Race-guard: a worker is actively touching this row. CHUNKED is excluded
+    # (preview ready, awaiting user action), unlike the aggregation set.
     IN_PROGRESS_STATUSES = _RACE_GUARD_IN_PROGRESS
 
     naive_rag_document_id = models.AutoField(primary_key=True)
@@ -164,10 +163,8 @@ class NaiveRagDocumentConfig(models.Model):
     )
     failed_at = models.DateTimeField(null=True, blank=True)
 
-    # Snapshot of chunk params that produced the currently-stored
-    # chunks/embeddings. NULL ⇒ never indexed with current params.
-    # Written only on success; consulted by IndexingService to short-circuit
-    # no-op reindex requests.
+    # Chunk params that produced the stored chunks/embeddings (NULL ⇒ never
+    # indexed). Written on success; lets IndexingService skip no-op reindexes.
     indexed_chunk_strategy = models.CharField(
         max_length=20,
         choices=ChunkStrategy.choices,
@@ -204,45 +201,38 @@ class NaiveRagDocumentConfig(models.Model):
         self.failed_at = None
 
     def apply_param_updates(self, updates: dict) -> bool:
-        """Apply chunk-param `updates` in place. If any param really changed:
-        drop the stale preview and — unless a worker is actively running —
-        realign `status` to COMPLETED (snapshot still current, e.g. revert)
-        or NEW (snapshot stale). Returns True iff anything changed."""
+        """Mutate chunk-param fields in place (in-memory only). If anything
+        changed and no worker is running, realign status to COMPLETED/NEW.
+        Returns True iff changed; the service then persists + drops the preview."""
         changed = any(
             f in updates and updates[f] != getattr(self, f) for f in _CHUNK_PARAM_FIELDS
         )
         if not changed:
-            # Nothing to persist — the live values already equal `updates`.
+            # The live values already equal `updates`.
             return False
         for f, v in updates.items():
             setattr(self, f, v)
-
-        NaiveRagPreviewChunk.objects.filter(
-            naive_rag_document_config_id=self.naive_rag_document_id
-        ).delete()
 
         if self.status not in self.IN_PROGRESS_STATUSES:
             S = self.NaiveRagDocumentStatus
             self.status = S.COMPLETED if self.is_snapshot_current() else S.NEW
             self._clear_error()
 
-        self.save()
         return True
 
     def start_attempt(self, new_status) -> None:
-        """Begin a chunking/indexing attempt: flip status and clear stale error."""
+        """Flip status and clear stale error in memory (the caller persists)."""
         self.status = new_status
         self._clear_error()
-        self.save(update_fields=["status", "error_message", "error_code", "failed_at"])
 
     def mark_failed(self, error_code, exc: BaseException) -> str:
-        """Persist FAILED + code + truncated message + timestamp. Returns the message."""
+        """Set FAILED + code + truncated message + timestamp in memory and
+        return the message (the caller persists)."""
         message = self.format_error_message(exc)
         self.status = self.NaiveRagDocumentStatus.FAILED
         self.error_code = error_code
         self.error_message = message
         self.failed_at = timezone.now()
-        self.save(update_fields=["status", "error_code", "error_message", "failed_at"])
         return message
 
     class Meta:

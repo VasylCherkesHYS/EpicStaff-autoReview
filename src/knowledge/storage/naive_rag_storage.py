@@ -284,7 +284,6 @@ class ORMNaiveRagStorage(BaseORMStorage):
             doc_config.status = "failed"
             doc_config.error_code = error_code
             doc_config.error_message = error_message
-            # Aware UTC to match Django (USE_TZ=True / timestamptz columns).
             doc_config.failed_at = datetime.now(timezone.utc)
             return True
         except Exception as e:

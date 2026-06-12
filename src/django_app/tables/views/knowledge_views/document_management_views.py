@@ -283,14 +283,9 @@ class DocumentViewSet(
     @extend_schema(**DOCUMENTS_PREVIEW_GET)
     @action(detail=True, methods=["get"], url_path="preview")
     def preview(self, request, *args, **kwargs):
-        """
-        Return the raw binary content of a single document for inline preview.
-
-        Unlike ``download`` (which forces an attachment), this response uses
-        ``Content-Disposition: inline`` so the browser can render supported
-        formats (pdf, txt, md, json, html, csv) in place. DOCX has no native
-        browser preview and will be downloaded instead.
-        """
+        """Raw document content with ``Content-Disposition: inline`` so browsers
+        render supported formats (pdf, txt, md, json, html, csv) in place. DOCX
+        has no inline preview and is downloaded instead."""
         document = self.get_object()
         return _build_preview_response(document)
 

@@ -119,7 +119,6 @@ class ORMGraphRagStorage(BaseORMStorage):
                 logger.warning(f"GraphRag {graph_rag_id} not found")
                 return False
 
-            # Aware UTC to match Django (USE_TZ=True / timestamptz columns).
             graph_rag.indexed_at = datetime.now(timezone.utc)
             return True
 

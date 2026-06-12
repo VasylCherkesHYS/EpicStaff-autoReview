@@ -63,8 +63,6 @@ class DocumentConfigSerializer(serializers.ModelSerializer):
         source="document.document_id", read_only=True
     )
     file_name = serializers.CharField(source="document.file_name", read_only=True)
-    # Prefer the queryset annotation (single-query, set on the polling path);
-    # fall back to the model property for un-annotated objects (retrieve/update).
     total_chunks = serializers.SerializerMethodField()
     total_embeddings = serializers.SerializerMethodField()
 

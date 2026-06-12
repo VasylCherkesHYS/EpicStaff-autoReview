@@ -196,7 +196,25 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class SourceCollectionListSerializer(serializers.ModelSerializer):
+class RagConfigurationsMixin:
+    """Adds a `rag_configurations` field backed by CollectionManagementService."""
+
+    def get_rag_configurations(self, obj):
+        try:
+            rag_configs = (
+                CollectionManagementService.get_rag_configurations_for_collection(obj)
+            )
+            return RagConfigurationSummarySerializer(rag_configs, many=True).data
+        except Exception as e:
+            logger.error(
+                f"Error fetching RAG configurations for collection {obj.collection_id}: {e}"
+            )
+            return []
+
+
+class SourceCollectionListSerializer(
+    RagConfigurationsMixin, serializers.ModelSerializer
+):
     """
     Serializer for listing collections.
     Shows basic collection info plus available RAG configurations with their statuses.
@@ -221,21 +239,10 @@ class SourceCollectionListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_rag_configurations(self, obj):
-        try:
-            rag_configs = (
-                CollectionManagementService.get_rag_configurations_for_collection(obj)
-            )
-            serializer = RagConfigurationSummarySerializer(rag_configs, many=True)
-            return serializer.data
-        except Exception as e:
-            logger.error(
-                f"Error fetching RAG configurations for collection {obj.collection_id}: {e}"
-            )
-            return []
 
-
-class SourceCollectionDetailSerializer(serializers.ModelSerializer):
+class SourceCollectionDetailSerializer(
+    RagConfigurationsMixin, serializers.ModelSerializer
+):
     """
     Serializer for retrieving a single collection with all details.
     Includes RAG configurations to show what RAG types are available.
@@ -259,24 +266,6 @@ class SourceCollectionDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
-
-    def get_rag_configurations(self, obj):
-        """
-        Get all RAG configurations for this collection.
-        Business logic is delegated to CollectionManagementService.
-        """
-
-        try:
-            rag_configs = (
-                CollectionManagementService.get_rag_configurations_for_collection(obj)
-            )
-            serializer = RagConfigurationSummarySerializer(rag_configs, many=True)
-            return serializer.data
-        except Exception as e:
-            logger.error(
-                f"Error fetching RAG configurations for collection {obj.collection_id}: {e}"
-            )
-            return []
 
 
 class SourceCollectionCreateSerializer(serializers.ModelSerializer):

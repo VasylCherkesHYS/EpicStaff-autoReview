@@ -163,28 +163,58 @@ class NaiveRagService:
         ChunkParameterValidator.validate_or_raise(config, updates)
 
         if config.apply_param_updates(updates):
+            NaiveRagService._persist_param_updates(config)
             config.naive_rag.update_rag_status()
 
         logger.info(f"Updated document config {config_id}")
         return config
 
     @staticmethod
+    def _persist_param_updates(config: NaiveRagDocumentConfig) -> None:
+        """Persist the in-memory mutations made by
+        NaiveRagDocumentConfig.apply_param_updates: drop the now-stale preview
+        and save the config. Call only when apply_param_updates returned True."""
+        NaiveRagPreviewChunk.objects.filter(
+            naive_rag_document_config_id=config.naive_rag_document_id
+        ).delete()
+        config.save()
+
+    @staticmethod
+    def begin_attempt(
+        config: NaiveRagDocumentConfig, new_status
+    ) -> NaiveRagDocumentConfig:
+        """Flip a config into a chunking/indexing attempt status and persist."""
+        config.start_attempt(new_status)
+        config.save(
+            update_fields=["status", "error_message", "error_code", "failed_at"]
+        )
+        return config
+
+    @staticmethod
+    def mark_config_failed(
+        config: NaiveRagDocumentConfig, error_code, exc: BaseException
+    ) -> str:
+        """Persist FAILED state on a config and return the error message."""
+        message = config.mark_failed(error_code, exc)
+        config.save(
+            update_fields=["status", "error_code", "error_message", "failed_at"]
+        )
+        return message
+
+    @staticmethod
     def get_document_configs_for_naive_rag(
         naive_rag_id: int,
         document_config_ids: Optional[List[int]] = None,
     ) -> List[NaiveRagDocumentConfig]:
-        """Document configs for a NaiveRag, ordered by file_name. When
-        document_config_ids is given, IDs not belonging to this RAG are
-        silently dropped (silent-drop is intentional for the polling GET)."""
+        """Document configs for a NaiveRag, ordered by file_name. IDs in
+        document_config_ids that don't belong to this RAG are dropped."""
         NaiveRagService.get_naive_rag(naive_rag_id)
 
         qs = (
             NaiveRagDocumentConfig.objects.filter(naive_rag_id=naive_rag_id)
             .select_related("document")
-            # Annotate counts in a single query — avoids the per-config N+1 from
-            # the total_chunks/total_embeddings model properties on the hot
-            # polling path. distinct=True prevents the chunks×embeddings join
-            # from inflating either count.
+            # Annotate counts in one query (avoids N+1 from the model
+            # properties); distinct=True stops the join from inflating counts.
             .annotate(
                 chunks_count=Count("chunks", distinct=True),
                 embeddings_count=Count("embeddings", distinct=True),
@@ -367,6 +397,7 @@ class NaiveRagService:
                 continue
             try:
                 if config.apply_param_updates(updates):
+                    NaiveRagService._persist_param_updates(config)
                     any_actual_change = True
                 updated_count += 1
             except (IntegrityError, ValidationError) as e:

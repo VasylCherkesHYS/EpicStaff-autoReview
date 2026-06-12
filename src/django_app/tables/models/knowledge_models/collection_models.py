@@ -5,12 +5,8 @@ from loguru import logger
 
 class SourceCollection(models.Model):
     class SourceCollectionStatus(models.TextChoices):
-        """
-        Lifecycle of SourceCollection — only whether the collection has any
-        documents. Per-RAG and per-document indexing statuses live elsewhere
-        (`NaiveRag.rag_status`, `NaiveRagDocumentConfig.status`) and are
-        exposed via `rag_configurations[]` in the API.
-        """
+        """Whether the collection has any documents. Indexing statuses live on
+        NaiveRag.rag_status / NaiveRagDocumentConfig.status, not here."""
 
         EMPTY = "empty"
         NON_EMPTY = "non_empty"

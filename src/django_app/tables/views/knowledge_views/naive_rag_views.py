@@ -569,10 +569,12 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
             )
 
         chunking_job_id = str(uuid.uuid4())
-        # Preview against a still-current index is an inspection — don't flip
-        # status to CHUNKING (would falsely advertise "indexing in progress").
+        # Previewing a still-current index is inspection — don't flip to CHUNKING
+        # (would falsely show "indexing in progress").
         if not config.is_snapshot_current():
-            config.start_attempt(NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING)
+            NaiveRagService.begin_attempt(
+                config, NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING
+            )
 
         logger.info(
             f"Starting chunking job {chunking_job_id} for config {document_config_id}"
@@ -619,8 +621,8 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
 
         except Exception as e:
             logger.error(f"Chunking error for job {chunking_job_id}: {e}")
-            message = config.mark_failed(
-                NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED, e
+            message = NaiveRagService.mark_config_failed(
+                config, NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED, e
             )
             return Response(
                 {
