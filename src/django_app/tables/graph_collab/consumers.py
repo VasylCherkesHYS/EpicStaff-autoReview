@@ -15,6 +15,7 @@ from tables.graph_collab.protocol import (
     EditorInfo,
     ErrorMessage,
     GraphStateMessage,
+    LockStateMessage,
     NodeLockedMessage,
     NodeUnlockedMessage,
     PresenceStateMessage,
@@ -92,6 +93,16 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json(GraphStateMessage(flow=snapshot).model_dump())
         else:
             await self.send_json(RequestStateMessage().model_dump())
+
+        active_locks = lock_service.get_all_locks(self.graph_id)
+        if active_locks:
+            await self.send_json(
+                LockStateMessage(
+                    locks={
+                        node_id: entry.editor for node_id, entry in active_locks.items()
+                    }
+                ).model_dump()
+            )
 
     async def disconnect(self, code):
         group = getattr(self, "group", None)

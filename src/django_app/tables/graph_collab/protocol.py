@@ -109,6 +109,11 @@ class NodeUnlockedMessage(BaseModel):
     editor: EditorInfo
 
 
+class LockStateMessage(BaseModel):
+    type: str = "lock_state"
+    locks: dict[str, EditorInfo]
+
+
 # --- Live graph state messages ---
 
 

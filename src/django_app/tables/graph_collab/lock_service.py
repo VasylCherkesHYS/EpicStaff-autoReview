@@ -51,6 +51,9 @@ class NodeLockService:
         """Return the current lock holder for *node_id*, or None if unheld."""
         return self._store.get(graph_id, {}).get(node_id)
 
+    def get_all_locks(self, graph_id: int) -> dict[str, LockEntry]:
+        return dict(self._store.get(graph_id, {}))
+
     def release(self, graph_id: int, node_id: str, channel: str) -> bool:
         """Release the lock on *node_id* if *channel* is the current holder.
 
