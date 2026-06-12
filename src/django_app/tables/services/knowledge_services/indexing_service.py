@@ -71,7 +71,7 @@ class IndexingService:
 
         DocStatus = NaiveRagDocumentConfig.NaiveRagDocumentStatus
         accepted, skipped_completed, skipped_in_progress = [], [], []
-        any_short_circuited = False
+        status_changed = False
 
         for c in configs:
             cid = c.naive_rag_document_id
@@ -80,12 +80,23 @@ class IndexingService:
             elif c.is_snapshot_current():
                 if c.status != DocStatus.COMPLETED:
                     IndexingService._mark_snapshot_completed(c)
-                    any_short_circuited = True
+                    status_changed = True
                 skipped_completed.append(cid)
             else:
                 accepted.append(cid)
 
-        if any_short_circuited:
+        if accepted:
+            NaiveRagDocumentConfig.objects.filter(
+                naive_rag_document_id__in=accepted
+            ).update(
+                status=DocStatus.INDEXING,
+                error_message=None,
+                error_code=None,
+                failed_at=None,
+            )
+            status_changed = True
+
+        if status_changed:
             naive_rag.update_rag_status()
 
         logger.info(
@@ -193,12 +204,9 @@ class IndexingService:
     def mark_indexing_dispatched(rag_id: int, rag_type: str) -> None:
         """Flag the RAG PROCESSING the moment work is dispatched, so polling
         clients don't see the stale pre-dispatch status. Direct .update(), no
-        status recompute."""
-        if rag_type == "naive":
-            NaiveRag.objects.filter(naive_rag_id=rag_id).update(
-                rag_status=NaiveRag.NaiveRagStatus.PROCESSING
-            )
-        elif rag_type == "graph":
+        status recompute. Naive is already flipped to PROCESSING atomically in
+        _prepare_naive_rag_indexing (before the publish), so only graph needs it."""
+        if rag_type == "graph":
             GraphRag.objects.filter(graph_rag_id=rag_id).update(
                 rag_status=GraphRag.GraphRagStatus.PROCESSING
             )

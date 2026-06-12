@@ -257,14 +257,13 @@ class ChunkDocumentService(metaclass=SingletonMeta):
                     chunk_list=chunk_texts,
                 )
 
-                # Preview is an inspection — only downgrade status to CHUNKED if
-                # the indexed_* snapshot is stale (i.e. this isn't an already-
-                # current COMPLETED doc just being previewed).
-                if not doc_config.is_snapshot_current():
-                    uow_ctx.naive_rag_storage.update_document_config_status(
-                        naive_rag_document_config_id=naive_rag_document_config_id,
-                        status="chunked",
-                    )
+                new_status = (
+                    "completed" if doc_config.is_snapshot_current() else "chunked"
+                )
+                uow_ctx.naive_rag_storage.update_document_config_status(
+                    naive_rag_document_config_id=naive_rag_document_config_id,
+                    status=new_status,
+                )
 
                 chunk_count = len(chunks)
                 logger.success(
