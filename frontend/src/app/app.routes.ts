@@ -1,10 +1,10 @@
 import { inject } from '@angular/core';
 import { Router, Routes } from '@angular/router';
+import { ActionCode, ResourceCode } from '@shared/models';
 
 import { authGuard } from './core/guards/auth.guard';
-import { bootstrapGuard } from './core/guards/bootstrap.guard';
 import { guestGuard } from './core/guards/guest.guard';
-import { onboardingGuard } from './core/guards/onboarding.guard';
+import { resourceGuard } from './core/guards/resource.guard';
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { permissionGuard, superAdminGuard, workspaceGuard } from './core/guards/workspace.guard';
 import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
@@ -46,7 +46,15 @@ export const routes: Routes = [
             import('./features/auth/components/onboarding-page/onboarding-page.component').then(
                 (m) => m.OnboardingPageComponent
             ),
-        canActivate: [onboardingGuard],
+        canActivate: [authGuard],
+    },
+    {
+        path: 'unassigned',
+        loadComponent: () =>
+            import('./features/auth/components/unassigned-user-page/unassigned-user-page.component').then(
+                (m) => m.UnassignedUserPageComponent
+            ),
+        canActivate: [authGuard],
     },
     {
         path: '',
@@ -56,7 +64,7 @@ export const routes: Routes = [
             {
                 path: '',
                 component: MainLayoutComponent,
-                canActivate: [bootstrapGuard],
+                canActivate: [resourceGuard],
                 children: [
                     {
                         path: '',
@@ -74,6 +82,8 @@ export const routes: Routes = [
                             import('./features/projects/pages/projects-list-page/projects-list-page.component').then(
                                 (m) => m.ProjectsListPageComponent
                             ),
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Projects, ActionCode.Read] },
                         children: [
                             { path: '', redirectTo: 'my', pathMatch: 'full' },
                             {
@@ -98,6 +108,8 @@ export const routes: Routes = [
                             import('./open-project-page/open-project-page.component').then(
                                 (m) => m.OpenProjectPageComponent
                             ),
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Projects, ActionCode.Read] },
                         canDeactivate: [UnsavedChangesGuard],
                     },
                     {
@@ -105,6 +117,8 @@ export const routes: Routes = [
                         loadComponent: () =>
                             import('./pages/staff-page/staff-page.component').then((m) => m.StaffPageComponent),
                         canDeactivate: [UnsavedChangesGuard],
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Agents, ActionCode.Read] },
                     },
                     {
                         path: 'tools',
@@ -112,6 +126,8 @@ export const routes: Routes = [
                             import('./features/tools/pages/tools-list-page/tools-list-page.component').then(
                                 (m) => m.ToolsListPageComponent
                             ),
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Tools, ActionCode.Read] },
                         children: [
                             {
                                 path: '',
@@ -145,6 +161,8 @@ export const routes: Routes = [
                             import('./features/flows/pages/flows-list-page/flows-list-page.component').then(
                                 (m) => m.FlowsListPageComponent
                             ),
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Flows, ActionCode.Read] },
                         children: [
                             {
                                 path: '',
@@ -178,6 +196,8 @@ export const routes: Routes = [
                             import('./pages/flows-page/components/flow-visual-programming/flow-visual-programming.component').then(
                                 (m) => m.FlowVisualProgrammingComponent
                             ),
+                        canActivate: [permissionGuard],
+                        data: { permission: [ResourceCode.Flows, ActionCode.Read] },
                         canDeactivate: [UnsavedChangesGuard],
                     },
                     {
@@ -215,6 +235,8 @@ export const routes: Routes = [
                                     import('./features/knowledge-sources/pages/collections-list-page/collections-list-page.component').then(
                                         (m) => m.CollectionsListPageComponent
                                     ),
+                                canActivate: [permissionGuard],
+                                data: { permission: [ResourceCode.KnowledgeSources, ActionCode.Read] },
                             },
                             {
                                 path: 'storage',
@@ -222,6 +244,8 @@ export const routes: Routes = [
                                     import('./features/files/pages/files-list-page/components/storage-page/storage-page.component').then(
                                         (m) => m.StoragePageComponent
                                     ),
+                                canActivate: [permissionGuard],
+                                data: { permission: [ResourceCode.Files, ActionCode.Read] },
                             },
                         ],
                     },

@@ -114,6 +114,7 @@ export class ProfileService {
 
     private setUser(user: GetMeResponse): void {
         this.currentUser.set(user);
+        this.permissionsService.setSuperadmin(user.is_superadmin);
     }
 
     private updateUser(partial: Partial<GetMeResponse>): void {
