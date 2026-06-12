@@ -13,6 +13,7 @@
                     placeholder="e.g. Example Corp"
                     [formControl]="orgNameControl"
                 />
+                <app-validation-errors [control]="orgNameControl" />
                 <p class="hint">You can rename this anytime in settings</p>
             </div>
             <app-button (click)="onContinue()">Continue</app-button>

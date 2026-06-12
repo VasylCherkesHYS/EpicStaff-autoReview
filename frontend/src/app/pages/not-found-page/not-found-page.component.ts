@@ -21,7 +21,6 @@ export class NotFoundPageComponent {
     }
 
     openWorkspace(): void {
-        const url = this.permissionsService.resolveDefaultRoute();
-        void this.router.navigate([url]);
+        void this.router.navigate([this.permissionsService.resolveDefaultRoute()]);
     }
 }

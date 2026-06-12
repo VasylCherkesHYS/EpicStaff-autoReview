@@ -3,12 +3,14 @@ import { Router, Routes } from '@angular/router';
 import { ActionCode, ResourceCode } from '@shared/models';
 
 import { authGuard } from './core/guards/auth.guard';
+import { bootstrapGuard } from './core/guards/bootstrap.guard';
 import { guestGuard } from './core/guards/guest.guard';
-import { resourceGuard } from './core/guards/resource.guard';
+import { onboardingGuard, resourceGuard, unassignedGuard } from './core/guards/resource.guard';
 import { UnsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 import { permissionGuard, superAdminGuard, workspaceGuard } from './core/guards/workspace.guard';
 import { MainLayoutComponent } from './layouts/main-layout/main-layout.component';
 import { RoutedAuthShellComponent } from './layouts/routed-auth-shell/routed-auth-shell.component';
+import { PermissionsService } from './services/auth/permissions.service';
 import { LastVisitedTabService } from './services/last-visited-tab.service';
 
 export const routes: Routes = [
@@ -41,26 +43,26 @@ export const routes: Routes = [
         canActivate: [guestGuard],
     },
     {
-        path: 'onboarding',
-        loadComponent: () =>
-            import('./features/auth/components/onboarding-page/onboarding-page.component').then(
-                (m) => m.OnboardingPageComponent
-            ),
-        canActivate: [authGuard],
-    },
-    {
-        path: 'unassigned',
-        loadComponent: () =>
-            import('./features/auth/components/unassigned-user-page/unassigned-user-page.component').then(
-                (m) => m.UnassignedUserPageComponent
-            ),
-        canActivate: [authGuard],
-    },
-    {
         path: '',
         component: RoutedAuthShellComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, bootstrapGuard],
         children: [
+            {
+                path: 'onboarding',
+                loadComponent: () =>
+                    import('./features/auth/components/onboarding-page/onboarding-page.component').then(
+                        (m) => m.OnboardingPageComponent
+                    ),
+                canActivate: [onboardingGuard],
+            },
+            {
+                path: 'unassigned',
+                loadComponent: () =>
+                    import('./features/auth/components/unassigned-user-page/unassigned-user-page.component').then(
+                        (m) => m.UnassignedUserPageComponent
+                    ),
+                canActivate: [unassignedGuard],
+            },
             {
                 path: '',
                 component: MainLayoutComponent,
@@ -70,8 +72,7 @@ export const routes: Routes = [
                         path: '',
                         canActivate: [
                             () => {
-                                const last = inject(LastVisitedTabService).get('/projects');
-                                return inject(Router).parseUrl(last ?? '/projects/my');
+                                return inject(Router).parseUrl(inject(PermissionsService).resolveDefaultRoute());
                             },
                         ],
                         children: [],
