@@ -1133,6 +1133,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                     this.cd.detectChanges();
                     this.fFlowComponent?.redraw();
                     this.hasUnarrangedChanges.set(false);
+
+                    //Broadcast nodes order after Auto arrange
+                    const nodesAfterArrange = this.flowService.nodes();
+                    for (const node of nodesAfterArrange) {
+                        this.wsService.sendNodeUpdated(node)
+                    }
+                    const connectionsAfterArrange = this.flowService.connections();
+                    for (const connection of connectionsAfterArrange) {
+                        const waypoints = connection.waypoints ?? [];
+                        this.wsService.sendConnectionWaypointsUpdated(connection.id, waypoints);
+                    }
                     this._arrangingLock = false;
                     this.isArranging.set(false);
                     if (this.arrangeBtnRef) {
