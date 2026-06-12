@@ -6,7 +6,10 @@
 } @else {
     <ul class="rags">
         @for (config of collection().rag_configurations; track config.rag_id) {
-            <li class="item">
+            <li
+                class="item"
+                (click)="onConfigureRag(config.rag_type)"
+            >
                 <app-svg-icon
                     [icon]="ragTypeConfig[config.rag_type].icon"
                     size="0.75rem"
@@ -27,7 +30,6 @@
                     icon="arrow-right"
                     size="1rem"
                     class="nav action"
-                    (click)="onConfigureRag(config.rag_type)"
                 />
             </li>
         }

@@ -24,6 +24,7 @@ export interface CreateCollectionDialogData {
     collection_id: number;
     isUpdate?: boolean;
     forceType?: RagType;
+    initialDocumentId?: number;
 }
 
 @Component({

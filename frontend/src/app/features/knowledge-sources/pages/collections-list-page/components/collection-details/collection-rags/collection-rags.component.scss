@@ -26,6 +26,7 @@
         column-gap: 0.5rem;
         border-radius: 0.5rem;
         border: 1px solid var(--color-divider-subtle);
+        cursor: pointer;
     }
 
     .name {
@@ -52,7 +53,6 @@
     }
 
     .nav {
-        cursor: pointer;
         color: var(--color-ks-transparent-text-80);
 
         &.action {

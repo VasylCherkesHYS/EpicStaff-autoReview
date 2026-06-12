@@ -31,6 +31,7 @@ import { RagType } from '../../../../models/base-rag.model';
 import { CreateCollectionDtoResponse } from '../../../../models/collection.model';
 import { DisplayedListDocument } from '../../../../models/document.model';
 import { CollectionsStorageService } from '../../../../services/collections-storage.service';
+import { DocumentsApiService } from '../../../../services/documents-api.service';
 import { DocumentsStorageService } from '../../../../services/documents-storage.service';
 import { FileListService } from '../../../../services/files-list.service';
 import { CollectionFilesComponent } from './collection-files/collection-files.component';
@@ -60,6 +61,7 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
     private confirmationDialogService = inject(ConfirmationDialogService);
     private collectionsStorageService = inject(CollectionsStorageService);
     private documentsStorageService = inject(DocumentsStorageService);
+    private documentsApiService = inject(DocumentsApiService);
     private fileListService = inject(FileListService);
     private toastService = inject(ToastService);
 
@@ -228,6 +230,52 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
                 allCollections: this.collectionsStorageService.collections(),
             },
         });
+    }
+
+    onFilePreview(id: number): void {
+        const collection = this.fullCollection();
+        if (!collection) return;
+        this.dialog.open(CreateCollectionDialogComponent, {
+            width: 'calc(100vw - 2rem)',
+            height: 'calc(100vh - 2rem)',
+            data: { collection_id: collection.collection_id, isUpdate: true, initialDocumentId: id },
+            disableClose: true,
+        });
+    }
+
+    onFileDownload(id: number): void {
+        const doc = this.documents().find((d) => d.document_id === id);
+        if (!doc) return;
+
+        this.downloadDocuments([id], doc.file_name);
+    }
+
+    downloadAllFiles(): void {
+        const documents = this.documents();
+        const ids = documents.filter((d) => d.document_id).map((d) => d.document_id!);
+        if (!ids.length) return;
+
+        const fileName = ids.length === 1 ? documents[0].file_name : 'documents.zip';
+
+        this.downloadDocuments(ids, fileName);
+    }
+
+    private downloadDocuments(ids: number[], fileName: string): void {
+        this.documentsApiService
+            .downloadDocuments(ids)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((blob) => this.triggerDownload(blob, fileName));
+    }
+
+    private triggerDownload(blob: Blob, fileName: string): void {
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+
+        URL.revokeObjectURL(url);
     }
 
     createRagInCollection(type?: RagType) {
