@@ -100,7 +100,6 @@ class SelectionChangedMessage(BaseModel):
 class NodeLockedMessage(BaseModel):
     type: str = "node_locked"
     node_id: str
-    field: str | None = None
     editor: EditorInfo
 
 

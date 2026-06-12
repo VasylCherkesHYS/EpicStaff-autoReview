@@ -7,8 +7,6 @@ from tables.graph_collab.protocol import (
     ConnectionWaypointsUpdatedMessage,
     CursorMovedMessage,
     NodeCreatedMessage,
-    NodeLockedMessage,
-    NodeUnlockedMessage,
     NodeUpdatedMessage,
     NodesDeletedMessage,
     SelectionChangedMessage,
@@ -24,8 +22,6 @@ _RELAY_MESSAGE_TYPES: dict[str, type[BaseModel]] = {
     "connection_waypoints_updated": ConnectionWaypointsUpdatedMessage,
     "cursor_moved": CursorMovedMessage,
     "selection_changed": SelectionChangedMessage,
-    "node_locked": NodeLockedMessage,
-    "node_unlocked": NodeUnlockedMessage,
 }
 
 # Op types that mutate the live graph snapshot — must be applied via apply_op.
