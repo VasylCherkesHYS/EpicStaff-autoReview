@@ -39,6 +39,7 @@ import {
     FReassignConnectionEvent,
     FZoomDirective,
     ICurrentSelection,
+    FCanvasChangeEvent
 } from '@foblex/flow';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -225,6 +226,8 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private draggedNodeIds = new Set<string>();
     private draggingElements = new Set<string>();
     private isDragging = false;
+    private dragStartCanvasPos: IPoint | null = null;
+    private readonly dragStartPositions = new Map<string, IPoint>();
     protected readonly connectionRenderVersions = signal<Record<string, number>>({});
     private readonly hiddenConnectionIds = signal<Set<string>>(new Set<string>());
 
@@ -240,6 +243,19 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly wsService = inject(GraphCollaborationWsService);
     public readonly remoteCursors = signal<Map<number, CursorState>>(new Map());
     private readonly cursorTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+    private readonly canvasTransform = signal<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
+    protected readonly screenCursors = computed(() => {
+        const t = this.canvasTransform();
+        const result = new Map<number, CursorState>();
+        for (const [userId, cursor] of this.remoteCursors()) {
+            result.set(userId, {
+                ...cursor,
+                x: cursor.x * t.scale + t.x,
+                y: cursor.y * t.scale + t.y,
+            });
+        }
+        return result;
+    });
 
     constructor() {}
 
@@ -262,7 +278,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                     next.set(userId, { x: msg.x, y: msg.y, editor: msg.editor, fading: false });
                     return next;
                 });
-
+                
                 const fadeTimeout = setTimeout(() => {
                     this.remoteCursors.update((m) => {
                         const next = new Map(m);
@@ -743,10 +759,20 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public onDragStarted(event: FDragStartedEvent): void {
         this.isDragging = true;
         this.draggingElements.clear();
+        this.dragStartPositions.clear();
 
         const dragData = event.data as FDragNodeStartEventData | undefined;
         if (dragData?.fNodeIds) {
             dragData.fNodeIds.forEach((id: string) => this.draggingElements.add(id));
+        }
+
+        if (this.fFlowComponent) {
+            this.dragStartCanvasPos = this.toFlowPosition(this.mouseCursorPosition);
+            const nodes = this.flowService.nodes();
+            for (const id of this.draggingElements) {
+                const node = nodes.find((n) => n.id === id);
+                if (node) this.dragStartPositions.set(id, { ...node.position });
+            }
         }
 
         this.undoRedoService.stateChanged();
@@ -868,6 +894,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onDragEnded(): void {
+        this.dragStartCanvasPos = null;
+        this.dragStartPositions.clear();
+
         const autoAlignedNodeIds = new Set<string>();
 
         for (const id of this.draggedNodeIds) {
@@ -924,7 +953,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         };
 
         this.flowService.updateNode(updatedNode);
-        this.wsService.sendNodeUpdated(updatedNode);
+        this.wsService.sendNodePositionDuringDrag(updatedNode);
     }
 
     public onZoomInNode(node: NodeModel): void {
@@ -941,6 +970,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         this.fZoomDirective.setZoom(position, 1, EFZoomDirection.ZOOM_IN, true);
     }
 
+    public onCanvasChange(event: FCanvasChangeEvent): void {
+        this.canvasTransform.set({ x: event.position.x, y: event.position.y, scale: event.scale});
+    }
+
     protected openSettings(): void {
         this.dialog.open(FlowSettingsPanelComponent, {
             width: '480px',
@@ -953,6 +986,21 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (this.fFlowComponent && this.isLoaded()) {
             const flowPos = this.toFlowPosition(event);
             this.wsService.sendCursorMoved(flowPos.x, flowPos.y);
+
+            if (this.isDragging && this.dragStartCanvasPos && this.draggingElements.size > 0) {
+                const delta = { x: flowPos.x - this.dragStartCanvasPos.x, y: flowPos.y - this.dragStartCanvasPos.y };
+                const nodes = this.flowService.nodes();
+                for (const id of this.draggingElements) {
+                    const startPos = this.dragStartPositions.get(id);
+                    const node = nodes.find((n) => n.id === id);
+                    if (startPos && node) {
+                        this.wsService.sendNodePositionDuringDrag({
+                            ...node,
+                            position: { x: startPos.x + delta.x, y: startPos.y + delta.y },
+                        });
+                    }
+                }
+            }
         }
     }
 

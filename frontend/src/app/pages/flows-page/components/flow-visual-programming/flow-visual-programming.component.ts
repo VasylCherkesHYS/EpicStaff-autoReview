@@ -221,7 +221,8 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
 
         this.wsService.nodeUpdated$
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((msg) => this.flowService.updateNode(msg.node));
+            .subscribe((msg) => {
+                this.flowService.updateNode(msg.node)});
 
         this.wsService.nodesDeleted$
             .pipe(takeUntilDestroyed(this.destroyRef))

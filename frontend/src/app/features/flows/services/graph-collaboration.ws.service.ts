@@ -8,6 +8,8 @@ import { ProfileService } from '../../../services/auth/profile.service';
 import { NodeModel } from '../../../visual-programming/core/models/node.model';
 import { ConnectionModel } from '../../../visual-programming/core/models/connection.model';
 import { FlowModel } from '../../../visual-programming/core/models/flow.model';
+import { NodeNameValidatorService } from 'src/app/visual-programming/services/node-name-validator.service';
+import { mapEndNodeToModel } from 'src/app/visual-programming/utils/load/nodes/end-node.mapper';
 
 export interface EditorInfo {
     user_id: number;
@@ -100,6 +102,7 @@ export class GraphCollaborationWsService {
 
     private readonly cursorPipe$ = new Subject<{x: number; y: number}>();
     private readonly waypointPipe$ = new Subject<{ connection_id: string; waypoints: IPoint[] }>();
+    private lastNodeDragSendAt = 0;
 
     constructor() {
         this.cursorPipe$
@@ -252,6 +255,14 @@ export class GraphCollaborationWsService {
     public sendNodeUpdated(node: NodeModel): void {
         const editor = this.buildEditorInfo();
         if (editor) this.sendRaw({type: 'node_updated', node, editor})
+    }
+
+    public sendNodePositionDuringDrag(node: NodeModel): void {
+        const now = Date.now();
+        if (now - this.lastNodeDragSendAt < 50) return;
+        this.lastNodeDragSendAt = now;
+        const editor = this.buildEditorInfo();
+        if (editor) this.sendRaw({ type: 'node_updated', node, editor });
     }
 
     public sendNodesDeleted(node_ids: string[]): void {

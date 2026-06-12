@@ -26,7 +26,7 @@
             <f-circle-pattern></f-circle-pattern>
         </f-background>
         <f-magnetic-lines></f-magnetic-lines>
-        <f-canvas fZoom>
+        <f-canvas fZoom (fCanvasChange)="onCanvasChange($event)">
             <f-snap-connection
                 fBehavior="fixed"
                 fType="segment"
@@ -263,11 +263,11 @@
                     ></f-connection-waypoints>
                 </f-connection>
             }
-            <app-graph-live-cursors [cursors]="remoteCursors()" />
         </f-canvas>
         
         <f-selection-area></f-selection-area>
         <f-minimap [fMinSize]="1000"></f-minimap>
+        <app-graph-live-cursors [cursors]="screenCursors()" />
     </f-flow>
 
     <div class="top-left-actions">
