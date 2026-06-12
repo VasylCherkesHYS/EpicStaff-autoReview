@@ -1,5 +1,5 @@
 <div class="blob-preview">
-    @if (!blob()) {
+    @if (!blob() && !fileName()) {
         <div class="blob-preview__empty">
             <app-svg-icon
                 icon="file-empty-state"

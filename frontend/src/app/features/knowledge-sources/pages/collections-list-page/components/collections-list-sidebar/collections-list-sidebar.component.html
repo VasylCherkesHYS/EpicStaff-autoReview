@@ -12,7 +12,8 @@
         } @else {
             <app-select
                 [placeholder]="'Rag type'"
-                [items]="selectItems"
+                [items]="ragTypeItems"
+                [(selectedValue)]="selectedRagType"
             />
             @for (collection of filteredCollections(); track collection.collection_id) {
                 <app-collection

@@ -101,7 +101,7 @@ export class BlobPreviewComponent {
 
         if (!blob || !fileName) {
             this.previewType.set('unsupported');
-            this.isLoading.set(false);
+            this.isLoading.set(!blob && !!fileName);
             return;
         }
 
