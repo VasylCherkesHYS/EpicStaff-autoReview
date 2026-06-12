@@ -428,6 +428,10 @@ class GraphRAGStrategy(BaseRAGStrategy):
         community_reports = self._load_parquet(root_folder, "community_reports.parquet")
         relationships = self._load_parquet(root_folder, "relationships.parquet")
 
+        ds = graphrag_config.drift_search
+        usable_reports = min(ds.drift_k_followups, len(community_reports))
+        ds.primer_folds = max(1, min(ds.primer_folds, usable_reports))
+
         return asyncio.run(
             drift_search(
                 config=graphrag_config,

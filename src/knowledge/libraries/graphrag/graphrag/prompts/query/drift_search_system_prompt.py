@@ -145,7 +145,7 @@ This is a unique knowledge graph where edges are freeform text rather than verb 
 
 3. follow_up_queries: A list of follow-up queries that could be asked to further explore the topic. These should be formatted as a list of strings. Generate at least five good follow-up queries.
 
-Use this information to help you decide whether or not you need more information about the entities mentioned in the report. You may also use your general knowledge to think of entities which may help enrich your answer.
+Use this information to help you decide whether or not you need more information about the entities mentioned in the report. Base your reasoning and the intermediate_answer only on the provided community summaries; do not introduce entities, facts, or assumptions from general knowledge or training data. If the summaries do not contain information that answers the query, state that the available documents do not cover it instead of inventing details.
 
 You will also provide a full answer from the content you have available. Use the data provided to generate follow-up queries to help refine your search. Do not ask compound questions, for example: "What is the market cap of Apple and Microsoft?". Use your knowledge of the entity distribution to focus on entity types that will be useful for searching a broad area of the knowledge graph.
 
