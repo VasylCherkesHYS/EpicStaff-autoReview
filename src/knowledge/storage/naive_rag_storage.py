@@ -13,7 +13,7 @@ from models.orm import (
     NaiveRagEmbedding,
     DocumentMetadata,
 )
-from src.shared.models import KnowledgeChunkResponse
+from src.shared.models import KnowledgeChunkResponse, format_error_message
 from chunkers.base_chunker import BaseChunkData
 
 
@@ -326,7 +326,8 @@ class ORMNaiveRagStorage(BaseORMStorage):
 
         except Exception as e:
             logger.error(
-                f"Failed to save chunks for document config {naive_rag_document_config_id}: {e}"
+                f"Failed to save chunks for document config "
+                f"{naive_rag_document_config_id}: {format_error_message(e)}"
             )
             raise
 
@@ -453,8 +454,11 @@ class ORMNaiveRagStorage(BaseORMStorage):
             return chunks
 
         except Exception as e:
+            # Sanitize: a SQLAlchemy DB error stringifies with the full SQL +
+            # bound params (chunk text), dumping document content into the logs.
             logger.error(
-                f"Failed to save preview chunks for config {naive_rag_document_config_id}: {e}"
+                f"Failed to save preview chunks for config "
+                f"{naive_rag_document_config_id}: {format_error_message(e)}"
             )
             raise
 
@@ -486,7 +490,12 @@ class ORMNaiveRagStorage(BaseORMStorage):
             self.session.add(embedding_obj)
 
         except Exception as e:
-            logger.error(f"Failed to save embedding for chunk {chunk_id}: {e}")
+            # Sanitize: a SQLAlchemy DB error stringifies with the full SQL +
+            # bound params (the embedding vector), bloating the logs.
+            logger.error(
+                f"Failed to save embedding for chunk {chunk_id}: "
+                f"{format_error_message(e)}"
+            )
             raise
 
     def delete_embeddings(self, naive_rag_document_config_id: int) -> None:
