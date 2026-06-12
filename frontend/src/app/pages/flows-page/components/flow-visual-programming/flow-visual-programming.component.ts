@@ -1,5 +1,6 @@
 import { Dialog as CdkDialog } from '@angular/cdk/dialog';
 import { Overlay } from '@angular/cdk/overlay';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -239,7 +240,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previous, flowState);
         const idMap = buildUuidToBackendIdMap(flowState.nodes);
         const connectionDiff = getConnectionDiff(previous, flowState, idMap);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, flowState, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            flowState,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         this.isSaving.set(true);
 
@@ -274,8 +282,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 }
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning(
+                        'This graph was modified by another user. Please refresh to see the latest changes.'
+                    );
+                } else {
+                    this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             }),
             finalize(() => {
@@ -312,7 +326,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         const nodeDiff = getNodeDiff(previousForDiff, singleNodeFlow);
         const connectionDiff = { toCreate: [], toUpdate: [], toDelete: [] };
         const idMap = buildUuidToBackendIdMap([node]);
-        const payload = buildBulkSavePayload(this.graph.id, nodeDiff, connectionDiff, singleNodeFlow, idMap);
+        const payload = buildBulkSavePayload(
+            this.graph.id,
+            nodeDiff,
+            connectionDiff,
+            singleNodeFlow,
+            idMap,
+            this.graphState()!.save_version
+        );
 
         return this.flowApiService.bulkSaveGraph(this.graph.id, payload).pipe(
             tap((responseGraph) => {
@@ -338,8 +359,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 this.toastService.success('Node saved');
             }),
             map(() => void 0),
-            catchError((err) => {
-                this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+            catchError((err: HttpErrorResponse) => {
+                if (err.status === 409) {
+                    this.toastService.warning(
+                        'This graph was modified by another user. Please refresh to see the latest changes.'
+                    );
+                } else {
+                    this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+                }
                 return EMPTY;
             })
         );
@@ -503,22 +530,24 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             return;
         }
 
-        this.flowApiService.patchGraph(this.graph.id, { epicchat_enabled: true }).subscribe({
-            next: () => {
-                this.graph.epicchat_enabled = true;
-                this.epicChatService.requestCreateAgent({
-                    name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
-                    description: this.graph.description?.trim(),
-                    flowId: this.graph.id,
-                    flowUrl,
-                    selectAfterCreate: true,
-                });
-                this.toastService.success('Flow connected to Epic Chat');
-            },
-            error: () => {
-                this.toastService.error('Failed to save EpicChat connection');
-            },
-        });
+        this.flowApiService
+            .patchGraph(this.graph.id, { epicchat_enabled: true, save_version: this.graphState()!.save_version })
+            .subscribe({
+                next: () => {
+                    this.graph.epicchat_enabled = true;
+                    this.epicChatService.requestCreateAgent({
+                        name: this.graph.name?.trim() || `Flow ${this.graph.id}`,
+                        description: this.graph.description?.trim(),
+                        flowId: this.graph.id,
+                        flowUrl,
+                        selectAfterCreate: true,
+                    });
+                    this.toastService.success('Flow connected to Epic Chat');
+                },
+                error: () => {
+                    this.toastService.error('Failed to save EpicChat connection');
+                },
+            });
     }
 
     private normalizeApiUrl(apiUrl: string): string {
@@ -677,6 +706,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             width: '380px',
             data: {
                 graphId: this.graph.id,
+                graphSaveVersion: () => this.graphState()?.save_version,
                 hasUnsavedChanges: () => this.hasUnsavedChanges(),
                 saveCurrentState: () => this.saveCurrentState(),
             },

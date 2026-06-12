@@ -79,6 +79,22 @@ class ContentHashConflictError(CustomAPIExeption):
     default_code = "content_hash_conflict"
 
 
+class GraphSaveVersionConflictError(CustomAPIExeption):
+    status_code = 409
+    default_detail = (
+        "Graph has been modified by another user. Please refresh and try again."
+    )
+    default_code = "graph_version_conflict"
+
+    def __init__(self, current_version: int | None):
+        self.current_version = current_version
+        detail = {
+            "current_version": current_version,
+            "message": self.default_detail,
+        }
+        super().__init__(detail=detail, code=self.default_code)
+
+
 class SubGraphValidationError(CustomAPIExeption):
     status_code = 400
     default_detail = (

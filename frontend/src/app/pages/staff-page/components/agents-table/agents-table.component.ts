@@ -29,6 +29,7 @@ import {
     GridReadyEvent,
     RowDragEndEvent,
     SuppressKeyboardEventParams,
+    TabToNextCellParams,
 } from 'ag-grid-community';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { themeQuartz } from 'ag-grid-community';
@@ -548,6 +549,24 @@ export class AgentsTableComponent {
         undoRedoCellEditingLimit: 20,
         theme: this.myTheme,
         animateRows: false,
+        tabToNextCell: (params: TabToNextCellParams) => {
+            const next = params.nextCellPosition;
+            if (next && params.editing) {
+                this.isTabbingToNextCell = true;
+                if (next.rowIndex !== params.previousCellPosition.rowIndex) {
+                    this.isTabNavigatingToNextRow = true;
+                    this.tabNextRowIndex = next.rowIndex;
+                }
+                setTimeout(() => {
+                    this.isTabbingToNextCell = false;
+                    this.gridApi.startEditingCell({
+                        rowIndex: next.rowIndex,
+                        colKey: next.column.getColId(),
+                    });
+                }, 0);
+            }
+            return next ?? false;
+        },
         onCellFocused: (e) => this.onCellFocused(e),
 
         suppressColumnVirtualisation: false, // Enable column virtualization for performance
@@ -2158,6 +2177,12 @@ export class AgentsTableComponent {
     }
 
     private onCellEditingStopped(e: CellEditingStoppedEvent<TableFullAgent>): void {
+        if (this.isTabbingToNextCell || this.isTabNavigatingToNextRow) {
+            if (this.isTabNavigatingToNextRow && e.rowIndex === this.tabNextRowIndex) {
+                this.isTabNavigatingToNextRow = false;
+            }
+            return;
+        }
         const data = e?.data;
         const rowId = String(data?.id ?? '');
         if (!this.isTempRowId(rowId)) return;
@@ -2201,6 +2226,9 @@ export class AgentsTableComponent {
     private requiredErrorsRows = new Set<string>();
 
     private lastFocusedRowIndex: number | null = null;
+    private isTabbingToNextCell = false;
+    private isTabNavigatingToNextRow = false;
+    private tabNextRowIndex: number | null = null;
 
     private onCellFocused(e: { rowIndex?: number | null }): void {
         const rowIndex = typeof e?.rowIndex === 'number' ? e.rowIndex : null;
@@ -2210,16 +2238,19 @@ export class AgentsTableComponent {
         }
         const newRowIndex = typeof e?.rowIndex === 'number' ? e.rowIndex : null;
 
-        if (this.lastFocusedRowIndex != null && this.lastFocusedRowIndex !== newRowIndex) {
-            const prevNode = this.gridApi?.getDisplayedRowAtIndex(this.lastFocusedRowIndex);
+        const guardPasses =
+            this.lastFocusedRowIndex != null && this.lastFocusedRowIndex !== newRowIndex && newRowIndex !== null;
+
+        if (guardPasses) {
+            const prevNode = this.gridApi?.getDisplayedRowAtIndex(this.lastFocusedRowIndex!);
             const prevRowId = prevNode?.data?.id != null ? String(prevNode.data.id) : null;
-            if (prevRowId) this.applyRequiredErrorsOnRowExit(prevRowId);
+            if (prevRowId) this.applyRequiredErrorsOnRowExit(prevRowId, newRowIndex);
         }
 
         this.lastFocusedRowIndex = newRowIndex;
     }
 
-    private applyRequiredErrorsOnRowExit(rowId: string): void {
+    private applyRequiredErrorsOnRowExit(rowId: string, newFocusedRowIndex?: number | null): void {
         if (!this.isTempRowId(rowId)) {
             this.requiredErrorsRows.delete(rowId);
             return;
@@ -2228,6 +2259,9 @@ export class AgentsTableComponent {
         const rowNode = this.gridApi.getRowNode(rowId);
         const data = rowNode?.data;
         if (!data) return;
+
+        if (newFocusedRowIndex != null && rowNode?.rowIndex === newFocusedRowIndex) return;
+
         const touched = this.isTempRowTouched(data);
         const valid = this.isTempRowValid(data);
 
