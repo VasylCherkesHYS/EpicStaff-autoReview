@@ -1,0 +1,435 @@
+"""Consumer-level tests for Block 3: authoritative node locks."""
+
+import pytest
+from django.test import override_settings
+
+from tables.graph_collab import lock_service as _ls_module
+
+from tests.graph_collab.conftest import _make_communicator, _drain_connect
+
+# ---------------------------------------------------------------------------
+# Lock claim: winner + loser
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_lock_winner_relay_reaches_peer(test_graph, test_user, second_user):
+    """The first client to claim a node lock should have the event relayed to peers."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "node_locked"
+    assert msg["node_id"] == "node-1"
+    assert msg["editor"]["user_id"] == test_user.pk
+    assert "sender_channel" not in msg
+
+    # Winner must NOT echo to itself.
+    assert await comm_a.receive_nothing(timeout=0.3)
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_lock_loser_receives_corrective_signal_naming_winner(
+    test_graph, test_user, second_user
+):
+    """Loser should receive a node_locked from the server describing the winner."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    # comm_a wins the lock.
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    # Drain comm_b's relay of the winner's lock.
+    winner_relay = await comm_b.receive_json_from()
+    assert winner_relay["type"] == "node_locked"
+    # comm_a must not echo to itself.
+    assert await comm_a.receive_nothing(timeout=0.1)
+
+    # comm_b tries to claim the same node — should lose.
+    await comm_b.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": second_user.pk,
+                "display_name": "y",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    corrective = await comm_b.receive_json_from()
+    assert corrective["type"] == "node_locked"
+    assert corrective["node_id"] == "node-1"
+    # The corrective signal must name the WINNER (test_user), not the loser.
+    assert corrective["editor"]["user_id"] == test_user.pk
+
+    # comm_a must not receive anything (loser's failed claim is silent to others).
+    assert await comm_a.receive_nothing(timeout=0.3)
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_lock_winner_identity_is_server_overridden(
+    test_graph, test_user, second_user
+):
+    """Server must override editor identity on node_locked, same as other relay ops."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+    await _drain_connect(comm_b)
+
+    spoofed_editor = {"user_id": 9999, "display_name": "spoof", "avatar_url": None}
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-spoof",
+            "editor": spoofed_editor,
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["editor"]["user_id"] == test_user.pk, "server must override editor"
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Lock release
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_explicit_release_broadcasts_to_peers(test_graph, test_user, second_user):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+    await _drain_connect(comm_b)
+
+    # Acquire the lock.
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    await comm_b.receive_json_from()  # relay of lock claim
+
+    # Release it.
+    await comm_a.send_json_to(
+        {
+            "type": "node_unlocked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "node_unlocked"
+    assert msg["node_id"] == "node-1"
+    assert "sender_channel" not in msg
+
+    # Sender must not echo.
+    assert await comm_a.receive_nothing(timeout=0.3)
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_spurious_release_by_non_owner_is_silent(
+    test_graph, test_user, second_user
+):
+    """A non-owner sending node_unlocked for someone else's lock must be silently ignored."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+    await _drain_connect(comm_b)
+
+    # comm_a holds the lock.
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    await comm_b.receive_json_from()  # relay of lock claim
+
+    # comm_b tries to release comm_a's lock — must be rejected silently.
+    await comm_b.send_json_to(
+        {
+            "type": "node_unlocked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": second_user.pk,
+                "display_name": "y",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    # Neither client should receive anything.
+    assert await comm_a.receive_nothing(timeout=0.3)
+    assert await comm_b.receive_nothing(timeout=0.3)
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Disconnect auto-release
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_disconnect_releases_locks_and_broadcasts_node_unlocked(
+    test_graph, test_user, second_user
+):
+    """Disconnecting client's locks must be released and node_unlocked broadcast to peers."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined for second_user
+    await _drain_connect(comm_b)
+
+    # comm_a acquires two locks.
+    for node_id in ("node-1", "node-2"):
+        await comm_a.send_json_to(
+            {
+                "type": "node_locked",
+                "node_id": node_id,
+                "editor": {
+                    "user_id": test_user.pk,
+                    "display_name": "x",
+                    "avatar_url": None,
+                },
+            }
+        )
+        await comm_b.receive_json_from()  # drain relay
+
+    await comm_a.disconnect()
+
+    # comm_b should receive node_unlocked + user_left (order may vary).
+    received = []
+    for _ in range(3):  # 2 unlocks + 1 user_left
+        msg = await comm_b.receive_json_from()
+        received.append(msg)
+
+    unlock_msgs = [m for m in received if m["type"] == "node_unlocked"]
+    user_left_msgs = [m for m in received if m["type"] == "user_left"]
+
+    assert len(unlock_msgs) == 2
+    unlocked_node_ids = {m["node_id"] for m in unlock_msgs}
+    assert unlocked_node_ids == {"node-1", "node-2"}
+
+    assert len(user_left_msgs) == 1
+    assert user_left_msgs[0]["user_id"] == test_user.pk
+
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_disconnect_lock_registry_is_empty_after(test_graph, test_user):
+    """After the only client disconnects, the lock registry for that graph is empty."""
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    await comm.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    await comm.receive_nothing(timeout=0.05)  # Allow the message to be processed.
+
+    await comm.disconnect()
+    await comm.receive_nothing(timeout=0.05)  # Allow disconnect to propagate.
+
+    assert _ls_module.lock_service.get_holder(test_graph.pk, "node-1") is None
+
+
+# ---------------------------------------------------------------------------
+# Backstop timeout auto-release
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@override_settings(GRAPH_LOCK_TIMEOUT_SECONDS=0)
+async def test_backstop_timeout_fires_node_unlocked(test_graph, test_user, second_user):
+    """With GRAPH_LOCK_TIMEOUT_SECONDS=0 the backstop timer fires immediately."""
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+    await _drain_connect(comm_b)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-timeout",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    # Drain the relay of the lock claim.
+    lock_relay = await comm_b.receive_json_from()
+    assert lock_relay["type"] == "node_locked"
+
+    # The backstop fires immediately (timeout=0); receive_json_from raises
+    # asyncio.TimeoutError if nothing arrives within its default window.
+    msg = await comm_b.receive_json_from()
+    assert msg["type"] == "node_unlocked"
+    assert msg["node_id"] == "node-timeout"
+
+    # Lock must be cleared from the registry.
+    assert _ls_module.lock_service.get_holder(test_graph.pk, "node-timeout") is None
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Invalid payload
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_node_locked_invalid_payload_returns_error(test_graph, test_user):
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    # Send node_locked without required node_id.
+    await comm.send_json_to(
+        {
+            "type": "node_locked",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm.receive_json_from()
+    assert msg["type"] == "error"
+    assert msg["code"] == "invalid_payload"
+
+    await comm.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_node_unlocked_invalid_payload_returns_error(test_graph, test_user):
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+
+    # Send node_unlocked without required node_id.
+    await comm.send_json_to(
+        {
+            "type": "node_unlocked",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+
+    msg = await comm.receive_json_from()
+    assert msg["type"] == "error"
+    assert msg["code"] == "invalid_payload"
+
+    await comm.disconnect()

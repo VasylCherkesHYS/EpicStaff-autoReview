@@ -1,10 +1,8 @@
 import pytest
-from django.urls import re_path
-from channels.testing import WebsocketCommunicator
-from channels.routing import URLRouter
 
-from tables.graph_collab.consumers import GraphEditConsumer
 from tables.graph_collab.graph_state_service import graph_state_service
+
+from tests.graph_collab.conftest import _make_communicator, _drain_connect
 
 
 async def _wait_for(
@@ -20,24 +18,6 @@ async def _wait_for(
         await _asyncio.sleep(interval)
         elapsed += interval
     return False
-
-
-application = URLRouter(
-    [re_path(r"ws/graphs/(?P<graph_id>\d+)/edit/$", GraphEditConsumer.as_asgi())]
-)
-
-
-def _make_communicator(graph_id: int, user=None):
-    """Build a communicator with scope["user"] pre-set (bypasses ticket middleware)."""
-    from django.contrib.auth.models import AnonymousUser
-
-    scope_user = user or AnonymousUser()
-    communicator = WebsocketCommunicator(
-        application,
-        f"ws/graphs/{graph_id}/edit/",
-    )
-    communicator.scope["user"] = scope_user
-    return communicator
 
 
 @pytest.mark.asyncio
@@ -200,24 +180,6 @@ async def test_user_disconnect_remaining_receives_user_left(
     assert msg["user_id"] == test_user.pk
 
     await comm2.disconnect()
-
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-
-async def _drain_connect(communicator) -> None:
-    """Consume the initial messages sent on connect:
-    1. presence_state
-    2. request_state OR graph_state (live snapshot seeding/serving)
-    3. user_joined (self)
-    """
-
-    messages = {(await communicator.receive_json_from())["type"] for _ in range(3)}
-    assert "presence_state" in messages
-    assert "user_joined" in messages
-    assert "request_state" in messages or "graph_state" in messages
 
 
 # ---------------------------------------------------------------------------
