@@ -29,28 +29,32 @@
 
             <div class="files__size-column">
                 <span class="files__size">{{ item.file_size | fileSize }}</span>
-                <app-list-actions>
-                    @if (item.document_id) {
+                @if (!item.document_id && item.isValidType && item.isValidSize) {
+                    <div class="files__upload-spinner"></div>
+                } @else {
+                    <app-list-actions>
+                        @if (item.document_id) {
+                            <app-svg-icon
+                                icon="eye"
+                                size="0.875rem"
+                                class="files__close-action"
+                                (click)="previewRequested.emit(item.document_id)"
+                            />
+                            <app-svg-icon
+                                icon="download"
+                                size="0.875rem"
+                                class="files__close-action"
+                                (click)="onDownload(item.document_id)"
+                            />
+                        }
                         <app-svg-icon
-                            icon="eye"
-                            size="0.875rem"
+                            icon="x"
+                            size="1rem"
                             class="files__close-action"
-                            (click)="previewRequested.emit(item.document_id)"
+                            (click)="onDelete(item)"
                         />
-                    }
-                    <app-svg-icon
-                        icon="download"
-                        size="0.875rem"
-                        class="files__close-action"
-                        (click)="onDownload(item.document_id)"
-                    />
-                    <app-svg-icon
-                        icon="x"
-                        size="1rem"
-                        class="files__close-action"
-                        (click)="onDelete(item)"
-                    />
-                </app-list-actions>
+                    </app-list-actions>
+                }
             </div>
         </app-list-row>
     </ng-template>

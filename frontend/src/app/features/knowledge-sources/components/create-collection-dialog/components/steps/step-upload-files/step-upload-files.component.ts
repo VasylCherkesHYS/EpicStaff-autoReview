@@ -98,16 +98,20 @@ export class StepUploadFilesComponent implements OnInit {
         });
 
         effect(() => {
-            const documents = this.documentsStorageService
+            const collectionId = this.collection().collection_id;
+            const realDocs = this.documentsStorageService
                 .documents()
-                .filter((d) => d.source_collection === this.collection().collection_id)
+                .filter((d) => d.source_collection === collectionId)
                 .map((d) => ({
                     ...d,
                     isValidType: true,
                     isValidSize: true,
                 }));
+            const uploading = this.documentsStorageService
+                .uploadingDocuments()
+                .filter((d) => d.source_collection === collectionId);
 
-            this.documents.set(documents);
+            this.documents.set([...realDocs, ...uploading]);
         });
     }
 
@@ -163,11 +167,9 @@ export class StepUploadFilesComponent implements OnInit {
         if (!toUpload.length) {
             return;
         }
-        // 5: upload filtered and valid files to backend
-        this.documentsStorageService
-            .uploadDocuments(collectionId, toUpload)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe();
+        // 5: upload filtered and valid files to backend (no takeUntilDestroyed to keep uploading on dialog close/step switch)
+        const placeholders = transformed.filter((d) => d.isValidType && d.isValidSize);
+        this.documentsStorageService.uploadDocuments(collectionId, toUpload, placeholders).subscribe();
     }
 
     protected readonly FILE_TYPES = FILE_TYPES;

@@ -1,13 +1,14 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { StorageService } from '@shared/services';
 import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { catchError, finalize, map, tap } from 'rxjs/operators';
 
 import { ToastService } from '../../../services/notifications/toast.service';
 import {
     CollectionDocument,
     CopyDocumentsResponse,
     DeleteDocumentResponse,
+    DisplayedListDocument,
     UploadDocumentResponse,
 } from '../models/document.model';
 import { CollectionsApiService } from './collections-api.service';
@@ -20,15 +21,25 @@ import { DocumentsApiService } from './documents-api.service';
 export class DocumentsStorageService implements StorageService {
     private documentsSignal = signal<CollectionDocument[]>([]);
     private documentsLoaded = signal<boolean>(false);
+    private uploadingDocumentsSignal = signal<DisplayedListDocument[]>([]);
     public readonly documents = this.documentsSignal.asReadonly();
     public readonly isDocumentsLoaded = this.documentsLoaded.asReadonly();
+    public readonly uploadingDocuments = this.uploadingDocumentsSignal.asReadonly();
 
     private readonly documentsApiService = inject(DocumentsApiService);
     private readonly collectionsApiService = inject(CollectionsApiService);
     private readonly collectionsStorageService = inject(CollectionsStorageService);
     private readonly toastService = inject(ToastService);
 
-    uploadDocuments(collectionId: number, files: File[]): Observable<UploadDocumentResponse | undefined> {
+    uploadDocuments(
+        collectionId: number,
+        files: File[],
+        placeholders?: DisplayedListDocument[]
+    ): Observable<UploadDocumentResponse | undefined> {
+        if (placeholders?.length) {
+            this.uploadingDocumentsSignal.update((docs) => [...docs, ...placeholders]);
+        }
+
         return this.documentsApiService.uploadDocuments(collectionId, files).pipe(
             tap((resp: UploadDocumentResponse) => {
                 const { documents } = resp;
@@ -38,6 +49,14 @@ export class DocumentsStorageService implements StorageService {
             catchError(() => {
                 this.toastService.error('Failed to upload documents');
                 return of();
+            }),
+            finalize(() => {
+                if (placeholders?.length) {
+                    const names = new Set(placeholders.map((p) => p.file_name));
+                    this.uploadingDocumentsSignal.update((docs) =>
+                        docs.filter((d) => !(d.source_collection === collectionId && names.has(d.file_name)))
+                    );
+                }
             })
         );
     }

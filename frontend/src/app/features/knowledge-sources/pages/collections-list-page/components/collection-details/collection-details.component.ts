@@ -95,16 +95,20 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
         });
 
         effect(() => {
-            const documents = this.documentsStorageService
+            const collectionId = this.selectedCollectionId();
+            const realDocs = this.documentsStorageService
                 .documents()
-                .filter((d) => d.source_collection === this.selectedCollectionId())
+                .filter((d) => d.source_collection === collectionId)
                 .map((d) => ({
                     ...d,
                     isValidType: true,
                     isValidSize: true,
                 }));
+            const uploading = this.documentsStorageService
+                .uploadingDocuments()
+                .filter((d) => d.source_collection === collectionId);
 
-            this.documents.set(documents);
+            this.documents.set([...realDocs, ...uploading]);
         });
     }
 
@@ -200,11 +204,9 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
         if (!toUpload.length) {
             return;
         }
-        // 5: upload filtered and valid files to backend
-        this.documentsStorageService
-            .uploadDocuments(collectionId, toUpload)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe();
+        // 5: upload filtered and valid files to backend (no takeUntilDestroyed to keep uploading on page switch)
+        const placeholders = transformed.filter((d) => d.isValidType && d.isValidSize);
+        this.documentsStorageService.uploadDocuments(collectionId, toUpload, placeholders).subscribe();
     }
 
     onFileSelect(event: Event): void {
@@ -263,7 +265,7 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
     private downloadDocuments(ids: number[], fileName: string): void {
         this.documentsApiService
             .downloadDocuments(ids)
-            .pipe(takeUntilDestroyed(this.destroyRef))
+            // do not destroy the subscription to keep downloading on page switching (EST-3085)
             .subscribe((blob) => this.triggerDownload(blob, fileName));
     }
 

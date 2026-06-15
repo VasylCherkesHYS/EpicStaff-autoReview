@@ -43,6 +43,15 @@
         color: var(--color-ks-transparent-text-80);
     }
 
+    &__upload-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--color-ks-status-processing);
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
     &__close-action {
         border-radius: 50%;
         cursor: pointer;
@@ -50,5 +59,14 @@
             transition: 0.3s;
             background-color: var(--color-ks-hover-row);
         }
+    }
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
     }
 }

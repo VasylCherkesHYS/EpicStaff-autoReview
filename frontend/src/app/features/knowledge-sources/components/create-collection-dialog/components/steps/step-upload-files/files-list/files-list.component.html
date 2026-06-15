@@ -57,14 +57,18 @@
                         </div>
                         <div class="list__size-column">
                             <span class="list__file-size">{{ item.file_size | fileSize }}</span>
-                            <app-list-actions>
-                                <app-svg-icon
-                                    icon="x"
-                                    class="files__file-action"
-                                    size="1rem"
-                                    (click)="onDelete(item)"
-                                />
-                            </app-list-actions>
+                            @if (!item.document_id && item.isValidType && item.isValidSize) {
+                                <div class="list__upload-spinner"></div>
+                            } @else {
+                                <app-list-actions>
+                                    <app-svg-icon
+                                        icon="x"
+                                        class="files__file-action"
+                                        size="1rem"
+                                        (click)="onDelete(item)"
+                                    />
+                                </app-list-actions>
+                            }
                         </div>
                     </app-list-row>
                 </ng-template>
