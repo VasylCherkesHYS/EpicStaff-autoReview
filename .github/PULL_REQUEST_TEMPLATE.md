@@ -2,10 +2,6 @@
 
 <!-- Describe what this PR changes and why. -->
 
-## Related Issues
-
-<!-- Link any related issues, e.g. Closes #123 -->
-
 ## Checklist
 
 - [ ] I have signed the **Contributor License Agreement (CLA)**. The CLA bot will comment on this PR — comment `I have read the CLA Document and I hereby sign the CLA` to sign. **This PR cannot be merged until the CLA is signed.**
