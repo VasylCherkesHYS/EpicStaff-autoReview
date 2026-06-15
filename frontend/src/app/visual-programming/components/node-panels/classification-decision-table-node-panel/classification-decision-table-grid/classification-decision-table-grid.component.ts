@@ -234,6 +234,13 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             return true;
         };
 
+        const passesEnableFilter = (row: ConditionGroup): boolean => {
+            const mode = this.enableFilterMode();
+            if (mode === 'enabled' && row.dock_visible !== true) return false;
+            if (mode === 'disabled' && row.dock_visible === true) return false;
+            return true;
+        };
+
         const items: Array<{ sectionId: string; top: number; height: number; isCollapsed: boolean }> = [];
         const expandedFirstLast = new Map<string, { firstTop: number; lastBottom: number }>();
 
@@ -256,6 +263,12 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const rowHeight = CDT_OVERLAY_ROW_HEIGHT;
 
         sectionRange.forEach((range, sectionId) => {
+            let filteredMembers = 0;
+            for (let i = range.firstIdx; i <= range.lastIdx; i++) {
+                if (passesEnableFilter(rawRows[i] as ConditionGroup)) filteredMembers++;
+            }
+            if (filteredMembers === 0) return;
+
             if (collapsed.has(sectionId)) {
                 let visibleBefore = 0;
                 for (let i = 0; i < range.firstIdx; i++) {
