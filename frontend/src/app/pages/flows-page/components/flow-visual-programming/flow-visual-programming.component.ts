@@ -17,6 +17,7 @@ import {
     ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
     catchError,
@@ -98,6 +99,7 @@ import { FLOW_SHORTCUT_SECTIONS } from './flow-shortcuts.config';
         SpinnerComponent,
         ShortcutsModalComponent,
         FlowMessagesPanelComponent,
+        MatTooltipModule,
     ],
     templateUrl: './flow-visual-programming.component.html',
     styleUrl: './flow-visual-programming.component.scss',

@@ -20,7 +20,8 @@
                 <button
                     class="edit-name-btn"
                     (click)="openRenameDialog()"
-                    title="Edit flow"
+                    matTooltip="Edit flow name"
+                    matTooltipPosition="below"
                 >
                     <app-svg-icon
                         icon="edit"
@@ -30,7 +31,8 @@
                 @if (hasUnsavedChanges) {
                     <span
                         class="unsaved-indicator"
-                        title="Unsaved changes"
+                        matTooltip="Unsaved changes"
+                        matTooltipPosition="below"
                         [appCollapseOnOverflow]="true"
                         collapseOnOverflowTarget=".unsaved-text"
                         collapseOnOverflowClass="unsaved-indicator--icon-only"
@@ -115,6 +117,8 @@
             <button
                 class="save-split-btn__chevron"
                 [disabled]="isSaving || isRunning"
+                matTooltip="Save options"
+                matTooltipPosition="below"
                 (click)="toggleSaveDropdown($event)"
             >
                 <app-svg-icon

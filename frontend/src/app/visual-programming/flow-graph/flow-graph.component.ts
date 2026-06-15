@@ -20,6 +20,7 @@ import {
     ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { IPoint, PointExtensions } from '@foblex/2d';
 import {
     EFMarkerType,
@@ -129,6 +130,7 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         FConnectionWaypoints,
         WaypointTooltipDirective,
         FlowFilesButtonComponent,
+        MatTooltipModule,
     ],
 })
 export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {

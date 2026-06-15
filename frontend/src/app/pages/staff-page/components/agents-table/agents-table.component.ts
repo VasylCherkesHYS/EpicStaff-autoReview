@@ -61,6 +61,8 @@ import { ConfigCellRendererComponent } from '../cell-renderers/llm-cell-renderer
 import { AgGridContextMenuComponent } from '../context-menu/ag-grid-context-menu.component';
 import { PreventContextMenuDirective } from '../directives/prevent-context-menu.directive';
 import { DelegationHeaderComponent } from '../header-renderers/delegation-header.component';
+import { AgentSettingsCellRendererComponent } from './agent-settings-cell-renderer/agent-settings-cell-renderer.component';
+import { CopyAgentCellRendererComponent } from './copy-agent-cell-renderer/copy-agent-cell-renderer.component';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -508,9 +510,7 @@ export class AgentsTableComponent {
         {
             headerName: '',
             field: 'actions',
-            cellRenderer: () => {
-                return `<i class="ti ti-settings action-icon"></i>`;
-            },
+            cellRenderer: AgentSettingsCellRendererComponent,
             width: 50,
             minWidth: 50,
             maxWidth: 50,
@@ -521,9 +521,7 @@ export class AgentsTableComponent {
         {
             headerName: '',
             field: 'copy',
-            cellRenderer: () => {
-                return `<i class="ti ti-copy action-icon"></i>`;
-            },
+            cellRenderer: CopyAgentCellRendererComponent,
             width: 50,
             minWidth: 50,
             maxWidth: 50,
