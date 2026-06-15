@@ -169,10 +169,15 @@ $radius: 8px;
     padding: 6px 12px 0;
     gap: 2px;
     flex-shrink: 0;
+    // Cap the accumulated template/tip lines so they scroll instead of growing the
+    // editor popover unbounded (bug #10).
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 .eb-tip-line {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
     font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
