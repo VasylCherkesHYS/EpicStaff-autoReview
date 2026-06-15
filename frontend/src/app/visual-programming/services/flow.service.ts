@@ -364,7 +364,7 @@ export class FlowService {
             .filter((group) => group.valid !== false && group.dock_visible !== false && !!group.next_node)
             .map(
                 (group) =>
-                    `${group.group_name ?? ''}::${group.next_node ?? ''}::${String(group.dock_visible !== false)}`
+                    `${group.route_code ?? ''}::${group.group_name ?? ''}::${group.next_node ?? ''}::${String(group.dock_visible !== false)}`
             )
             .sort()
             .join('|');
