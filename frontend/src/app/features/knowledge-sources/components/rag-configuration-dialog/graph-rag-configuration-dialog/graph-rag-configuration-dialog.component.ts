@@ -35,7 +35,7 @@ export class GraphRagConfigurationDialog extends RagConfigurationDialogComponent
 
     runIndexing() {
         this.confirmation
-            .confirm(getIndexingConfirmationData())
+            .confirm(getIndexingConfirmationData([]))
             .pipe(
                 filter((result) => result === true),
                 switchMap(() =>

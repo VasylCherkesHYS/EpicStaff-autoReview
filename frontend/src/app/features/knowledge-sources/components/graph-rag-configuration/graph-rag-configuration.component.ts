@@ -18,6 +18,7 @@ import { catchError, debounceTime, distinctUntilChanged, switchMap, tap } from '
 import { ToastService } from '../../../../services/notifications';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { HelpTooltipComponent } from '../../../../shared/components/help-tooltip/help-tooltip.component';
+import { IndexingDocumentInfo } from '../../helpers/get-indexing-confirmation-data.util';
 import {
     CollectionGraphRag,
     CreateGraphRagIndexConfigRequest,
@@ -114,6 +115,10 @@ export class GraphRagConfigurationComponent implements OnInit, AfterViewInit, Ra
 
     //TODO will be used for partial Graph RAG documents indexing
     getDocumentConfigIds(): number[] {
+        return [];
+    }
+
+    getIndexingDocuments(): IndexingDocumentInfo[] {
         return [];
     }
 

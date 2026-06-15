@@ -25,6 +25,7 @@ import { EMPTY, groupBy, mergeMap, of, Subject } from 'rxjs';
 import { catchError, debounceTime, switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../services/notifications';
+import { IndexingDocumentInfo } from '../../helpers/get-indexing-confirmation-data.util';
 import { UpdateNaiveRagDocumentDtoRequest } from '../../models/naive-rag-document.model';
 import { RagConfiguration } from '../../models/rag-configuration';
 import { ChunkDeepLinkService } from '../../services/chunk-deep-link.service';
@@ -227,6 +228,17 @@ export class NaiveRagConfigurationComponent implements OnInit, RagConfiguration 
     getDocumentConfigIds(): number[] {
         const { configIds } = this.getDocumentsForIndexing();
         return configIds;
+    }
+
+    getIndexingDocuments(): IndexingDocumentInfo[] {
+        const checkedIds = this.filteredAndCheckedDocIds();
+        const allDocs = this.documentsStorageService.documents();
+        const docs = checkedIds.length ? allDocs.filter((d) => checkedIds.includes(d.naive_rag_document_id)) : allDocs;
+
+        return docs.map((d) => ({
+            fileName: d.file_name,
+            wasIndexed: d.status === 'completed' || d.status === 'warning',
+        }));
     }
 
     getDocumentsForIndexing(): { configIds: number[]; fileNames: string[] } {

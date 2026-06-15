@@ -161,20 +161,23 @@ export class CreateCollectionDialogComponent {
             return of(false);
         }
 
-        return this.confirmation
-            .confirm(getIndexingConfirmationData(configIds.length || this.selectedDocuments().length))
-            .pipe(
-                takeUntilDestroyed(this.destroyRef),
-                filter((result) => result === true),
-                switchMap(() =>
-                    strategy.startIndexing({ ...componentData, configIds }).pipe(
-                        catchError(() => {
-                            this.toastService.error('Indexing failed');
-                            return of(false);
-                        })
-                    )
+        let indexingDocs = componentInstance.getIndexingDocuments();
+        if (!indexingDocs.length) {
+            indexingDocs = this.selectedDocuments().map((d) => ({ fileName: d.file_name, wasIndexed: false }));
+        }
+
+        return this.confirmation.confirm(getIndexingConfirmationData(indexingDocs)).pipe(
+            takeUntilDestroyed(this.destroyRef),
+            filter((result) => result === true),
+            switchMap(() =>
+                strategy.startIndexing({ ...componentData, configIds }).pipe(
+                    catchError(() => {
+                        this.toastService.error('Indexing failed');
+                        return of(false);
+                    })
                 )
-            );
+            )
+        );
     }
 
     onClose() {

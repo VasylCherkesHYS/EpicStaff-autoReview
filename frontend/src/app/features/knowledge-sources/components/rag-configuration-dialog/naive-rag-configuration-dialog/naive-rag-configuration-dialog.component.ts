@@ -3,7 +3,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ButtonComponent } from '@shared/components';
 import { filter, switchMap, take } from 'rxjs/operators';
 
-import { getReindexingConfirmationData } from '../../../helpers/get-indexing-confirmation-data.util';
+import { getIndexingConfirmationData } from '../../../helpers/get-indexing-confirmation-data.util';
 import { NaiveRagService } from '../../../services/naive-rag.service';
 import { NaiveRagDocumentsStorageService } from '../../../services/naive-rag-documents-storage.service';
 import { NaiveRagPollingService } from '../../../services/naive-rag-polling.service';
@@ -53,8 +53,10 @@ export class NaiveRagConfigurationDialog extends RagConfigurationDialogComponent
         const { configIds, fileNames } = this.ragConfiguration().getDocumentsForIndexing();
         if (!fileNames.length) return;
 
+        const indexingDocs = this.ragConfiguration().getIndexingDocuments();
+
         this.confirmation
-            .confirm(getReindexingConfirmationData(fileNames))
+            .confirm(getIndexingConfirmationData(indexingDocs))
             .pipe(
                 filter((result) => result === true),
                 switchMap(() =>

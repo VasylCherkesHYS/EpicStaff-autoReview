@@ -20,8 +20,8 @@ export const RAG_TYPE_CONFIG: Record<RagType, { name: string; icon: string }> = 
 };
 
 export const RAG_STATUS_CONFIG: Record<RagStatus, { color: string; icon: string; text: string }> = {
-    new: { color: 'var(--color-ks-status-blue)', icon: 'processing', text: 'Processing' },
-    processing: { color: 'var(--color-ks-status-blue)', icon: 'processing', text: 'Processing' },
+    new: { color: 'var(--color-ks-status-blue)', icon: 'processing', text: 'New' },
+    processing: { color: 'var(--color-ks-status-processing)', icon: 'processing', text: 'Processing' },
     completed: { color: 'var(--color-ks-status-completed)', icon: 'check', text: 'Completed' },
     warning: { color: 'var(--color-ks-status-warning)', icon: 'warning', text: 'Warning' },
     failed: { color: 'var(--color-ks-status-failed)', icon: 'x', text: 'Failed' },

@@ -1,7 +1,46 @@
 import { ConfirmationDialogData } from '@shared/components';
 
-export function getIndexingConfirmationData(fileCount?: number): ConfirmationDialogData {
-    const filesText = fileCount != null ? ` for <strong>${fileCount}</strong> file(s)` : '';
+export interface IndexingDocumentInfo {
+    fileName: string;
+    wasIndexed: boolean;
+}
+
+export function getIndexingConfirmationData(documents: IndexingDocumentInfo[]): ConfirmationDialogData {
+    const newDocs = documents.filter((d) => !d.wasIndexed);
+    const reindexDocs = documents.filter((d) => d.wasIndexed);
+    const hasReindexDocs = reindexDocs.length > 0;
+
+    if (hasReindexDocs) {
+        const sections: string[] = [];
+
+        if (reindexDocs.length) {
+            const reindexListHtml = reindexDocs.map((d) => `<li>• ${d.fileName}</li>`).join('');
+            sections.push(
+                `<details><summary>Re-indexing <strong>${reindexDocs.length}</strong> file(s)</summary> \n
+                      <ul>${reindexListHtml}</ul></details>`
+            );
+        }
+
+        if (newDocs.length) {
+            const newListHtml = newDocs.map((d) => `<li>• ${d.fileName}</li>`).join('');
+            sections.push(
+                `<details><summary>Indexing <strong>${newDocs.length}</strong> new file(s)</summary> \n
+                      <ul>${newListHtml}</ul></details>`
+            );
+        }
+
+        return {
+            title: 'Confirm Indexing',
+            message:
+                "This operation consumes <strong>tokens</strong> based on your provider's plan. Processing time varies from <strong>seconds</strong> to <strong>hours</strong> depending on data volume.",
+            caution: sections.join(''),
+            type: 'warning',
+            cancelText: 'Cancel',
+            confirmText: 'Start Indexing',
+        };
+    }
+
+    const filesText = documents.length ? ` for <strong>${documents.length}</strong> file(s)` : '';
 
     return {
         title: 'Confirm Indexing',
@@ -11,20 +50,5 @@ export function getIndexingConfirmationData(fileCount?: number): ConfirmationDia
         type: 'warning',
         cancelText: 'Later',
         confirmText: 'Start Indexing',
-    };
-}
-
-export function getReindexingConfirmationData(fileNames: string[]): ConfirmationDialogData {
-    const fileListHtml = fileNames.map((name) => `<li>• ${name}</li>`).join('');
-
-    return {
-        title: 'Confirm Re-indexing',
-        message:
-            "This operation consumes <strong>tokens</strong> based on your provider's plan. Processing time varies from <strong>seconds</strong> to <strong>hours</strong> depending on data volume.",
-        caution: `<details><summary>You are about to re-index <strong>${fileNames.length}</strong> file(s)</summary> \n
-                      <ul>${fileListHtml}</ul></details>`,
-        type: 'warning',
-        cancelText: 'Cancel',
-        confirmText: 'Re-index',
     };
 }
