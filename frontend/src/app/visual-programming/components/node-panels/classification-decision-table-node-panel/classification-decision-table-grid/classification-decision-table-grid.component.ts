@@ -2086,9 +2086,22 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     addRow(): void {
         const currentRows = this.rowData();
-        const newRow = this.createNewRow(currentRows.length);
-        this.rowData.set([...currentRows, newRow]);
-        this.emitChanges([...currentRows, newRow]);
+        const maxOrder = currentRows.reduce((max, r) => Math.max(max, r.order ?? 0), 0);
+        const maxConditionNumber = currentRows.reduce((max, r) => {
+            const match = /^Condition (\d+)$/.exec(r.group_name ?? '');
+            return match ? Math.max(max, Number(match[1])) : max;
+        }, 0);
+        // Reuse createNewRow for default structure (field_expressions etc.), then assign a
+        // collision-free name and order based on the current MAX (not row count), so deleting a
+        // middle condition and adding a new one never duplicates an existing name/order.
+        const newRow: ConditionGroup = {
+            ...this.createNewRow(0),
+            group_name: `Condition ${maxConditionNumber + 1}`,
+            order: maxOrder + 1,
+        };
+        const updated = [...currentRows, newRow];
+        this.rowData.set(updated);
+        this.emitChanges(updated);
     }
 
     addRowAbove(): void {
@@ -2115,7 +2128,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
 
     deleteRow(rowIndex: number): void {
         const currentRows = this.rowData();
-        const updatedRows = currentRows.filter((_, index) => index !== rowIndex);
+        const updatedRows = currentRows
+            .filter((_, index) => index !== rowIndex)
+            .map((r, i) => ({ ...r, order: i + 1 }));
         this.rowData.set(updatedRows);
         this.emitChanges(updatedRows);
     }
@@ -2142,7 +2157,9 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         const nodes = this.gridApi?.getSelectedNodes() ?? [];
         if (nodes.length === 0) return;
         const namesToDelete = new Set(nodes.map((n: IRowNode) => (n.data as ConditionGroup).group_name));
-        const filtered = this.rowData().filter((g) => !namesToDelete.has(g.group_name));
+        const filtered = this.rowData()
+            .filter((g) => !namesToDelete.has(g.group_name))
+            .map((r, i) => ({ ...r, order: i + 1 }));
         this.gridApi?.deselectAll();
         this.rowData.set(filtered);
         this.emitChanges(filtered);
