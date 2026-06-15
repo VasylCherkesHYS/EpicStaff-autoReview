@@ -1,13 +1,5 @@
 import { CommonModule } from '@angular/common';
-import {
-    ChangeDetectionStrategy,
-    ChangeDetectorRef,
-    Component,
-    computed,
-    inject,
-    input,
-    signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -529,11 +521,13 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
 
     public onPreCodeChange(code: string): void {
         this.preCode = code;
+        this.notifyExternalChange();
         this.codeChange$.next();
     }
 
     public onPostCodeChange(code: string): void {
         this.postCode = code;
+        this.notifyExternalChange();
         this.codeChange$.next();
     }
 
