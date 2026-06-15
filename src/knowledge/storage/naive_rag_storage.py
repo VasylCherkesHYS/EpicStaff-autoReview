@@ -262,6 +262,32 @@ class ORMNaiveRagStorage(BaseORMStorage):
             )
             return False
 
+    def clear_indexed_snapshot(self, naive_rag_document_config_id: int) -> bool:
+        """Null the indexed_* snapshot. Called when stored embeddings are wiped
+        so is_snapshot_current() stays False until the next successful
+        completion — otherwise a doc whose live params later re-match the stale
+        snapshot would be treated as indexed despite having no embeddings."""
+        try:
+            doc_config = self.session.get(
+                NaiveRagDocumentConfig, naive_rag_document_config_id
+            )
+            if not doc_config:
+                logger.warning(
+                    f"NaiveRagDocumentConfig {naive_rag_document_config_id} not found"
+                )
+                return False
+            doc_config.indexed_chunk_strategy = None
+            doc_config.indexed_chunk_size = None
+            doc_config.indexed_chunk_overlap = None
+            doc_config.indexed_additional_params = None
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to clear indexed snapshot for document config "
+                f"{naive_rag_document_config_id}: {e}"
+            )
+            return False
+
     def mark_document_config_failed(
         self,
         naive_rag_document_config_id: int,
