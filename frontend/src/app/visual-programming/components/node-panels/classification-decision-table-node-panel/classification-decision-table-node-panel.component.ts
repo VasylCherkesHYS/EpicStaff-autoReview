@@ -214,7 +214,7 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
         const errorNext = findNodeId(tableData.next_error_node, 'error');
 
         const preComp = tableData.pre_computation || {
-            code: tableData.pre_computation_code || this.getDefaultPreComputation(),
+            code: tableData.pre_computation_code || '',
             input_map: tableData.pre_input_map || {},
             output_variable_path: tableData.pre_output_variable_path,
         };
@@ -625,7 +625,7 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
 
     private getDefaultTableData(): ClassificationDecisionTableData {
         return {
-            pre_computation_code: this.getDefaultPreComputation(),
+            pre_computation_code: '',
             condition_groups: [],
             prompts: {},
             output_variables: [],
@@ -633,13 +633,5 @@ export class ClassificationDecisionTableNodePanelComponent extends BaseSidePanel
             default_next_node: null,
             next_error_node: null,
         };
-    }
-
-    private getDefaultPreComputation(): string {
-        return `def main(arg1: str, arg2: str) -> dict:
-    return {
-        "result": arg1 + arg2,
-    }
-`;
     }
 }
