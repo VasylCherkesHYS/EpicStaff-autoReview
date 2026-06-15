@@ -1,5 +1,16 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    inject,
+    input,
+    OnInit,
+    signal,
+    WritableSignal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import {
@@ -50,6 +61,7 @@ export class NaiveRagConfigurationComponent implements OnInit, RagConfiguration 
 
     naiveRagId = input.required<number>();
     collectionId = input.required<number>();
+    canIndexChange = input<WritableSignal<boolean>>();
 
     statusFilterItems: SelectItem<DocumentStatusFilter>[] = [
         { name: 'Show All', value: 'all' },
@@ -68,6 +80,12 @@ export class NaiveRagConfigurationComponent implements OnInit, RagConfiguration 
     showBulkRow = computed(() => this.bulkBtnActive() && !!this.filteredAndCheckedDocIds().length);
 
     private docFieldChange$ = new Subject<DocFieldChange>();
+
+    constructor() {
+        effect(() => {
+            this.canIndexChange()?.set(this.filteredAndCheckedDocIds().length > 0);
+        });
+    }
 
     ngOnInit() {
         const id = this.naiveRagId();

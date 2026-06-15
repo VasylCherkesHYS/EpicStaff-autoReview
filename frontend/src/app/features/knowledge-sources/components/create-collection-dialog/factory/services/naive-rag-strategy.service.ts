@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Signal, signal, WritableSignal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 
@@ -15,6 +15,8 @@ import { RagCreationStrategy } from '../interfaces/rag-creation-strategy.interfa
 })
 export class NaiveRagStrategy implements RagCreationStrategy {
     private naiveRag!: CreateNaiveRag;
+    private _canIndex: WritableSignal<boolean> = signal(false);
+    readonly canIndex: Signal<boolean> = this._canIndex.asReadonly();
 
     constructor(
         private naiveRagService: NaiveRagService,
@@ -61,6 +63,6 @@ export class NaiveRagStrategy implements RagCreationStrategy {
     getConfigurationInputs(): Record<string, unknown> {
         const { naive_rag_id, collection_id } = this.naiveRag;
 
-        return { naiveRagId: naive_rag_id, collectionId: collection_id };
+        return { naiveRagId: naive_rag_id, collectionId: collection_id, canIndexChange: this._canIndex };
     }
 }

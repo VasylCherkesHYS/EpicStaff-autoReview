@@ -92,7 +92,7 @@ export class CreateCollectionDialogComponent {
             label: 'Configure',
             proceedLabel: 'Run Indexing',
             onProceed: () => this.handleIndexing(),
-            canProceed: () => true,
+            canProceed: () => this.strategy()?.canIndex() ?? false,
         },
     ]);
 

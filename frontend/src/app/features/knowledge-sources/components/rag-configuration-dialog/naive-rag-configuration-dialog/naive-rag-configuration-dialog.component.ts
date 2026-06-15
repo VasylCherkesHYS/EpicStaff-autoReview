@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ButtonComponent } from '@shared/components';
 import { filter, switchMap, take } from 'rxjs/operators';
@@ -22,6 +22,7 @@ export class NaiveRagConfigurationDialog extends RagConfigurationDialogComponent
     private documentsStorageService = inject(NaiveRagDocumentsStorageService);
     private pollingService = inject(NaiveRagPollingService);
     private ragConfiguration = viewChild.required(NaiveRagConfigurationComponent);
+    indexingDisabled = computed(() => !this.ragConfiguration().filteredAndCheckedDocIds().length);
 
     constructor() {
         super();

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Signal, signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 
@@ -13,6 +13,7 @@ import { RagCreationStrategy } from '../interfaces/rag-creation-strategy.interfa
 })
 export class GraphRagStrategy implements RagCreationStrategy {
     private graphRag!: CollectionGraphRag;
+    readonly canIndex: Signal<boolean> = signal(true);
 
     constructor(
         private graphRagService: GraphRagService,
