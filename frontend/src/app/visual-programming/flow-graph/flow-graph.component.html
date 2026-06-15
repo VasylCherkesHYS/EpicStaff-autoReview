@@ -21,6 +21,7 @@
         (fCreateConnection)="onConnectionAdded($event)"
         (fReassignConnection)="onReassignConnection($event)"
         (fCreateNode)="onNodeDroppedFromPanel($event)"
+        (fSelectionChange)="onSelectionChanged($event)"
     >
         <f-background>
             <f-circle-pattern></f-circle-pattern>
@@ -119,6 +120,8 @@
                     (editClicked)="onOpenNodePanel($event)"
                     (deleteClicked)="onDeleteNode($event)"
                     (projectExpandToggled)="onProjectExpandToggled($event)"
+                    [class.remote-selected]="!!remoteSelectionColors().get(node.id)"
+                    [style.--remote-selection-color]="remoteSelectionColors().get(node.id)"
                 >
                 </app-flow-base-node>
             }

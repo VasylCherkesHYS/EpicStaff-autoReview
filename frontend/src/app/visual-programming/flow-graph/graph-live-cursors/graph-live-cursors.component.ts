@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from "@angular/core";
 import { EditorInfo } from "src/app/features/flows/services/graph-collaboration.ws.service";
+import { getAvatarColor } from "../../core/helpers/avatar-colors";
 
 export interface CursorState {
     x: number;
@@ -8,10 +9,6 @@ export interface CursorState {
     fading: boolean;
 }
 
-const AVATAR_COLORS = [
-    '#4A90D9', '#7B68EE', '#E05C5C', '#4ECDC4',
-    '#45B7D1', '#96CEB4', '#D4A843', '#C47ED4',
-];
 
 @Component({
     selector: 'app-graph-live-cursors',
@@ -82,7 +79,7 @@ export class GraphLiveCursorsComponent {
     );
 
     protected getColor(userId: number): string {
-        return AVATAR_COLORS[userId % AVATAR_COLORS.length]
+        return getAvatarColor(userId);
     }
 
     protected displayName(editor: EditorInfo): string {

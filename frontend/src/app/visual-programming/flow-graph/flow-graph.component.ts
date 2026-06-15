@@ -6,6 +6,7 @@ import {
     Component,
     computed,
     ElementRef,
+    effect,
     EventEmitter,
     inject,
     Injector,
@@ -39,7 +40,8 @@ import {
     FReassignConnectionEvent,
     FZoomDirective,
     ICurrentSelection,
-    FCanvasChangeEvent
+    FCanvasChangeEvent,
+    FSelectionChangeEvent
 } from '@foblex/flow';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -93,6 +95,7 @@ import { UndoRedoService } from '../services/undo-redo.service';
 import { createFlowConnection } from '../utils/connection.factory';
 import { normalizeFlowPorts } from '../utils/load';
 import { GraphCollaborationWsService } from 'src/app/features/flows/services/graph-collaboration.ws.service';
+import { getAvatarColor } from '../core/helpers/avatar-colors';
 
 function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
     if (a.length !== b.length) return false;
@@ -244,6 +247,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public readonly remoteCursors = signal<Map<number, CursorState>>(new Map());
     private readonly cursorTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
     private readonly canvasTransform = signal<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
+    public readonly remoteSelections = signal<Map<number, string[]>>(new Map());
     protected readonly screenCursors = computed(() => {
         const t = this.canvasTransform();
         const result = new Map<number, CursorState>();
@@ -256,6 +260,16 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         }
         return result;
     });
+    protected readonly remoteSelectionColors = computed<Map<string, string>>(() => {
+        const result = new Map<string, string>();
+        for (const [userId, nodeIds] of this.remoteSelections()) {
+            const color = getAvatarColor(userId);
+            for (const nodeId of nodeIds) {
+                result.set(nodeId, color);
+            }
+        }
+        return result;
+    })
 
     constructor() {}
 
@@ -298,6 +312,31 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
                 this.cursorTimeouts.set(userId, fadeTimeout);
             });
+
+            this.wsService.selectionChanged$
+                .pipe(takeUntil(this.destroy$))
+                .subscribe((msg) => {
+                    this.remoteSelections.update((m) => {
+                        const next = new Map(m);
+                        if (msg.node_ids.length === 0) {
+                            next.delete(msg.editor.user_id);
+                        } else {
+                            next.set(msg.editor.user_id, msg.node_ids);
+                        }
+                        return next;
+                    });
+                });
+
+            effect(() => {
+                const editorIds = new Set(this.wsService.editors().map((e) => e.user_id));
+                this.remoteSelections.update((m) => {
+                    const toDelete = [...m.keys()].filter((uid) => !editorIds.has(uid));
+                    if (toDelete.length === 0) return m;
+                    const next = new Map(m);
+                    toDelete.forEach((uid) => next.delete(uid));
+                    return next;
+                });
+            }, { injector: this.injector })
     }
 
     public ngOnChanges(changes: SimpleChanges): void {
@@ -1002,6 +1041,10 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                 }
             }
         }
+    }
+
+    public onSelectionChanged(event: FSelectionChangeEvent): void {
+        this.wsService.sendSelectionChanged(event.nodeIds);
     }
 
     public onAutoArrange(): void {

@@ -3,6 +3,7 @@ export const AVATAR_COLORS = [
     '#45B7D1', '#96CEB4', '#D4A843', '#C47ED4',
 ];
 
+
 export function getAvatarColor(userId: number): string {
     return AVATAR_COLORS[userId % AVATAR_COLORS.length];
 }
