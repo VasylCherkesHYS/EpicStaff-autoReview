@@ -1,7 +1,9 @@
 import { CommonModule, NgStyle } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, inject, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, inject, Input, Output } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { FFlowModule } from '@foblex/flow';
+import { LlmConfigStorageService } from '@shared/services';
 
 import { ClickOrDragDirective } from '../../../core/directives/click-or-drag.directive';
 import { ConditionGroup } from '../../../core/models/decision-table.model';
@@ -22,6 +24,12 @@ export class ClassificationDecisionTableNodeComponent {
     @Output() actualClick = new EventEmitter<MouseEvent>();
 
     private flowService = inject(FlowService);
+    private readonly llmConfigStorageService = inject(LlmConfigStorageService);
+    private readonly destroyRef = inject(DestroyRef);
+
+    constructor() {
+        this.llmConfigStorageService.getAllConfigs().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
 
     get conditionGroups(): ConditionGroup[] {
         const allGroups = this.node.data.table?.condition_groups ?? [];
@@ -95,6 +103,33 @@ export class ClassificationDecisionTableNodeComponent {
             return undefined;
         }
         return this.node.ports?.find((p) => p.role === `decision-route-${key}`);
+    }
+
+    get hasMissingLlmConfig(): boolean {
+        const table = this.node.data.table;
+        if (!table) return false;
+
+        // A prompt with no LLM config selected is always considered missing,
+        // regardless of whether the available-configs list has loaded yet.
+        if (table.prompts) {
+            for (const prompt of Object.values(table.prompts) as Array<{ llm_config: number | null }>) {
+                if (prompt.llm_config == null) return true;
+            }
+        }
+
+        // Deleted-config detection requires the configs list to be loaded.
+        if (!this.llmConfigStorageService.isConfigsLoaded()) return false;
+        const availableIds = new Set(this.llmConfigStorageService.configs().map((c) => c.id));
+
+        if (table.default_llm_config != null && !availableIds.has(table.default_llm_config)) {
+            return true;
+        }
+        if (table.prompts) {
+            for (const prompt of Object.values(table.prompts) as Array<{ llm_config: number | null }>) {
+                if (prompt.llm_config != null && !availableIds.has(prompt.llm_config)) return true;
+            }
+        }
+        return false;
     }
 
     onEditClick() {

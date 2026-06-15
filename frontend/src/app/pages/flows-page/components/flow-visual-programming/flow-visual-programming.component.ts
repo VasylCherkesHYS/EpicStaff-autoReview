@@ -18,6 +18,8 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { GetLlmConfigRequest } from '@shared/models';
+import { LlmConfigStorageService } from '@shared/services';
 import {
     catchError,
     defaultIfEmpty,
@@ -170,7 +172,8 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         private readonly undoRedoService: UndoRedoService,
         private readonly createGraphWarningService: CreateGraphWarningsService,
         private readonly runSessionSSEService: RunSessionSSEService,
-        private readonly sidePanelService: SidePanelService
+        private readonly sidePanelService: SidePanelService,
+        private readonly llmConfigStorageService: LlmConfigStorageService
     ) {
         this.routeParamMap = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
         this.routeQueryParamMap = toSignal(this.route.queryParamMap, {
@@ -309,6 +312,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 this.sidePanelService.notifyGraphSaved();
                 if (showSuccessToast) {
                     this.toastService.success('Graph saved successfully');
+                    this.warnIfCdtMissingLlmConfig(patchedFlow);
                 }
             }),
             map(() => void 0),
@@ -697,10 +701,72 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 'bottom-right'
             );
         }
+
+        const loadedFlow = this.loadedFlowState();
+        this.llmConfigStorageService
+            .getAllConfigs()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((configs) => {
+                const cdtMissingCount = this.countCdtNodesWithMissingLlmConfig(loadedFlow, configs);
+                if (cdtMissingCount > 0) {
+                    this.toastService.warning(
+                        `${cdtMissingCount} classification decision table node(s) reference a missing LLM config.`,
+                        6000,
+                        'bottom-right'
+                    );
+                }
+            });
     }
 
     private countBlockedSubgraphNodes(flowModel: FlowModel): number {
         return flowModel.nodes.filter((node) => node.type === NodeType.SUBGRAPH && node.isBlocked).length;
+    }
+
+    private countCdtNodesWithMissingLlmConfig(flowModel: FlowModel, configs: GetLlmConfigRequest[]): number {
+        const availableIds = new Set(configs.map((c) => c.id));
+        return flowModel.nodes.filter((node) => {
+            if (node.type !== NodeType.CLASSIFICATION_TABLE) return false;
+            const table = (
+                node as {
+                    data?: {
+                        table?: {
+                            default_llm_config?: number | null;
+                            prompts?: Record<string, { llm_config: number | null }>;
+                        };
+                    };
+                }
+            ).data?.table;
+            if (!table) return false;
+
+            // Any prompt with no LLM config selected counts as missing.
+            if (table.prompts) {
+                for (const prompt of Object.values(table.prompts)) {
+                    if (prompt.llm_config == null) return true;
+                }
+            }
+            // Deleted-config references also count as missing.
+            if (table.default_llm_config != null && !availableIds.has(table.default_llm_config)) {
+                return true;
+            }
+            if (table.prompts) {
+                for (const prompt of Object.values(table.prompts)) {
+                    if (prompt.llm_config != null && !availableIds.has(prompt.llm_config)) return true;
+                }
+            }
+            return false;
+        }).length;
+    }
+
+    private warnIfCdtMissingLlmConfig(flowState: FlowModel): void {
+        if (!this.llmConfigStorageService.isConfigsLoaded()) return;
+        const count = this.countCdtNodesWithMissingLlmConfig(flowState, this.llmConfigStorageService.configs());
+        if (count > 0) {
+            this.toastService.warning(
+                `${count} decision table node(s) have a prompt with a missing LLM config.`,
+                6000,
+                'bottom-right'
+            );
+        }
     }
 
     public isShortcutsOpen = signal(false);
@@ -800,7 +866,10 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                                 description: result.description,
                             })
                             .pipe(
-                                tap(() => this.toastService.success(`Version '${result.name}' saved`)),
+                                tap(() => {
+                                    this.toastService.success(`Version '${result.name}' saved`);
+                                    this.warnIfCdtMissingLlmConfig(this.loadedFlowState());
+                                }),
                                 catchError(() => {
                                     this.toastService.error('Failed to save version');
                                     return EMPTY;
