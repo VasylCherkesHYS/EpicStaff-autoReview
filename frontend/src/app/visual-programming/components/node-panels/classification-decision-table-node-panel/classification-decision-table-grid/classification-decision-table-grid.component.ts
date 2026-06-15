@@ -2322,10 +2322,18 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
         next.splice(insertIdx, 0, moved);
         const prev = next[insertIdx - 1];
         const after = next[insertIdx + 1];
-        const movedSection: string | null =
-            prev != null && after != null && prev.section != null && prev.section === after.section
-                ? prev.section
-                : null;
+        const prevSection: string | null = prev?.section ?? null;
+        const afterSection: string | null = after?.section ?? null;
+        let movedSection: string | null;
+        if (prevSection != null && prevSection === afterSection) {
+            // Dropped strictly between two rows of the same group → join that group.
+            movedSection = prevSection;
+        } else if (original != null && (prevSection === original || afterSection === original)) {
+            // Reordering within the row's OWN group and landing at the group's edge
+            movedSection = original;
+        } else {
+            movedSection = null;
+        }
 
         const isCrossGroup = original != null && movedSection != null && original !== movedSection;
 
