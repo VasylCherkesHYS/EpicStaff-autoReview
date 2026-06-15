@@ -9,7 +9,12 @@ import {
 import { PromptConfig } from '../../core/models/classification-decision-table.model';
 import { ConnectionModel } from '../../core/models/connection.model';
 import { FlowModel } from '../../core/models/flow.model';
-import { ClassificationDecisionTableNodeModel, DecisionTableNodeModel, NodeModel, ScheduleTriggerNodeModel } from '../../core/models/node.model';
+import {
+    ClassificationDecisionTableNodeModel,
+    DecisionTableNodeModel,
+    NodeModel,
+    ScheduleTriggerNodeModel,
+} from '../../core/models/node.model';
 import { hasPersistedWaypoints, mergeWaypointsIntoMetadata } from './edge-waypoints.helpers';
 import { toNodeMetadata } from './metadata';
 import { ConnectionDiff, NodeDiff, NodeDiffByType } from './types';
@@ -177,8 +182,24 @@ function buildCdtNodePayload(
             };
         });
 
-    const defaultRef = resolveNodeRef(tableData?.default_next_node ?? null, allNodes, idMap);
-    const errorRef = resolveNodeRef(tableData?.next_error_node ?? null, allNodes, idMap);
+    let defaultTargetUuid: string | null = tableData?.default_next_node ?? null;
+    if (!defaultTargetUuid) {
+        const conn = connections.find(
+            (c) => c.sourceNodeId === node.id && c.sourcePortId === `${node.id}_decision-default`
+        );
+        if (conn) defaultTargetUuid = conn.targetNodeId;
+    }
+
+    let errorTargetUuid: string | null = tableData?.next_error_node ?? null;
+    if (!errorTargetUuid) {
+        const conn = connections.find(
+            (c) => c.sourceNodeId === node.id && c.sourcePortId === `${node.id}_decision-error`
+        );
+        if (conn) errorTargetUuid = conn.targetNodeId;
+    }
+
+    const defaultRef = resolveNodeRef(defaultTargetUuid, allNodes, idMap);
+    const errorRef = resolveNodeRef(errorTargetUuid, allNodes, idMap);
 
     return {
         graph: graphId,
