@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { forkJoin, Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
@@ -81,6 +82,7 @@ type ImportFileData = Record<string, ImportFileEntity[]>;
         ImportFlowOptionsPopoverComponent,
         OverlayModule,
         FlowsFilterMenuComponent,
+        MatTooltipModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

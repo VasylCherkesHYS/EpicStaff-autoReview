@@ -13,6 +13,7 @@ import {
     signal,
     SimpleChanges,
 } from '@angular/core';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { GetProjectRequest } from '../../models/project.model';
@@ -23,7 +24,7 @@ import { TagComponent } from './tag.component';
 @Component({
     selector: 'app-project-card',
     standalone: true,
-    imports: [NgIf, NgFor, NgStyle, TagComponent, ProjectMenuComponent, AppSvgIconComponent],
+    imports: [NgIf, NgFor, NgStyle, TagComponent, ProjectMenuComponent, AppSvgIconComponent, MatTooltipModule],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './project-card.component.html',
     styleUrls: ['./project-card.component.scss'],

@@ -1,6 +1,7 @@
 import { DecimalPipe, JsonPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
@@ -22,7 +23,7 @@ export interface SheetData {
 
 @Component({
     selector: 'app-storage-preview',
-    imports: [DecimalPipe, JsonPipe, AppSvgIconComponent, ButtonComponent],
+    imports: [DecimalPipe, JsonPipe, AppSvgIconComponent, ButtonComponent, MatTooltipModule],
     templateUrl: './storage-preview.component.html',
     styleUrls: ['./storage-preview.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
