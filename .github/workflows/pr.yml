@@ -12,10 +12,10 @@ jobs:
   check-cla:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout CLA signatures from main
+      - name: Checkout CLA signatures branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: cla-signatures
           sparse-checkout: signatures/cla.json
           sparse-checkout-cone-mode: false
 
