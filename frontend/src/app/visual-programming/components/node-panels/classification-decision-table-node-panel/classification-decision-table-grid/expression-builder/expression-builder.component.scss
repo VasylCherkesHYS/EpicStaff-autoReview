@@ -314,6 +314,7 @@ $radius: 8px;
 
 .eb-vars-list {
     flex: 1;
+    max-height: 280px;
     overflow-y: auto;
     padding: 0 8px 8px;
     display: flex;
@@ -322,6 +323,7 @@ $radius: 8px;
 }
 
 .eb-var-row {
+    flex-shrink: 0;
     padding: 6px 8px;
     font-size: 13px;
     color: var(--color-text-primary);
