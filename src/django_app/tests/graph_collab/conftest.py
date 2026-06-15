@@ -43,6 +43,19 @@ async def _drain_connect(communicator) -> None:
     assert "request_state" in messages or "graph_state" in messages
 
 
+async def _drain_connect_with_locks(communicator) -> dict:
+    """Consume 4 initial messages when locks are active; return the lock_state message."""
+    received = {}
+    for _ in range(4):
+        msg = await communicator.receive_json_from()
+        received[msg["type"]] = msg
+    assert "presence_state" in received
+    assert "user_joined" in received
+    assert "request_state" in received or "graph_state" in received
+    assert "lock_state" in received
+    return received["lock_state"]
+
+
 CHANNEL_LAYERS_OVERRIDE = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",

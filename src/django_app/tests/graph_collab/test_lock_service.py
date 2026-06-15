@@ -179,3 +179,28 @@ def test_locks_are_isolated_per_graph(lock_service, editor_a, editor_b):
     lock_service.try_lock(1, NODE_ID, editor_a, CHANNEL_A)
     granted = lock_service.try_lock(2, NODE_ID, editor_b, CHANNEL_B)
     assert granted is True
+
+
+# ---------------------------------------------------------------------------
+# get_all_locks
+# ---------------------------------------------------------------------------
+
+
+def test_get_all_locks_returns_empty_dict_for_unknown_graph(lock_service):
+    assert lock_service.get_all_locks(999) == {}
+
+
+def test_get_all_locks_returns_all_held_locks(lock_service, editor_a, editor_b):
+    lock_service.try_lock(GRAPH_ID, "node-1", editor_a, CHANNEL_A)
+    lock_service.try_lock(GRAPH_ID, "node-2", editor_b, CHANNEL_B)
+    result = lock_service.get_all_locks(GRAPH_ID)
+    assert set(result.keys()) == {"node-1", "node-2"}
+    assert result["node-1"].editor == editor_a
+    assert result["node-2"].editor == editor_b
+
+
+def test_get_all_locks_returns_copy_not_internal_reference(lock_service, editor_a):
+    lock_service.try_lock(GRAPH_ID, NODE_ID, editor_a, CHANNEL_A)
+    result = lock_service.get_all_locks(GRAPH_ID)
+    result["injected"] = None
+    assert "injected" not in lock_service._store[GRAPH_ID]

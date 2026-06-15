@@ -5,7 +5,11 @@ from django.test import override_settings
 
 from tables.graph_collab import lock_service as _ls_module
 
-from tests.graph_collab.conftest import _make_communicator, _drain_connect
+from tests.graph_collab.conftest import (
+    _drain_connect,
+    _drain_connect_with_locks,
+    _make_communicator,
+)
 
 # ---------------------------------------------------------------------------
 # Lock claim: winner + loser
@@ -433,3 +437,137 @@ async def test_node_unlocked_invalid_payload_returns_error(test_graph, test_user
     assert msg["code"] == "invalid_payload"
 
     await comm.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Late-join lock state delivery
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_late_joiner_receives_lock_state_with_active_locks(
+    test_graph, test_user, second_user
+):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    assert await comm_a.receive_nothing(timeout=0.1)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined broadcast
+
+    lock_state_msg = await _drain_connect_with_locks(comm_b)
+
+    assert lock_state_msg["type"] == "lock_state"
+    assert "node-1" in lock_state_msg["locks"]
+    assert lock_state_msg["locks"]["node-1"]["user_id"] == test_user.pk
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_late_joiner_receives_all_active_locks(
+    test_graph, test_user, second_user
+):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    for node_id in ("node-1", "node-2", "node-3"):
+        await comm_a.send_json_to(
+            {
+                "type": "node_locked",
+                "node_id": node_id,
+                "editor": {
+                    "user_id": test_user.pk,
+                    "display_name": "x",
+                    "avatar_url": None,
+                },
+            }
+        )
+    assert await comm_a.receive_nothing(timeout=0.1)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+
+    lock_state_msg = await _drain_connect_with_locks(comm_b)
+    assert set(lock_state_msg["locks"].keys()) == {"node-1", "node-2", "node-3"}
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_first_joiner_does_not_receive_lock_state(test_graph, test_user):
+    comm = _make_communicator(test_graph.pk, test_user)
+    await comm.connect()
+    await _drain_connect(comm)
+    assert await comm.receive_nothing(timeout=0.3)
+    await comm.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_late_joiner_no_lock_state_after_all_locks_released(
+    test_graph, test_user, second_user
+):
+    comm_a = _make_communicator(test_graph.pk, test_user)
+    comm_b = _make_communicator(test_graph.pk, second_user)
+
+    await comm_a.connect()
+    await _drain_connect(comm_a)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_locked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    assert await comm_a.receive_nothing(timeout=0.1)
+
+    await comm_a.send_json_to(
+        {
+            "type": "node_unlocked",
+            "node_id": "node-1",
+            "editor": {
+                "user_id": test_user.pk,
+                "display_name": "x",
+                "avatar_url": None,
+            },
+        }
+    )
+    assert await comm_a.receive_nothing(timeout=0.1)
+
+    await comm_b.connect()
+    await comm_a.receive_json_from()  # user_joined
+
+    await _drain_connect(comm_b)
+    assert await comm_b.receive_nothing(timeout=0.3)
+
+    await comm_a.disconnect()
+    await comm_b.disconnect()
