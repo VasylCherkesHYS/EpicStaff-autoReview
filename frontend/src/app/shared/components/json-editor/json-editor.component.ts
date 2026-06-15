@@ -13,6 +13,7 @@ import {
     ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 
@@ -22,7 +23,7 @@ import { AppSvgIconComponent } from '../app-svg-icon/app-svg-icon.component';
 
 @Component({
     selector: 'app-json-editor',
-    imports: [FormsModule, NgIf, MonacoEditorModule, ResizableDirective, AppSvgIconComponent],
+    imports: [FormsModule, NgIf, MonacoEditorModule, ResizableDirective, AppSvgIconComponent, MatTooltipModule],
     templateUrl: './json-editor.component.html',
     styleUrls: ['./json-editor.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
