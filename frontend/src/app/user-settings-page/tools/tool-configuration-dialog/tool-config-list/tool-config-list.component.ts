@@ -8,6 +8,7 @@ import {
     Output,
     SimpleChanges,
 } from '@angular/core';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ToolConfig } from '../../../../features/tools/models/tool-config.model';
 
@@ -57,6 +58,7 @@ import { ToolConfig } from '../../../../features/tools/models/tool-config.model'
                                 class="delete-button"
                                 (click)="onDelete(config, $event)"
                                 aria-label="Delete Configuration"
+                                matTooltip="Delete configuration"
                             ></button>
                         </div>
                     </li>
@@ -341,7 +343,7 @@ import { ToolConfig } from '../../../../features/tools/models/tool-config.model'
         `,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, NgIf, NgClass],
+    imports: [NgFor, NgIf, NgClass, MatTooltipModule],
     standalone: true,
 })
 export class ToolConfigListComponent implements OnChanges {
