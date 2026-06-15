@@ -758,6 +758,10 @@ export class FlowService {
 
                 const tableData = sourceNode.data.table;
 
+                if (!tableData) {
+                    return;
+                }
+
                 const existingUpdate = decisionTableUpdates.get(sourceNode.id);
                 const updatedTable: DecisionTableNode = existingUpdate?.table ?? {
                     ...tableData,
