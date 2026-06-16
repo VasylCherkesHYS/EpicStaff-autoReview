@@ -28,6 +28,7 @@ import {
 } from '../node-panel-form.utils';
 import { PythonTerminalComponent, TerminalStatus } from './python-terminal/python-terminal.component';
 import { TerminalLogEntry, TerminalLogType } from './python-terminal/terminal-log.model';
+import { LockableFieldComponent } from '../../lockable-field/lockable-field.component';
 
 @Component({
     standalone: true,
@@ -41,6 +42,7 @@ import { TerminalLogEntry, TerminalLogType } from './python-terminal/terminal-lo
         PythonTerminalComponent,
         NodeStorageSectionComponent,
         AppSvgIconComponent,
+        LockableFieldComponent,
     ],
     animations: [expandCollapseAnimation],
     template: `
@@ -58,14 +60,16 @@ import { TerminalLogEntry, TerminalLogType } from './python-terminal/terminal-lo
                     >
                         <!-- Form Fields (stable single instance) -->
                         <div class="form-fields">
-                            <app-custom-input
-                                label="Node Name"
-                                tooltipText="The unique identifier used to reference this Python node. This name must be unique within the flow."
-                                formControlName="node_name"
-                                placeholder="Enter node name"
-                                [activeColor]="activeColor"
-                                [errorMessage]="getNodeNameErrorMessage()"
-                            ></app-custom-input>
+                            <app-lockable-field fieldId="node_name" [nodeId]="node().id">
+                                <app-custom-input
+                                    label="Node Name"
+                                    tooltipText="The unique identifier used to reference this Python node. This name must be unique within the flow."
+                                    formControlName="node_name"
+                                    placeholder="Enter node name"
+                                    [activeColor]="activeColor"
+                                    [errorMessage]="getNodeNameErrorMessage()"
+                                ></app-custom-input>
+                            </app-lockable-field>
 
                             <div class="input-map">
                                 <app-input-map
@@ -82,21 +86,25 @@ import { TerminalLogEntry, TerminalLogType } from './python-terminal/terminal-lo
                                 ></app-input-map>
                             </div>
 
-                            <app-custom-input
-                                label="Output Variable Path"
-                                tooltipText="The path where the output of this node will be stored in your flow variables. Leave empty if you don't need to store the output."
-                                formControlName="output_variable_path"
-                                placeholder="Enter output variable path (leave empty for null)"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
+                            <app-lockable-field fieldId="output_variable_path" [nodeId]="node().id">
+                                <app-custom-input
+                                    label="Output Variable Path"
+                                    tooltipText="The path where the output of this node will be stored in your flow variables. Leave empty if you don't need to store the output."
+                                    formControlName="output_variable_path"
+                                    placeholder="Enter output variable path (leave empty for null)"
+                                    [activeColor]="activeColor"
+                                ></app-custom-input>
+                            </app-lockable-field>
 
-                            <app-custom-input
-                                label="Libraries"
-                                tooltipText="Python libraries required by this code (comma-separated). For example: requests, pandas, numpy"
-                                formControlName="libraries"
-                                placeholder="Enter libraries (e.g., requests, pandas, numpy)"
-                                [activeColor]="activeColor"
-                            ></app-custom-input>
+                            <app-lockable-field fieldId="libraries" [nodeId]="node().id">
+                                <app-custom-input
+                                    label="Libraries"
+                                    tooltipText="Python libraries required by this code (comma-separated). For example: requests, pandas, numpy"
+                                    formControlName="libraries"
+                                    placeholder="Enter libraries (e.g., requests, pandas, numpy)"
+                                    [activeColor]="activeColor"
+                                ></app-custom-input>
+                            </app-lockable-field>
 
                             <div
                                 class="stream-config-section"

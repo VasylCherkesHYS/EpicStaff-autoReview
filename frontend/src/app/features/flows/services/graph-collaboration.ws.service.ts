@@ -36,6 +36,7 @@ type ServerMessage =
     | SelectionChangedMessage
     | NodeLockedMessage
     | NodeUnlockedMessage
+    | LockStateMessage
 
 type PresenceStateMessage  = { type: 'presence_state'; editors: EditorInfo[] };
 type UserJoinedMessage     = { type: 'user_joined'; editor: EditorInfo };
@@ -51,11 +52,11 @@ export type ConnectionCreatedMessage            = { type: 'connection_created'; 
 export type ConnectionDeletedMessage            = { type: 'connection_deleted';             connection_id: string;          editor: EditorInfo };
 export type ConnectionsDeletedMessage           = { type: 'connections_deleted';            connection_ids: string[];       editor: EditorInfo };
 export type ConnectionWaypointsUpdatedMessage   = { type: 'connection_waypoints_updated';   connection_id: string;          waypoints: IPoint[]; editor: EditorInfo};
-export type CursorMovedMessage                  = { type: 'cursor_moved';                  x: number; y: number;           editor: EditorInfo};
+export type CursorMovedMessage                  = { type: 'cursor_moved';                  x: number; y: number;            editor: EditorInfo};
 export type SelectionChangedMessage             = { type: 'selection_changed';              node_ids: string[];             editor: EditorInfo};
-export type NodeLockedMessage                   = { type: 'node_locked';                    node_id: string;                editor: EditorInfo};
-export type NodeUnlockedMessage                 = { type: 'node_unlocked';                    node_id: string;                editor: EditorInfo};
-
+export type NodeLockedMessage                   = { type: 'node_locked';                    node_id: string;                field: string;      editor: EditorInfo};
+export type NodeUnlockedMessage                 = { type: 'node_unlocked';                  node_id: string;                field: string;      editor: EditorInfo};
+export type LockStateMessage                   = { type: 'lock_state';                     locks: Record<string, Record<string, EditorInfo>>};
 
 export type GraphSavedMessage    = {
     type: 'graph_saved';
@@ -84,6 +85,7 @@ export class GraphCollaborationWsService {
 
     public editors = signal<EditorInfo[]>([]);
     public connectionStatus = signal<ConnectionStatus>('disconnected');
+    public readonly lockedNodeFields = signal<Map<string, Map<string, EditorInfo>>>(new Map());
 
     public graphSaved$ = new Subject<GraphSavedMessage>();
     public graphState$ = new Subject<GraphStateMessage>();
@@ -194,6 +196,26 @@ export class GraphCollaborationWsService {
                 this.editors.update((editors) =>
                 editors.filter((e) => e.user_id !== message.user_id)
                 );
+                //remove all users field lockings
+                this.lockedNodeFields.update((m) => {
+                    const next = new Map(m);
+                    for (const [nodeId, fields] of next) {
+                        const filtered = new Map([...fields].filter(([, e]) => e.user_id !== message.user_id));
+                        if (filtered.size === 0) next.delete(nodeId);
+                        else next.set(nodeId, filtered);
+                    }
+                    return next;
+                })
+                break;
+            case 'lock_state':
+                this.lockedNodeFields.set(
+                    new Map(
+                        Object.entries(message.locks).map(([nodeId, fields]) => [
+                            nodeId,
+                            new Map(Object.entries(fields)),
+                        ])
+                    )
+                );
                 break;
             case 'request_state':
                 this.stateRequested$.next();
@@ -232,9 +254,24 @@ export class GraphCollaborationWsService {
                 this.selectionChanged$.next(message);
                 break;
             case 'node_locked':
+                this.lockedNodeFields.update((m) => {
+                    const next = new Map(m);
+                    const nodeFields = new Map(next.get(message.node_id) ?? []);
+                    nodeFields.set(message.field, message.editor);
+                    next.set(message.node_id, nodeFields);
+                    return next;
+                });
                 this.nodeLocked$.next(message);
                 break;
             case 'node_unlocked':
+                this.lockedNodeFields.update((m) => {
+                    const next = new Map(m);
+                    const nodeFields = new Map(next.get(message.node_id) ?? []);
+                    nodeFields.delete(message.field);
+                    if (nodeFields.size === 0) next.delete(message.node_id);
+                    else next.set(message.node_id, nodeFields);
+                    return next;
+                });
                 this.nodeUnlocked$.next(message);
                 break;
             case 'error':
@@ -298,14 +335,14 @@ export class GraphCollaborationWsService {
         if (editor) this.sendRaw({ type: 'selection_changed', node_ids, editor });
     }
 
-    public sendNodeLocked(node_id: string): void {
+    public sendNodeLocked(node_id: string, field: string): void {
         const editor = this.buildEditorInfo();
-        if (editor) this.sendRaw({ type: 'node_locked', node_id, editor });
+        if (editor) this.sendRaw({ type: 'node_locked', node_id, field, editor });
     }
 
-    public sendNodeUnlocked(node_id: string): void {
+    public sendNodeUnlocked(node_id: string, field: string): void {
         const editor = this.buildEditorInfo();
-        if (editor) this.sendRaw({ type: 'node_unlocked', node_id, editor });
+        if (editor) this.sendRaw({ type: 'node_unlocked', node_id, field, editor });
     }
 
     private buildEditorInfo(): EditorInfo | null {
@@ -361,6 +398,7 @@ export class GraphCollaborationWsService {
         this.currentGraphId = null;
         this.editors.set([]);
         this.connectionStatus.set('disconnected');
+        this.lockedNodeFields.set(new Map());
     }
 
 }

@@ -122,6 +122,7 @@
                     (projectExpandToggled)="onProjectExpandToggled($event)"
                     [class.remote-selected]="!!remoteSelectionColors().get(node.id)"
                     [style.--remote-selection-color]="remoteSelectionColors().get(node.id)"
+                    [lockedByEditor]="nodeLockedMap().get(node.id) ?? null"
                 >
                 </app-flow-base-node>
             }

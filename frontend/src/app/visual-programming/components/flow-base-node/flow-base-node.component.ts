@@ -39,6 +39,8 @@ import { ConditionalEdgeNodeComponent } from '../nodes-components/conditional-ed
 import { DecisionTableNodeComponent } from '../nodes-components/decision-table-node/decision-table-node.component';
 import { GraphNoteComponent } from '../nodes-components/graph-note/graph-note.component';
 import { FlowNodeVariablesOverlayComponent } from './flow-node-variables-overlay.component';
+import { EditorInfo } from '../../../features/flows/services/graph-collaboration.ws.service';
+import { getAvatarColor } from '../../core/helpers/avatar-colors';
 
 @Component({
     selector: 'app-flow-base-node',
@@ -61,6 +63,8 @@ import { FlowNodeVariablesOverlayComponent } from './flow-node-variables-overlay
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         '[class]': 'getNodeClass()',
+        '[class.is-locked]': 'lockedByEditor !== null',
+        '[style.--lock-color]': 'lockColor',
     },
 })
 export class FlowBaseNodeComponent {
@@ -74,6 +78,7 @@ export class FlowBaseNodeComponent {
     public isExpanded = signal(false);
     public isToggleDisabled = signal(false);
     @Input() showVariables: boolean = false;
+    @Input() lockedByEditor: EditorInfo | null = null;
 
     @Output() projectExpandToggled = new EventEmitter<ProjectNodeModel>();
     @Output() portMouseenter = new EventEmitter<void>();
@@ -125,6 +130,10 @@ export class FlowBaseNodeComponent {
 
     trackByPort(index: number, port: { id: string }): string {
         return port.id;
+    }
+
+    get lockColor(): string | null {
+        return this.lockedByEditor ? getAvatarColor(this.lockedByEditor.user_id) : null;
     }
 
     public getNodeClass(): string {

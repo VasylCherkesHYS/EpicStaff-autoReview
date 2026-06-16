@@ -1,4 +1,10 @@
 <!-- Node badge number -->
+@if (lockedByEditor) {
+    <div class="lock-badge">
+        <i class="ti ti-lock"></i>
+        <span>{{ lockedByEditor.display_name ?? 'User ' + lockedByEditor.user_id }}</span>
+    </div>
+}
 <div
     class="node-name-wrapper"
     *ngIf="!noteNode && node.nodeNumber != null"

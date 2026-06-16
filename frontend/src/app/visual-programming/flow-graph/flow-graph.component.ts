@@ -94,7 +94,7 @@ import { SidePanelService } from '../services/side-panel.service';
 import { UndoRedoService } from '../services/undo-redo.service';
 import { createFlowConnection } from '../utils/connection.factory';
 import { normalizeFlowPorts } from '../utils/load';
-import { GraphCollaborationWsService } from 'src/app/features/flows/services/graph-collaboration.ws.service';
+import { EditorInfo, GraphCollaborationWsService } from 'src/app/features/flows/services/graph-collaboration.ws.service';
 import { getAvatarColor } from '../core/helpers/avatar-colors';
 
 function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
@@ -270,6 +270,15 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         }
         return result;
     })
+
+    protected readonly nodeLockedMap = computed<Map<string, EditorInfo>>(() => {
+        const result = new Map<string, EditorInfo>();
+        for (const [nodeId, fields] of this.wsService.lockedNodeFields()) {
+            const first = fields.values().next().value;
+            if (first) result.set(nodeId, first);
+        }
+        return result;
+    });
 
     constructor() {}
 
