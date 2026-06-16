@@ -849,6 +849,7 @@ class GraphViewSet(CopyActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         created_graph = serializer.save()
+        # TODO: RESOLVE BY X-Organization-Id header
         organization = Organization.objects.get(name=DEFAULT_ORGANIZATION_NAME)
         GraphOrganization.objects.create(graph=created_graph, organization=organization)
 

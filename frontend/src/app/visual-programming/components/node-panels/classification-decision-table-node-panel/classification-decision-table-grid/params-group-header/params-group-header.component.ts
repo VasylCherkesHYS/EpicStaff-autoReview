@@ -1,5 +1,4 @@
-import { Overlay, OverlayRef } from '@angular/cdk/overlay';
-import { TemplatePortal } from '@angular/cdk/portal';
+import { Overlay } from '@angular/cdk/overlay';
 import {
     ChangeDetectionStrategy,
     Component,
@@ -11,6 +10,16 @@ import {
 } from '@angular/core';
 import { IHeaderGroupAngularComp } from 'ag-grid-angular';
 import { IHeaderGroupParams } from 'ag-grid-community';
+
+import { OverlayMenuController } from '../shared/overlay-menu.util';
+
+export interface ParamsGroupHeaderParams extends IHeaderGroupParams {
+    mode?: 'add-only' | 'full';
+    onAdd?: (event: MouseEvent) => void;
+    onFreeze?: () => void;
+    onHide?: () => void;
+    isPinned?: () => boolean;
+}
 
 @Component({
     selector: 'app-params-group-header',
@@ -162,19 +171,11 @@ export class ParamsGroupHeaderComponent implements IHeaderGroupAngularComp, OnDe
     private onHide: (() => void) | undefined;
     isPinned: (() => boolean) | undefined;
 
-    private overlayRef: OverlayRef | null = null;
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
+    private menuCtrl = new OverlayMenuController(this.overlay, this.vcr);
 
-    agInit(
-        params: IHeaderGroupParams & {
-            mode?: 'add-only' | 'full';
-            onAdd?: (event: MouseEvent) => void;
-            onFreeze?: () => void;
-            onHide?: () => void;
-            isPinned?: () => boolean;
-        }
-    ): void {
+    agInit(params: ParamsGroupHeaderParams): void {
         this.mode = params.mode ?? 'full';
         this.onAdd = params.onAdd;
         this.onFreeze = params.onFreeze;
@@ -193,65 +194,20 @@ export class ParamsGroupHeaderComponent implements IHeaderGroupAngularComp, OnDe
 
     toggleMenu(event: MouseEvent): void {
         event.stopPropagation();
-        if (this.overlayRef?.hasAttached()) {
-            this.closeMenu();
-            return;
-        }
-        this.openMenu(event.currentTarget as HTMLElement);
-    }
-
-    private openMenu(anchor: HTMLElement): void {
-        const positionStrategy = this.overlay
-            .position()
-            .flexibleConnectedTo(anchor)
-            .withPositions([
-                {
-                    originX: 'end',
-                    originY: 'bottom',
-                    overlayX: 'end',
-                    overlayY: 'top',
-                    offsetY: 4,
-                },
-                {
-                    originX: 'end',
-                    originY: 'top',
-                    overlayX: 'end',
-                    overlayY: 'bottom',
-                    offsetY: -4,
-                },
-            ])
-            .withPush(false);
-
-        this.overlayRef = this.overlay.create({
-            positionStrategy,
-            hasBackdrop: true,
-            backdropClass: 'cdk-overlay-transparent-backdrop',
-            scrollStrategy: this.overlay.scrollStrategies.close(),
-        });
-
-        this.overlayRef.backdropClick().subscribe(() => this.closeMenu());
-
-        const portal = new TemplatePortal(this.menuTemplate, this.vcr);
-        this.overlayRef.attach(portal);
-    }
-
-    private closeMenu(): void {
-        this.overlayRef?.detach();
-        this.overlayRef?.dispose();
-        this.overlayRef = null;
+        this.menuCtrl.toggle(event.currentTarget as HTMLElement, this.menuTemplate);
     }
 
     handleFreeze(): void {
-        this.closeMenu();
+        this.menuCtrl.close();
         this.onFreeze?.();
     }
 
     handleHide(): void {
-        this.closeMenu();
+        this.menuCtrl.close();
         this.onHide?.();
     }
 
     ngOnDestroy(): void {
-        this.closeMenu();
+        this.menuCtrl.dispose();
     }
 }

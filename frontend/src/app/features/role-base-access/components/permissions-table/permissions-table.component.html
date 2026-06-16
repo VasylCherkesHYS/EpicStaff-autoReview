@@ -37,14 +37,17 @@
 </div>
 
 <!-- Table -->
-<div class="perm-table">
+<div
+    class="perm-table"
+    [style.--perm-row-grid]="gridTemplate()"
+>
     <!-- Sticky column headers -->
     <div class="perm-headers">
         <label>Resource</label>
-        @for (action of PERMISSION_ACTIONS; track action) {
+        @for (action of catalog().actions; track action.code) {
             <div class="action-col">
                 <app-svg-icon
-                    [icon]="ACTION_ICONS[action]"
+                    [icon]="actionIcon(action)"
                     size="13px"
                 />
                 {{ actionLabel(action) }}
@@ -54,15 +57,15 @@
 
     <!-- Groups -->
     <div class="scrollable">
-        @for (group of filteredGroups(); track group.name) {
+        @for (group of filteredGroups(); track group.key) {
             <div class="group">
                 <!-- Group header -->
                 <div
                     class="group-header"
-                    (click)="toggleGroup(group.name)"
+                    (click)="toggleGroup(group.key)"
                 >
                     <app-svg-icon
-                        [icon]="isGroupCollapsed(group.name) ? 'chevron-right' : 'chevron-down'"
+                        [icon]="isGroupCollapsed(group.key) ? 'chevron-right' : 'chevron-down'"
                         size="14px"
                         class="collapse-icon"
                     />
@@ -71,10 +74,10 @@
                         size="14px"
                         class="group-icon"
                     />
-                    <span class="group-name">{{ group.name }}</span>
+                    <span class="group-name">{{ group.label }}</span>
                     <span class="group-count">
-                        {{ groupCounts().get(group.name)?.selected }} /
-                        {{ groupCounts().get(group.name)?.total }}
+                        {{ groupCounts().get(group.key)?.selected }} /
+                        {{ groupCounts().get(group.key)?.total }}
                     </span>
                     @if (!readonly()) {
                         <div
@@ -84,7 +87,7 @@
                             <button
                                 class="action-item small"
                                 type="button"
-                                (click)="groupSelectAllClick.emit(group)"
+                                (click)="groupSelectAllClick.emit(group.key)"
                             >
                                 <app-svg-icon
                                     icon="checkbox-checked"
@@ -95,7 +98,7 @@
                             <button
                                 class="action-item small"
                                 type="button"
-                                (click)="groupClearClick.emit(group)"
+                                (click)="groupClearClick.emit(group.key)"
                             >
                                 <app-svg-icon
                                     icon="x"
@@ -110,21 +113,26 @@
                 <!-- Resources (collapsible with animation) -->
                 <div
                     class="group-content"
-                    [class.is-collapsed]="isGroupCollapsed(group.name)"
+                    [class.is-collapsed]="isGroupCollapsed(group.key)"
                 >
-                    @for (resource of group.resources; track resource.name) {
+                    @for (resource of group.resources; track resource.code) {
                         <div class="resource-row">
                             <div class="resource-info">
-                                <span class="resource-name">{{ resource.name }}</span>
-                                <span class="resource-desc">{{ resource.description }}</span>
+                                <span class="resource-name">{{ resource.label }}</span>
+                                <span class="resource-desc">{{ resourceDescription(resource.code) }}</span>
                             </div>
-                            @for (action of PERMISSION_ACTIONS; track action) {
+                            @for (action of catalog().actions; track action.code) {
                                 <div class="action-cell">
-                                    @if (resource.actions[action]) {
+                                    @if (isApplicable(resource, action)) {
                                         <app-checkbox
-                                            [checked]="selectedPermissions().has(resource.actions[action]!)"
+                                            [checked]="isChecked(resource.code, action.code)"
                                             [disabled]="readonly()"
-                                            (checkedChange)="permissionToggle.emit(resource.actions[action]!)"
+                                            (checkedChange)="
+                                                permissionToggle.emit({
+                                                    resourceType: resource.code,
+                                                    action: action.code,
+                                                })
+                                            "
                                         />
                                     } @else {
                                         <span class="empty-cell">—</span>

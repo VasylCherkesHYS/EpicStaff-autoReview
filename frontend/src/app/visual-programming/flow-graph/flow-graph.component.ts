@@ -6,6 +6,7 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
+    effect,
     ElementRef,
     EventEmitter,
     inject,
@@ -267,7 +268,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly importExportService = inject(ImportExportService);
     private readonly injector = inject(Injector);
 
-    constructor() {}
+    private lastSeenFullSaveRequest = 0;
+
+    constructor() {
+        effect(() => {
+            const requestCount = this.sidePanelService.fullSaveRequest();
+            if (requestCount > this.lastSeenFullSaveRequest) {
+                this.lastSeenFullSaveRequest = requestCount;
+                this.emitSave();
+            }
+        });
+    }
 
     public ngOnInit(): void {
         this.applyIncomingFlowState(this.flowState);
@@ -721,7 +732,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             if (updatedNode === null) {
                 return;
             }
-            this.flowService.updateNode(updatedNode);
+            // Skip the writeback if the captured node was removed from the flow
+            // (e.g. during DT→CDT conversion the old panel instance lingers briefly
+            //  before the outlet swaps to the newly-selected node's panel).
+            if (this.flowService.nodes().some((n) => n.id === updatedNode.id)) {
+                this.flowService.updateNode(updatedNode);
+            }
         }
         this.save.emit(this.flowService.getFlowState());
     }

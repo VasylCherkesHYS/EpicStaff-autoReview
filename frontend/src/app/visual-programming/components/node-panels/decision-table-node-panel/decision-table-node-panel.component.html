@@ -57,6 +57,21 @@
                             }
                         </select>
                     </div>
+
+                    <div class="convert-toggle-field">
+                        <label class="convert-toggle-label">
+                            Classification Dec Table
+                            <app-help-tooltip text="Convert this node to a Classification Decision Table" />
+                        </label>
+                        <button
+                            type="button"
+                            class="cdt-toggle"
+                            aria-label="Convert to Classification Decision Table"
+                            (click)="convertToCdt()"
+                        >
+                            <span class="toggle-thumb"></span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid-section">

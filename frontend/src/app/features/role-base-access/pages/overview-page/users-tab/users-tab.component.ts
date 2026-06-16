@@ -1,6 +1,7 @@
 import { Dialog } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import {
     AppSvgIconComponent,
     AppTableCellDirective,
@@ -56,6 +57,7 @@ const STATUS_ITEMS: SelectItem[] = [
         OverflowItemsDirective,
         OverflowItemDirective,
         OverflowBadgeDirective,
+        MatTooltipModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -91,7 +93,7 @@ export class UsersTabComponent implements OnInit {
         { key: 'organization', label: 'ORGANIZATION', width: '1.5fr', filterItems: this.orgFilterItems() },
         { key: 'lastActive', label: 'LAST ACTIVE', width: '1.5fr' },
         { key: 'status', label: 'STATUS', width: '1.5fr', filterItems: STATUS_ITEMS },
-        { key: 'actions', label: 'ACTIONS', width: '1fr', align: 'center' },
+        { key: 'actions', label: 'ACTIONS', width: '130px', align: 'center' },
     ]);
 
     ngOnInit(): void {

@@ -13,6 +13,9 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { CDT_COLUMN_KIND } from '../../cdt.constants';
+import { filterByQuery } from '../../cdt-search-filter.util';
+
 export type ExpressionBuilderMode = 'expression' | 'manipulation';
 
 export type TokenCategory = 'primary' | 'logical' | 'keyword' | 'comparison' | 'math';
@@ -96,7 +99,7 @@ export class ExpressionBuilderComponent implements OnInit {
     // ── Inputs ────────────────────────────────────────────────────────────────
     value = input<string>('');
     variables = input<string[]>([]);
-    mode = input<ExpressionBuilderMode>('expression');
+    mode = input<ExpressionBuilderMode>(CDT_COLUMN_KIND.EXPRESSION);
 
     // ── Outputs ───────────────────────────────────────────────────────────────
     commit = output<string>();
@@ -117,10 +120,7 @@ export class ExpressionBuilderComponent implements OnInit {
     // ── Search / right panel ──────────────────────────────────────────────────
     searchTerm = signal<string>('');
 
-    filteredVars = computed(() => {
-        const q = this.searchTerm().toLowerCase();
-        return this.variables().filter((v) => v.toLowerCase().includes(q));
-    });
+    filteredVars = computed(() => filterByQuery(this.variables(), this.searchTerm(), (v) => v));
 
     // ── Inline @ typeahead ────────────────────────────────────────────────────
     mentionActive = signal<boolean>(false);
@@ -135,10 +135,12 @@ export class ExpressionBuilderComponent implements OnInit {
     });
 
     // ── Toolbar / templates ───────────────────────────────────────────────────
-    tokens = computed<Token[]>(() => (this.mode() === 'expression' ? EXPRESSION_TOKENS : MANIPULATION_TOKENS));
+    tokens = computed<Token[]>(() =>
+        this.mode() === CDT_COLUMN_KIND.EXPRESSION ? EXPRESSION_TOKENS : MANIPULATION_TOKENS
+    );
 
     templates = computed<string[]>(() =>
-        this.mode() === 'expression' ? EXPRESSION_TEMPLATES : MANIPULATION_TEMPLATES
+        this.mode() === CDT_COLUMN_KIND.EXPRESSION ? EXPRESSION_TEMPLATES : MANIPULATION_TEMPLATES
     );
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -267,12 +269,14 @@ export class ExpressionBuilderComponent implements OnInit {
      * so the template button can be enabled in the template.
      */
     hasTemplateExample(tpl: string): boolean {
-        const map = this.mode() === 'expression' ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
+        const map =
+            this.mode() === CDT_COLUMN_KIND.EXPRESSION ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
         return tpl in map;
     }
 
     onTemplateClick(tpl: string): void {
-        const map = this.mode() === 'expression' ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
+        const map =
+            this.mode() === CDT_COLUMN_KIND.EXPRESSION ? EXPRESSION_TEMPLATE_EXAMPLES : MANIPULATION_TEMPLATE_EXAMPLES;
         const example = map[tpl];
         if (!example) return;
 
@@ -314,43 +318,43 @@ export class ExpressionBuilderComponent implements OnInit {
     private getCaretCoordinates(ta: HTMLTextAreaElement, position: number): { top: number; left: number } {
         const style = window.getComputedStyle(ta);
         const mirror = document.createElement('div');
-        const propsToCopy = [
-            'boxSizing',
+        const propsToCopy: string[] = [
+            'box-sizing',
             'width',
             'height',
-            'overflowX',
-            'overflowY',
-            'borderTopWidth',
-            'borderRightWidth',
-            'borderBottomWidth',
-            'borderLeftWidth',
-            'borderStyle',
-            'paddingTop',
-            'paddingRight',
-            'paddingBottom',
-            'paddingLeft',
-            'fontStyle',
-            'fontVariant',
-            'fontWeight',
-            'fontStretch',
-            'fontSize',
-            'fontSizeAdjust',
-            'lineHeight',
-            'fontFamily',
-            'textAlign',
-            'textTransform',
-            'textIndent',
-            'textDecoration',
-            'letterSpacing',
-            'wordSpacing',
-            'tabSize',
-            'MozTabSize',
-            'whiteSpace',
-            'wordWrap',
-            'wordBreak',
+            'overflow-x',
+            'overflow-y',
+            'border-top-width',
+            'border-right-width',
+            'border-bottom-width',
+            'border-left-width',
+            'border-style',
+            'padding-top',
+            'padding-right',
+            'padding-bottom',
+            'padding-left',
+            'font-style',
+            'font-variant',
+            'font-weight',
+            'font-stretch',
+            'font-size',
+            'font-size-adjust',
+            'line-height',
+            'font-family',
+            'text-align',
+            'text-transform',
+            'text-indent',
+            'text-decoration',
+            'letter-spacing',
+            'word-spacing',
+            'tab-size',
+            '-moz-tab-size',
+            'white-space',
+            'word-wrap',
+            'word-break',
         ];
         for (const p of propsToCopy) {
-            (mirror.style as unknown as Record<string, string>)[p] = (style as unknown as Record<string, string>)[p];
+            mirror.style.setProperty(p, style.getPropertyValue(p));
         }
         mirror.style.position = 'absolute';
         mirror.style.visibility = 'hidden';

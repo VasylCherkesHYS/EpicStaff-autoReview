@@ -364,7 +364,7 @@ export class FlowService {
             .filter((group) => group.valid !== false && group.dock_visible !== false && !!group.next_node)
             .map(
                 (group) =>
-                    `${group.group_name ?? ''}::${group.next_node ?? ''}::${String(group.dock_visible !== false)}`
+                    `${group.route_code ?? ''}::${group.group_name ?? ''}::${group.next_node ?? ''}::${String(group.dock_visible !== false)}`
             )
             .sort()
             .join('|');
@@ -758,6 +758,10 @@ export class FlowService {
 
                 const tableData = sourceNode.data.table;
 
+                if (!tableData) {
+                    return;
+                }
+
                 const existingUpdate = decisionTableUpdates.get(sourceNode.id);
                 const updatedTable: DecisionTableNode = existingUpdate?.table ?? {
                     ...tableData,
@@ -844,6 +848,117 @@ export class FlowService {
                 connections: updatedConnections,
             };
         });
+    }
+
+    /**
+     * Replaces oldNodeId with newNode in the flow, remapping edges:
+     * - Outgoing decision-default / decision-error edges keep their suffix on newNode.
+     * - If options.portIdMap is provided, per-rule outgoing edges whose old port id
+     *   exists as a key in portIdMap are remapped to the corresponding new port id.
+     * - All other outgoing edges (per-rule ports) are redirected to newNode's
+     *   decision-default port when options.mapPerRuleEdgesToDefault is true.
+     * - Incoming edges are rebuilt pointing to newNode (same target port role).
+     *
+     * Uses batched add/remove APIs to produce a single flow-state update per step.
+     */
+    public replaceNodePreservingEdges(
+        oldNodeId: string,
+        newNode: NodeModel,
+        options: { portIdMap?: Record<string, string>; mapPerRuleEdgesToDefault?: boolean }
+    ): void {
+        const currentConnections = this.connections();
+
+        // Snapshot edges that touch the old node
+        const outgoing = currentConnections.filter((c) => c.sourceNodeId === oldNodeId);
+        const incoming = currentConnections.filter((c) => c.targetNodeId === oldNodeId);
+
+        // 1. Add the new node
+        this.addNode(newNode);
+
+        // 2. Build replacement edges
+        const newEdges: ConnectionModel[] = [];
+
+        outgoing.forEach((edge) => {
+            const oldPortId = `${edge.sourcePortId}`;
+            let newSourcePortId: CustomPortId;
+
+            if (oldPortId.endsWith('_decision-default')) {
+                newSourcePortId = `${newNode.id}_decision-default` as CustomPortId;
+            } else if (oldPortId.endsWith('_decision-error')) {
+                newSourcePortId = `${newNode.id}_decision-error` as CustomPortId;
+            } else if (options.portIdMap?.[oldPortId]) {
+                newSourcePortId = options.portIdMap[oldPortId] as CustomPortId;
+            } else if (options.mapPerRuleEdgesToDefault) {
+                newSourcePortId = `${newNode.id}_decision-default` as CustomPortId;
+            } else {
+                // Keep the role suffix, replace the node-id prefix
+                const role = this.extractPortRole(oldPortId);
+                newSourcePortId = role
+                    ? (`${newNode.id}_${role}` as CustomPortId)
+                    : (`${newNode.id}_decision-default` as CustomPortId);
+            }
+
+            const newEdgeId = `${newSourcePortId}+${edge.targetPortId}`;
+            // Deduplicate: skip if we already built an edge with this id
+            if (newEdges.some((e) => e.id === newEdgeId)) {
+                return;
+            }
+
+            newEdges.push({
+                id: newEdgeId,
+                category: edge.category,
+                sourceNodeId: newNode.id,
+                targetNodeId: edge.targetNodeId,
+                sourcePortId: newSourcePortId,
+                targetPortId: edge.targetPortId,
+                behavior: edge.behavior,
+                type: edge.type,
+                startColor: edge.startColor,
+                endColor: edge.endColor,
+                data: null,
+            });
+        });
+
+        incoming.forEach((edge) => {
+            const role = this.extractPortRole(`${edge.targetPortId}`);
+            const newTargetPortId = role ? (`${newNode.id}_${role}` as CustomPortId) : edge.targetPortId;
+
+            const newEdgeId = `${edge.sourcePortId}+${newTargetPortId}`;
+            if (newEdges.some((e) => e.id === newEdgeId)) {
+                return;
+            }
+
+            newEdges.push({
+                id: newEdgeId,
+                category: edge.category,
+                sourceNodeId: edge.sourceNodeId,
+                targetNodeId: newNode.id,
+                sourcePortId: edge.sourcePortId,
+                targetPortId: newTargetPortId,
+                behavior: edge.behavior,
+                type: edge.type,
+                startColor: edge.startColor,
+                endColor: edge.endColor,
+                data: null,
+            });
+        });
+
+        // 3. Remove old edges (all that touched the old node)
+        const oldEdgeIds = [...outgoing, ...incoming].map((e) => e.id);
+        if (oldEdgeIds.length > 0) {
+            this.removeConnectionsInBatch(oldEdgeIds);
+        }
+
+        // 4. Remove old node
+        this.flowSignal.update((flow: FlowModel) => ({
+            ...flow,
+            nodes: flow.nodes.filter((n) => n.id !== oldNodeId),
+        }));
+
+        // 5. Add new edges in batch
+        if (newEdges.length > 0) {
+            this.addConnectionsInBatch(newEdges);
+        }
     }
 
     // Compute a mapping from each port id to an array of eligible connection port ids.

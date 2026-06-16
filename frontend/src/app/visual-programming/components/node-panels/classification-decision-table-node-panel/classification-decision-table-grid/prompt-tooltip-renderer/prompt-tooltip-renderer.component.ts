@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, signal, ViewEncapsulation } from '@angular/core';
-import { ICellRendererAngularComp } from 'ag-grid-angular';
 import { ICellRendererParams } from 'ag-grid-community';
 
 import { PromptConfig } from '../../../../../core/models/classification-decision-table.model';
+import { resolveLlmLabel } from '../../cdt-llm-label.util';
+import { BaseCellRenderer } from '../shared/base-cell-renderer';
 
 interface LlmOption {
     id: number;
@@ -77,28 +78,13 @@ interface PromptTooltipParams extends ICellRendererParams {
                 overflow: hidden;
             }
             .chip-id {
-                color: #d9d9de;
+                color: var(--color-text-primary);
                 font-size: 14px;
                 font-family: Inter, sans-serif;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 flex-shrink: 1;
-            }
-            .chip-var {
-                font-size: 10px;
-                color: rgba(217, 217, 222, 0.6);
-                font-family: Inter, sans-serif;
-                white-space: nowrap;
-                flex-shrink: 0;
-            }
-            .chip-llm {
-                font-size: 14px;
-                color: rgba(217, 217, 222, 0.6);
-                font-family: Inter, sans-serif;
-                white-space: nowrap;
-                flex-shrink: 0;
-                margin-left: auto;
             }
             .open-in-library-btn {
                 display: none;
@@ -108,12 +94,12 @@ interface PromptTooltipParams extends ICellRendererParams {
                 height: 28px;
                 flex-shrink: 0;
                 background: transparent;
-                border: 1px solid #685fff;
+                border: 1px solid var(--accent-color);
                 border-radius: 4px;
                 box-shadow: none;
                 cursor: pointer;
                 padding: 0;
-                color: #685fff;
+                color: var(--accent-color);
                 font-size: 16px;
             }
             .open-in-library-btn:hover {
@@ -154,16 +140,14 @@ interface PromptTooltipParams extends ICellRendererParams {
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
 })
-export class PromptTooltipRendererComponent implements ICellRendererAngularComp {
+export class PromptTooltipRendererComponent extends BaseCellRenderer<PromptTooltipParams> {
     readonly value = signal<string>('');
     readonly isDeleted = signal(false);
     readonly resultVariable = signal<string>('');
     readonly llmLabel = signal<string>('Default LLM');
 
-    private params!: PromptTooltipParams;
-
-    agInit(params: PromptTooltipParams): void {
-        this.params = params;
+    override agInit(params: PromptTooltipParams): void {
+        super.agInit(params);
         this.applyParams(params);
     }
 
@@ -184,16 +168,10 @@ export class PromptTooltipRendererComponent implements ICellRendererAngularComp 
         if (promptConfig) {
             this.resultVariable.set(promptConfig.result_variable || '');
             const llmConfigs = params.llmConfigs || [];
-            const llmId = promptConfig.llm_config;
-            if (llmId != null) {
-                const found = llmConfigs.find((l) => l.id === llmId);
-                this.llmLabel.set(found ? found.label : 'Default LLM');
-            } else {
-                this.llmLabel.set('Default LLM');
-            }
+            this.llmLabel.set(resolveLlmLabel(promptConfig.llm_config, llmConfigs));
         } else {
             this.resultVariable.set('');
-            this.llmLabel.set('Default LLM');
+            this.llmLabel.set(resolveLlmLabel(null, []));
         }
     }
 

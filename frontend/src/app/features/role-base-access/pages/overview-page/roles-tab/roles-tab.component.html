@@ -6,6 +6,8 @@
     />
     <span class="count-label">{{ filteredRoles().length }} of {{ rolesService.roles().length }} roles</span>
     <div class="toolbar-actions">
+        <!-- TODO: re-enable when custom role CRUD is available on the backend -->
+        <!--
         <app-button
             type="primary"
             leftIcon="plus"
@@ -13,15 +15,7 @@
         >
             Create Role
         </app-button>
-        <!--        <button-->
-        <!--            class="settings-btn"-->
-        <!--            type="button"-->
-        <!--        >-->
-        <!--            <app-svg-icon-->
-        <!--                icon="settings"-->
-        <!--                size="18px"-->
-        <!--            />-->
-        <!--        </button>-->
+        -->
     </div>
 </div>
 
@@ -55,17 +49,6 @@
         <span class="cell-text">{{ row['members'] }}</span>
     </ng-template>
 
-    <!-- LAST MODIFIED -->
-    <ng-template
-        appTableCell="lastModified"
-        let-row
-    >
-        <div class="date-cell">
-            <span class="date">{{ formatDate(row['lastModified']) }}</span>
-            <span class="relative">{{ getRelativeTime(row['lastModified']) }}</span>
-        </div>
-    </ng-template>
-
     <!-- ACTIONS -->
     <ng-template
         appTableCell="actions"
@@ -84,17 +67,6 @@
                 />
             </button>
             @if (!row['isBuiltIn']) {
-                <button
-                    class="action-btn"
-                    type="button"
-                    title="Edit"
-                    (click)="onEditRole(row)"
-                >
-                    <app-svg-icon
-                        icon="edit"
-                        size="16px"
-                    />
-                </button>
                 <button
                     class="action-btn danger"
                     type="button"

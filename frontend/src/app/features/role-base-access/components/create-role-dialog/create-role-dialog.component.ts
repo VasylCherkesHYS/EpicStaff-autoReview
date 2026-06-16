@@ -1,12 +1,11 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonComponent, CustomInputComponent, ValidationErrorsComponent } from '@shared/components';
-import { GetRoleResponse, Permission } from '@shared/models';
-import { take } from 'rxjs';
+import { CatalogResponse, GetRoleResponse } from '@shared/models';
+import { rolePermissionsToSet } from '@shared/utils';
 
-import { PERMISSION_GROUPS, PermissionGroupDef } from '../../constants/permission-table.constant';
-import { RolesService } from '../../services/admin/roles.service';
+import { PermissionsService } from '../../../../services/auth/permissions.service';
 import { PermissionsTableComponent } from '../permissions-table/permissions-table.component';
 
 export interface CreateRoleDialogData {
@@ -29,7 +28,7 @@ export interface CreateRoleDialogData {
 export class CreateRoleDialogComponent {
     private dialogRef = inject(DialogRef);
     private dialogData = inject<CreateRoleDialogData>(DIALOG_DATA, { optional: true });
-    private rolesService = inject(RolesService);
+    private rolesCatalogService = inject(PermissionsService);
 
     readonly isEditMode = !!this.dialogData?.role;
 
@@ -41,48 +40,63 @@ export class CreateRoleDialogComponent {
         description: new FormControl(this.dialogData?.role?.description ?? ''),
     });
 
-    selectedPermissions = signal<Set<Permission>>(new Set(this.dialogData?.role?.permissions ?? []));
-    isSubmitting = signal(false);
+    selectedPermissions = signal<Set<string>>(
+        this.dialogData?.role ? rolePermissionsToSet(this.dialogData.role.permissions) : new Set()
+    );
 
-    onPermissionToggle(permission: Permission): void {
+    readonly catalog = computed<CatalogResponse | null>(() => this.rolesCatalogService.catalog());
+
+    onPermissionToggle(event: { resourceType: string; action: string }): void {
+        const key = `${event.resourceType}:${event.action}`;
         this.selectedPermissions.update((set) => {
             const next = new Set(set);
-            next.has(permission) ? next.delete(permission) : next.add(permission);
+            next.has(key) ? next.delete(key) : next.add(key);
             return next;
         });
     }
 
     onSelectAll(): void {
-        const all = PERMISSION_GROUPS.flatMap((g) => g.resources.flatMap((r) => Object.values(r.actions))).filter(
-            (p): p is Permission => p !== undefined
-        );
-        this.selectedPermissions.set(new Set(all));
+        const catalog = this.rolesCatalogService.catalog();
+        if (!catalog) return;
+        const all = new Set<string>();
+        for (const rt of catalog.resource_types) {
+            for (const action of rt.applicable_actions) {
+                all.add(`${rt.code}:${action}`);
+            }
+        }
+        this.selectedPermissions.set(all);
     }
 
     onClearAll(): void {
         this.selectedPermissions.set(new Set());
     }
 
-    onGroupSelectAll(group: PermissionGroupDef): void {
-        const original = PERMISSION_GROUPS.find((g) => g.name === group.name)!;
-        const perms = original.resources
-            .flatMap((r) => Object.values(r.actions))
-            .filter((p): p is Permission => p !== undefined);
+    onGroupSelectAll(groupKey: string): void {
+        const catalog = this.rolesCatalogService.catalog();
+        if (!catalog) return;
+        const resources = catalog.resource_types.filter((rt) => rt.group === groupKey);
         this.selectedPermissions.update((set) => {
             const next = new Set(set);
-            perms.forEach((p) => next.add(p));
+            for (const rt of resources) {
+                for (const action of rt.applicable_actions) {
+                    next.add(`${rt.code}:${action}`);
+                }
+            }
             return next;
         });
     }
 
-    onGroupClear(group: PermissionGroupDef): void {
-        const original = PERMISSION_GROUPS.find((g) => g.name === group.name)!;
-        const perms = original.resources
-            .flatMap((r) => Object.values(r.actions))
-            .filter((p): p is Permission => p !== undefined);
+    onGroupClear(groupKey: string): void {
+        const catalog = this.rolesCatalogService.catalog();
+        if (!catalog) return;
+        const resources = catalog.resource_types.filter((rt) => rt.group === groupKey);
         this.selectedPermissions.update((set) => {
             const next = new Set(set);
-            perms.forEach((p) => next.delete(p));
+            for (const rt of resources) {
+                for (const action of rt.applicable_actions) {
+                    next.delete(`${rt.code}:${action}`);
+                }
+            }
             return next;
         });
     }
@@ -91,28 +105,6 @@ export class CreateRoleDialogComponent {
         this.dialogRef.close();
     }
 
-    onSubmit(): void {
-        if (this.form.invalid) {
-            this.form.markAllAsTouched();
-            return;
-        }
-
-        this.isSubmitting.set(true);
-
-        const { name, description } = this.form.getRawValue();
-        const permissions = Array.from(this.selectedPermissions());
-        const data = { name, description, permissions };
-
-        const action$ = this.isEditMode
-            ? this.rolesService.updateRole(this.dialogData!.role!.id, data)
-            : this.rolesService.createRole(data);
-
-        action$.pipe(take(1)).subscribe({
-            next: () => {
-                this.isSubmitting.set(false);
-                this.dialogRef.close(true);
-            },
-            error: () => this.isSubmitting.set(false),
-        });
-    }
+    // TODO: connect to backend when custom role CRUD endpoints are available
+    // onSubmit(): void { ... }
 }

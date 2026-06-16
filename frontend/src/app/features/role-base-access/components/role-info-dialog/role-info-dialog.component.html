@@ -24,9 +24,12 @@
 
     <!-- PERMISSIONS (read-only) -->
     <div class="content">
-        <app-permissions-table
-            [selectedPermissions]="selectedPermissions"
-            [readonly]="true"
-        />
+        @if (catalog(); as cat) {
+            <app-permissions-table
+                [catalog]="cat"
+                [selectedPermissions]="selectedPermissions()"
+                [readonly]="true"
+            />
+        }
     </div>
 </div>

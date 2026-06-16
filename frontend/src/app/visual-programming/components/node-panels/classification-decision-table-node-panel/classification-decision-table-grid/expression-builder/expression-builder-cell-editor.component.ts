@@ -1,8 +1,9 @@
 import { Component, ElementRef, inject } from '@angular/core';
-import { ICellEditorAngularComp } from 'ag-grid-angular';
 import { ICellEditorParams } from 'ag-grid-community';
 
 import { toDisplayExpression, toStoredExpression } from '../../../../../utils/condition-expression.helper';
+import { CDT_COLUMN_KIND, CDT_EXPRESSION_EDITOR_POPUP_WIDTH } from '../../cdt.constants';
+import { BaseCellEditor } from '../shared/base-cell-editor';
 import { ExpressionBuilderComponent } from './expression-builder.component';
 
 export interface ExpressionBuilderCellEditorParams extends ICellEditorParams {
@@ -36,20 +37,19 @@ export interface ExpressionBuilderCellEditorParams extends ICellEditorParams {
         `,
     ],
 })
-export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularComp {
+export class ExpressionBuilderCellEditorComponent extends BaseCellEditor<ExpressionBuilderCellEditorParams> {
     initialDisplay = '';
     variables: string[] = [];
-    mode: 'expression' | 'manipulation' = 'expression';
+    mode: 'expression' | 'manipulation' = CDT_COLUMN_KIND.EXPRESSION;
 
     private currentDisplay = '';
-    private params!: ExpressionBuilderCellEditorParams;
     private readonly elRef = inject(ElementRef);
 
-    agInit(params: ExpressionBuilderCellEditorParams): void {
-        this.params = params;
+    override agInit(params: ExpressionBuilderCellEditorParams): void {
+        super.agInit(params);
         this.initialDisplay = toDisplayExpression(params.value ?? '');
         this.currentDisplay = this.initialDisplay;
-        this.mode = params.mode ?? 'expression';
+        this.mode = params.mode ?? CDT_COLUMN_KIND.EXPRESSION;
 
         const raw = params.variables;
         if (typeof raw === 'function') {
@@ -73,13 +73,13 @@ export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularC
         }
         if (!wrapper) return;
 
-        const FIXED_WIDTH = 660;
+        const FIXED_WIDTH = CDT_EXPRESSION_EDITOR_POPUP_WIDTH;
         wrapper.style.width = `${FIXED_WIDTH}px`;
         const popupWidth = FIXED_WIDTH;
 
         const wrapperRect = wrapper.getBoundingClientRect();
         const targetTop = cellRect.top;
-        const targetLeft = this.mode === 'manipulation' ? cellRect.right - popupWidth : cellRect.left;
+        const targetLeft = this.mode === CDT_COLUMN_KIND.MANIPULATION ? cellRect.right - popupWidth : cellRect.left;
 
         const dx = targetLeft - wrapperRect.left;
         const dy = targetTop - wrapperRect.top;
@@ -88,10 +88,6 @@ export class ExpressionBuilderCellEditorComponent implements ICellEditorAngularC
 
     getValue(): string {
         return toStoredExpression(this.currentDisplay);
-    }
-
-    isPopup(): boolean {
-        return true;
     }
 
     getPopupPosition(): 'over' | 'under' {

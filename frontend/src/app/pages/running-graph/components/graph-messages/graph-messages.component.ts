@@ -348,7 +348,9 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             this.drillPaths.forEach((path, rootKey) => {
                 const currentKey = path[path.length - 1] ?? rootKey;
                 const message = this.messageByKey.get(currentKey);
-                const execId = (message?.message_data as unknown as Record<string, unknown>)?.['subgraph_execution_id'] as string | undefined;
+                const execId = (message?.message_data as unknown as Record<string, unknown>)?.[
+                    'subgraph_execution_id'
+                ] as string | undefined;
                 if (execId && this.subgraphHasMore.get(execId) && !this.loadingSubgraphIds.has(execId)) {
                     this.loadMoreSubgraphPage(execId);
                 }
@@ -1050,7 +1052,8 @@ export class GraphMessagesComponent implements OnInit, OnDestroy, OnChanges, Aft
             const startIdx = this.messages.findIndex(
                 (m) =>
                     m.message_data.message_type === MessageType.SUBGRAPH_START &&
-                    (m.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] === subgraphExecutionId
+                    (m.message_data as unknown as Record<string, unknown>)['subgraph_execution_id'] ===
+                        subgraphExecutionId
             );
             if (startIdx === -1) return;
             this.messages = [...this.messages.slice(0, startIdx + 1), ...toAdd, ...this.messages.slice(startIdx + 1)];

@@ -1,5 +1,5 @@
 // ── Design tokens ──────────────────────────────────────────────────────────────
-$accent: #685fff;
+$accent: var(--accent-color);
 $accent-light: #a89fff;
 $accent-bg: rgba(104, 95, 255, 0.15);
 $bg: #1f1f23;
@@ -119,7 +119,7 @@ $radius: 8px;
     // Logical & keyword — cyan-blue text
     &--logical,
     &--keyword {
-        color: #48cbff;
+        color: var(--color-ks-status-blue);
 
         &:hover {
             background: rgba(72, 203, 255, 0.12);
@@ -128,7 +128,7 @@ $radius: 8px;
 
     // Comparison — light gray text
     &--comparison {
-        color: #d9d9de;
+        color: var(--color-text-primary);
 
         &:hover {
             background: rgba(217, 217, 222, 0.08);
@@ -137,7 +137,7 @@ $radius: 8px;
 
     // Math — cyan-blue text, fixed square-ish width
     &--math {
-        color: #48cbff;
+        color: var(--color-ks-status-blue);
         width: 28px;
         padding: 2px 0;
 
@@ -169,10 +169,15 @@ $radius: 8px;
     padding: 6px 12px 0;
     gap: 2px;
     flex-shrink: 0;
+    // Cap the accumulated template/tip lines so they scroll instead of growing the
+    // editor popover unbounded (bug #10).
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 .eb-tip-line {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
     font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
@@ -304,7 +309,7 @@ $radius: 8px;
     background: transparent;
     border: none;
     outline: none;
-    color: #d9d9de;
+    color: var(--color-text-primary);
     font-size: 13px;
 
     &::placeholder {
@@ -314,6 +319,7 @@ $radius: 8px;
 
 .eb-vars-list {
     flex: 1;
+    max-height: 280px;
     overflow-y: auto;
     padding: 0 8px 8px;
     display: flex;
@@ -322,9 +328,10 @@ $radius: 8px;
 }
 
 .eb-var-row {
+    flex-shrink: 0;
     padding: 6px 8px;
     font-size: 13px;
-    color: #d9d9de;
+    color: var(--color-text-primary);
     cursor: pointer;
     background: transparent;
     border: 1px solid #2b2d30;

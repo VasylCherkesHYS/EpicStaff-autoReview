@@ -1,5 +1,4 @@
-import { Overlay, OverlayRef } from '@angular/cdk/overlay';
-import { TemplatePortal } from '@angular/cdk/portal';
+import { Overlay } from '@angular/cdk/overlay';
 import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
@@ -13,6 +12,8 @@ import {
 } from '@angular/core';
 import { IHeaderAngularComp } from 'ag-grid-angular';
 import { IHeaderParams } from 'ag-grid-community';
+
+import { OverlayMenuController } from '../shared/overlay-menu.util';
 
 export interface ColumnHeaderMenuParams extends IHeaderParams {
     label?: string;
@@ -118,6 +119,7 @@ export interface ColumnHeaderMenuParams extends IHeaderParams {
                 white-space: nowrap;
             }
 
+            /* NOTE: kept in sync with .icon-header-clickable in icon-header.component.ts */
             .chm-icon-clickable {
                 cursor: pointer;
                 background: rgba(104, 95, 255, 0.25);
@@ -200,10 +202,10 @@ export class ColumnHeaderMenuComponent implements IHeaderAngularComp, OnDestroy 
     public showFreeze = true;
     public showChevron = true;
 
-    private overlayRef: OverlayRef | null = null;
     private overlay = inject(Overlay);
     private vcr = inject(ViewContainerRef);
     private cdr = inject(ChangeDetectorRef);
+    private menuCtrl = new OverlayMenuController(this.overlay, this.vcr);
 
     agInit(params: ColumnHeaderMenuParams): void {
         this.label = params.label || '';
@@ -236,69 +238,24 @@ export class ColumnHeaderMenuComponent implements IHeaderAngularComp, OnDestroy 
 
     toggleMenu(event: MouseEvent): void {
         event.stopPropagation();
-        if (this.overlayRef?.hasAttached()) {
-            this.closeMenu();
-            return;
-        }
-        this.openMenu(event.currentTarget as HTMLElement);
-    }
-
-    private openMenu(anchor: HTMLElement): void {
-        const positionStrategy = this.overlay
-            .position()
-            .flexibleConnectedTo(anchor)
-            .withPositions([
-                {
-                    originX: 'end',
-                    originY: 'bottom',
-                    overlayX: 'end',
-                    overlayY: 'top',
-                    offsetY: 4,
-                },
-                {
-                    originX: 'end',
-                    originY: 'top',
-                    overlayX: 'end',
-                    overlayY: 'bottom',
-                    offsetY: -4,
-                },
-            ])
-            .withPush(false);
-
-        this.overlayRef = this.overlay.create({
-            positionStrategy,
-            hasBackdrop: true,
-            backdropClass: 'cdk-overlay-transparent-backdrop',
-            scrollStrategy: this.overlay.scrollStrategies.close(),
-        });
-
-        this.overlayRef.backdropClick().subscribe(() => this.closeMenu());
-
-        const portal = new TemplatePortal(this.menuTemplate, this.vcr);
-        this.overlayRef.attach(portal);
-    }
-
-    private closeMenu(): void {
-        this.overlayRef?.detach();
-        this.overlayRef?.dispose();
-        this.overlayRef = null;
+        this.menuCtrl.toggle(event.currentTarget as HTMLElement, this.menuTemplate);
     }
 
     handleFreeze(): void {
-        this.closeMenu();
+        this.menuCtrl.close();
         if (this.onFreezeToggle && this.colId) {
             this.onFreezeToggle(this.colId);
         }
     }
 
     handleHide(): void {
-        this.closeMenu();
+        this.menuCtrl.close();
         if (this.onHide && this.colId) {
             this.onHide(this.colId);
         }
     }
 
     ngOnDestroy(): void {
-        this.closeMenu();
+        this.menuCtrl.dispose();
     }
 }

@@ -31,6 +31,7 @@ export class MainTabComponent implements OnInit {
     organizations = this.organizationStorage.organizations;
     isOrgsLoading = signal(true);
     isUsersLoading = signal(true);
+    isRolesLoading = signal(true);
     usersCount = signal(0);
 
     stats = computed<StatCardData[]>(() => [
@@ -38,11 +39,19 @@ export class MainTabComponent implements OnInit {
             label: 'TOTAL ORGANIZATIONS',
             icon: 'buildings',
             value: this.organizations().length,
+            loading: this.isOrgsLoading(),
         },
         {
             label: 'TOTAL USERS',
             icon: 'profile',
             value: this.usersCount(),
+            loading: this.isUsersLoading(),
+        },
+        {
+            label: 'ROLES',
+            icon: 'briefcase',
+            value: this.rolesService.roles().length,
+            loading: this.isRolesLoading(),
         },
         {
             label: 'ROLES',
@@ -54,6 +63,7 @@ export class MainTabComponent implements OnInit {
     ngOnInit(): void {
         this.getOrganizations();
         this.getUsers();
+        this.getRoles();
     }
 
     private getOrganizations(): void {
@@ -77,6 +87,16 @@ export class MainTabComponent implements OnInit {
                 next: ({ count }) => this.usersCount.set(count),
                 error: () => this.toast.error('Failed to fetch users count.'),
             });
+    }
+
+    private getRoles(): void {
+        this.rolesService
+            .loadRoles()
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isRolesLoading.set(false))
+            )
+            .subscribe();
     }
 
     onCreateOrganization(): void {

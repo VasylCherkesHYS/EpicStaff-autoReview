@@ -114,11 +114,13 @@ export class SelectionCellRendererComponent implements ICellRendererAngularComp 
     private cdr = inject(ChangeDetectorRef);
     public isSelected = false;
     private node!: IRowNode;
+    private gridApi!: ICellRendererParams['api'];
 
     agInit(params: ICellRendererParams): void {
         this.node = params.node;
+        this.gridApi = params.api;
         this.isSelected = !!params.node.isSelected();
-        params.api.addEventListener('selectionChanged', this.onSelectionChanged);
+        this.gridApi.addEventListener('selectionChanged', this.onSelectionChanged);
     }
 
     refresh(params: ICellRendererParams): boolean {
@@ -143,5 +145,9 @@ export class SelectionCellRendererComponent implements ICellRendererAngularComp 
 
     public onCheckboxClick(event: MouseEvent): void {
         event.stopPropagation();
+    }
+
+    destroy(): void {
+        this.gridApi?.removeEventListener('selectionChanged', this.onSelectionChanged);
     }
 }
