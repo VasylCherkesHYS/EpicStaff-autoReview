@@ -4,6 +4,8 @@
     class="feib"
     [class.feib--active]="selectedCount() > 0"
     [class.feib--open]="isOpen()"
+    matTooltip="Export / Import nodes"
+    matTooltipPosition="below"
     (click)="toggle($event)"
 >
     <app-svg-icon

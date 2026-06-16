@@ -1,12 +1,13 @@
 import { OverlayModule } from '@angular/cdk/overlay';
 import { ChangeDetectionStrategy, Component, HostListener, input, output, signal } from '@angular/core';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AppSvgIconComponent } from '../../../shared/components/app-svg-icon/app-svg-icon.component';
 
 @Component({
     selector: 'app-flow-export-import-button',
     standalone: true,
-    imports: [OverlayModule, AppSvgIconComponent],
+    imports: [OverlayModule, AppSvgIconComponent, MatTooltipModule],
     templateUrl: './flow-export-import-button.component.html',
     styleUrls: ['./flow-export-import-button.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

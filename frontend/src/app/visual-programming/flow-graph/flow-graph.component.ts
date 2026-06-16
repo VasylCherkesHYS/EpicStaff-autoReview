@@ -1,4 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
     afterNextRender,
     ChangeDetectionStrategy,
@@ -20,6 +21,7 @@ import {
     ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { IPoint, PointExtensions } from '@foblex/2d';
 import {
     EFMarkerType,
@@ -127,6 +129,7 @@ function waypointsEqual(a: IPoint[], b: IPoint[]): boolean {
         WaypointTooltipDirective,
         FlowExportImportButtonComponent,
         FlowFilesButtonComponent,
+        MatTooltipModule,
     ],
 })
 export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
@@ -136,6 +139,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     @Input() initialNodeId: string | null = null;
 
     @Output() save = new EventEmitter<FlowModel>();
+    @Output() requestReload = new EventEmitter<void>();
     readonly openShortcuts = output<DOMRect>();
 
     @ViewChild(FFlowComponent, { static: false })
@@ -172,6 +176,8 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     private _dragStartClientX: number | null = null;
     private _dragStartClientY: number | null = null;
+    private _dragEndClientX: number | null = null;
+    private _dragEndClientY: number | null = null;
     private _isReselecting = false;
 
     public multiSelectActive = signal<boolean>(false);
@@ -238,6 +244,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         return Math.max(2, 500 - Math.floor(Math.max(0, node.position?.y ?? 0) / 10));
     }
 
+    private fitAfterNextFlowChange = false;
+    private _preImportBackendIds: Set<number> | null = null;
+
     private readonly destroy$ = new Subject<void>();
     private readonly userAdjustedConnectionIds = new Set<string>();
     private readonly previousBackwardConnectionIds = new Set<string>();
@@ -269,7 +278,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     public ngOnChanges(changes: SimpleChanges): void {
         if (changes['flowState'] && !changes['flowState'].firstChange) {
-            this.applyIncomingFlowState(this.flowState);
+            const stateToApply = this._preImportBackendIds
+                ? this._shiftImportedNodes(this.flowState, this._preImportBackendIds)
+                : this.flowState;
+            this._preImportBackendIds = null;
+            this.applyIncomingFlowState(stateToApply);
+            if (this.fitAfterNextFlowChange) {
+                this.fitAfterNextFlowChange = false;
+                setTimeout(() => {
+                    this.fCanvasComponent.fitToScreen({ x: 200, y: 100 }, false);
+                }, 0);
+            }
         }
         if (changes['initialNodeId'] && changes['initialNodeId'].currentValue) {
             this.openNodePanel(changes['initialNodeId'].currentValue);
@@ -1112,6 +1131,13 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     public onFlowPointerDown(event: PointerEvent): void {
         this._dragStartClientX = event.clientX;
         this._dragStartClientY = event.clientY;
+        this._dragEndClientX = null;
+        this._dragEndClientY = null;
+    }
+
+    public onFlowPointerUp(event: PointerEvent): void {
+        this._dragEndClientX = event.clientX;
+        this._dragEndClientY = event.clientY;
     }
 
     public onFlowClick(event: MouseEvent): void {
@@ -1156,18 +1182,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             return;
         }
 
+        const endX = this._dragEndClientX ?? this.mouseCursorPosition.x;
+        const endY = this._dragEndClientY ?? this.mouseCursorPosition.y;
+
         const isLeftToRight =
-            nodeIds.length > 0 &&
-            this._dragStartClientX !== null &&
-            this.mouseCursorPosition.x - this._dragStartClientX > 10;
+            nodeIds.length > 0 && this._dragStartClientX !== null && endX - this._dragStartClientX > 10;
 
         if (isLeftToRight) {
             const selStart = this.fFlowComponent.getPositionInFlow(
                 PointExtensions.initialize(this._dragStartClientX!, this._dragStartClientY!)
             );
-            const selEnd = this.fFlowComponent.getPositionInFlow(
-                PointExtensions.initialize(this.mouseCursorPosition.x, this.mouseCursorPosition.y)
-            );
+            const selEnd = this.fFlowComponent.getPositionInFlow(PointExtensions.initialize(endX, endY));
             const selLeft = Math.min(selStart.x, selEnd.x);
             const selRight = Math.max(selStart.x, selEnd.x);
             const selTop = Math.min(selStart.y, selEnd.y);
@@ -1203,7 +1228,26 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onExportSelectedAsCsv(): void {
-        // CDT-specific CSV export — endpoint TBD by backend
+        const selectedIds = this.selectedNodeIds();
+        const nodes = this.flowService.nodes();
+
+        for (const id of selectedIds) {
+            const node = nodes.find((n) => n.id === id);
+
+            if (!node) {
+                continue;
+            }
+
+            if (node.backendId === null) {
+                this.toastService.warning('Save the flow before exporting', 3000, 'bottom-right');
+                continue;
+            }
+
+            this.importExportService.cdtExport(node.backendId, 'csv').subscribe({
+                next: (blob) => this.downloadBlob(blob, node.node_name + '.csv'),
+                error: () => this.toastService.error('Export failed', 3000, 'bottom-right'),
+            });
+        }
     }
 
     public onExportAllAsJson(): void {
@@ -1224,8 +1268,23 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (!file || !this.currentFlowId) return;
             this.importExportService.partialImport(this.currentFlowId, file).subscribe({
-                next: () => this.toastService.success('Import successful', 3000, 'bottom-right'),
-                error: () => this.toastService.error('Import failed', 3000, 'bottom-right'),
+                next: () => {
+                    this.toastService.success('Import successful', 3000, 'bottom-right');
+                    this._preImportBackendIds = new Set(
+                        this.flowService
+                            .nodes()
+                            .map((n) => n.backendId)
+                            .filter((id): id is number => id !== null)
+                    );
+                    this.fitAfterNextFlowChange = true;
+                    this.requestReload.emit();
+                },
+                error: (err: HttpErrorResponse) => {
+                    const body = typeof err.error === 'string' ? err.error : JSON.stringify(err.error ?? '');
+                    const match = body.match(/'detail':\s*'([^']+)'/);
+                    const message = match?.[1] ?? (err.error as Record<string, string>)?.['detail'] ?? 'Import failed';
+                    this.toastService.error(message, 3000, 'bottom-right');
+                },
             });
         };
         input.click();
@@ -1244,7 +1303,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private buildPartialExportBody(selectedIds: string[]): PartialExportRequest {
         const allNodes = this.flowService.nodes();
         const nodes = selectedIds.length > 0 ? allNodes.filter((n) => selectedIds.includes(n.id)) : allNodes;
-        const selectedIdSet = new Set(nodes.map((n) => n.id));
+        const selectedIdSet = new Set(
+            nodes.filter((n) => n.type !== NodeType.START && n.type !== NodeType.END).map((n) => n.id)
+        );
 
         const body: PartialExportRequest = {
             start_node_list: [],
@@ -1260,16 +1321,15 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             classification_decision_table_node_list: [],
             graph_note_list: [],
             code_agent_node_list: [],
+            schedule_trigger_node_list: [],
             edge_list: [],
         };
 
         for (const node of nodes) {
             if (node.backendId === null) continue;
+            if (node.type === NodeType.START || node.type === NodeType.END) continue;
             const id = node.backendId;
             switch (node.type) {
-                case NodeType.START:
-                    body.start_node_list.push(id);
-                    break;
                 case NodeType.AGENT:
                 case NodeType.TASK:
                 case NodeType.TOOL:
@@ -1285,9 +1345,6 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                     break;
                 case NodeType.FILE_EXTRACTOR:
                     body.file_extractor_node_list.push(id);
-                    break;
-                case NodeType.END:
-                    body.end_node_list.push(id);
                     break;
                 case NodeType.SUBGRAPH:
                     body.subgraph_node_list.push(id);
@@ -1309,6 +1366,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                     break;
                 case NodeType.CODE_AGENT:
                     body.code_agent_node_list.push(id);
+                    break;
+                case NodeType.SCHEDULE_TRIGGER:
+                    body.schedule_trigger_node_list.push(id);
                     break;
             }
         }
@@ -1345,6 +1405,27 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
                 this.userAdjustedConnectionIds.delete(conn.id);
             }
         }
+    }
+
+    private _shiftImportedNodes(flowState: FlowModel, preImportIds: Set<number>): FlowModel {
+        const existingNodes = flowState.nodes.filter((n) => n.backendId !== null && preImportIds.has(n.backendId));
+        const newNodes = flowState.nodes.filter((n) => n.backendId === null || !preImportIds.has(n.backendId));
+
+        if (!newNodes.length || !existingNodes.length) return flowState;
+
+        const maxRightX = existingNodes.reduce((max, n) => Math.max(max, n.position.x + n.size.width), 0);
+        const minNewX = newNodes.reduce((min, n) => Math.min(min, n.position.x), Infinity);
+
+        const offsetX = maxRightX + 400 - minNewX;
+        if (offsetX <= 0) return flowState;
+
+        return {
+            ...flowState,
+            nodes: [
+                ...existingNodes,
+                ...newNodes.map((n) => ({ ...n, position: { ...n.position, x: n.position.x + offsetX } })),
+            ],
+        };
     }
 
     private isDialogOpen(): boolean {

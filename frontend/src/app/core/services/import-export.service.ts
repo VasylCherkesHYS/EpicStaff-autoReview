@@ -21,6 +21,7 @@ export interface PartialExportRequest {
     classification_decision_table_node_list: number[];
     graph_note_list: number[];
     code_agent_node_list: number[];
+    schedule_trigger_node_list: number[];
     edge_list: number[];
 }
 
@@ -52,7 +53,11 @@ export class ImportExportService {
 
     private get sessionsApiUrl(): string {
         return this.configService.apiUrl + 'sessions/';
-    }    
+    }
+
+    private get cdtApiUrl(): string {
+        return this.configService.apiUrl + 'classification-decision-table-node/';
+    }
 
     partialExport(graphId: number, body: PartialExportRequest): Observable<Blob> {
         return this.http.post(`${this.apiUrl}${graphId}/partial-export/`, body, {
@@ -64,6 +69,12 @@ export class ImportExportService {
         const formData = new FormData();
         formData.append('file', file);
         return this.http.post(`${this.apiUrl}${graphId}/partial-import/`, formData);
+    }
+
+    cdtExport(nodeId: number, format: ExportFormat): Observable<Blob> {
+        return this.http.get(`${this.cdtApiUrl}${nodeId}/export/?export_format=${format}`, {
+            responseType: 'blob',
+        });
     }
 
     importFlow(file: File, settings: ImportFlowRequestOptions): Observable<ImportResult> {

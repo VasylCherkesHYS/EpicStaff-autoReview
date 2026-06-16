@@ -5,6 +5,7 @@
         (contextmenu)="onContextMenu($event)"
         (click)="onFlowClick($event)"
         (pointerdown)="onFlowPointerDown($event)"
+        (pointerup)="onFlowPointerUp($event)"
         fDraggable
         [fMultiSelectTrigger]="multiSelectTrigger"
         [fCanvasMoveTrigger]="canvasMoveTrigger"
@@ -290,6 +291,8 @@
                 iconSize="14px"
                 [textEnd]="true"
                 [active]="multiSelectActive()"
+                matTooltip="Multi-select"
+                matTooltipPosition="right"
                 (clicked)="onToggleMultiSelect()"
             ></app-flow-shortcuts-button>
 
@@ -346,17 +349,6 @@
             >
                 <i class="ti ti-settings"></i>
             </button>
-
-            <div class="routing-toggle-block">
-                <app-svg-icon
-                    icon="routing-arrow"
-                    size="22px"
-                ></app-svg-icon>
-                <app-toggle-switch
-                    [checked]="smartRoutingEnabled()"
-                    (checkedChange)="onSmartRoutingToggle($event)"
-                ></app-toggle-switch>
-            </div>
         </div>
     </div>
     <app-flow-action-panel (undoRedoPerformed)="hasUnarrangedChanges.set(true)"></app-flow-action-panel>
