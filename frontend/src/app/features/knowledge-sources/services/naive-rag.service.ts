@@ -1,7 +1,8 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { SKIP_NOT_FOUND_REDIRECT } from '../../../core/interceptors/not-found.interceptor';
 import { ConfigService } from '../../../services/config';
 import { StartIndexingDtoRequest, StartIndexingDtoResponse } from '../models/base-rag.model';
 import { CreateNaiveRagForCollectionResponse, DeleteNaiveRagResponse } from '../models/naive-rag.model';
@@ -43,7 +44,8 @@ export class NaiveRagService {
 
         return this.http.post<CreateNaiveRagForCollectionResponse>(
             `${this.apiUrl}collections/${collectionId}/naive-rag/`,
-            body
+            body,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -56,7 +58,9 @@ export class NaiveRagService {
     }
 
     getDocumentConfigById(ragId: number, documentId: number): Observable<NaiveRagDocumentConfig> {
-        return this.http.get<NaiveRagDocumentConfig>(`${this.apiUrl}${ragId}/document-configs/${documentId}/`);
+        return this.http.get<NaiveRagDocumentConfig>(`${this.apiUrl}${ragId}/document-configs/${documentId}/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     updateDocumentConfigById(
@@ -66,7 +70,8 @@ export class NaiveRagService {
     ): Observable<UpdateNaiveRagDocumentResponse> {
         return this.http.put<UpdateNaiveRagDocumentResponse>(
             `${this.apiUrl}${ragId}/document-configs/${documentId}/`,
-            dto
+            dto,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -76,7 +81,8 @@ export class NaiveRagService {
     ): Observable<BulkUpdateNaiveRagDocumentDtoResponse> {
         return this.http.put<BulkUpdateNaiveRagDocumentDtoResponse>(
             `${this.apiUrl}${ragId}/document-configs/bulk-update/`,
-            dto
+            dto,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -86,22 +92,30 @@ export class NaiveRagService {
     ): Observable<BulkDeleteNaiveRagDocumentDtoResponse> {
         return this.http.post<BulkDeleteNaiveRagDocumentDtoResponse>(
             `${this.apiUrl}${ragId}/document-configs/bulk-delete/`,
-            dto
+            dto,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
     startIndexing(dto: StartIndexingDtoRequest): Observable<StartIndexingDtoResponse> {
-        return this.http.post<StartIndexingDtoResponse>(`${this.configService.apiUrl}process-rag-indexing/`, dto);
+        return this.http.post<StartIndexingDtoResponse>(`${this.configService.apiUrl}process-rag-indexing/`, dto, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     initializeDocuments(ragId: number): Observable<InitNaiveRagDocumentsResponse> {
-        return this.http.post<InitNaiveRagDocumentsResponse>(`${this.apiUrl}${ragId}/document-configs/initialize/`, {});
+        return this.http.post<InitNaiveRagDocumentsResponse>(
+            `${this.apiUrl}${ragId}/document-configs/initialize/`,
+            {},
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
+        );
     }
 
     runChunkingProcess(ragId: number, documentId: number): Observable<NaiveRagChunkingResponse> {
         return this.http.post<NaiveRagChunkingResponse>(
             `${this.apiUrl}${ragId}/document-configs/${documentId}/process-chunking/`,
-            {}
+            {},
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -144,7 +158,7 @@ export class NaiveRagService {
 
         return this.http.get<ChunkSearchResponse>(
             `${this.apiUrl}${ragId}/document-configs/${documentId}/chunks/search/`,
-            { params }
+            { params, context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -155,7 +169,8 @@ export class NaiveRagService {
 
         return this.http.post<GetChunksByIdsResponse>(
             `${this.apiUrl}${ragId}/document-configs/${documentId}/chunks/by-ids/`,
-            dto
+            dto,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 }

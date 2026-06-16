@@ -57,7 +57,10 @@
                         </div>
                         <div class="list__size-column">
                             <span class="list__file-size">{{ item.file_size | fileSize }}</span>
-                            @if (!item.document_id && item.isValidType && item.isValidSize) {
+                            @if (
+                                (!item.document_id && item.isValidType && item.isValidSize) ||
+                                documentsStorageService.isDeleting(item.document_id)
+                            ) {
                                 <div class="list__upload-spinner"></div>
                             } @else {
                                 <app-list-actions>

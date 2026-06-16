@@ -1,7 +1,8 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { SKIP_NOT_FOUND_REDIRECT } from '../../../core/interceptors/not-found.interceptor';
 import { ConfigService } from '../../../services/config';
 import { StartIndexingDtoRequest, StartIndexingDtoResponse } from '../models/base-rag.model';
 import {
@@ -34,7 +35,8 @@ export class GraphRagService {
 
         return this.http.post<CreateGraphRagForCollectionResponse>(
             `${this.apiUrl}collections/${collectionId}/graph-rag/`,
-            body
+            body,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
@@ -46,18 +48,28 @@ export class GraphRagService {
         ragId: number,
         dto: CreateGraphRagIndexConfigRequest
     ): Observable<CreateGraphRagIndexConfigRequest> {
-        return this.http.put<CreateGraphRagIndexConfigRequest>(`${this.apiUrl}${ragId}/index-config/`, dto);
+        return this.http.put<CreateGraphRagIndexConfigRequest>(`${this.apiUrl}${ragId}/index-config/`, dto, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     startIndexing(dto: StartIndexingDtoRequest): Observable<StartIndexingDtoResponse> {
-        return this.http.post<StartIndexingDtoResponse>(`${this.configService.apiUrl}process-rag-indexing/`, dto);
+        return this.http.post<StartIndexingDtoResponse>(`${this.configService.apiUrl}process-rag-indexing/`, dto, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     deleteFileById(ragId: number, fileId: number): Observable<void> {
-        return this.http.delete<void>(`${this.apiUrl}${ragId}/documents/${fileId}/`);
+        return this.http.delete<void>(`${this.apiUrl}${ragId}/documents/${fileId}/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     reIncludeFiles(ragId: number): Observable<void> {
-        return this.http.post<void>(`${this.apiUrl}${ragId}/documents/initialize/`, {});
+        return this.http.post<void>(
+            `${this.apiUrl}${ragId}/documents/initialize/`,
+            {},
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
+        );
     }
 }

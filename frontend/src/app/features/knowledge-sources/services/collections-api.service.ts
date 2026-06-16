@@ -1,7 +1,8 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { SKIP_NOT_FOUND_REDIRECT } from '../../../core/interceptors/not-found.interceptor';
 import { ConfigService } from '../../../services/config/config.service';
 import {
     CreateCollectionDtoRequest,
@@ -40,25 +41,35 @@ export class CollectionsApiService {
     }
 
     getCollectionById(id: number): Observable<CreateCollectionDtoResponse> {
-        return this.http.get<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`);
+        return this.http.get<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     getRagsByCollectionId(id: number): Observable<GetCollectionRagsResponse[]> {
-        return this.http.get<GetCollectionRagsResponse[]>(`${this.apiUrl}${id}/available-rags/`);
+        return this.http.get<GetCollectionRagsResponse[]>(`${this.apiUrl}${id}/available-rags/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     getDocumentsByCollectionId(id: number): Observable<GetCollectionDocumentsResponse> {
-        return this.http.get<GetCollectionDocumentsResponse>(`${this.apiUrl}${id}/documents/`);
+        return this.http.get<GetCollectionDocumentsResponse>(`${this.apiUrl}${id}/documents/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     updateCollectionById(
         id: number,
         body: Partial<CreateCollectionDtoResponse>
     ): Observable<CreateCollectionDtoResponse> {
-        return this.http.patch<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`, body);
+        return this.http.patch<CreateCollectionDtoResponse>(`${this.apiUrl}${id}/`, body, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     deleteCollectionById(id: number): Observable<DeleteCollectionResponse> {
-        return this.http.delete<DeleteCollectionResponse>(`${this.apiUrl}${id}/`);
+        return this.http.delete<DeleteCollectionResponse>(`${this.apiUrl}${id}/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 }

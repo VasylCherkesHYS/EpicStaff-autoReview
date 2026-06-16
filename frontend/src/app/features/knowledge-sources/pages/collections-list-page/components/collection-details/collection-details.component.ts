@@ -168,25 +168,27 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
 
     onCollectionDelete(): void {
         const collection = this.fullCollection();
-        if (collection) {
-            this.confirmationDialogService
-                .confirmDelete(collection.collection_name)
-                .pipe(takeUntilDestroyed(this.destroyRef))
-                .subscribe((result) => {
-                    if (result === true) {
-                        this.collectionsStorageService
-                            .deleteCollectionById(collection.collection_id)
-                            .pipe(takeUntilDestroyed(this.destroyRef))
-                            .subscribe({
-                                next: () => {
-                                    this.selectedCollectionId.set(null);
-                                    this.fullCollection.set(null);
-                                },
-                                error: () => this.toastService.error('Collection Delete failed'),
-                            });
+        if (!collection) return;
+
+        const deletedId = collection.collection_id;
+
+        this.confirmationDialogService
+            .confirmDelete(collection.collection_name)
+            .pipe(
+                filter((result) => result === true),
+                switchMap(() => this.collectionsStorageService.deleteCollectionById(deletedId)),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe({
+                next: () => {
+                    this.toastService.error('Collection deleted successfully');
+                    if (this.selectedCollectionId() === deletedId) {
+                        this.selectedCollectionId.set(null);
+                        this.fullCollection.set(null);
                     }
-                });
-        }
+                },
+                error: () => this.toastService.error('Collection delete failed'),
+            });
     }
 
     onFilesDropped(files: FileList) {

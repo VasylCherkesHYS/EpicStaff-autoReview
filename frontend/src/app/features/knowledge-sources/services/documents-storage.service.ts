@@ -7,7 +7,6 @@ import { ToastService } from '../../../services/notifications/toast.service';
 import {
     CollectionDocument,
     CopyDocumentsResponse,
-    DeleteDocumentResponse,
     DisplayedListDocument,
     UploadDocumentResponse,
 } from '../models/document.model';
@@ -22,6 +21,7 @@ export class DocumentsStorageService implements StorageService {
     private documentsSignal = signal<CollectionDocument[]>([]);
     private documentsLoaded = signal<boolean>(false);
     private uploadingDocumentsSignal = signal<DisplayedListDocument[]>([]);
+    private deletingDocumentIdsSignal = signal(new Set<number>());
     public readonly documents = this.documentsSignal.asReadonly();
     public readonly isDocumentsLoaded = this.documentsLoaded.asReadonly();
     public readonly uploadingDocuments = this.uploadingDocumentsSignal.asReadonly();
@@ -96,15 +96,29 @@ export class DocumentsStorageService implements StorageService {
         );
     }
 
-    deleteDocumentById(id: number): Observable<DeleteDocumentResponse | undefined> {
-        return this.documentsApiService.deleteDocumentById(id).pipe(
+    isDeleting(documentId: number | undefined): boolean {
+        return !!documentId && this.deletingDocumentIdsSignal().has(documentId);
+    }
+
+    deleteDocument(documentId: number): Observable<boolean> {
+        this.deletingDocumentIdsSignal.update((ids) => new Set(ids).add(documentId));
+
+        return this.documentsApiService.deleteDocumentById(documentId).pipe(
             tap(() => {
                 this.toastService.success('Document deleted');
-                this.deleteDocumentFromCache(id);
+                this.deleteDocumentFromCache(documentId);
             }),
+            map(() => true),
             catchError(() => {
                 this.toastService.error('Failed to delete document');
-                return of();
+                return of(false);
+            }),
+            finalize(() => {
+                this.deletingDocumentIdsSignal.update((ids) => {
+                    const next = new Set(ids);
+                    next.delete(documentId);
+                    return next;
+                });
             })
         );
     }

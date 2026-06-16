@@ -1,7 +1,8 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { SKIP_NOT_FOUND_REDIRECT } from '../../../core/interceptors/not-found.interceptor';
 import { ConfigService } from '../../../services/config/config.service';
 import {
     CopyDocumentsRequest,
@@ -34,24 +35,36 @@ export class DocumentsApiService {
 
         return this.http.post<UploadDocumentResponse>(
             `${this.apiUrl}/source-collection/${collectionId}/upload/`,
-            formData
+            formData,
+            { context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true) }
         );
     }
 
     downloadDocuments(ids: number[]): Observable<Blob> {
         const params = new HttpParams().set('document_ids', ids.join(','));
-        return this.http.get(`${this.apiUrl}/download/`, { responseType: 'blob', params });
+        return this.http.get(`${this.apiUrl}/download/`, {
+            responseType: 'blob',
+            params,
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     previewDocumentBlob(id: number): Observable<Blob> {
-        return this.http.get(`${this.apiUrl}/${id}/preview/`, { responseType: 'blob' });
+        return this.http.get(`${this.apiUrl}/${id}/preview/`, {
+            responseType: 'blob',
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     copyDocuments(dto: CopyDocumentsRequest): Observable<CopyDocumentsResponse> {
-        return this.http.post<CopyDocumentsResponse>(`${this.apiUrl}/copy/`, dto);
+        return this.http.post<CopyDocumentsResponse>(`${this.apiUrl}/copy/`, dto, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 
     deleteDocumentById(id: number): Observable<DeleteDocumentResponse> {
-        return this.http.delete<DeleteDocumentResponse>(`${this.apiUrl}/${id}/`);
+        return this.http.delete<DeleteDocumentResponse>(`${this.apiUrl}/${id}/`, {
+            context: new HttpContext().set(SKIP_NOT_FOUND_REDIRECT, true),
+        });
     }
 }
