@@ -14,6 +14,7 @@ import { DecisionTableNodeModel } from '../../../core/models/node.model';
 import { BaseSidePanel } from '../../../core/models/node-panel.abstract';
 import { FlowService } from '../../../services/flow.service';
 import { SidePanelService } from '../../../services/side-panel.service';
+import { UndoRedoService } from '../../../services/undo-redo.service';
 import { DecisionTableGridComponent } from './decision-table-grid/decision-table-grid.component';
 
 @Component({
@@ -38,6 +39,7 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
     private flowService = inject(FlowService);
     private sidePanelService = inject(SidePanelService);
     private confirmationDialogService = inject(ConfirmationDialogService);
+    private undoRedoService = inject(UndoRedoService);
     private cdr = inject(ChangeDetectorRef);
 
     public conditionGroups = signal<ConditionGroup[]>([]);
@@ -184,6 +186,12 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
                 this.flowService.replaceNodePreservingEdges(dtNode.id, cdtNode, {
                     portIdMap,
                 });
+
+                // The conversion is irreversible (see confirm dialog: "This action cannot be undone").
+                // Reset undo/redo history so Undo/CTRL+Z can't revert to the pre-conversion DT node,
+                // whose stale backendId would otherwise be sent in the save payload and rejected by the
+                // backend .
+                this.undoRedoService.clear();
 
                 this.sidePanelService.setSelectedNodeId(cdtNode.id);
                 this.sidePanelService.requestFullSave();
