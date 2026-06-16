@@ -34,6 +34,7 @@ async def test_lock_winner_relay_reaches_peer(test_graph, test_user, second_user
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -45,6 +46,7 @@ async def test_lock_winner_relay_reaches_peer(test_graph, test_user, second_user
     msg = await comm_b.receive_json_from()
     assert msg["type"] == "node_locked"
     assert msg["node_id"] == "node-1"
+    assert msg["field"] == "label"
     assert msg["editor"]["user_id"] == test_user.pk
     assert "sender_channel" not in msg
 
@@ -76,6 +78,7 @@ async def test_lock_loser_receives_corrective_signal_naming_winner(
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -94,6 +97,7 @@ async def test_lock_loser_receives_corrective_signal_naming_winner(
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": second_user.pk,
                 "display_name": "y",
@@ -105,6 +109,7 @@ async def test_lock_loser_receives_corrective_signal_naming_winner(
     corrective = await comm_b.receive_json_from()
     assert corrective["type"] == "node_locked"
     assert corrective["node_id"] == "node-1"
+    assert corrective["field"] == "label"
     # The corrective signal must name the WINNER (test_user), not the loser.
     assert corrective["editor"]["user_id"] == test_user.pk
 
@@ -135,6 +140,7 @@ async def test_lock_winner_identity_is_server_overridden(
         {
             "type": "node_locked",
             "node_id": "node-spoof",
+            "field": "label",
             "editor": spoofed_editor,
         }
     )
@@ -168,6 +174,7 @@ async def test_explicit_release_broadcasts_to_peers(test_graph, test_user, secon
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -182,6 +189,7 @@ async def test_explicit_release_broadcasts_to_peers(test_graph, test_user, secon
         {
             "type": "node_unlocked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -193,6 +201,7 @@ async def test_explicit_release_broadcasts_to_peers(test_graph, test_user, secon
     msg = await comm_b.receive_json_from()
     assert msg["type"] == "node_unlocked"
     assert msg["node_id"] == "node-1"
+    assert msg["field"] == "label"
     assert "sender_channel" not in msg
 
     # Sender must not echo.
@@ -222,6 +231,7 @@ async def test_spurious_release_by_non_owner_is_silent(
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -236,6 +246,7 @@ async def test_spurious_release_by_non_owner_is_silent(
         {
             "type": "node_unlocked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": second_user.pk,
                 "display_name": "y",
@@ -278,6 +289,7 @@ async def test_disconnect_releases_locks_and_broadcasts_node_unlocked(
             {
                 "type": "node_locked",
                 "node_id": node_id,
+                "field": "label",
                 "editor": {
                     "user_id": test_user.pk,
                     "display_name": "x",
@@ -301,6 +313,8 @@ async def test_disconnect_releases_locks_and_broadcasts_node_unlocked(
     assert len(unlock_msgs) == 2
     unlocked_node_ids = {m["node_id"] for m in unlock_msgs}
     assert unlocked_node_ids == {"node-1", "node-2"}
+    for m in unlock_msgs:
+        assert m["field"] == "label"
 
     assert len(user_left_msgs) == 1
     assert user_left_msgs[0]["user_id"] == test_user.pk
@@ -320,6 +334,7 @@ async def test_disconnect_lock_registry_is_empty_after(test_graph, test_user):
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -332,7 +347,7 @@ async def test_disconnect_lock_registry_is_empty_after(test_graph, test_user):
     await comm.disconnect()
     await comm.receive_nothing(timeout=0.05)  # Allow disconnect to propagate.
 
-    assert _ls_module.lock_service.get_holder(test_graph.pk, "node-1") is None
+    assert _ls_module.lock_service.get_holder(test_graph.pk, "node-1", "label") is None
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +373,7 @@ async def test_backstop_timeout_fires_node_unlocked(test_graph, test_user, secon
         {
             "type": "node_locked",
             "node_id": "node-timeout",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -374,9 +390,13 @@ async def test_backstop_timeout_fires_node_unlocked(test_graph, test_user, secon
     msg = await comm_b.receive_json_from()
     assert msg["type"] == "node_unlocked"
     assert msg["node_id"] == "node-timeout"
+    assert msg["field"] == "label"
 
     # Lock must be cleared from the registry.
-    assert _ls_module.lock_service.get_holder(test_graph.pk, "node-timeout") is None
+    assert (
+        _ls_module.lock_service.get_holder(test_graph.pk, "node-timeout", "label")
+        is None
+    )
 
     await comm_a.disconnect()
     await comm_b.disconnect()
@@ -459,6 +479,7 @@ async def test_late_joiner_receives_lock_state_with_active_locks(
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -475,7 +496,8 @@ async def test_late_joiner_receives_lock_state_with_active_locks(
 
     assert lock_state_msg["type"] == "lock_state"
     assert "node-1" in lock_state_msg["locks"]
-    assert lock_state_msg["locks"]["node-1"]["user_id"] == test_user.pk
+    assert "label" in lock_state_msg["locks"]["node-1"]
+    assert lock_state_msg["locks"]["node-1"]["label"]["user_id"] == test_user.pk
 
     await comm_a.disconnect()
     await comm_b.disconnect()
@@ -497,6 +519,7 @@ async def test_late_joiner_receives_all_active_locks(
             {
                 "type": "node_locked",
                 "node_id": node_id,
+                "field": "label",
                 "editor": {
                     "user_id": test_user.pk,
                     "display_name": "x",
@@ -541,6 +564,7 @@ async def test_late_joiner_no_lock_state_after_all_locks_released(
         {
             "type": "node_locked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",
@@ -554,6 +578,7 @@ async def test_late_joiner_no_lock_state_after_all_locks_released(
         {
             "type": "node_unlocked",
             "node_id": "node-1",
+            "field": "label",
             "editor": {
                 "user_id": test_user.pk,
                 "display_name": "x",

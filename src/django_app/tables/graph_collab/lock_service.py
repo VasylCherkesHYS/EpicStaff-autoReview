@@ -1,11 +1,11 @@
 """
-Per-graph authoritative node lock registry.
+Per-graph authoritative node-field lock registry.
 
-Keeps all active node locks in memory.  This is intentionally single-worker
+Keeps all active field locks in memory.  This is intentionally single-worker
 only — no cross-process synchronisation — matching the same assumption used
 by GraphPresenceService and GraphLiveStateService.
 
-Structure: {graph_id: {node_id: LockEntry}}
+Structure: {graph_id: {node_id: {field: LockEntry}}}
 """
 
 from dataclasses import dataclass
@@ -20,73 +20,88 @@ class LockEntry:
 
 
 class NodeLockService:
-    """In-memory authoritative registry of per-node edit locks."""
+    """In-memory authoritative registry of per-node-field edit locks."""
 
     def __init__(self) -> None:
-        # graph_id -> {node_id -> LockEntry}
-        self._store: dict[int, dict[str, LockEntry]] = {}
+        # graph_id -> {node_id -> {field -> LockEntry}}
+        self._store: dict[int, dict[str, dict[str, LockEntry]]] = {}
 
     def try_lock(
         self,
         graph_id: int,
         node_id: str,
+        field: str,
         editor: EditorInfo,
         channel: str,
     ) -> bool:
-        """Attempt to acquire (or refresh) a lock on *node_id* for *channel*.
+        """Attempt to acquire (or refresh) a lock on *(node_id, field)* for *channel*.
 
         Returns True when the lock is granted or already held by the same
-        channel (re-lock / field change by the same owner is allowed and
-        updates the stored field).  Returns False when a different channel
-        already holds the lock.
+        channel (re-lock by the same owner is allowed and updates the stored
+        editor).  Returns False when a different channel already holds the
+        *(node_id, field)* pair.
         """
         graph_locks = self._store.setdefault(graph_id, {})
-        existing = graph_locks.get(node_id)
+        field_locks = graph_locks.setdefault(node_id, {})
+        existing = field_locks.get(field)
         if existing is not None and existing.channel != channel:
             return False
-        graph_locks[node_id] = LockEntry(editor=editor, channel=channel)
+        field_locks[field] = LockEntry(editor=editor, channel=channel)
         return True
 
-    def get_holder(self, graph_id: int, node_id: str) -> LockEntry | None:
-        """Return the current lock holder for *node_id*, or None if unheld."""
-        return self._store.get(graph_id, {}).get(node_id)
+    def get_holder(self, graph_id: int, node_id: str, field: str) -> LockEntry | None:
+        """Return the current lock holder for *(node_id, field)*, or None if unheld."""
+        return self._store.get(graph_id, {}).get(node_id, {}).get(field)
 
-    def get_all_locks(self, graph_id: int) -> dict[str, LockEntry]:
-        return dict(self._store.get(graph_id, {}))
+    def get_all_locks(self, graph_id: int) -> dict[str, dict[str, LockEntry]]:
+        """Return a shallow copy of all locks for *graph_id* as {node_id: {field: LockEntry}}."""
+        return {
+            node_id: dict(fields)
+            for node_id, fields in self._store.get(graph_id, {}).items()
+        }
 
-    def release(self, graph_id: int, node_id: str, channel: str) -> bool:
-        """Release the lock on *node_id* if *channel* is the current holder.
+    def release(self, graph_id: int, node_id: str, field: str, channel: str) -> bool:
+        """Release the lock on *(node_id, field)* if *channel* is the current holder.
 
         Returns True if a lock was released, False otherwise (not held or
-        held by a different channel).
+        held by a different channel).  Cleans up empty dicts.
         """
         graph_locks = self._store.get(graph_id)
         if not graph_locks:
             return False
-        existing = graph_locks.get(node_id)
+        field_locks = graph_locks.get(node_id)
+        if not field_locks:
+            return False
+        existing = field_locks.get(field)
         if existing is None or existing.channel != channel:
             return False
-        del graph_locks[node_id]
+        del field_locks[field]
+        if not field_locks:
+            del graph_locks[node_id]
         if not graph_locks:
             del self._store[graph_id]
         return True
 
-    def release_all_for_channel(self, graph_id: int, channel: str) -> list[str]:
-        """Release every lock held by *channel* for *graph_id*.
+    def release_all_for_channel(
+        self, graph_id: int, channel: str
+    ) -> list[tuple[str, str]]:
+        """Release every *(node_id, field)* lock held by *channel* for *graph_id*.
 
-        Returns the list of node_ids whose locks were released so the caller
-        can broadcast NodeUnlockedMessage for each.
+        Returns the list of *(node_id, field)* tuples that were released so the
+        caller can broadcast NodeUnlockedMessage for each.  Cleans up empty dicts
+        at both field and node_id levels.
         """
         graph_locks = self._store.get(graph_id)
         if not graph_locks:
             return []
-        released = [
-            node_id
-            for node_id, entry in list(graph_locks.items())
-            if entry.channel == channel
-        ]
-        for node_id in released:
-            del graph_locks[node_id]
+        released: list[tuple[str, str]] = []
+        for node_id, field_locks in list(graph_locks.items()):
+            for field, entry in list(field_locks.items()):
+                if entry.channel == channel:
+                    released.append((node_id, field))
+                    del field_locks[field]
+            if not field_locks:
+                del graph_locks[node_id]
         if not graph_locks:
             del self._store[graph_id]
         return released

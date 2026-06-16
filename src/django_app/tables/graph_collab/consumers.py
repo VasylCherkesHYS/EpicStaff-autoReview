@@ -64,7 +64,7 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.group = _group_name(self.graph_id)
-        # Per-node asyncio timer handles; keyed by node_id.
+        # Per-field asyncio timer handles; keyed by "{node_id}:{field}".
         self._lock_timers: dict[str, asyncio.Task] = {}
 
         await self.channel_layer.group_add(self.group, self.channel_name)
@@ -99,7 +99,10 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json(
                 LockStateMessage(
                     locks={
-                        node_id: entry.editor for node_id, entry in active_locks.items()
+                        node_id: {
+                            field: entry.editor for field, entry in fields.items()
+                        }
+                        for node_id, fields in active_locks.items()
                     }
                 ).model_dump()
             )
@@ -115,14 +118,14 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
                     timer.cancel()
 
                 # Release all locks held by this channel and broadcast unlocks.
-                released_node_ids = lock_service.release_all_for_channel(
+                released_pairs = lock_service.release_all_for_channel(
                     graph_id, self.channel_name
                 )
-                if released_node_ids and user and not isinstance(user, AnonymousUser):
+                if released_pairs and user and not isinstance(user, AnonymousUser):
                     editor = self._build_editor_info(user)
-                    for node_id in released_node_ids:
+                    for node_id, field in released_pairs:
                         event = NodeUnlockedMessage(
-                            node_id=node_id, editor=editor
+                            node_id=node_id, field=field, editor=editor
                         ).model_dump()
                         event["sender_channel"] = self.channel_name
                         await self.channel_layer.group_send(self.group, event)
@@ -195,24 +198,28 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
         granted = lock_service.try_lock(
             self.graph_id,
             message.node_id,
+            message.field,
             editor,
             self.channel_name,
         )
 
         if granted:
-            self._schedule_lock_timer(message.node_id, editor)
+            self._schedule_lock_timer(message.node_id, message.field, editor)
             event = message.model_dump()
             event["sender_channel"] = self.channel_name
             await self.channel_layer.group_send(self.group, event)
         else:
             # Send corrective signal to the loser — describes the current holder.
-            holder = lock_service.get_holder(self.graph_id, message.node_id)
+            holder = lock_service.get_holder(
+                self.graph_id, message.node_id, message.field
+            )
             if holder is None:
                 # Holder vanished between try_lock and get_holder — harmless, skip.
                 return
             await self.send_json(
                 NodeLockedMessage(
                     node_id=message.node_id,
+                    field=message.field,
                     editor=holder.editor,
                 ).model_dump()
             )
@@ -227,13 +234,13 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
             return
 
         released = lock_service.release(
-            self.graph_id, message.node_id, self.channel_name
+            self.graph_id, message.node_id, message.field, self.channel_name
         )
         if not released:
             # Non-owner or already released — silently discard; no broadcast.
             return
 
-        self._cancel_lock_timer(message.node_id)
+        self._cancel_lock_timer(message.node_id, message.field)
 
         # Override editor server-side before relaying.
         message.editor = self._build_editor_info(self.scope["user"])
@@ -243,37 +250,46 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
 
     # --- Backstop inactivity timer ---
 
-    def _schedule_lock_timer(self, node_id: str, editor: EditorInfo) -> None:
-        """Schedule (or reset) a backstop timer that auto-releases *node_id* after
+    def _schedule_lock_timer(
+        self, node_id: str, field: str, editor: EditorInfo
+    ) -> None:
+        """Schedule (or reset) a backstop timer that auto-releases *node_id*/*field* after
         GRAPH_LOCK_TIMEOUT_SECONDS.  The timer lives on the consumer instance so
         that asyncio event-loop concerns stay out of the pure-registry lock_service.
         """
-        self._cancel_lock_timer(node_id)
+        self._cancel_lock_timer(node_id, field)
         timeout = _lock_timeout()
-        self._lock_timers[node_id] = asyncio.ensure_future(
-            self._backstop_release(node_id, editor, timeout)
+        timer_key = f"{node_id}:{field}"
+        self._lock_timers[timer_key] = asyncio.ensure_future(
+            self._backstop_release(node_id, field, editor, timeout)
         )
 
-    def _cancel_lock_timer(self, node_id: str) -> None:
-        timer = self._lock_timers.pop(node_id, None)
+    def _cancel_lock_timer(self, node_id: str, field: str) -> None:
+        timer_key = f"{node_id}:{field}"
+        timer = self._lock_timers.pop(timer_key, None)
         if timer is not None:
             timer.cancel()
 
     async def _backstop_release(
-        self, node_id: str, editor: EditorInfo, timeout: int
+        self, node_id: str, field: str, editor: EditorInfo, timeout: int
     ) -> None:
         await asyncio.sleep(timeout)
-        released = lock_service.release(self.graph_id, node_id, self.channel_name)
+        released = lock_service.release(
+            self.graph_id, node_id, field, self.channel_name
+        )
         if not released:
             return
         # TODO(EST-3020 Block 4): flush_to_db on backstop release
         logger.info(
-            "Lock backstop: auto-released node {} on graph {} for channel {}",
+            "Lock backstop: auto-released node {} field {} on graph {} for channel {}",
             node_id,
+            field,
             self.graph_id,
             self.channel_name,
         )
-        event = NodeUnlockedMessage(node_id=node_id, editor=editor).model_dump()
+        event = NodeUnlockedMessage(
+            node_id=node_id, field=field, editor=editor
+        ).model_dump()
         event["sender_channel"] = self.channel_name
         await self.channel_layer.group_send(self.group, event)
 

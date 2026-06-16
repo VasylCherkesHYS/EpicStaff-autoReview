@@ -100,18 +100,20 @@ class SelectionChangedMessage(BaseModel):
 class NodeLockedMessage(BaseModel):
     type: str = "node_locked"
     node_id: str
+    field: str
     editor: EditorInfo
 
 
 class NodeUnlockedMessage(BaseModel):
     type: str = "node_unlocked"
     node_id: str
+    field: str
     editor: EditorInfo
 
 
 class LockStateMessage(BaseModel):
     type: str = "lock_state"
-    locks: dict[str, EditorInfo]
+    locks: dict[str, dict[str, EditorInfo]]
 
 
 # --- Live graph state messages ---
