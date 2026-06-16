@@ -34,8 +34,19 @@ export function convertDecisionTableToCdt(dtNode: DecisionTableNodeModel): {
     const slug = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, '-');
 
     const usedRouteCodes = new Set<string>();
+    const usedGroupNames = new Set<string>();
 
     const conditionGroups: ConditionGroup[] = (dtTable.condition_groups ?? []).map((g, i) => {
+        // group_name is NOT NULL on the CDT backend table; an empty/missing DT condition name
+        // would violate the constraint (BE 500). Default it to a unique "Condition N",
+        // deduped the same way route_code is below.
+        const nameBase = g.group_name?.trim() ? g.group_name.trim() : `Condition ${i + 1}`;
+        let groupName = nameBase;
+        if (usedGroupNames.has(groupName)) {
+            groupName = `${nameBase} ${i + 1}`;
+        }
+        usedGroupNames.add(groupName);
+
         const base = g.route_code?.trim()
             ? g.route_code.trim()
             : `Route code for ${g.group_name?.trim() || `condition ${i + 1}`}`;
@@ -48,6 +59,7 @@ export function convertDecisionTableToCdt(dtNode: DecisionTableNodeModel): {
 
         return {
             ...g,
+            group_name: groupName,
             route_code: routeCode,
             conditions: (g.conditions ?? []).map((c) => ({ ...c })),
             dock_visible: g.dock_visible ?? true,
