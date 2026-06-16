@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
+import { NODE_COLORS, NODE_ICONS } from '../enums/node-config';
 import { NodeType } from '../enums/node-type';
 import { ClassificationDecisionTableData } from '../models/classification-decision-table.model';
 import { ConditionGroup } from '../models/decision-table.model';
@@ -16,6 +17,7 @@ import { generatePortsForClassificationDecisionTableNode } from './helpers';
  * - condition_groups, default_next_node, next_error_node are carried verbatim.
  * - CDT-only fields (prompts, pre/post_computation, default_llm_config,
  *   route_variable_name) are initialised to safe empty defaults.
+ * - icon/color are set to the canonical CDT appearance (NODE_ICONS/NODE_COLORS), not carried over from the DT.
  * - Ports are regenerated for the new node id.
  * - Each condition group is auto-assigned a unique route_code (preserved if
  *   already set) so per-row CDT route ports are created correctly.
@@ -95,8 +97,8 @@ export function convertDecisionTableToCdt(dtNode: DecisionTableNodeModel): {
         node_name: dtNode.node_name,
         position: { ...dtNode.position },
         size: { ...dtNode.size },
-        color: dtNode.color,
-        icon: dtNode.icon,
+        color: NODE_COLORS[NodeType.CLASSIFICATION_TABLE],
+        icon: NODE_ICONS[NodeType.CLASSIFICATION_TABLE],
         input_map: { ...dtNode.input_map },
         output_variable_path: dtNode.output_variable_path,
         nodeNumber: dtNode.nodeNumber,
