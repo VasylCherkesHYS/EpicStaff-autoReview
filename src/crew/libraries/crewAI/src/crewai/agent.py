@@ -254,8 +254,6 @@ class Agent(BaseAgent):
                 task=task_prompt, context=context
             )
 
-        agent_knowledge_snippet = ""
-
         if self.rag_type_id:
             source = f"Agent {self.role}'s"
             knowledge_query = self._get_knowledge_query(task, context, source=source)
@@ -267,17 +265,13 @@ class Agent(BaseAgent):
                 query=knowledge_query,
             )
             agent_knowledge_snippet = self._extract_knowledges(agent_knowledges)
-            task_prompt += (
-                f"{KNOWLEDGE_KEYWORD} \n\n{agent_knowledge_snippet}"
-                if agent_knowledge_snippet
-                else ""
-            )
-
-        if agent_knowledge_snippet:
-            task_prompt += f"\n{END_OF_KNOWLEDGE_KEYWORD}"
-
-        if not agent_knowledge_snippet:
-            task_prompt += f"\n{EMPTY_KNOWLEDGE_KEYWORD}\n"
+            if agent_knowledge_snippet:
+                task_prompt += (
+                    f"{KNOWLEDGE_KEYWORD} \n\n{agent_knowledge_snippet}"
+                    f"\n{END_OF_KNOWLEDGE_KEYWORD}"
+                )
+            else:
+                task_prompt += f"\n{EMPTY_KNOWLEDGE_KEYWORD}\n"
 
         tools = tools or self.tools or []
         self.create_agent_executor(tools=tools, task=task)

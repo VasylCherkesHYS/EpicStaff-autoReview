@@ -33,8 +33,22 @@ class ToolResult:
 
 
 KNOWLEDGE_KEYWORD = "\n\nRELEVANT KNOWLEDGES:\n"
-END_OF_KNOWLEDGE_KEYWORD = "\n\nEND OF RELEVANT KNOWLEDGES.\n"
-EMPTY_KNOWLEDGE_KEYWORD = "\n\nNO EXTRACTED KNOWLEDGES!\n"
+END_OF_KNOWLEDGE_KEYWORD = (
+    "\n\nEND OF RELEVANT KNOWLEDGES.\n"
+    "\nGrounding rule: base any factual claim that falls within the subject matter "
+    "of the knowledge base ONLY on the information between RELEVANT KNOWLEDGES and "
+    "END OF RELEVANT KNOWLEDGES above. Do not add facts, names, definitions, "
+    "specifications, or explanations from your own general or training knowledge. "
+    "If that information says the documents do not cover the question, or does not "
+    "contain what was asked, say so plainly — do not invent or guess an answer.\n"
+)
+EMPTY_KNOWLEDGE_KEYWORD = (
+    "\n\nNO EXTRACTED KNOWLEDGES!\n"
+    "\nGrounding rule: no relevant information was found in the knowledge base for "
+    "this question. If it asks for factual information that would be expected to "
+    "come from the knowledge base, state that the available documents do not cover "
+    "it — do not answer it from your own general or training knowledge.\n"
+)
 
 
 class CrewAgentExecutor(CrewAgentExecutorMixin):

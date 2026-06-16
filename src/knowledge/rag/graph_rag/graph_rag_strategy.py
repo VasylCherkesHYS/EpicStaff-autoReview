@@ -6,7 +6,10 @@ import pandas as pd
 from graphrag.api.index import build_index
 from graphrag.api.query import basic_search, drift_search, global_search, local_search
 from graphrag.config.models.graph_rag_config import GraphRagConfig
+from graphrag.prompts.query.global_search_reduce_system_prompt import NO_DATA_ANSWER
 from loguru import logger
+
+from rag.graph_rag.groundedness_verifier import verify_grounded
 from src.shared.models import (
     BaseKnowledgeSearchMessageResponse,
     GraphRagDriftSearchParams,
@@ -23,6 +26,8 @@ from settings import UnitOfWork
 
 
 DEFAULT_RESPONSE_TYPE = "Multiple Paragraphs"
+
+ENFORCE_GROUNDING = True
 
 
 class GraphRAGStrategy(BaseRAGStrategy):
@@ -289,6 +294,15 @@ class GraphRAGStrategy(BaseRAGStrategy):
                     query=query,
                 )
 
+            # Step 4.5: Grounding guard — drop answers not backed by retrieved context
+            response = self._apply_grounding_guard(
+                query=query,
+                response=response,
+                context=context,
+                graphrag_config=graphrag_config,
+                search_method=search_method,
+            )
+
             # Step 5: Build response with single-chunk extraction
             knowledge_chunks = self._extract_chunks_from_context(
                 response, search_method
@@ -452,6 +466,64 @@ class GraphRAGStrategy(BaseRAGStrategy):
         if not file_path.exists():
             raise FileNotFoundError(f"{filename} not found at {file_path}")
         return pd.read_parquet(file_path)
+
+    @staticmethod
+    def _is_no_data(response) -> bool:
+        """True if the library returned its canned 'no relevant data' answer.
+
+        Global search emits NO_DATA_ANSWER when every map score is 0. Left as-is it
+        reaches the agent as a knowledge chunk (with similarity 1.0), which the agent
+        treats as low-quality context and then 'helps' by inventing from training
+        data. Normalizing it to an empty result routes the agent to its explicit
+        'no knowledge found' branch instead.
+        """
+        return bool(response) and str(response).strip() == NO_DATA_ANSWER.strip()
+
+    _GROUNDING_BUDGET_FIELDS = {
+        "drift_search": ("drift_search", "data_max_tokens"),
+        "global_search": ("global_search", "data_max_tokens"),
+        "local": ("local_search", "max_context_tokens"),
+        "basic": ("basic_search", "max_context_tokens"),
+    }
+
+    def _context_token_budget(
+        self, graphrag_config: GraphRagConfig, search_method: str
+    ) -> int:
+        section, field = self._GROUNDING_BUDGET_FIELDS.get(
+            search_method, ("basic_search", "max_context_tokens")
+        )
+        return getattr(getattr(graphrag_config, section), field, 0) or 0
+
+    def _apply_grounding_guard(
+        self,
+        query: str,
+        response,
+        context,
+        graphrag_config: GraphRagConfig,
+        search_method: str,
+    ):
+        """Return the response only if it is backed by the retrieved context.
+
+        Empty answers, the library's canned no-data answer, and answers the
+        groundedness verifier rejects are all collapsed to an empty string, so
+        `_extract_chunks_from_context` yields no chunks and the consumer treats the
+        query as uncovered by the knowledge base.
+        """
+        if not response or self._is_no_data(response):
+            return ""
+
+        if not ENFORCE_GROUNDING:
+            return response
+
+        budget = self._context_token_budget(graphrag_config, search_method)
+        if not verify_grounded(query, str(response), context, graphrag_config, budget):
+            logger.warning(
+                f"Grounding guard rejected {search_method} answer as unsupported "
+                f"by retrieved context for query: [{query}]"
+            )
+            return ""
+
+        return response
 
     def _extract_chunks_from_context(
         self,
