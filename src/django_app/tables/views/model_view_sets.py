@@ -66,9 +66,6 @@ from tables.graph_versioning.serializers import (
 )
 
 from tables.import_export.enums import EntityType
-from tables.import_export.tabular.classification_decision_table import (
-    export_condition_groups_csv,
-)
 
 from tables.models import (
     Agent,
@@ -144,9 +141,7 @@ from rest_framework.decorators import action
 from django.db import transaction
 from django.db.models import Prefetch
 from tables.models.graph_models import (
-    ClassificationConditionGroup,
     ClassificationDecisionTableNode,
-    ClassificationDecisionTablePrompt,
     Condition,
     ConditionGroup,
     DecisionTableNode,
@@ -262,6 +257,9 @@ from tables.import_export.services.partial_import_service import PartialImportSe
 from tables.utils.helpers import generate_file_name
 from tables.services.webhook_trigger_service import WebhookTriggerService
 from tables.services.import_export_service import ViewSetImportExportService
+from tables.services.classification_decision_table_node_service import (
+    ClassificationDecisionTableNodeService,
+)
 from tables.import_export.services.import_service import ImportSettings
 from tables.services.redis_service import RedisService
 from tables.swagger_schemas.twilio_schemas import (
@@ -1433,132 +1431,21 @@ class ClassificationDecisionTableNodeModelViewSet(viewsets.ModelViewSet):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._partial_export_service = GraphPartialExportService(entity_registry)
+        self._node_service = ClassificationDecisionTableNodeService()
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        node, _ = self._create_or_update_node(data=request.data)
+        node, _ = self._node_service.create_or_update(data=request.data)
         return Response(self.get_serializer(node).data, status=status.HTTP_201_CREATED)
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        node, _ = self._create_or_update_node(
+        node, _ = self._node_service.create_or_update(
             data=request.data, instance=instance, partial=partial
         )
         return Response(self.get_serializer(node).data, status=status.HTTP_200_OK)
-
-    def _create_or_update_node(self, data, instance=None, partial=False):
-        data = data.copy()
-        condition_groups_data = data.pop("condition_groups", None)
-        prompt_configs_data = data.pop("prompt_configs", None)
-
-        node_serializer = self.get_serializer(instance, data=data, partial=partial)
-        node_serializer.is_valid(raise_exception=True)
-        node = node_serializer.save()
-
-        if partial and condition_groups_data is None and prompt_configs_data is None:
-            return node, None
-
-        # Upsert prompt_configs by prompt_key (stable identifier).
-        if prompt_configs_data is not None:
-            incoming_keys = {pd["prompt_key"] for pd in prompt_configs_data}
-            ClassificationDecisionTablePrompt.objects.filter(cdt_node=node).exclude(
-                prompt_key__in=incoming_keys
-            ).delete()
-            for prompt_data in prompt_configs_data:
-                defaults = {
-                    k: v
-                    for k, v in prompt_data.items()
-                    if k not in ("prompt_key", "id", "cdt_node")
-                }
-                ClassificationDecisionTablePrompt.objects.update_or_create(
-                    cdt_node=node,
-                    prompt_key=prompt_data["prompt_key"],
-                    defaults=defaults,
-                )
-
-        if condition_groups_data is not None:
-            prompt_by_id = {
-                p.id: p
-                for p in ClassificationDecisionTablePrompt.objects.filter(cdt_node=node)
-            }
-            incoming_route_codes = {
-                gd["route_code"] for gd in condition_groups_data if gd.get("route_code")
-            }
-            incoming_names = {
-                gd["group_name"]
-                for gd in condition_groups_data
-                if not gd.get("route_code") and gd.get("group_name")
-            }
-            if instance:
-                node.condition_groups.exclude(route_code__isnull=True).exclude(
-                    route_code__in=incoming_route_codes
-                ).delete()
-                node.condition_groups.filter(route_code__isnull=True).exclude(
-                    group_name__in=incoming_names
-                ).delete()
-
-            existing_by_rc = {}
-            existing_by_name = {}
-            if instance:
-                for g in node.condition_groups.all():
-                    if g.route_code:
-                        existing_by_rc[g.route_code] = g
-                    else:
-                        existing_by_name[g.group_name] = g
-
-            excluded = {"id", "classification_decision_table_node"}
-            to_bulk_update = []
-            to_bulk_create = []
-
-            for group_data in condition_groups_data:
-                gd = {k: v for k, v in group_data.items() if k not in excluded}
-
-                # Resolve prompt FK: frontend sends integer PK.
-                old_prompt_id = gd.pop("prompt", None)
-                if old_prompt_id is not None:
-                    gd["prompt"] = prompt_by_id.get(old_prompt_id)
-
-                rc = gd.get("route_code")
-                existing = (
-                    existing_by_rc.get(rc)
-                    if rc
-                    else existing_by_name.get(gd.get("group_name"))
-                )
-                if existing is not None:
-                    for attr, val in gd.items():
-                        setattr(existing, attr, val)
-                    to_bulk_update.append(existing)
-                else:
-                    to_bulk_create.append(
-                        ClassificationConditionGroup(
-                            classification_decision_table_node=node, **gd
-                        )
-                    )
-
-            if to_bulk_update:
-                ClassificationConditionGroup.objects.bulk_update(
-                    to_bulk_update,
-                    [
-                        "group_name",
-                        "order",
-                        "expression",
-                        "prompt",
-                        "manipulation",
-                        "continue_flag",
-                        "next_node_id",
-                        "dock_visible",
-                        "field_expressions",
-                        "field_manipulations",
-                        "section",
-                    ],
-                )
-            if to_bulk_create:
-                ClassificationConditionGroup.objects.bulk_create(to_bulk_create)
-
-        return node, condition_groups_data
 
     @extend_schema(
         parameters=[
@@ -1575,43 +1462,15 @@ class ClassificationDecisionTableNodeModelViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["get"], url_path="export")
     def export(self, request, pk=None):
-        export_format = request.query_params.get("export_format", "json").lower()
-        if export_format not in ("json", "csv"):
-            raise DRFValidationError(
-                {"export_format": "Unsupported format. Use 'json' or 'csv'."}
-            )
-
-        if export_format == "csv":
-            node = ClassificationDecisionTableNode.objects.select_related(
-                "default_llm_config__model"
-            ).get(pk=pk)
-            buf = export_condition_groups_csv(node)
-            filename = f"CDT_{node.node_name}.csv"
-            response = HttpResponse(buf.getvalue(), content_type="text/csv")
-            response["Content-Disposition"] = f'attachment; filename="{filename}"'
-            return response
-
-        # JSON: reuse the partial-export pipeline so the file is identical in
-        # structure to a partial export (and re-importable via partial-import).
-        node = self.get_object()
-        result = self._partial_export_service.export(
-            [
-                NodeRef(
-                    entity_type=EntityType.CLASSIFICATION_DECISION_TABLE_NODE,
-                    node_id=node.id,
-                )
-            ]
-        )
-        if result.has_errors:
+        export_format = request.query_params.get("export_format", "json")
+        result = self._node_service.export(pk=pk, export_format=export_format)
+        if result.errors is not None:
             return Response(
                 {"errors": result.errors}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        filename = generate_file_name(f"{node.node_name}", prefix="CDT")
-        response = HttpResponse(
-            json.dumps(result.data, indent=4), content_type="application/json"
-        )
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response = HttpResponse(result.content, content_type=result.content_type)
+        response["Content-Disposition"] = f'attachment; filename="{result.filename}"'
         return response
 
 

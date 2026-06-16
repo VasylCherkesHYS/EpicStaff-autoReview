@@ -41,6 +41,8 @@ class TablesConfig(AppConfig):
             tags,
             session,
             label,
+        )
+        from tables.import_export.strategies.nodes import (
             start_node,
             crew_node,
             python_node,
