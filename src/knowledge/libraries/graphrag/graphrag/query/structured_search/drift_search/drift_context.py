@@ -165,7 +165,7 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
 
     async def build_context(
         self, query: str, **kwargs
-    ) -> tuple[pd.DataFrame, dict[str, int]]:
+    ) -> tuple[pd.DataFrame, float, dict[str, int]]:
         """
         Build DRIFT search context.
 
@@ -177,6 +177,8 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
         Returns
         -------
         pd.DataFrame: Top-k most similar documents.
+        float: Relevance signal — cosine similarity of the raw query to the most
+            relevant community report (used to gate off-topic queries).
         dict[str, int]: Number of LLM calls, and prompts and output tokens.
 
         Raises
@@ -212,16 +214,23 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
             raise ValueError(error_message)
 
         # Vectorized cosine similarity computation
-        query_norm = np.linalg.norm(query_embedding)
-        document_norms = np.linalg.norm(
-            report_df["full_content_embedding"].to_list(), axis=1
-        )
-        dot_products = np.dot(
-            np.vstack(report_df["full_content_embedding"].to_list()), query_embedding
-        )
-        report_df["similarity"] = dot_products / (document_norms * query_norm)
+        report_embeddings = np.vstack(report_df["full_content_embedding"].to_list())
+        document_norms = np.linalg.norm(report_embeddings, axis=1)
+
+        def cosine_to_reports(embedding: list[float]) -> np.ndarray:
+            norm = np.linalg.norm(embedding) or 1.0
+            return np.dot(report_embeddings, embedding) / (document_norms * norm)
+
+        report_df["similarity"] = cosine_to_reports(query_embedding)
+
+        raw_similarity = cosine_to_reports(self.text_embedder.embed(query))
+        max_relevance = float(np.max(raw_similarity)) if raw_similarity.size else 0.0
 
         # Sort by similarity and select top-k
         top_k = report_df.nlargest(self.config.drift_k_followups, "similarity")
 
-        return top_k.loc[:, ["short_id", "community_id", "full_content"]], token_ct
+        return (
+            top_k.loc[:, ["short_id", "community_id", "full_content"]],
+            max_relevance,
+            token_ct,
+        )

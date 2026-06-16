@@ -434,9 +434,10 @@ class GraphRagConfigBuilder:
         config.global_search.map_prompt = build_global_search_map_prompt(
             params.map_prompt
         )
-        # General-knowledge permission is folded into the reduce prompt (the stage
-        # where upstream GlobalSearch applied it). The vendored `knowledge_prompt`
-        # path is left unused so we don't depend on edits to the vendored library.
+        # Global search never uses general knowledge: the reduce prompt stays
+        # grounded and `knowledge_prompt` is folded in only as a grounded extra
+        # instruction. The vendored `knowledge_prompt` path is left unused (and
+        # would be inert anyway — factory hardcodes allow_general_knowledge=False).
         config.global_search.reduce_prompt = build_global_search_reduce_prompt(
             params.reduce_prompt,
             params.knowledge_prompt,
@@ -478,6 +479,7 @@ class GraphRagConfigBuilder:
         config.drift_search.reduce_temperature = params.reduce_temperature
         config.drift_search.concurrency = params.concurrency
         config.drift_search.drift_k_followups = params.drift_k_followups
+        config.drift_search.relevance_threshold = params.relevance_threshold
         config.drift_search.primer_folds = params.primer_folds
         config.drift_search.primer_llm_max_tokens = params.primer_llm_max_tokens
         config.drift_search.n_depth = params.n_depth

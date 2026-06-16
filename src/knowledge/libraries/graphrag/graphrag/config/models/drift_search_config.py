@@ -57,6 +57,16 @@ class DRIFTSearchConfig(BaseModel):
         default=graphrag_config_defaults.drift_search.drift_k_followups,
     )
 
+    relevance_threshold: float = Field(
+        description=(
+            "Minimum cosine similarity between the raw query and the most relevant "
+            "community report. Below this, DRIFT short-circuits to a canned "
+            "'documents do not cover this' answer instead of generating from "
+            "loosely-related context. Set per deployment (EpicStaff overlays it)."
+        ),
+        default=0.2,
+    )
+
     primer_folds: int = Field(
         description="The number of folds for search priming.",
         default=graphrag_config_defaults.drift_search.primer_folds,

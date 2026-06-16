@@ -12,6 +12,7 @@ from tqdm.asyncio import tqdm_asyncio
 
 from graphrag.callbacks.query_callbacks import QueryCallbacks
 from graphrag.language_model.protocol.base import ChatModel
+from graphrag.prompts.query.global_search_reduce_system_prompt import NO_DATA_ANSWER
 from graphrag.language_model.providers.fnllm.utils import (
     get_openai_model_parameters_from_dict,
 )
@@ -155,6 +156,27 @@ class DRIFTSearch(BaseSearch[DRIFTSearchContextBuilder]):
         error_msg = "Response must be a list of dictionaries."
         raise ValueError(error_msg)
 
+    def _no_data_result(
+        self,
+        llm_calls: dict[str, int],
+        prompt_tokens: dict[str, int],
+        output_tokens: dict[str, int],
+        start_time: float,
+    ) -> SearchResult:
+        """Build the canned 'documents do not cover this' result for the gate."""
+        return SearchResult(
+            response=NO_DATA_ANSWER,
+            context_data={},
+            context_text="",
+            completion_time=time.perf_counter() - start_time,
+            llm_calls=sum(llm_calls.values()),
+            prompt_tokens=sum(prompt_tokens.values()),
+            output_tokens=sum(output_tokens.values()),
+            llm_calls_categories=llm_calls,
+            prompt_tokens_categories=prompt_tokens,
+            output_tokens_categories=output_tokens,
+        )
+
     async def _search_step(
         self, global_query: str, search_engine: LocalSearch, actions: list[DriftAction]
     ) -> list[DriftAction]:
@@ -210,10 +232,24 @@ class DRIFTSearch(BaseSearch[DRIFTSearchContextBuilder]):
         # Check if query state is empty
         if not self.query_state.graph:
             # Prime the search with the primer
-            primer_context, token_ct = await self.context_builder.build_context(query)
+            primer_context, relevance, token_ct = (
+                await self.context_builder.build_context(query)
+            )
             llm_calls["build_context"] = token_ct["llm_calls"]
             prompt_tokens["build_context"] = token_ct["prompt_tokens"]
             output_tokens["build_context"] = token_ct["output_tokens"]
+
+            threshold = self.context_builder.config.relevance_threshold
+            logger.info(
+                "DRIFT relevance %.4f (threshold %.4f)", relevance, threshold
+            )
+            if relevance < threshold:
+                logger.info(
+                    "Query not covered by indexed data — skipping generation."
+                )
+                return self._no_data_result(
+                    llm_calls, prompt_tokens, output_tokens, start_time
+                )
 
             primer_response = await self.primer.search(
                 query=query, top_k_reports=primer_context
@@ -316,6 +352,14 @@ class DRIFTSearch(BaseSearch[DRIFTSearchContextBuilder]):
 
         if isinstance(result.response, list):
             result.response = result.response[0]
+
+        if result.response == NO_DATA_ANSWER:
+            for callback in self.callbacks:
+                callback.on_reduce_response_start(result.response)
+            yield NO_DATA_ANSWER
+            for callback in self.callbacks:
+                callback.on_reduce_response_end(NO_DATA_ANSWER)
+            return
 
         for callback in self.callbacks:
             callback.on_reduce_response_start(result.response)

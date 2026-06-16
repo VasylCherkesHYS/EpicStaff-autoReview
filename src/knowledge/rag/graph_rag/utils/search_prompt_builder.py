@@ -35,27 +35,6 @@ Do not override or ignore the data grounding rules.
 
 ---End of Additional Instructions---"""
 
-# Permission to step outside the index. Applied ONLY to the global-search reduce
-# stage (mirrors where upstream GlobalSearch appended its general-knowledge
-# instruction) and ONLY when the user supplies a knowledge prompt. When present it
-# replaces the strict data-grounding rules for that stage; otherwise the reduce
-# stage stays grounded like every other stage.
-_GENERAL_KNOWLEDGE_RULES = """
-
----General Knowledge Allowance---
-
-In addition to the information in the provided data tables, you may use your own
-general knowledge to answer the question when the data is insufficient or only
-partially relevant. Clearly mark any statement that is not supported by the provided
-data as general knowledge, for example: "[General Knowledge]". Always prefer the
-provided data when it is relevant, and never contradict it.
-
-The following instructions from the user describe how general knowledge should be used:
-
-{knowledge_prompt}
-
----End of General Knowledge Allowance---"""
-
 # The vendored drift local-stage prompt hardcodes "intermediate_answer ... exactly
 # 2000 characters long". That intermediate answer feeds the drift reduce stage, so a
 # fixed cap would truncate information before aggregation. We override the constraint
@@ -72,8 +51,12 @@ Do not artificially truncate or pad it to a fixed length.
 ---End of Response Length Override---"""
 
 
-def _build_prompt(base_prompt: str, user_prompt: str | None = None) -> str:
-    prompt = base_prompt + _DATA_GROUNDING_RULES
+def _build_prompt(
+    base_prompt: str, user_prompt: str | None = None, *, extra: str = ""
+) -> str:
+    # Order: base role/goal → data-grounding rules → stage-specific `extra` →
+    # user instructions last (recency), explicitly subordinated to grounding.
+    prompt = base_prompt + _DATA_GROUNDING_RULES + extra
     if user_prompt:
         prompt += _USER_PROMPT_WRAPPER.format(user_prompt=user_prompt)
     return prompt
@@ -88,10 +71,9 @@ def build_local_search_prompt(user_prompt: str | None = None) -> str:
 
 
 def build_drift_search_prompt(user_prompt: str | None = None) -> str:
-    prompt = DRIFT_LOCAL_SYSTEM_PROMPT + _DATA_GROUNDING_RULES + _DRIFT_LENGTH_OVERRIDE
-    if user_prompt:
-        prompt += _USER_PROMPT_WRAPPER.format(user_prompt=user_prompt)
-    return prompt
+    return _build_prompt(
+        DRIFT_LOCAL_SYSTEM_PROMPT, user_prompt, extra=_DRIFT_LENGTH_OVERRIDE
+    )
 
 
 def build_drift_search_reduce_prompt(user_prompt: str | None = None) -> str:
@@ -108,18 +90,10 @@ def build_global_search_reduce_prompt(
 ) -> str:
     """Build the global-search reduce-stage system prompt.
 
-    The map stage always stays strictly grounded in the index. The reduce stage is
-    the only place where general knowledge may be permitted, matching upstream
-    GlobalSearch behavior: when ``knowledge_prompt`` is provided the strict grounding
-    rules are replaced by an explicit general-knowledge allowance; otherwise the
-    reduce stage remains grounded.
+    Both map and reduce stages stay strictly grounded in the index — general
+    knowledge is never permitted. A ``knowledge_prompt``, if supplied, is applied
+    as an additional user instruction under the data-grounding rules: it can shape
+    the answer but cannot license general knowledge or training data.
     """
-    if knowledge_prompt:
-        prompt = REDUCE_SYSTEM_PROMPT + _GENERAL_KNOWLEDGE_RULES.format(
-            knowledge_prompt=knowledge_prompt
-        )
-    else:
-        prompt = REDUCE_SYSTEM_PROMPT + _DATA_GROUNDING_RULES
-    if user_prompt:
-        prompt += _USER_PROMPT_WRAPPER.format(user_prompt=user_prompt)
-    return prompt
+    extra = "\n\n".join(p for p in (user_prompt, knowledge_prompt) if p) or None
+    return _build_prompt(REDUCE_SYSTEM_PROMPT, extra)
