@@ -20,6 +20,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import { GetLlmConfigRequest } from '@shared/models';
 import { LlmConfigStorageService } from '@shared/services';
+import { extractHttpErrorMessage } from '@shared/utils';
 import {
     catchError,
     defaultIfEmpty,
@@ -322,7 +323,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                         'This graph was modified by another user. Please refresh to see the latest changes.'
                     );
                 } else {
-                    this.toastService.error(`Failed to save graph: ${err?.error?.error || 'Unknown error'}`);
+                    this.toastService.error(`Failed to save graph: ${extractHttpErrorMessage(err)}`);
                 }
                 return EMPTY;
             }),
@@ -399,7 +400,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                         'This graph was modified by another user. Please refresh to see the latest changes.'
                     );
                 } else {
-                    this.toastService.error(`Failed to save node: ${err?.error?.error || 'Unknown error'}`);
+                    this.toastService.error(`Failed to save node: ${extractHttpErrorMessage(err)}`);
                 }
                 return EMPTY;
             })
@@ -442,8 +443,8 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                     this.isPanelCollapsed.set(false);
                     this.cdr.markForCheck();
                 }),
-                catchError((error: { error?: { error?: string } }) => {
-                    this.toastService.error(`Failed to run graph: ${error?.error?.error || 'Unknown error'}`);
+                catchError((error: HttpErrorResponse) => {
+                    this.toastService.error(`Failed to run graph: ${extractHttpErrorMessage(error)}`);
                     return EMPTY;
                 }),
                 finalize(() => {
