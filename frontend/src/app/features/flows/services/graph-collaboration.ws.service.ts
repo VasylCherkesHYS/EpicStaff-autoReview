@@ -1,6 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Subject } from 'rxjs';
-import { debounceTime, throttleTime } from 'rxjs';
+import { debounceTime, filter, throttleTime } from 'rxjs';
 import { IPoint } from '@foblex/2d';
 import { ConfigService } from '../../../services/config/config.service';
 import { WsTicketService } from '../../../services/auth/ws-ticket.service';
@@ -105,11 +105,18 @@ export class GraphCollaborationWsService {
     private readonly cursorPipe$ = new Subject<{x: number; y: number}>();
     private readonly waypointPipe$ = new Subject<{ connection_id: string; waypoints: IPoint[] }>();
     private lastNodeDragSendAt = 0;
+    private lastSentCursorX = 0;
+    private lastSentCursorY = 0;
 
     constructor() {
         this.cursorPipe$
-            .pipe(throttleTime(50))
+            .pipe(
+                filter(({ x, y }) => Math.abs(x - this.lastSentCursorX) >= 5 || Math.abs(y - this.lastSentCursorY) >= 5),
+                throttleTime(150)
+            )
             .subscribe(({x, y}) => {
+                this.lastSentCursorX = x;
+                this.lastSentCursorY = y;
                 const editor = this.buildEditorInfo();
                 if (editor) this.sendRaw({type: 'cursor_moved', x, y, editor});
             });
@@ -296,7 +303,7 @@ export class GraphCollaborationWsService {
 
     public sendNodePositionDuringDrag(node: NodeModel): void {
         const now = Date.now();
-        if (now - this.lastNodeDragSendAt < 50) return;
+        if (now - this.lastNodeDragSendAt < 150) return;
         this.lastNodeDragSendAt = now;
         const editor = this.buildEditorInfo();
         if (editor) this.sendRaw({ type: 'node_updated', node, editor });

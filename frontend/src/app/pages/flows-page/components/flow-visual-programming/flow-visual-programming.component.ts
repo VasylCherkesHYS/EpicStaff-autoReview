@@ -201,11 +201,9 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                 const savedBy = event.saved_by.display_name ?? `User ${event.saved_by.user_id}`;
                 this.toastService.info(`Graph was saved by ${savedBy}`, 4000, 'bottom-right');
 
-                if (!this.hasUnsavedChangesSignal()) {
                     this.graphState.update((state) =>
                         state ? { ...state, save_version: event.new_save_version } : state
                     );
-                }
             });
 
         this.wsService.graphState$
@@ -293,7 +291,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.saveFlowState(flowState, true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
     }
 
-    private saveFlowState(flowState: FlowModel, showSuccessToast: boolean): Observable<void> {
+    private saveFlowState(flowState: FlowModel, showSuccessToast: boolean, retried = false): Observable<void> {
         if (!this.graph?.id) return EMPTY;
 
         const previous = this.loadedFlowState();
@@ -343,6 +341,12 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             }),
             map(() => void 0),
             catchError((err: HttpErrorResponse) => {
+                if (err.status === 409 && !retried && err.error?.current_version != null) {
+                    this.graphState.update((state) =>
+                        state ? { ...state, save_version: err.error.current_version } : state
+                    );
+                    return this.saveFlowState(flowState, showSuccessToast, true);
+                }
                 if (err.status === 409) {
                     this.toastService.warning(
                         'This graph was modified by another user. Please refresh to see the latest changes.'
@@ -372,7 +376,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             .subscribe();
     }
 
-    private saveNodeToBackend(node: NodeModel): Observable<void> {
+    private saveNodeToBackend(node: NodeModel, retried = false): Observable<void> {
         if (!this.graph?.id) return EMPTY;
 
         this.flowService.updateNode(node);
@@ -420,6 +424,12 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             }),
             map(() => void 0),
             catchError((err: HttpErrorResponse) => {
+                if (err.status === 409 && !retried && err.error?.current_version != null) {
+                    this.graphState.update((state) =>
+                        state ? { ...state, save_version: err.error.current_version } : state
+                    );
+                    return this.saveNodeToBackend(node, true);
+                }
                 if (err.status === 409) {
                     this.toastService.warning('This graph was modified by another user. Please refresh to see the latest changes.');
                 } else {
