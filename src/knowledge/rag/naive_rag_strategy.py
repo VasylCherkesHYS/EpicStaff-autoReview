@@ -248,6 +248,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                 s = ctx.naive_rag_storage
                 s.delete_embeddings(naive_rag_document_config_id=config_id)
                 s.delete_chunks(naive_rag_document_config_id=config_id)
+                s.clear_indexed_snapshot(naive_rag_document_config_id=config_id)
                 try:
                     s.delete_preview_chunks(naive_rag_document_config_id=config_id)
                 except Exception:
