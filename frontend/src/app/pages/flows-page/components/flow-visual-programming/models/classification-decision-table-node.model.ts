@@ -23,7 +23,7 @@ export interface ClassificationConditionGroupBackend {
     group_name: string;
     order: number;
     expression: string | null;
-    prompt_id: string | null;
+    prompt: number | null;
     manipulation: string | null;
     continue_flag: boolean;
     route_code: string | null;

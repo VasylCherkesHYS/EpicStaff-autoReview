@@ -78,10 +78,12 @@ import {
 import { rewriteLegacyOnceScheduleName } from '../../../../visual-programming/utils/load/nodes/schedule-trigger-node.mapper';
 import {
     buildBulkSavePayload,
+    buildCdtSavedBaseline,
     buildUuidToBackendIdMap,
     cloneFlowState,
     getConnectionDiff,
     getNodeDiff,
+    patchCdtPromptBackendIds,
     patchFlowStateWithBackendIds,
 } from '../../../../visual-programming/utils/save';
 import { FlowUnsavedStateService } from '../../services/flow-unsaved-state.service';
@@ -194,6 +196,10 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.sidePanelService.saveNodeRequest$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((node) => this.handleNodeSaveRequest(node));
+
+        this.sidePanelService.reloadRequested$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(() => this.refreshCurrentFlow());
     }
 
     public ngOnInit(): void {
@@ -291,7 +297,8 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
             tap(({ graph, flows }) => {
                 this.graphState.set(graph);
                 this.availableFlowLights.set(flows);
-                const patchedFlow = patchFlowStateWithBackendIds(flowState, previous, nodeDiff, graph);
+                let patchedFlow = patchFlowStateWithBackendIds(flowState, previous, nodeDiff, graph);
+                patchedFlow = patchCdtPromptBackendIds(patchedFlow, graph);
 
                 this.flowService.setFlow(patchedFlow);
                 // Sync isActive from the save response: patchFlowStateWithBackendIds only assigns
@@ -305,7 +312,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
                         this.flowService.updateNode({ ...node, data: { ...node.data, isActive: dto.is_active } });
                     }
                 }
-                this.savedFlowState.set(cloneFlowState(patchedFlow));
+                this.savedFlowState.set(cloneFlowState(buildCdtSavedBaseline(patchedFlow, graph)));
                 this.sidePanelService.notifyGraphSaved();
                 if (showSuccessToast) {
                     this.toastService.success('Graph saved successfully');

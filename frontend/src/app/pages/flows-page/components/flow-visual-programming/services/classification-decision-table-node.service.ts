@@ -74,7 +74,7 @@ export class ClassificationDecisionTableNodeService {
                 group_name: group.group_name,
                 order: typeof group.order === 'number' ? group.order : index + 1,
                 expression: group.expression || null,
-                prompt_id: group.prompt_id || null,
+                prompt: (tableData?.prompts?.[group.prompt_id ?? ''] as PromptConfig | undefined)?.backendId ?? null,
                 manipulation: group.manipulation || null,
                 continue_flag: !!(group.continue_flag ?? group.continue),
                 // TODO: resolve group.next_node UUID to backend integer ID when an ID resolver is available here.
