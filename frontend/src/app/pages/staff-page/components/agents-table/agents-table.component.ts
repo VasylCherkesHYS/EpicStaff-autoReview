@@ -1745,13 +1745,20 @@ export class AgentsTableComponent {
 
         // Attach a global keydown listener to close the popup on Escape key.
         this.globalKeydownUnlistener = this.renderer.listen('document', 'keydown', (evt: KeyboardEvent) => {
-            if (evt.key === 'Escape') {
+            // Let an open child dialog handle its own Escape without also closing the popup.
+            if (evt.key === 'Escape' && !this.isChildDialogOpen()) {
                 this.closePopup();
             }
         });
     }
 
     private onDocumentClick(event: MouseEvent): void {
+        // While a child CDK dialog is open on top of the popup (e.g. the
+        // "Create custom tool" / "Add MCP tool" dialog), its clicks land outside
+        // the popup overlay. Ignore them so creating a tool doesn't dismiss the popup.
+        if (this.isChildDialogOpen()) {
+            return;
+        }
         const target = event.target as HTMLElement;
         if (
             this.popupOverlayRef &&
@@ -1761,6 +1768,10 @@ export class AgentsTableComponent {
         ) {
             this.closePopup();
         }
+    }
+
+    private isChildDialogOpen(): boolean {
+        return !!document.querySelector('.cdk-dialog-container');
     }
 
     private closePopup(): void {

@@ -382,8 +382,10 @@ export class ToolsPopupComponent implements OnInit, OnChanges, OnDestroy, AfterV
                     if (!result) {
                         return;
                     }
+                    // Auto-select the newly created tool, preserving existing selections
+                    this.selectedPythonTools.add(result.id);
                     this.pythonTools = this._sortPythonToolsBySelection([result, ...this.pythonTools]);
-                    this.cdr.markForCheck();
+                    this._cdr.markForCheck();
                 }),
                 takeUntil(this._destroyed$)
             )
@@ -391,7 +393,7 @@ export class ToolsPopupComponent implements OnInit, OnChanges, OnDestroy, AfterV
     }
 
     public openMcpToolDialog(): void {
-        const dialogRef = this.cdkDialog.open(McpToolDialogComponent, {
+        const dialogRef = this.cdkDialog.open<GetMcpToolRequest>(McpToolDialogComponent, {
             data: {},
         });
 
@@ -399,9 +401,11 @@ export class ToolsPopupComponent implements OnInit, OnChanges, OnDestroy, AfterV
             .pipe(
                 tap((result) => {
                     if (result) {
-                        console.log('New MCP tool created:', result);
-                        // Reload the MCP tools list to include the newly created tool
-                        this.loadToolsData();
+                        // Auto-select the newly created MCP tool and append it without a full
+                        // reload, which would wipe unsaved selections via _preselectMergedTools().
+                        this.selectedMcpTools.add(result.id);
+                        this.mcpTools = this._sortMcpToolsBySelection([result, ...this.mcpTools]);
+                        this._cdr.markForCheck();
                     }
                 }),
                 takeUntil(this._destroyed$)
