@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 
 import { ConfigService } from '../../../services/config';
 import { StartIndexingDtoRequest, StartIndexingDtoResponse } from '../models/base-rag.model';
-import { CreateNaiveRagForCollectionResponse } from '../models/naive-rag.model';
+import { CreateNaiveRagForCollectionResponse, DeleteNaiveRagResponse } from '../models/naive-rag.model';
 import {
     ChunkSearchResponse,
     GetChunksByIdsResponse,
@@ -45,6 +45,10 @@ export class NaiveRagService {
             `${this.apiUrl}collections/${collectionId}/naive-rag/`,
             body
         );
+    }
+
+    deleteNaiveRag(ragId: number): Observable<DeleteNaiveRagResponse> {
+        return this.http.delete<DeleteNaiveRagResponse>(`${this.apiUrl}${ragId}/`);
     }
 
     getDocumentConfigs(naiveRagId: number): Observable<GetNaiveRagDocumentConfigsResponse> {

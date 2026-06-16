@@ -49,7 +49,7 @@
         @case (CreateCollectionStep.SELECT_RAG) {
             <app-step-select-rag
                 class="dialog__content"
-                [forceType]="data.forceType"
+                [collection]="collection()"
                 [(selectedRag)]="selectedRagType"
                 [(selectedEmbedder)]="selectedEmbedder"
                 [(selectedLLM)]="selectedLLM"

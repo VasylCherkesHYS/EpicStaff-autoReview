@@ -19,15 +19,14 @@ import {
     SpinnerComponent,
     ValidationErrorsComponent,
 } from '@shared/components';
+import { AppSvgIconComponent } from '@shared/components';
 import { EMPTY, filter, throwError } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs/operators';
 
 import { ToastService } from '../../../../../../services/notifications';
-import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { CopyCollectionFilesDialogComponent } from '../../../../components/copy-collection-files-dialog/copy-collection-files-dialog.component';
 import { CreateCollectionDialogComponent } from '../../../../components/create-collection-dialog/create-collection-dialog.component';
 import { FILE_TYPES } from '../../../../constants/constants';
-import { RagType } from '../../../../models/base-rag.model';
 import { CreateCollectionDtoResponse } from '../../../../models/collection.model';
 import { DisplayedListDocument } from '../../../../models/document.model';
 import { CollectionsStorageService } from '../../../../services/collections-storage.service';
@@ -280,11 +279,7 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
         URL.revokeObjectURL(url);
     }
 
-    createRagInCollection(type?: RagType) {
-        this.openCollectionModal(type);
-    }
-
-    private openCollectionModal(forceType?: RagType): void {
+    openCreateCollectionModal(): void {
         const collection = this.fullCollection();
 
         if (!collection) return;
@@ -292,7 +287,7 @@ export class CollectionDetailsComponent implements OnInit, OnChanges {
         const dialog = this.dialog.open(CreateCollectionDialogComponent, {
             width: 'calc(100vw - 2rem)',
             height: 'calc(100vh - 2rem)',
-            data: { collection_id: collection.collection_id, isUpdate: true, forceType },
+            data: { collection_id: collection.collection_id, isUpdate: true },
             disableClose: true,
         });
 

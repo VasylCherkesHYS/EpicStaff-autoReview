@@ -27,7 +27,10 @@
                     {{ ragStatusConfig[config.status].text }}
                 </div>
                 <app-svg-icon
-                    icon="arrow-right"
+                    [matTooltip]="config.rag_type === 'graph' ? 'Unsupported for now' : null"
+                    [style.cursor]="config.rag_type === 'naive' ? 'pointer' : 'not-allowed'"
+                    (click)="$event.stopPropagation(); onDeleteRag(config.rag_type, config.rag_id)"
+                    icon="x"
                     size="1rem"
                     class="nav action"
                 />

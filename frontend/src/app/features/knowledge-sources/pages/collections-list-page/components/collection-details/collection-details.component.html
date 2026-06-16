@@ -59,16 +59,13 @@
                                     icon="plus"
                                     class="details__action details__action--medium"
                                     size="1rem"
-                                    (click)="createRagInCollection()"
+                                    (click)="openCreateCollectionModal()"
                                 />
                             </div>
                         </div>
 
                         @if (fullCollection()) {
-                            <app-collection-details-rags
-                                [collection]="fullCollection()!"
-                                (onCreateRag)="createRagInCollection($event)"
-                            />
+                            <app-collection-details-rags [collection]="fullCollection()!" />
                         }
                     </div>
 
@@ -85,10 +82,6 @@
                                 <span class="details__section-title">Collection Files</span>
 
                                 <div class="details__section-actions">
-                                    <!--                                <app-select-->
-                                    <!--                                    mod="small"-->
-                                    <!--                                    [items]="[]"-->
-                                    <!--                                />-->
                                     <app-svg-icon
                                         icon="download"
                                         class="details__action details__action--medium"

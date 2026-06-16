@@ -29,3 +29,10 @@ export interface CreateNaiveRagForCollectionResponse {
     message: string;
     naive_rag: CreateNaiveRag;
 }
+
+export interface DeleteNaiveRagResponse {
+    message: string;
+    naive_rag_id: number;
+    collection_id: number;
+    deleted_config_count: number;
+}
