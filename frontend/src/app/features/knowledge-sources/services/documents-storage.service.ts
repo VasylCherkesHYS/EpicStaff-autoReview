@@ -137,6 +137,19 @@ export class DocumentsStorageService implements StorageService {
         }
     }
 
+    refreshDocumentsByCollectionId(collectionId: number): Observable<CollectionDocument[]> {
+        return this.collectionsApiService.getDocumentsByCollectionId(collectionId).pipe(
+            map(({ documents }) => documents.map((doc) => ({ ...doc, source_collection: collectionId }))),
+            tap((docs) => {
+                this.documentsSignal.update((current) => [
+                    ...current.filter((d) => d.source_collection !== collectionId),
+                    ...docs,
+                ]);
+            }),
+            catchError(() => of([]))
+        );
+    }
+
     clear(): void {
         this.documentsSignal.set([]);
         this.documentsLoaded.set(false);
