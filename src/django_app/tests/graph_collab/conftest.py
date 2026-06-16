@@ -26,8 +26,8 @@ CHANNEL_LAYERS_OVERRIDE = {
 }
 
 
-@pytest.fixture
-def channel_layer_settings(autouse=True):
+@pytest.fixture(autouse=True)
+def channel_layer_settings():
     """Override channel layers so each test gets a fresh in-memory layer."""
     with override_settings(CHANNEL_LAYERS=CHANNEL_LAYERS_OVERRIDE):
         yield
@@ -62,7 +62,7 @@ def second_user(db):
 def fake_redis():
     fake = fakeredis.FakeStrictRedis()
     with unittest.mock.patch(
-        "tables.graph_collab.ws_auth.get_redis_connection",
+        "tables.services.rbac.ticket_service.get_redis_connection",
         return_value=fake,
     ):
         yield fake
@@ -74,6 +74,20 @@ def reset_presence_store():
     presence_service._store.clear()
     yield
     presence_service._store.clear()
+
+
+@pytest.fixture
+def auth_client(api_client, regular_user):
+    """
+    Override the global auth_client for graph_collab tests.
+    GraphViewSet does not declare authentication_classes, so it inherits the
+    empty DEFAULT_AUTHENTICATION_CLASSES from test settings — meaning
+    credentials() headers are never processed and request.user stays
+    AnonymousUser. force_authenticate bypasses the auth middleware entirely
+    and sets request.user directly, which is what these tests need.
+    """
+    api_client.force_authenticate(user=regular_user)
+    return api_client
 
 
 @pytest.fixture

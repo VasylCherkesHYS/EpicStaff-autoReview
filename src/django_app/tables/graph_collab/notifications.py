@@ -8,6 +8,8 @@ from tables.graph_collab.protocol import (
     GraphSavedMessage,
     PresenceStateUpdatedMessage,
 )
+from tables.graph_collab.utils import build_editor_info
+
 from utils.logger import logger
 
 
@@ -28,14 +30,8 @@ class GraphEditNotifier:
         new_save_version: int,
         user,
         saved_at: str,
-        avatar_url: str | None = None,
     ) -> None:
-        editor = EditorInfo(
-            user_id=user.pk,
-            display_name=getattr(user, "display_name", None)
-            or getattr(user, "email", None),
-            avatar_url=avatar_url,
-        )
+        editor = build_editor_info(user=user)
         message = GraphSavedMessage(
             graph_id=graph_id,
             new_save_version=new_save_version,
