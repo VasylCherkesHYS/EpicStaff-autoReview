@@ -263,6 +263,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         if (changes['initialNodeId'] && changes['initialNodeId'].currentValue) {
             this.openNodePanel(changes['initialNodeId'].currentValue);
         }
+        if (changes['isSaving'] && changes['isSaving'].currentValue === true) {
+            this.onCloseContextMenu();
+        }
     }
 
     public ngOnDestroy(): void {
