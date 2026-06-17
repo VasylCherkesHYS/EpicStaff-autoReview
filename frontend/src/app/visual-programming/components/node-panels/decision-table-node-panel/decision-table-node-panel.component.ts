@@ -175,7 +175,10 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
                     return;
                 }
 
-                const dtNode = this.node();
+                // Build from the CURRENT panel state (not this.node(), the committed flow-state node)
+                // so uncommitted edits — e.g. a condition just added in the open panel — are included
+                // in the conversion. Otherwise converting without closing/saving first drops them.
+                const dtNode = this.createUpdatedNode();
                 const { node: cdtNode, portIdMap } = convertDecisionTableToCdt(dtNode);
 
                 // Strategy (a): clear selection first so the DT panel unmounts and
