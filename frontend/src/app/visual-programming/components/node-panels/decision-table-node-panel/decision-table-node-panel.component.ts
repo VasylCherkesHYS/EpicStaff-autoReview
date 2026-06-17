@@ -187,6 +187,18 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
                     portIdMap,
                 });
 
+                // Materialize live canvas edges for ALL converted groups that route via
+                // group.next_node. replaceNodePreservingEdges only remaps PRE-EXISTING edges,
+                // so a row whose next node was set via the grid "Next Node" dropdown would otherwise have no edge until a
+                // reload. Rebuilding from next_node here matches the post-reload behavior.
+                const cdtTable = cdtNode.data.table;
+                this.flowService.resetDecisionTableConnections(
+                    cdtNode.id,
+                    cdtTable.condition_groups,
+                    cdtTable.default_next_node,
+                    cdtTable.next_error_node
+                );
+
                 // The conversion is irreversible (see confirm dialog: "This action cannot be undone").
                 // Reset undo/redo history so Undo/CTRL+Z can't revert to the pre-conversion DT node,
                 // whose stale backendId would otherwise be sent in the save payload and rejected by the
