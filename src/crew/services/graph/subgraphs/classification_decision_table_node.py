@@ -524,23 +524,19 @@ def main(**kwargs) -> dict:
             }
             if state["system_variables"].get("nodes") is None:
                 state["system_variables"]["nodes"] = {}
+
+            order = state["system_variables"].get("execution_order", 0)
+            state["system_variables"]["execution_order"] = order + 1
+
             if state["system_variables"]["nodes"].get(self.node_name) is None:
                 state["system_variables"]["nodes"][self.node_name] = update_variables
-                state["system_variables"]["nodes"][self.node_name][
-                    "execution_order"
-                ] = 0
             else:
                 state["system_variables"]["nodes"][self.node_name].update(
                     update_variables
                 )
-                state["system_variables"]["nodes"][self.node_name][
-                    "execution_order"
-                ] = (
-                    state["system_variables"]["nodes"][self.node_name][
-                        "execution_order"
-                    ]
-                    + 1
-                )
+            state["system_variables"]["nodes"][self.node_name]["execution_order"] = (
+                order
+            )
 
             input_vars = state["variables"].model_dump()
             if "shared" in input_vars:
