@@ -175,7 +175,10 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
                     return;
                 }
 
-                const dtNode = this.node();
+                // Build from the CURRENT panel state (not this.node(), the committed flow-state node)
+                // so uncommitted edits — e.g. a condition just added in the open panel — are included
+                // in the conversion. Otherwise converting without closing/saving first drops them.
+                const dtNode = this.createUpdatedNode();
                 const { node: cdtNode, portIdMap } = convertDecisionTableToCdt(dtNode);
 
                 // Strategy (a): clear selection first so the DT panel unmounts and
@@ -186,6 +189,18 @@ export class DecisionTableNodePanelComponent extends BaseSidePanel<DecisionTable
                 this.flowService.replaceNodePreservingEdges(dtNode.id, cdtNode, {
                     portIdMap,
                 });
+
+                // Materialize live canvas edges for ALL converted groups that route via
+                // group.next_node. replaceNodePreservingEdges only remaps PRE-EXISTING edges,
+                // so a row whose next node was set via the grid "Next Node" dropdown would otherwise have no edge until a
+                // reload. Rebuilding from next_node here matches the post-reload behavior.
+                const cdtTable = cdtNode.data.table;
+                this.flowService.resetDecisionTableConnections(
+                    cdtNode.id,
+                    cdtTable.condition_groups,
+                    cdtTable.default_next_node,
+                    cdtTable.next_error_node
+                );
 
                 // The conversion is irreversible (see confirm dialog: "This action cannot be undone").
                 // Reset undo/redo history so Undo/CTRL+Z can't revert to the pre-conversion DT node,
