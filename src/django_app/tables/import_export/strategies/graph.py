@@ -131,7 +131,7 @@ class GraphStrategy(EntityImportExportStrategy):
         return graph
 
     def recreate_graph_children(
-        self, graph: Graph, data: dict, id_mapper: IDMapper
+        self, graph: Graph, data: dict, id_mapper: IDMapper, is_partial: bool = False
     ) -> IDMapper:
         nodes_data = data.get("nodes", [])
         edges_data = data.get("edge_list", [])
@@ -148,7 +148,15 @@ class GraphStrategy(EntityImportExportStrategy):
         self._create_conditional_edges(conditional_edges_data, graph, node_mapper)
         self._remap_decision_table_references(graph, node_mapper)
         self._remap_classification_decision_table_references(graph, node_mapper)
-        self._update_metadata_node_ids(graph, node_mapper)
+
+        # Metadata remapping is only correct for full-graph imports/versioning,
+        # where graph.metadata was rebuilt from the import and its node ids are
+        # old export ids. In a partial import the metadata belongs to the
+        # pre-existing graph; its node ids are real, current ids that collide
+        # with the old export ids in node_mapper, so remapping them would
+        # silently re-point existing nodes at the freshly imported duplicates.
+        if not is_partial:
+            self._update_metadata_node_ids(graph, node_mapper)
 
         # need only for versioning system
         return node_mapper
@@ -264,71 +272,65 @@ class GraphStrategy(EntityImportExportStrategy):
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
-    def _remap_decision_table_references(self, graph: Graph, id_mapper: IDMapper):
-        for dt_node in graph.decision_table_node_list.all():
-            updated = False
+    def _remap_node_reference(self, old_node_id, node_mapper: IDMapper):
+        """
+        Resolve a stored node-id reference to its freshly-imported counterpart.
 
-            if dt_node.default_next_node_id:
-                new_id = id_mapper.get_or_none(
-                    NODE_MAPPING_KEY, dt_node.default_next_node_id
-                )
-                if new_id:
-                    dt_node.default_next_node_id = new_id
-                    updated = True
+        Returns the remapped id when the referenced node was part of this import,
+        otherwise ``None`` so the connection is dropped. Clearing is required for
+        partial imports: a node imported on its own carries topology references
+        (``default_next_node_id`` / ``next_error_node_id`` / group ``next_node_id``)
+        that point to nodes outside the import scope. Keeping the raw id would
+        silently wire the new node to an unrelated node in the target graph that
+        happens to share that id.
+        """
+        if not old_node_id:
+            return None
+        return node_mapper.get_or_none(NODE_MAPPING_KEY, old_node_id)
 
-            if dt_node.next_error_node_id:
-                new_id = id_mapper.get_or_none(
-                    NODE_MAPPING_KEY, dt_node.next_error_node_id
-                )
-                if new_id:
-                    dt_node.next_error_node_id = new_id
-                    updated = True
+    def _remap_decision_table_references(self, graph: Graph, node_mapper: IDMapper):
+        # Only nodes created in this import — never touch pre-existing graph nodes,
+        # whose references are valid as-is and must not be rewired.
+        new_node_ids = set(node_mapper.get_new_ids(NODE_MAPPING_KEY))
+        nodes = graph.decision_table_node_list.filter(id__in=new_node_ids)
 
-            if updated:
-                dt_node.save(
-                    update_fields=["default_next_node_id", "next_error_node_id"]
-                )
+        for dt_node in nodes:
+            dt_node.default_next_node_id = self._remap_node_reference(
+                dt_node.default_next_node_id, node_mapper
+            )
+            dt_node.next_error_node_id = self._remap_node_reference(
+                dt_node.next_error_node_id, node_mapper
+            )
+            dt_node.save(update_fields=["default_next_node_id", "next_error_node_id"])
 
             for group in dt_node.condition_groups.all():
-                if group.next_node_id:
-                    new_id = id_mapper.get_or_none(NODE_MAPPING_KEY, group.next_node_id)
-                    if new_id:
-                        group.next_node_id = new_id
-                        group.save(update_fields=["next_node_id"])
+                new_id = self._remap_node_reference(group.next_node_id, node_mapper)
+                if new_id != group.next_node_id:
+                    group.next_node_id = new_id
+                    group.save(update_fields=["next_node_id"])
 
     def _remap_classification_decision_table_references(
-        self, graph: Graph, id_mapper: IDMapper
+        self, graph: Graph, node_mapper: IDMapper
     ):
-        for cdt_node in graph.classification_decision_table_node_list.all():
-            updated = False
+        new_node_ids = set(node_mapper.get_new_ids(NODE_MAPPING_KEY))
+        nodes = graph.classification_decision_table_node_list.filter(
+            id__in=new_node_ids
+        )
 
-            if cdt_node.default_next_node_id:
-                new_id = id_mapper.get_or_none(
-                    NODE_MAPPING_KEY, cdt_node.default_next_node_id
-                )
-                if new_id:
-                    cdt_node.default_next_node_id = new_id
-                    updated = True
-
-            if cdt_node.next_error_node_id:
-                new_id = id_mapper.get_or_none(
-                    NODE_MAPPING_KEY, cdt_node.next_error_node_id
-                )
-                if new_id:
-                    cdt_node.next_error_node_id = new_id
-                    updated = True
-
-            if updated:
-                cdt_node.save(
-                    update_fields=["default_next_node_id", "next_error_node_id"]
-                )
+        for cdt_node in nodes:
+            cdt_node.default_next_node_id = self._remap_node_reference(
+                cdt_node.default_next_node_id, node_mapper
+            )
+            cdt_node.next_error_node_id = self._remap_node_reference(
+                cdt_node.next_error_node_id, node_mapper
+            )
+            cdt_node.save(update_fields=["default_next_node_id", "next_error_node_id"])
 
             for group in cdt_node.condition_groups.all():
-                if group.next_node_id:
-                    new_id = id_mapper.get_or_none(NODE_MAPPING_KEY, group.next_node_id)
-                    if new_id:
-                        group.next_node_id = new_id
-                        group.save(update_fields=["next_node_id"])
+                new_id = self._remap_node_reference(group.next_node_id, node_mapper)
+                if new_id != group.next_node_id:
+                    group.next_node_id = new_id
+                    group.save(update_fields=["next_node_id"])
 
     def _update_metadata_node_ids(self, graph: Graph, id_mapper: IDMapper):
         metadata = graph.metadata

@@ -66,6 +66,7 @@ class PartialImportService:
                     "edge_list": edges_data,
                 },
                 id_mapper,
+                is_partial=True,
             )
 
         return id_mapper
