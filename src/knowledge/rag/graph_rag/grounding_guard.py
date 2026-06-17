@@ -1,14 +1,17 @@
-"""Post-generation groundedness gate for GraphRAG search.
+"""Groundedness guard for GraphRAG search — the single home for the LLM-answer
+correctness check.
 
-Search-method agnostic: takes the produced answer plus the context that was
-actually retrieved, and asks a strict LLM judge whether every substantive claim in
-the answer is supported by that context. Ungrounded answers are rejected so the
-caller can fall back to the canned "documents do not cover this" path instead of
-letting fabricated content (e.g. drift's primer/reduce stages inventing facts
-"from our sources") reach the agent.
+Search-method agnostic: given the produced answer plus the context that was actually
+retrieved, a strict LLM judge decides whether every substantive claim in the answer is
+supported by that context. Answers that are empty, the library's canned "no data"
+answer, or judged ungrounded are collapsed to an empty string, so the caller falls back
+to the "documents do not cover this" path instead of letting fabricated content (e.g.
+drift's primer/reduce stages inventing facts "from our sources") reach the agent.
 
-This is the final isolation layer that holds for global, drift, local and basic
-search alike — it does not depend on any single method's internal scoring.
+`apply_grounding_guard` is the only entry point the search strategy needs; everything
+else here (NO_DATA normalization, per-method context budget, the judge itself) is an
+implementation detail of that one check, kept together so the strategy stays free of
+correctness-checking logic.
 """
 
 import asyncio
@@ -18,8 +21,13 @@ import pandas as pd
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 from graphrag.config.models.language_model_config import LanguageModelConfig
 from graphrag.language_model.manager import ModelManager
+from graphrag.prompts.query.global_search_reduce_system_prompt import NO_DATA_ANSWER
 
 logger = logging.getLogger(__name__)
+
+# Always on, uniform across all methods: isolation must hold the same everywhere, so
+# the flag is intentionally not exposed to per-request tuning. Flip here to disable.
+ENFORCE_GROUNDING = True
 
 # Token→char factor for capping the context handed to the judge. The token budget
 # itself is the model-window-aware value already resolved upstream (django's
@@ -31,6 +39,15 @@ _VERIFIER_NAME = "grounding_verifier_chat"
 
 _GROUNDED = "GROUNDED"
 _NOT_GROUNDED = "NOT_GROUNDED"
+
+# Per-method retrieval token budget (config section, field) that sizes the context
+# shown to the judge. Unknown methods fall back to the basic-search window.
+_GROUNDING_BUDGET_FIELDS = {
+    "drift_search": ("drift_search", "data_max_tokens"),
+    "global_search": ("global_search", "data_max_tokens"),
+    "local": ("local_search", "max_context_tokens"),
+    "basic": ("basic_search", "max_context_tokens"),
+}
 
 _VERIFIER_PROMPT = """You are a strict grounding verifier for a knowledge-base assistant.
 
@@ -58,6 +75,24 @@ CONTEXT:
 ANSWER:
 {answer}
 """
+
+
+def is_no_data(response) -> bool:
+    """True if the library returned its canned 'no relevant data' answer.
+
+    Global search emits NO_DATA_ANSWER when every map score is 0. Left as-is it reaches
+    the agent as a knowledge chunk (with similarity 1.0), which the agent treats as
+    low-quality context and then 'helps' by inventing from training data. Normalizing
+    it to an empty result routes the agent to its explicit 'no knowledge found' branch.
+    """
+    return bool(response) and str(response).strip() == NO_DATA_ANSWER.strip()
+
+
+def _context_token_budget(config: GraphRagConfig, search_method: str) -> int:
+    section, field = _GROUNDING_BUDGET_FIELDS.get(
+        search_method, ("basic_search", "max_context_tokens")
+    )
+    return getattr(getattr(config, section), field, 0) or 0
 
 
 def _serialize_context(context_data, max_chars: int) -> str:
@@ -150,3 +185,35 @@ def verify_grounded(
     except Exception:
         logger.exception("Grounding verification failed; allowing answer through")
         return True
+
+
+def apply_grounding_guard(
+    query: str,
+    response,
+    context,
+    config: GraphRagConfig,
+    search_method: str,
+) -> str:
+    """Return the response only if it is backed by the retrieved context, else ''.
+
+    Empty answers, the library's canned no-data answer, and answers the verifier
+    rejects are all collapsed to an empty string, so the caller yields no chunks and
+    treats the query as uncovered by the knowledge base.
+    """
+    if not response or is_no_data(response):
+        return ""
+
+    if not ENFORCE_GROUNDING:
+        return response
+
+    budget = _context_token_budget(config, search_method)
+    if not verify_grounded(query, str(response), context, config, budget):
+        logger.warning(
+            "Grounding guard rejected %s answer as unsupported by retrieved "
+            "context for query: [%s]",
+            search_method,
+            query,
+        )
+        return ""
+
+    return response

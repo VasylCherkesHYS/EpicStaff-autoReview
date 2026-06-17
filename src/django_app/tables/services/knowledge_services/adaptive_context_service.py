@@ -24,8 +24,6 @@ from tables.constants.knowledge_constants import MAX_TOKEN_FIELD_VALUE
 
 SAFE_FRACTION = 0.8
 
-DRIFT_RELEVANCE_THRESHOLD = 0.2
-
 
 def _lerp_buckets(
     value: float,
@@ -511,9 +509,6 @@ def build_graph_drift_params(
             ),
             primer_folds=_pick(custom, "primer_folds", calc_drift_primer_folds(docs)),
             n_depth=_pick(custom, "n_depth", calc_drift_n_depth(docs)),
-            relevance_threshold=_pick(
-                custom, "relevance_threshold", DRIFT_RELEVANCE_THRESHOLD
-            ),
             community_level=_pick(
                 custom, "community_level", calc_community_level(docs)
             ),

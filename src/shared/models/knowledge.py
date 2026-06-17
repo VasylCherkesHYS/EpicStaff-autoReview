@@ -75,7 +75,6 @@ class GraphRagDriftSearchParams(BaseModel):
     primer_folds: int = 5
     n_depth: int = 3
     community_level: int = 2
-    relevance_threshold: float = 0.2
     # Local search tuning
     local_search_text_unit_prop: float = 0.9
     local_search_community_prop: float = 0.1

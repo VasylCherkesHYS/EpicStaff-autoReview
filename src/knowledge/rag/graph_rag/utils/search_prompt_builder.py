@@ -95,5 +95,7 @@ def build_global_search_reduce_prompt(
     as an additional user instruction under the data-grounding rules: it can shape
     the answer but cannot license general knowledge or training data.
     """
-    extra = "\n\n".join(p for p in (user_prompt, knowledge_prompt) if p) or None
-    return _build_prompt(REDUCE_SYSTEM_PROMPT, extra)
+    user_instruction = (
+        "\n\n".join(p for p in (user_prompt, knowledge_prompt) if p) or None
+    )
+    return _build_prompt(REDUCE_SYSTEM_PROMPT, user_instruction)

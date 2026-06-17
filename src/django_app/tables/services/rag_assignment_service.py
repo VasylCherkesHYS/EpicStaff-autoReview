@@ -51,7 +51,6 @@ _GRAPH_CONFIG_FIELDS: dict[str, tuple[str, ...]] = {
             "search_method",
             "reduce_temperature",
             "local_search_temperature",
-            "relevance_threshold",
         )
     ),
 }
