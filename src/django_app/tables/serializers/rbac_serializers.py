@@ -34,7 +34,6 @@ class FirstSetupResponseSerializer(serializers.Serializer):
     user = _SetupUserPayload()
     organization = _SetupOrganizationPayload()
     access = serializers.CharField()
-    refresh = serializers.CharField()
 
 
 # ---- Token introspect ----
@@ -74,7 +73,6 @@ class ResetUserRequestSerializer(serializers.Serializer):
 
 class ResetUserResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
-    refresh = serializers.CharField()
     api_key = serializers.CharField()
 
 
@@ -154,5 +152,8 @@ class LoginSerializer(TokenObtainPairSerializer):
 
 
 class LoginResponseSerializer(serializers.Serializer):
-    refresh = serializers.CharField()
+    access = serializers.CharField()
+
+
+class RefreshResponseSerializer(serializers.Serializer):
     access = serializers.CharField()

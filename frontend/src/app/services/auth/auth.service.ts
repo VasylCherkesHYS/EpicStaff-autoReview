@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import {
+    AccessToken,
     ConfirmResetPasswordRequest,
     ConfirmResetPasswordResponse,
     FirstSetupRequest,
@@ -9,7 +10,6 @@ import {
     FirstSetupStatus,
     ResetPasswordRequest,
     ResetPasswordResponse,
-    TokenPair,
 } from '@shared/models';
 import { AppStorageService } from '@shared/services';
 import { catchError, finalize, map, Observable, of, shareReplay, tap, throwError } from 'rxjs';
@@ -34,7 +34,6 @@ export class AuthService {
     private readonly appStorage = inject(AppStorageService);
 
     private readonly accessKey = 'auth.access';
-    private readonly refreshKey = 'auth.refresh';
 
     private refreshInProgress$: Observable<string | null> | null = null;
     private statusCache$: Observable<FirstSetupStatus> | null = null;
@@ -57,33 +56,34 @@ export class AuthService {
     }
 
     runSetup(payload: FirstSetupRequest): Observable<FirstSetupResponse> {
-        return this.http.post<FirstSetupResponse>(`${this.baseUrl}first-setup/`, payload).pipe(
-            tap(() => {
-                this.statusCache$ = null;
-            })
-        );
+        return this.http
+            .post<FirstSetupResponse>(`${this.baseUrl}first-setup/`, payload, { withCredentials: true })
+            .pipe(
+                tap(() => {
+                    this.statusCache$ = null;
+                })
+            );
     }
 
     login(email: string, password: string, rememberMe: boolean = false): Observable<boolean> {
-        return this.http.post<TokenPair>(`${this.baseUrl}login/`, { email, password }).pipe(
-            tap((tokens) => this.storeTokens(tokens, rememberMe)),
-            map(() => true)
-        );
+        return this.http
+            .post<AccessToken>(`${this.baseUrl}login/`, { email, password }, { withCredentials: true })
+            .pipe(
+                tap((tokens) => this.storeAccessToken(tokens.access, rememberMe)),
+                map(() => true)
+            );
     }
 
     logout(): Observable<void> {
-        const refreshToken = this.getRefreshToken();
         this.currentUserService.clearCurrentUser();
         this.appStorage.clearAll();
 
-        if (!refreshToken) {
-            this.removeTokensAndNavToLogin();
-            return of();
-        }
-
-        return this.http.post<void>(`${this.baseUrl}logout/`, { refresh: refreshToken }).pipe(
-            tap(() => this.removeTokensAndNavToLogin()),
-            catchError((err) => throwError(() => err))
+        return this.http.post<void>(`${this.baseUrl}logout/`, {}, { withCredentials: true }).pipe(
+            tap(() => this.removeTokenAndNavToLogin()),
+            catchError(() => {
+                this.removeTokenAndNavToLogin();
+                return of(undefined);
+            })
         );
     }
 
@@ -104,34 +104,28 @@ export class AuthService {
             return this.refreshInProgress$;
         }
 
-        const refresh = this.getRefreshToken();
-        if (!refresh) return of(null);
-
-        this.refreshInProgress$ = this.http.post<TokenPair>(`${this.baseUrl}refresh/`, { refresh }).pipe(
-            tap((resp) => {
-                this.setCookie(this.accessKey, resp.access, this.getTokenExpiry(resp.access));
-                if (resp.refresh) {
-                    this.setCookie(this.refreshKey, resp.refresh, this.getTokenExpiry(resp.refresh));
-                }
-            }),
-            map((resp) => resp.access),
-            catchError((err) => {
-                this.removeTokensAndNavToLogin();
-                return throwError(() => err);
-            }),
-            finalize(() => {
-                this.refreshInProgress$ = null;
-            }),
-            shareReplay(1)
-        );
+        this.refreshInProgress$ = this.http
+            .post<AccessToken>(`${this.baseUrl}refresh/`, {}, { withCredentials: true })
+            .pipe(
+                tap((resp) => {
+                    this.setCookie(this.accessKey, resp.access, this.getTokenExpiry(resp.access));
+                }),
+                map((resp) => resp.access),
+                catchError((err) => {
+                    this.removeTokenAndNavToLogin();
+                    return throwError(() => err);
+                }),
+                finalize(() => {
+                    this.refreshInProgress$ = null;
+                }),
+                shareReplay(1)
+            );
 
         return this.refreshInProgress$;
     }
 
-    removeTokensAndNavToLogin(): void {
+    removeTokenAndNavToLogin(): void {
         this.deleteCookie(this.accessKey);
-        this.deleteCookie(this.refreshKey);
-
         void this.router.navigate(['/login']);
     }
 
@@ -148,15 +142,9 @@ export class AuthService {
         return this.getCookie(this.accessKey);
     }
 
-    getRefreshToken(): string | null {
-        return this.getCookie(this.refreshKey);
-    }
-
-    storeTokens(tokens: TokenPair, persist: boolean = true): void {
-        const accessExpiry = persist ? this.getTokenExpiry(tokens.access) : undefined;
-        const refreshExpiry = persist ? this.getTokenExpiry(tokens.refresh) : undefined;
-        this.setCookie(this.accessKey, tokens.access, accessExpiry);
-        this.setCookie(this.refreshKey, tokens.refresh, refreshExpiry);
+    storeAccessToken(accessToken: string, persist: boolean = true): void {
+        const accessExpiry = persist ? this.getTokenExpiry(accessToken) : undefined;
+        this.setCookie(this.accessKey, accessToken, accessExpiry);
     }
 
     private setCookie(name: string, value: string, expires?: Date): void {

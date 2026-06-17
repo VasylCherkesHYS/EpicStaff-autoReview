@@ -76,4 +76,3 @@ class PasswordChangeConfirmResponseSerializer(serializers.Serializer):
     """`POST /api/profile/password-change/confirm/` — response schema."""
 
     access = serializers.CharField()
-    refresh = serializers.CharField()
