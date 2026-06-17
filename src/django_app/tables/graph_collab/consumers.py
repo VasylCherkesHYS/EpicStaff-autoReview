@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pydantic
 from asgiref.sync import sync_to_async
@@ -8,10 +9,17 @@ from django.contrib.auth.models import AnonymousUser
 from pydantic import BaseModel
 
 from tables.graph_collab.graph_state_service import graph_state_service
+from tables.services.redis_service import RedisService
 from tables.graph_collab.lock_service import lock_service
 from tables.graph_collab.presence_service import presence_service
-from tables.graph_collab.constants import _RELAY_MESSAGE_TYPES, _STATE_OP_TYPES
+from tables.graph_collab.constants import (
+    CURSOR_FLUSH_INTERVAL_SECONDS,
+    CURSOR_REDIS_CHANNEL_PREFIX,
+    _RELAY_MESSAGE_TYPES,
+    _STATE_OP_TYPES,
+)
 from tables.graph_collab.protocol import (
+    CursorMovedMessage,
     EditorInfo,
     ErrorMessage,
     GraphStateMessage,
@@ -29,6 +37,10 @@ from utils.logger import logger
 
 def _group_name(graph_id: int) -> str:
     return f"graph_edit_{graph_id}"
+
+
+def _cursor_channel_name(graph_id: int) -> str:
+    return f"{CURSOR_REDIS_CHANNEL_PREFIX}:{graph_id}"
 
 
 def _lock_timeout() -> int:
@@ -66,6 +78,12 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
         self.group = _group_name(self.graph_id)
         # Per-field asyncio timer handles; keyed by "{node_id}:{field}".
         self._lock_timers: dict[str, asyncio.Task] = {}
+        # Latest cursor position per remote user_id (echo-suppressed).
+        self._pending_cursors: dict[int, dict] = {}
+        # Dedicated Redis pubsub connection for this consumer (lossy cursor channel).
+        self._cursor_pubsub = None
+        self._cursor_reader_task: asyncio.Task | None = None
+        self._cursor_flush_task: asyncio.Task | None = None
 
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.accept()
@@ -107,7 +125,13 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
                 ).model_dump()
             )
 
+        # Start cursor pub/sub reader and flush tasks.
+        await self._start_cursor_tasks()
+
     async def disconnect(self, code):
+        # Cancel cursor background tasks before doing anything else.
+        await self._stop_cursor_tasks()
+
         group = getattr(self, "group", None)
         if group:
             graph_id = getattr(self, "graph_id", None)
@@ -143,6 +167,11 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content, **kwargs):
         message_type = content.get("type")
+
+        # Cursor messages travel via Redis pub/sub (lossy), not the channel layer.
+        if message_type == "cursor_moved":
+            await self._handle_cursor_moved(content)
+            return
 
         # Handle Client→Server graph_state seed before relay lookup.
         if message_type == "graph_state":
@@ -348,9 +377,6 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
     async def connection_waypoints_updated(self, event):
         await self._relay(event)
 
-    async def cursor_moved(self, event):
-        await self._relay(event)
-
     async def selection_changed(self, event):
         await self._relay(event)
 
@@ -373,6 +399,132 @@ class GraphEditConsumer(AsyncJsonWebsocketConsumer):
 
     async def presence_state(self, event):
         await self.send_json(event)
+
+    # --- Cursor pub/sub (Redis, lossy) ---
+
+    async def _handle_cursor_moved(self, content: dict) -> None:
+        """Publish cursor position to the per-graph Redis channel (fire-and-forget).
+
+        The server overrides editor identity so clients cannot spoof who they are.
+        The payload includes the sender's user_id so all subscribers can suppress echo.
+        """
+        try:
+            message = CursorMovedMessage.model_validate(content)
+        except pydantic.ValidationError as exc:
+            await self.send_json(
+                ErrorMessage(code="invalid_payload", message=str(exc)).model_dump()
+            )
+            return
+
+        user = self.scope["user"]
+        message.editor = self._build_editor_info(user)
+
+        payload = {
+            "sender_user_id": user.pk,
+            "x": message.x,
+            "y": message.y,
+            "editor": message.editor.model_dump(),
+        }
+
+        redis_client = RedisService().async_redis_client
+        channel = _cursor_channel_name(self.graph_id)
+        await redis_client.publish(channel, json.dumps(payload))
+
+    async def _start_cursor_tasks(self) -> None:
+        """Subscribe to the cursor Redis channel and start reader + flush tasks."""
+        redis_client = RedisService().async_redis_client
+        self._cursor_pubsub = redis_client.pubsub()
+        channel = _cursor_channel_name(self.graph_id)
+        await self._cursor_pubsub.subscribe(channel)
+
+        self._cursor_reader_task = asyncio.ensure_future(self._cursor_reader_loop())
+        self._cursor_flush_task = asyncio.ensure_future(self._cursor_flush_loop())
+        logger.debug(
+            "Cursor pub/sub started for user {} on graph {}",
+            self.scope["user"].pk,
+            self.graph_id,
+        )
+
+    async def _stop_cursor_tasks(self) -> None:
+        """Cancel cursor tasks and close the Redis pubsub connection cleanly."""
+        for task in (
+            getattr(self, "_cursor_reader_task", None),
+            getattr(self, "_cursor_flush_task", None),
+        ):
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        pubsub = getattr(self, "_cursor_pubsub", None)
+        if pubsub is not None:
+            try:
+                channel = _cursor_channel_name(getattr(self, "graph_id", 0))
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+            except Exception as exc:
+                logger.warning("Error closing cursor pubsub: {}", exc)
+
+    async def _cursor_reader_loop(self) -> None:
+        """Read cursor messages from Redis and write latest position per user.
+
+        Overwrites any previous position for the same user_id (coalescing).
+        Skips messages from this consumer's own user (echo suppression).
+        """
+        own_user_id: int = self.scope["user"].pk
+        try:
+            async for message in self._cursor_pubsub.listen():
+                if message["type"] != "message":
+                    continue
+                try:
+                    data = json.loads(message["data"])
+                except (json.JSONDecodeError, TypeError) as exc:
+                    logger.warning("Cursor reader: invalid JSON payload: {}", exc)
+                    continue
+
+                sender_user_id = data.get("sender_user_id")
+                if sender_user_id == own_user_id:
+                    # Echo suppression — a user must not see their own cursor.
+                    continue
+
+                editor = data.get("editor")
+                if editor is None or "x" not in data or "y" not in data:
+                    logger.warning(
+                        "Cursor reader: malformed payload, missing fields: {}", data
+                    )
+                    continue
+
+                self._pending_cursors[sender_user_id] = {
+                    "x": data["x"],
+                    "y": data["y"],
+                    "editor": editor,
+                }
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "Cursor reader loop error for graph {}: {}", self.graph_id, exc
+            )
+
+    async def _cursor_flush_loop(self) -> None:
+        """Periodically send one batched cursor message to this consumer's browser.
+
+        Sends only when there is at least one pending cursor update.
+        """
+        try:
+            while True:
+                await asyncio.sleep(CURSOR_FLUSH_INTERVAL_SECONDS)
+                if not self._pending_cursors:
+                    continue
+                batch = list(self._pending_cursors.values())
+                self._pending_cursors.clear()
+                await self.send_json({"type": "cursor_batch", "cursors": batch})
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("Cursor flush loop error for graph {}: {}", self.graph_id, exc)
 
     # --- Helpers ---
 

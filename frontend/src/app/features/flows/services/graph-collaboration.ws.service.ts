@@ -33,6 +33,7 @@ type ServerMessage =
     | ConnectionsDeletedMessage
     | ConnectionWaypointsUpdatedMessage
     | CursorMovedMessage
+    | CursorBatchMessage
     | SelectionChangedMessage
     | NodeLockedMessage
     | NodeUnlockedMessage
@@ -53,6 +54,8 @@ export type ConnectionDeletedMessage            = { type: 'connection_deleted'; 
 export type ConnectionsDeletedMessage           = { type: 'connections_deleted';            connection_ids: string[];       editor: EditorInfo };
 export type ConnectionWaypointsUpdatedMessage   = { type: 'connection_waypoints_updated';   connection_id: string;          waypoints: IPoint[]; editor: EditorInfo};
 export type CursorMovedMessage                  = { type: 'cursor_moved';                  x: number; y: number;            editor: EditorInfo};
+export type CursorData                          = { x: number; y: number; editor: EditorInfo };
+export type CursorBatchMessage                  = { type: 'cursor_batch';                  cursors: CursorData[] };
 export type SelectionChangedMessage             = { type: 'selection_changed';              node_ids: string[];             editor: EditorInfo};
 export type NodeLockedMessage                   = { type: 'node_locked';                    node_id: string;                field: string;      editor: EditorInfo};
 export type NodeUnlockedMessage                 = { type: 'node_unlocked';                  node_id: string;                field: string;      editor: EditorInfo};
@@ -256,6 +259,13 @@ export class GraphCollaborationWsService {
                 break;
             case 'cursor_moved':
                 this.cursorMoved$.next(message);
+                break;
+            case 'cursor_batch':
+                if (Array.isArray(message.cursors)) {
+                    for (const cursor of message.cursors) {
+                        this.cursorMoved$.next({ type: 'cursor_moved', x: cursor.x, y: cursor.y, editor: cursor.editor });
+                    }
+                }
                 break;
             case 'selection_changed':
                 this.selectionChanged$.next(message);
