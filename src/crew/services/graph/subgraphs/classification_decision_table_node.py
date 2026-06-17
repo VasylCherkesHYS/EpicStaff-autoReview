@@ -478,9 +478,17 @@ def main(**kwargs) -> dict:
         enter_node = self.node_data.node_name
         evaluate_node = self.node_data.node_name + "_evaluate"
 
-        # Sort condition groups by order
+        # Sort condition groups by order, excluding disabled (dock_visible=False) groups
+        enabled_groups = [g for g in self.node_data.condition_groups if g.dock_visible]
+        skipped = [
+            g.group_name for g in self.node_data.condition_groups if not g.dock_visible
+        ]
+        if skipped:
+            logger.info(
+                f"Skipping disabled condition groups in '{self.node_data.node_name}': {skipped}"
+            )
         sorted_groups = sorted(
-            self.node_data.condition_groups,
+            enabled_groups,
             key=lambda g: g.order,
         )
 
