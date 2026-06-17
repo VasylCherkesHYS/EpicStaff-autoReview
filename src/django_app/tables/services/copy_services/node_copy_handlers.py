@@ -260,9 +260,12 @@ def copy_classification_decision_table_node(
             prompt_id=group.prompt_id,
             manipulation=group.manipulation,
             continue_flag=group.continue_flag,
+            next_node_id=group.next_node_id,
             dock_visible=group.dock_visible,
             field_expressions=group.field_expressions,
             field_manipulations=group.field_manipulations,
+            route_code=group.route_code,
+            section=group.section,
         )
 
     ClassificationDecisionTablePrompt.objects.bulk_create(
