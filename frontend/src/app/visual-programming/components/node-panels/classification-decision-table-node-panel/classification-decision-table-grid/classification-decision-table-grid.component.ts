@@ -327,7 +327,7 @@ export class ClassificationDecisionTableGridComponent implements OnDestroy {
             .map((id) => id.substring(CDT_FIELD_PREFIX.length))
     );
 
-    public isEmpty = computed(() => this.rowData().length === 0);
+    public isEmpty = computed(() => this.displayedRowData().length === 0);
 
     // Manipulation field computed properties
     public activeManipFieldColumns = computed(() =>
