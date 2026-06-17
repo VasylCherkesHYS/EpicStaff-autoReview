@@ -11,7 +11,6 @@ import { ICellRendererAngularComp } from 'ag-grid-angular';
             class="ti ti-trash"
             matTooltip="Delete row"
             matTooltipPosition="above"
-            style="color: #ff3b30; font-size: 1.1rem; transition: all 0.2s ease; cursor: pointer;"
         ></i>
     `,
     changeDetection: ChangeDetectionStrategy.OnPush,

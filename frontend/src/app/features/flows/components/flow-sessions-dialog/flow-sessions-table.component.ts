@@ -170,7 +170,6 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                                         <button
                                             type="button"
                                             class="icon-img-btn"
-                                            style="background:none;border:none;padding:0;cursor:pointer;display:inline-flex;align-items:center;"
                                             matTooltip="View session"
                                             matTooltipPosition="above"
                                             (click)="viewSession.emit(session.id)"
@@ -184,7 +183,6 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                                         <button
                                             type="button"
                                             class="icon-img-btn"
-                                            style="background:none;border:none;padding:0;cursor:pointer;display:inline-flex;align-items:center;margin-left: 8px;"
                                             *ngIf="canStop(session.status)"
                                             matTooltip="Stop session"
                                             matTooltipPosition="above"
