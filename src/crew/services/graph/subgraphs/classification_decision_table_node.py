@@ -342,11 +342,32 @@ def main(**kwargs) -> dict:
         state["variables"].update(variables)
 
     async def _run_json_llm(
-        self, prompt: str, llm: LLMData
+        self, prompt: str, llm: LLMData, output_schema: dict | str | None = None
     ) -> tuple[Any, dict[str, int]]:
         """Call LLM via litellm and parse JSON response."""
         llm_config = llm.config
         litellm.drop_params = True
+
+        response_format = llm_config.response_format
+        schema = output_schema
+        if isinstance(schema, str) and schema.strip():
+            try:
+                schema = json.loads(schema)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Prompt output_schema is not valid JSON; falling back to LLM response_format."
+                )
+                schema = None
+        if isinstance(schema, dict) and schema:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "cdt_prompt_output",
+                    "schema": schema,
+                    "strict": True,
+                },
+            }
+
         params = {
             "model": f"{llm.provider}/{llm_config.model}",
             "timeout": llm_config.timeout,
@@ -357,7 +378,7 @@ def main(**kwargs) -> dict:
             "presence_penalty": llm_config.presence_penalty,
             "frequency_penalty": llm_config.frequency_penalty,
             "logit_bias": llm_config.logit_bias,
-            "response_format": llm_config.response_format,
+            "response_format": response_format,
             "seed": llm_config.seed,
             "base_url": llm_config.base_url,
             "api_version": llm_config.api_version,
@@ -423,7 +444,9 @@ def main(**kwargs) -> dict:
 
         try:
             result, usage = await self._run_json_llm(
-                prompt=rendered_prompt, llm=llm_data
+                prompt=rendered_prompt,
+                llm=llm_data,
+                output_schema=prompt_config.output_schema,
             )
         except Exception as e:
             error_msg = (
