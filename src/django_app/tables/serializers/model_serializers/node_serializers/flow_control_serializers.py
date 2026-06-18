@@ -24,6 +24,9 @@ from tables.serializers.utils.mixins import NestedPythonCodeMixin
 from tables.services.persistent_variables_service import (
     PersistentVariablesService,
 )
+from tables.services.classification_decision_table_node_children import (
+    sync_classification_decision_table_children,
+)
 from tables.constants.variables_constants import (
     DOMAIN_VARIABLES_KEY,
     DOMAIN_ORGANIZATION_KEY,
@@ -150,9 +153,9 @@ class ClassificationConditionGroupSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    prompt_id = serializers.SerializerMethodField()
+    prompt_key = serializers.SerializerMethodField()
 
-    def get_prompt_id(self, obj):
+    def get_prompt_key(self, obj):
         return obj.prompt.prompt_key if obj.prompt else None
 
     class Meta:
@@ -208,8 +211,8 @@ class ClassificationDecisionTableNodeSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        condition_groups_data = validated_data.pop("condition_groups", [])
-        prompt_configs_data = validated_data.pop("prompt_configs", [])
+        condition_groups_data = validated_data.pop("condition_groups", None)
+        prompt_configs_data = validated_data.pop("prompt_configs", None)
         pre_python_code_data = validated_data.pop("pre_python_code", None)
         post_python_code_data = validated_data.pop("post_python_code", None)
 
@@ -227,16 +230,10 @@ class ClassificationDecisionTableNodeSerializer(serializers.ModelSerializer):
             **validated_data,
         )
 
-        for group_data in condition_groups_data:
-            ClassificationConditionGroup.objects.create(
-                classification_decision_table_node=node, **group_data
-            )
-
-        ClassificationDecisionTablePrompt.objects.bulk_create(
-            [
-                ClassificationDecisionTablePrompt(cdt_node=node, **prompt_data)
-                for prompt_data in prompt_configs_data
-            ]
+        sync_classification_decision_table_children(
+            node,
+            prompt_configs_data=prompt_configs_data,
+            condition_groups_data=condition_groups_data,
         )
 
         return node
@@ -285,65 +282,10 @@ class ClassificationDecisionTableNodeSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
 
-        if prompt_configs_data is not None:
-            incoming_keys = {pd["prompt_key"] for pd in prompt_configs_data}
-            instance.prompt_configs.exclude(prompt_key__in=incoming_keys).delete()
-            for prompt_data in prompt_configs_data:
-                ClassificationDecisionTablePrompt.objects.update_or_create(
-                    cdt_node=instance,
-                    prompt_key=prompt_data["prompt_key"],
-                    defaults={
-                        k: v for k, v in prompt_data.items() if k != "prompt_key"
-                    },
-                )
-
-        if condition_groups_data is not None:
-            # Build current prompt map so we can resolve prompt FK for each group.
-            prompt_map = {p.prompt_key: p for p in instance.prompt_configs.all()}
-
-            incoming_route_codes = {
-                gd["route_code"] for gd in condition_groups_data if gd.get("route_code")
-            }
-            incoming_names = {
-                gd["group_name"]
-                for gd in condition_groups_data
-                if not gd.get("route_code") and gd.get("group_name")
-            }
-            # Delete groups no longer in the payload.
-            instance.condition_groups.exclude(route_code__isnull=True).exclude(
-                route_code__in=incoming_route_codes
-            ).delete()
-            instance.condition_groups.filter(route_code__isnull=True).exclude(
-                group_name__in=incoming_names
-            ).delete()
-
-            for group_data in condition_groups_data:
-                gd = dict(group_data)
-                # Resolve prompt FK: incoming value is already a model instance
-                # (PrimaryKeyRelatedField resolved it), but guard either way.
-                prompt_val = gd.pop("prompt", None)
-                if isinstance(prompt_val, int):
-                    gd["prompt"] = prompt_map.get(
-                        next(
-                            (k for k, p in prompt_map.items() if p.id == prompt_val),
-                            None,
-                        )
-                    )
-                else:
-                    gd["prompt"] = prompt_val
-
-                rc = gd.get("route_code")
-                if rc:
-                    ClassificationConditionGroup.objects.update_or_create(
-                        classification_decision_table_node=instance,
-                        route_code=rc,
-                        defaults=gd,
-                    )
-                else:
-                    ClassificationConditionGroup.objects.update_or_create(
-                        classification_decision_table_node=instance,
-                        group_name=gd.pop("group_name"),
-                        defaults=gd,
-                    )
+        sync_classification_decision_table_children(
+            instance,
+            prompt_configs_data=prompt_configs_data,
+            condition_groups_data=condition_groups_data,
+        )
 
         return instance
