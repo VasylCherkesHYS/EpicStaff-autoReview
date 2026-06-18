@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 from langgraph.types import StreamWriter
-from src.crew.services.graph.events import StopEvent
-from src.crew.services.graph.custom_message_writer import CustomSessionMessageWriter
-from src.crew.models.state import State
+from services.graph.events import StopEvent
+from services.graph.custom_message_writer import CustomSessionMessageWriter
+from models.state import State
 
-from src.crew.utils import map_variables_to_input
-from src.crew.utils import set_output_variables
+from utils import map_variables_to_input
+from utils import set_output_variables
 
 
 class BaseNode(ABC):
