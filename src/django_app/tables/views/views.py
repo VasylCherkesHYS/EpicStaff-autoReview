@@ -104,9 +104,11 @@ from tables.services.import_export_service import ViewSetImportExportService
 from tables.import_export.enums import EntityType
 from rest_framework.permissions import IsAuthenticated
 from tables.views.mixins import OrgScopedChildViewSetMixin
-from tables.services.rbac.permissions import HasOrgPermission
+from tables.services.rbac.permissions import HasOrgPermission, IsSuperadmin
 from tables.services.rbac.permission_action_map import DEFAULT_ACTION_MAP
 from tables.services.rbac.session_access import assert_session_org_access
+from tables.services.rbac.permission_assert import assert_org_permission
+from tables.services.rbac.org_context_service import OrgContextService
 from tables.models.rbac_models.rbac_enums import Permission, ResourceType
 from tables.import_export.export_format_strategies import (
     JsonExportFormatStrategy,
@@ -814,6 +816,11 @@ class QuickstartView(APIView):
     API endpoint for managing quickstart configurations
     """
 
+    permission_classes = [IsAuthenticated]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_required_action = Permission.CREATE
+    _org_context = OrgContextService()
+
     @extend_schema(**QUICKSTART_GET)
     def get(self, request):
         try:
@@ -845,8 +852,17 @@ class QuickstartView(APIView):
         if serializer.is_valid():
             provider = serializer.validated_data["provider"]
             api_key = serializer.validated_data["api_key"]
+            org_id = self._org_context.resolve(
+                request=request, view_kwargs=getattr(self, "kwargs", {})
+            )
+            assert_org_permission(
+                user=request.user,
+                org_id=org_id,
+                resource_type=self.rbac_resource_type,
+                action=self.rbac_required_action,
+            )
 
-            result = quickstart_service.quickstart(provider, api_key)
+            result = quickstart_service.quickstart(provider, api_key, org_id=org_id)
 
             if result.get("success", False):
                 config_name = result["config_name"]
@@ -881,7 +897,13 @@ class QuickstartApplyView(APIView):
     """
     Applies a quickstart config to DefaultModels.
     If config_name is omitted, the most recently created quickstart config is used.
+
+    Writes the global DefaultModels singleton (install-wide defaults shared by
+    every organization), so it is restricted to superadmins.
     """
+
+    # TODO: refactor to set default models per org based on user permissions
+    permission_classes = [IsAuthenticated, IsSuperadmin]
 
     @extend_schema(**QUICKSTART_APPLY_POST)
     def post(self, request):
