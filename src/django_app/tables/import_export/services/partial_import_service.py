@@ -9,9 +9,10 @@ from tables.import_export.enums import EntityType
 from tables.import_export.strategies.graph import GraphStrategy
 
 
-# Node entity types that belong to a graph — handled via recreate_graph_children
+# Node entity types that belong to a graph — handled via recreate_graph_children.
+# Start/end nodes are intentionally excluded: they are structural and every
+# graph already has them, so they are not part of partial export/import.
 _NODE_ENTITY_TYPES = {
-    EntityType.START_NODE,
     EntityType.CREW_NODE,
     EntityType.PYTHON_NODE,
     EntityType.AUDIO_TRANSCRIPTION_NODE,
@@ -21,7 +22,6 @@ _NODE_ENTITY_TYPES = {
     EntityType.DECISION_TABLE_NODE,
     EntityType.CLASSIFICATION_DECISION_TABLE_NODE,
     EntityType.SUBGRAPH_NODE,
-    EntityType.END_NODE,
     EntityType.NOTE_NODE,
     EntityType.CODE_AGENT_NODE,
     EntityType.SCHEDULE_TRIGGER_NODE,

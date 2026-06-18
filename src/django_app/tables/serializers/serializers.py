@@ -109,9 +109,6 @@ class BulkExportSerializer(serializers.Serializer):
 
 
 class GraphNodesPartialExportSerializer(serializers.Serializer):
-    start_node_list = serializers.ListField(
-        child=serializers.IntegerField(min_value=1), required=False, default=list
-    )
     crew_node_list = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, default=list
     )
@@ -122,9 +119,6 @@ class GraphNodesPartialExportSerializer(serializers.Serializer):
         child=serializers.IntegerField(min_value=1), required=False, default=list
     )
     file_extractor_node_list = serializers.ListField(
-        child=serializers.IntegerField(min_value=1), required=False, default=list
-    )
-    end_node_list = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, default=list
     )
     subgraph_node_list = serializers.ListField(

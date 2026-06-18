@@ -6,9 +6,10 @@ from tables.import_export.registry import EntityRegistry
 from tables.import_export.enums import EntityType
 from tables.import_export.serializers.graph import EdgeImportSerializer
 
-# Map bulk-save list_key -> EntityType for strategy lookup
+# Map bulk-save list_key -> EntityType for strategy lookup.
+# Start/end nodes are intentionally excluded: they are structural and every
+# graph already has them, so they are not part of partial export/import.
 LIST_KEY_TO_ENTITY_TYPE: dict[str, EntityType] = {
-    "start_node_list": EntityType.START_NODE,
     "crew_node_list": EntityType.CREW_NODE,
     "python_node_list": EntityType.PYTHON_NODE,
     "audio_transcription_node_list": EntityType.AUDIO_TRANSCRIPTION_NODE,
@@ -18,7 +19,6 @@ LIST_KEY_TO_ENTITY_TYPE: dict[str, EntityType] = {
     "decision_table_node_list": EntityType.DECISION_TABLE_NODE,
     "classification_decision_table_node_list": EntityType.CLASSIFICATION_DECISION_TABLE_NODE,
     "subgraph_node_list": EntityType.SUBGRAPH_NODE,
-    "end_node_list": EntityType.END_NODE,
     "graph_note_list": EntityType.NOTE_NODE,
     "code_agent_node_list": EntityType.CODE_AGENT_NODE,
     "schedule_trigger_node_list": EntityType.SCHEDULE_TRIGGER_NODE,
