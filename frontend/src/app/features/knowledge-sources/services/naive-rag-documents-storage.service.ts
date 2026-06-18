@@ -215,6 +215,10 @@ export class NaiveRagDocumentsStorageService implements StorageService {
                         return;
                     }
                 }
+            }),
+            catchError(() => {
+                this.updateDocState(documentId, (s) => ({ ...s, status: 'chunking_failed' }));
+                return EMPTY;
             })
         );
     }
