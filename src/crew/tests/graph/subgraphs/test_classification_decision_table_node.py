@@ -440,19 +440,11 @@ async def test_field_expressions_no_match_when_values_differ(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_manipulation_writes_back_to_state_variables(monkeypatch):
-    """manipulation (main) and field_manipulations update state['variables'].
+    """field_manipulations with a bare key write back to state['variables'].
 
-    field_manipulations generate `var = expr` code which rebinds a local variable.
-    Write-back reads from the `variables` SimpleNamespace, so field_manipulations
-    must update `variables.<field>` to persist. The current code generation produces
-    bare rebinds (e.g. `score = score + 10`) which does NOT update `variables.score`.
-    Use `variables.score = score + 10` in field_manipulations to persist the change.
-
-    BUG NOTE: field_manipulations with `{"score": "score + 10"}` generates
-    `score = score + 10` (local rebind) instead of `variables.score = score + 10`,
-    so the write-back does not capture the updated value. This is a source-code bug.
-    The test below uses correct namespace-aware expressions in field_manipulations
-    and a main manipulation to verify the write-back path works.
+    The engine prefixes bare keys with `variables.` so `{"score": "score + 10"}`
+    generates `variables.score = score + 10`, which is captured by the write-back
+    path. The main manipulation also runs and updates its target variable.
     """
     monkeypatch.setattr(RunPythonCodeService, "run_code", fake_run_code, raising=True)
 
@@ -460,8 +452,7 @@ async def test_manipulation_writes_back_to_state_variables(monkeypatch):
         ClassificationConditionGroupData(
             group_name="row1",
             expression="True",
-            # Use `variables.score` so the namespace is updated (write-back path works)
-            field_manipulations={"variables.score": "score + 10"},
+            field_manipulations={"score": "score + 10"},
             manipulation="variables.label = 'updated'",
             next_node="done",
             continue_flag=False,
@@ -476,6 +467,34 @@ async def test_manipulation_writes_back_to_state_variables(monkeypatch):
 
     assert result["variables"]["score"] == 15
     assert result["variables"]["label"] == "updated"
+
+
+@pytest.mark.asyncio
+async def test_field_manipulations_already_prefixed_key_not_double_prefixed(
+    monkeypatch,
+):
+    """field_manipulations with an already-prefixed key (`variables.score`) must not
+    become `variables.variables.score` — the engine skips the prefix when already present."""
+    monkeypatch.setattr(RunPythonCodeService, "run_code", fake_run_code, raising=True)
+
+    groups = [
+        ClassificationConditionGroupData(
+            group_name="row1",
+            expression="True",
+            field_manipulations={"variables.score": "score + 1"},
+            next_node="done",
+            continue_flag=False,
+            order=0,
+        ),
+    ]
+    node_data = make_node_data(condition_groups=groups)
+    subgraph = make_subgraph(node_data)
+    state = make_state({"score": 10})
+
+    result = await subgraph.ainvoke(state)
+
+    assert result["variables"]["score"] == 11
+    assert "variables" not in result["variables"]
 
 
 @pytest.mark.asyncio
