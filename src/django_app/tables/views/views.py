@@ -922,9 +922,7 @@ class ProcessRagIndexingView(APIView):
 
         rag_id = serializer.validated_data["rag_id"]
         rag_type = serializer.validated_data["rag_type"]
-        document_config_ids = (
-            serializer.validated_data.get("document_config_ids") or None
-        )
+        document_config_ids = serializer.validated_data.get("document_config_ids")
 
         try:
             indexing_data = IndexingService.validate_and_prepare_indexing(

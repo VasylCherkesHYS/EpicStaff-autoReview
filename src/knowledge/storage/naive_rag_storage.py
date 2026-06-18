@@ -13,7 +13,11 @@ from models.orm import (
     NaiveRagEmbedding,
     DocumentMetadata,
 )
-from src.shared.models import KnowledgeChunkResponse, format_error_message
+from src.shared.models import (
+    DocumentErrorCode,
+    KnowledgeChunkResponse,
+    format_error_message,
+)
 from chunkers.base_chunker import BaseChunkData
 
 
@@ -224,7 +228,7 @@ class ORMNaiveRagStorage(BaseORMStorage):
             if not doc_config:
                 return False
             doc_config.error_message = None
-            doc_config.error_code = None
+            doc_config.error_code = DocumentErrorCode.NONE.value
             doc_config.failed_at = None
             return True
         except Exception as e:
@@ -252,7 +256,6 @@ class ORMNaiveRagStorage(BaseORMStorage):
             doc_config.indexed_chunk_size = doc_config.chunk_size
             doc_config.indexed_chunk_overlap = doc_config.chunk_overlap
             doc_config.indexed_additional_params = doc_config.additional_params
-            # Aware UTC to match Django (USE_TZ=True / timestamptz columns).
             doc_config.processed_at = datetime.now(timezone.utc)
             return True
         except Exception as e:
@@ -480,8 +483,6 @@ class ORMNaiveRagStorage(BaseORMStorage):
             return chunks
 
         except Exception as e:
-            # Sanitize: a SQLAlchemy DB error stringifies with the full SQL +
-            # bound params (chunk text), dumping document content into the logs.
             logger.error(
                 f"Failed to save preview chunks for config "
                 f"{naive_rag_document_config_id}: {format_error_message(e)}"
@@ -516,8 +517,6 @@ class ORMNaiveRagStorage(BaseORMStorage):
             self.session.add(embedding_obj)
 
         except Exception as e:
-            # Sanitize: a SQLAlchemy DB error stringifies with the full SQL +
-            # bound params (the embedding vector), bloating the logs.
             logger.error(
                 f"Failed to save embedding for chunk {chunk_id}: "
                 f"{format_error_message(e)}"

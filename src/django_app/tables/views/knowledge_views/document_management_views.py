@@ -7,6 +7,7 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import NotFound, ValidationError
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from rest_framework import serializers as drf_serializers
 
@@ -53,8 +54,6 @@ def _document_bytes(document: DocumentMetadata) -> bytes:
     return bytes(content.content)
 
 
-# Explicit content types per known file_type — more reliable for inline preview
-# than guessing from the file name (e.g. .md / .json are not always registered).
 PREVIEW_CONTENT_TYPES = {
     DocumentMetadata.DocumentFileType.PDF: "application/pdf",
     DocumentMetadata.DocumentFileType.CSV: "text/csv; charset=utf-8",
@@ -326,25 +325,18 @@ class DocumentViewSet(
         Download one or multiple documents.
         A single document is returned as-is; multiple are bundled into a zip.
         """
-        try:
-            document_ids = self._parse_document_ids(
-                request.query_params.get("document_ids", "")
-            )
-        except InvalidFieldType as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        document_ids = self._parse_document_ids(
+            request.query_params.get("document_ids", "")
+        )
         if not document_ids:
-            return Response(
-                {"error": "document_ids query parameter is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise ValidationError("document_ids query parameter is required")
 
         try:
             documents = DocumentManagementService.get_documents_with_content(
                 document_ids
             )
         except DocumentsNotFoundException as e:
-            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound(str(e))
 
         if len(documents) == 1:
             return _build_file_response(documents[0])
@@ -433,7 +425,6 @@ class CollectionDocumentsViewSet(viewsets.GenericViewSet):
         except (ValueError, TypeError):
             raise InvalidFieldType("collection_id", collection_id)
 
-        # Verify collection exists
         try:
             collection = DocumentManagementService.get_collection(collection_id)
         except CollectionNotFoundException as e:

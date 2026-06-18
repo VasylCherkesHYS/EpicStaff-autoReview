@@ -23,8 +23,6 @@ class ChunkParameterValidator:
       - single-update calls :meth:`validate_or_raise`.
     """
 
-    # ---- strategy ↔ file-type compatibility ----
-
     @staticmethod
     def allowed_strategies_for_file_type(file_type: str) -> set:
         return UNIVERSAL_STRATEGIES | FILE_TYPE_SPECIFIC_STRATEGIES.get(
@@ -34,8 +32,6 @@ class ChunkParameterValidator:
     @classmethod
     def is_strategy_allowed(cls, strategy: str, file_type: str) -> bool:
         return strategy in cls.allowed_strategies_for_file_type(file_type)
-
-    # ---- update-dict building ----
 
     @staticmethod
     def build_updates(
@@ -53,7 +49,59 @@ class ChunkParameterValidator:
         )
         return {k: v for k, v in pairs if v is not None}
 
-    # ---- validation ----
+    @staticmethod
+    def _error(field: str, value: Any, reason: str) -> Dict[str, Any]:
+        return {"field": field, "value": value, "reason": reason}
+
+    @classmethod
+    def _validate_range(
+        cls, field: str, value: Any, low: int, high: int
+    ) -> List[Dict[str, Any]]:
+        if value < low:
+            return [cls._error(field, value, f"{field} too small (min {low})")]
+        if value > high:
+            return [cls._error(field, value, f"{field} too large (max {high})")]
+        return []
+
+    @classmethod
+    def _validate_chunk_size(
+        cls, value: Any, config: Optional[NaiveRagDocumentConfig] = None
+    ) -> List[Dict[str, Any]]:
+        return cls._validate_range("chunk_size", value, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE)
+
+    @classmethod
+    def _validate_chunk_overlap(
+        cls, value: Any, config: Optional[NaiveRagDocumentConfig] = None
+    ) -> List[Dict[str, Any]]:
+        return cls._validate_range(
+            "chunk_overlap", value, MIN_CHUNK_OVERLAP, MAX_CHUNK_OVERLAP
+        )
+
+    @classmethod
+    def _validate_chunk_strategy(
+        cls, value: Any, config: Optional[NaiveRagDocumentConfig] = None
+    ) -> List[Dict[str, Any]]:
+        valid_strategies = [
+            choice[0] for choice in NaiveRagDocumentConfig.ChunkStrategy.choices
+        ]
+        if value not in valid_strategies:
+            return [
+                cls._error(
+                    "chunk_strategy",
+                    value,
+                    f"Invalid chunk_strategy. Must be one of: {', '.join(valid_strategies)}",
+                )
+            ]
+        if config and not cls.is_strategy_allowed(value, config.document.file_type):
+            allowed = cls.allowed_strategies_for_file_type(config.document.file_type)
+            return [
+                cls._error(
+                    "chunk_strategy",
+                    value,
+                    f"chunk_strategy '{value}' is not valid for file type '{config.document.file_type}'. Allowed: {', '.join(sorted(allowed))}",
+                )
+            ]
+        return []
 
     @classmethod
     def validate_field(
@@ -62,73 +110,15 @@ class ChunkParameterValidator:
         value: Any,
         config: Optional[NaiveRagDocumentConfig] = None,
     ) -> List[Dict[str, Any]]:
-        """Validate a single field. Returns ``{field, value, reason}`` dicts
-        (empty list if valid). ``config`` is needed for strategy↔file-type."""
-        errors: List[Dict[str, Any]] = []
-
-        if field_name == "chunk_size":
-            if value < MIN_CHUNK_SIZE:
-                errors.append(
-                    {
-                        "field": "chunk_size",
-                        "value": value,
-                        "reason": f"chunk_size too small (min {MIN_CHUNK_SIZE})",
-                    }
-                )
-            elif value > MAX_CHUNK_SIZE:
-                errors.append(
-                    {
-                        "field": "chunk_size",
-                        "value": value,
-                        "reason": f"chunk_size too large (max {MAX_CHUNK_SIZE})",
-                    }
-                )
-
-        elif field_name == "chunk_overlap":
-            if value < MIN_CHUNK_OVERLAP:
-                errors.append(
-                    {
-                        "field": "chunk_overlap",
-                        "value": value,
-                        "reason": f"chunk_overlap too small (min {MIN_CHUNK_OVERLAP})",
-                    }
-                )
-            elif value > MAX_CHUNK_OVERLAP:
-                errors.append(
-                    {
-                        "field": "chunk_overlap",
-                        "value": value,
-                        "reason": f"chunk_overlap too large (max {MAX_CHUNK_OVERLAP})",
-                    }
-                )
-
-        elif field_name == "chunk_strategy":
-            valid_strategies = [
-                choice[0] for choice in NaiveRagDocumentConfig.ChunkStrategy.choices
-            ]
-            if value not in valid_strategies:
-                errors.append(
-                    {
-                        "field": "chunk_strategy",
-                        "value": value,
-                        "reason": f"Invalid chunk_strategy. Must be one of: {', '.join(valid_strategies)}",
-                    }
-                )
-            elif config and not cls.is_strategy_allowed(
-                value, config.document.file_type
-            ):
-                allowed = cls.allowed_strategies_for_file_type(
-                    config.document.file_type
-                )
-                errors.append(
-                    {
-                        "field": "chunk_strategy",
-                        "value": value,
-                        "reason": f"chunk_strategy '{value}' is not valid for file type '{config.document.file_type}'. Allowed: {', '.join(sorted(allowed))}",
-                    }
-                )
-
-        return errors
+        """Validate a single field via per-field dispatch. Returns
+        ``{field, value, reason}`` dicts (empty list if valid, or if the field
+        has no validator). ``config`` is needed for strategy↔file-type."""
+        validator = {
+            "chunk_size": cls._validate_chunk_size,
+            "chunk_overlap": cls._validate_chunk_overlap,
+            "chunk_strategy": cls._validate_chunk_strategy,
+        }.get(field_name)
+        return validator(value, config) if validator else []
 
     @classmethod
     def collect_errors(

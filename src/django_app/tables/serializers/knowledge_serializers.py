@@ -149,7 +149,6 @@ class DocumentBulkDeleteSerializer(serializers.Serializer):
                 "At least one document ID must be provided."
             )
 
-        # Remove duplicates
         unique_ids = list(set(value))
 
         return unique_ids
@@ -170,7 +169,6 @@ class CopyDocumentsSerializer(serializers.Serializer):
     )
 
     def validate_document_ids(self, value):
-        # Remove duplicates while preserving order
         return list(dict.fromkeys(value))
 
 

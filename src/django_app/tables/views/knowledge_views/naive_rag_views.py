@@ -621,7 +621,7 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
 
         except Exception as e:
             logger.error(f"Chunking error for job {chunking_job_id}: {e}")
-            message = NaiveRagService.mark_config_failed(
+            message = NaiveRagService.mark_config_failed_and_get_message(
                 config, NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED, e
             )
             return Response(

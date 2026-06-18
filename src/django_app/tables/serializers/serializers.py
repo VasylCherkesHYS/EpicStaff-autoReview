@@ -110,7 +110,6 @@ class ProcessRagIndexingSerializer(serializers.Serializer):
     )
 
     def validate_document_config_ids(self, value):
-        # order-preserving dedupe
         return list(dict.fromkeys(value))
 
 

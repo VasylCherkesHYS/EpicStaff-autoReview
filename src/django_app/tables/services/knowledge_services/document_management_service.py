@@ -432,11 +432,9 @@ class DocumentManagementService:
         Raises:
             DocumentsNotFoundException: If any requested document is missing.
         """
-        documents = DocumentMetadata.objects.filter(
-            document_id__in=document_ids
-        ).select_related("document_content")
-
-        documents_by_id = {doc.document_id: doc for doc in documents}
+        documents_by_id = DocumentMetadata.objects.select_related(
+            "document_content"
+        ).in_bulk(document_ids)
         missing_ids = [
             doc_id for doc_id in document_ids if doc_id not in documents_by_id
         ]
@@ -486,7 +484,6 @@ class DocumentManagementService:
                     file_size=source_doc.file_size,
                 )
             )
-            # Guard against duplicate content appearing twice in the same batch.
             existing_content_ids.add(source_doc.document_content_id)
 
         logger.info(

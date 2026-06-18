@@ -15,6 +15,7 @@ class GraphRag(models.Model):
         NEW = "new"
         PROCESSING = "processing"
         COMPLETED = "completed"
+        WARNING = "warning"
         FAILED = "failed"
 
     graph_rag_id = models.AutoField(primary_key=True)

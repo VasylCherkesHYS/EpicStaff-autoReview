@@ -29,7 +29,6 @@ class CollectionProcessorService(metaclass=SingletonMeta):
                 rag_id=rag_id, document_config_ids=document_config_ids
             )
         else:
-            # GraphRag and others ignore per-document subsets.
             strategy.process_rag_indexing(rag_id=rag_id)
 
     def process_preview_chunking(

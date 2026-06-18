@@ -290,7 +290,6 @@ class DocumentConfigBulkDeleteSerializer(serializers.Serializer):
     )
 
     def validate_config_ids(self, value):
-        # Dedup, preserving order. (Empty is rejected by allow_empty=False.)
         return list(dict.fromkeys(value))
 
 

@@ -91,7 +91,7 @@ class IndexingService:
             ).update(
                 status=DocStatus.INDEXING,
                 error_message=None,
-                error_code=None,
+                error_code=NaiveRagDocumentConfig.DocumentErrorCode.NONE,
                 failed_at=None,
             )
             status_changed = True
@@ -179,19 +179,22 @@ class IndexingService:
                 f"Collection not found for BaseRagType {base_rag_type.rag_type_id}"
             )
 
-        document_count = GraphRagDocument.objects.filter(graph_rag=graph_rag).count()
-        for cond, msg in (
-            (document_count == 0, "has no documents"),
-            (not graph_rag.embedder, "has no embedder configured"),
-            (not graph_rag.llm, "has no LLM configured"),
-            (not graph_rag.index_config, "has no index configuration"),
-        ):
-            if cond:
-                raise RagNotReadyForIndexingException(f"GraphRag {graph_rag_id} {msg}.")
+        has_documents = GraphRagDocument.objects.filter(graph_rag=graph_rag).exists()
+        requirements = (
+            (has_documents, "has no documents"),
+            (graph_rag.embedder, "has no embedder configured"),
+            (graph_rag.llm, "has no LLM configured"),
+            (graph_rag.index_config, "has no index configuration"),
+        )
+        for present, message in requirements:
+            if not present:
+                raise RagNotReadyForIndexingException(
+                    f"GraphRag {graph_rag_id} {message}."
+                )
 
         logger.info(
             f"Prepared GraphRag {graph_rag_id}: collection={collection.collection_id}, "
-            f"documents={document_count}, embedder={graph_rag.embedder.id}, llm={graph_rag.llm.id}"
+            f"embedder={graph_rag.embedder.id}, llm={graph_rag.llm.id}"
         )
         return {
             "rag_id": graph_rag_id,

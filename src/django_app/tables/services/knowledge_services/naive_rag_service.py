@@ -191,10 +191,11 @@ class NaiveRagService:
         return config
 
     @staticmethod
-    def mark_config_failed(
+    def mark_config_failed_and_get_message(
         config: NaiveRagDocumentConfig, error_code, exc: BaseException
     ) -> str:
-        """Persist FAILED state on a config and return the error message."""
+        """Persist FAILED state on a config and return the formatted error
+        message (for surfacing to the API caller)."""
         message = config.mark_failed(error_code, exc)
         config.save(
             update_fields=["status", "error_code", "error_message", "failed_at"]
@@ -213,8 +214,6 @@ class NaiveRagService:
         qs = (
             NaiveRagDocumentConfig.objects.filter(naive_rag_id=naive_rag_id)
             .select_related("document")
-            # Annotate counts in one query (avoids N+1 from the model
-            # properties); distinct=True stops the join from inflating counts.
             .annotate(
                 chunks_count=Count("chunks", distinct=True),
                 embeddings_count=Count("embeddings", distinct=True),
@@ -442,10 +441,8 @@ class NaiveRagService:
         Note: config_ids non-empty is guaranteed by the serializer
         (allow_empty=False); not re-checked here.
         """
-        # Verify NaiveRag exists
         NaiveRagService.get_naive_rag(naive_rag_id)
 
-        # Get configs that belong to this naive_rag
         configs = NaiveRagDocumentConfig.objects.filter(
             naive_rag_id=naive_rag_id, naive_rag_document_id__in=config_ids
         )
@@ -460,10 +457,8 @@ class NaiveRagService:
 
         deleted_count = len(found_ids)
 
-        # Delete configs
         configs.delete()
 
-        # Removing configs can change the aggregate RAG status.
         if deleted_count:
             NaiveRag.objects.get(naive_rag_id=naive_rag_id).update_rag_status()
 
@@ -506,8 +501,6 @@ class NaiveRagService:
         naive_rag = config.naive_rag
         config.delete()
 
-        # Removing a config can change the aggregate (e.g. dropping the last
-        # FAILED config should flip the RAG out of WARNING).
         naive_rag.update_rag_status()
 
         logger.info(

@@ -42,9 +42,9 @@ class DocumentErrorCode(str, Enum):
     EMBEDDER_AUTH = "embedder_auth"
     EMBEDDER_RATE_LIMIT = "embedder_rate_limit"
     UNKNOWN = "unknown"
+    NONE = "none"
 
 
-# Chunk-param fields snapshotted into `indexed_*` columns on successful indexing.
 CHUNK_PARAM_FIELDS = (
     "chunk_size",
     "chunk_overlap",
@@ -52,8 +52,6 @@ CHUNK_PARAM_FIELDS = (
     "additional_params",
 )
 
-# Doc statuses that roll the RAG up to PROCESSING. Includes `chunked` (a
-# previewed-but-not-indexed doc keeps the RAG busy), unlike the race-guard below.
 AGGREGATION_IN_PROGRESS = frozenset(
     {
         DocumentStatus.CHUNKING.value,
@@ -62,8 +60,6 @@ AGGREGATION_IN_PROGRESS = frozenset(
     }
 )
 
-# Doc statuses meaning "a worker is actively mutating this row" — the race-guard.
-# `chunked` is excluded: it's a preview/editing state, not active work.
 RACE_GUARD_IN_PROGRESS = frozenset(
     {DocumentStatus.CHUNKING.value, DocumentStatus.INDEXING.value}
 )
@@ -86,7 +82,6 @@ def compute_rag_status(doc_statuses: Iterable[str]) -> str:
         return RagStatus.NEW.value
     if statuses & AGGREGATION_IN_PROGRESS:
         return RagStatus.PROCESSING.value
-    # Uniform terminal states map 1:1; any mix falls through to WARNING.
     uniform = {
         frozenset({DocumentStatus.COMPLETED.value}): RagStatus.COMPLETED.value,
         frozenset({DocumentStatus.FAILED.value}): RagStatus.FAILED.value,
