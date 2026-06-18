@@ -88,6 +88,9 @@ const RENDERABLE_MESSAGE_TYPES: ReadonlySet<string> = new Set([
     MessageType.CODE_AGENT_STREAM,
     MessageType.SUBGRAPH_START,
     MessageType.SUBGRAPH_FINISH,
+    MessageType.CONDITION_GROUP,
+    MessageType.CONDITION_GROUP_MANIPULATION,
+    MessageType.CLASSIFICATION_PROMPT,
 ]);
 
 interface MessageViewEntry {
