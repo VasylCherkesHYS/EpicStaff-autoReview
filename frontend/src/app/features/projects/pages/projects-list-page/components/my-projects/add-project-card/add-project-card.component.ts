@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Output } from '@angular/core';
+import { HasPermissionDirective } from '@shared/directives';
+import { ActionCode, ResourceCode } from '@shared/models';
 
 import { AppSvgIconComponent } from '../../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
 
@@ -6,9 +8,10 @@ import { AppSvgIconComponent } from '../../../../../../../shared/components/app-
     selector: 'app-add-project-card',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [AppSvgIconComponent],
+    imports: [AppSvgIconComponent, HasPermissionDirective],
     template: `
         <div
+            *appHasPermission="[ResourceCode.Projects, ActionCode.Create]"
             class="add-project-card"
             (click)="createClick.emit()"
         >
@@ -86,4 +89,6 @@ import { AppSvgIconComponent } from '../../../../../../../shared/components/app-
 })
 export class AddProjectCardComponent {
     @Output() public createClick = new EventEmitter();
+    protected readonly ResourceCode = ResourceCode;
+    protected readonly ActionCode = ActionCode;
 }
