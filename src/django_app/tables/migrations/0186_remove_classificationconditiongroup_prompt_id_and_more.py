@@ -14,13 +14,12 @@ def migrate_prompt_id_to_fk(apps, schema_editor):
 
     groups = ClassificationConditionGroup.objects.filter(
         prompt_id__isnull=False
-    ).select_related("classification_decision_table_node__graph")
+    ).select_related("classification_decision_table_node")
 
     for group in groups:
-        graph = group.classification_decision_table_node.graph
         try:
             prompt = ClassificationDecisionTablePrompt.objects.get(
-                cdt_node__graph=graph,
+                cdt_node=group.classification_decision_table_node,
                 prompt_key=group.prompt_id,
             )
             group.prompt_fk = prompt
