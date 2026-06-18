@@ -728,13 +728,13 @@ def main(**kwargs) -> dict:
                         )
                         self._publish_message(msg)
 
-                    # Step 4: Capture next_node from this row
+                    # Step 4: An explicit route is terminal — take it and stop, ignoring continue.
                     if group.next_node:
                         matched_next_node = group.next_node
+                        break
 
-                    # Step 5: Check continue flag
+                    # Step 5: No route on this row — honor continue flag (fall through if set).
                     if not group.continue_flag:
-                        # Stop evaluation
                         break
 
                 except ClassificationDecisionTableNodeError as e:

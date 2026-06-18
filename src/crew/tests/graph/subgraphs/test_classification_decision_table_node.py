@@ -211,9 +211,11 @@ async def test_non_matching_first_row_falls_through_to_second(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_continue_true_last_match_wins_both_manipulations_run(monkeypatch):
-    """continue=True: row1 matches next_node='A', row2 matches next_node=None.
-    result_node stays 'A' because row2 has no next_node. Both manipulations run."""
+async def test_explicit_route_is_terminal_continue_ignored(monkeypatch):
+    """An explicit next_node on a matched row is terminal regardless of continue_flag.
+
+    row1 has next_node='A' and continue_flag=True. Evaluation must stop after row1;
+    row2 must never execute. result_node == 'A'."""
     monkeypatch.setattr(RunPythonCodeService, "run_code", fake_run_code, raising=True)
 
     groups = [
@@ -229,8 +231,8 @@ async def test_continue_true_last_match_wins_both_manipulations_run(monkeypatch)
             group_name="row2",
             expression="True",
             manipulation="variables.row2_ran = True",
-            next_node=None,
-            continue_flag=True,
+            next_node="B",
+            continue_flag=False,
             order=1,
         ),
     ]
@@ -242,7 +244,79 @@ async def test_continue_true_last_match_wins_both_manipulations_run(monkeypatch)
 
     assert result["system_variables"]["nodes"]["cdt_node"]["result_node"] == "A"
     assert result["variables"]["row1_ran"] is True
+    assert result["variables"]["row2_ran"] is False
+
+
+@pytest.mark.asyncio
+async def test_continue_true_no_route_falls_through_then_routes(monkeypatch):
+    """continue_flag=True with no next_node falls through to the next condition.
+
+    row1 has no next_node and continue_flag=True — falls through.
+    row2 has next_node='B' — routes and stops.
+    Both manipulations run; result_node == 'B'."""
+    monkeypatch.setattr(RunPythonCodeService, "run_code", fake_run_code, raising=True)
+
+    groups = [
+        ClassificationConditionGroupData(
+            group_name="row1",
+            expression="True",
+            manipulation="variables.row1_ran = True",
+            next_node=None,
+            continue_flag=True,
+            order=0,
+        ),
+        ClassificationConditionGroupData(
+            group_name="row2",
+            expression="True",
+            manipulation="variables.row2_ran = True",
+            next_node="B",
+            continue_flag=False,
+            order=1,
+        ),
+    ]
+    node_data = make_node_data(condition_groups=groups)
+    subgraph = make_subgraph(node_data)
+    state = make_state({"row1_ran": False, "row2_ran": False})
+
+    result = await subgraph.ainvoke(state)
+
+    assert result["system_variables"]["nodes"]["cdt_node"]["result_node"] == "B"
+    assert result["variables"]["row1_ran"] is True
     assert result["variables"]["row2_ran"] is True
+
+
+@pytest.mark.asyncio
+async def test_route_wins_over_continue_matches_qa_str(monkeypatch):
+    """QA repro: row1 expression='True', next_node='node_A', continue_flag=True.
+    row2 expression='True', no next_node, manipulation sets row2_ran.
+    Evaluation must stop at row1; row2 must never execute."""
+    monkeypatch.setattr(RunPythonCodeService, "run_code", fake_run_code, raising=True)
+
+    groups = [
+        ClassificationConditionGroupData(
+            group_name="row1",
+            expression="True",
+            next_node="node_A",
+            continue_flag=True,
+            order=0,
+        ),
+        ClassificationConditionGroupData(
+            group_name="row2",
+            expression="True",
+            manipulation="variables.row2_ran = True",
+            next_node=None,
+            continue_flag=False,
+            order=1,
+        ),
+    ]
+    node_data = make_node_data(condition_groups=groups)
+    subgraph = make_subgraph(node_data)
+    state = make_state({"row2_ran": False})
+
+    result = await subgraph.ainvoke(state)
+
+    assert result["system_variables"]["nodes"]["cdt_node"]["result_node"] == "node_A"
+    assert result["variables"]["row2_ran"] is False
 
 
 @pytest.mark.asyncio
