@@ -266,6 +266,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         setTimeout(() => {
             this.rerouteSegmentConnections();
             this.fCanvasComponent.fitToScreen({ x: 200, y: 100 }, false);
+            if (this.flowService.nodes().length === 1) {
+                this.fCanvasComponent.setScale(0.1);
+            }
             this.cd.detectChanges();
         }, 0);
     }
