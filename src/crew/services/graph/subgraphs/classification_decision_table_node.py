@@ -694,7 +694,10 @@ def main(**kwargs) -> dict:
                     if group.field_manipulations:
                         for var_name, var_expr in group.field_manipulations.items():
                             if var_expr and var_expr.strip():
-                                manip_parts.append(f"{var_name} = {var_expr.strip()}")
+                                target = var_name.strip()
+                                if not target.startswith("variables."):
+                                    target = f"variables.{target}"
+                                manip_parts.append(f"{target} = {var_expr.strip()}")
                     if group.manipulation:
                         manip_parts.append(group.manipulation)
                     combined_manipulation = (
