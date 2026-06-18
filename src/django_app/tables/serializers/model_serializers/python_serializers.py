@@ -128,6 +128,7 @@ class PythonCodeToolConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = PythonCodeToolConfig
         fields = "__all__"
+        read_only_fields = ["org", "created_by"]
 
     def validate(self, data: dict):
         name = data.get("name")

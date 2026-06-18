@@ -189,10 +189,10 @@ from tables.services.copy_services import (
     PythonCodeToolCopyService,
 )
 from tables.views.mixins import (
-    _OrgResolverMixin,
     CopyActionMixin,
     OrgScopedChildViewSetMixin,
     OrgScopedHybridViewSetMixin,
+    OrgScopedQuerysetMixin,
     OrgScopedViewSetMixin,
     SuperadminWriteMixin,
 )
@@ -737,20 +737,50 @@ class ContentHashPreconditionMixin:
         super().perform_update(serializer)
 
 
-class PythonCodeViewSet(ContentHashPreconditionMixin, viewsets.ModelViewSet):
+class PythonCodeViewSet(
+    OrgScopedQuerysetMixin, ContentHashPreconditionMixin, viewsets.ModelViewSet
+):
     """
     A viewset for viewing and editing PythonCode instances.
+
+    PythonCode has no org column of its own; it is scoped transitively through
+    every parent that references it — python/conditional/webhook-trigger nodes
+    (via their graph's org) and python-code tools (built-in are global, custom
+    are org-owned). A standalone PythonCode not yet attached to any parent is
+    not visible here until it is linked.
     """
 
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.TOOLS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    scope_distinct = True  # the OR spans reverse joins that can duplicate rows
     queryset = PythonCode.objects.all()
     serializer_class = PythonCodeSerializer
 
+    def get_org_scope_q(self, org_id: int) -> Q:
+        return (
+            Q(pythonnode__graph__org_id=org_id)
+            | Q(conditionaledge__graph__org_id=org_id)
+            | Q(webhooktriggernode__graph__org_id=org_id)
+            | Q(pythoncodetool__built_in=True)
+            | Q(pythoncodetool__org_id=org_id)
+        )
 
-class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
+
+class PythonCodeToolViewSet(
+    OrgScopedHybridViewSetMixin, CopyActionMixin, viewsets.ModelViewSet
+):
     """
     A viewset for viewing and editing PythonCodeTool instances.
+    Built-in tools are global; custom tools are org-owned.
     Prevents modifications or deletions of built-in tools.
     """
+
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.TOOLS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    global_visibility_q = Q(built_in=True)
+    custom_create_values = {"built_in": False}
 
     copy_service_class = PythonCodeToolCopyService
     copy_serializer_class = PythonCodeToolSerializer
@@ -771,7 +801,10 @@ class PythonCodeToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
-class PythonCodeToolConfigViewSet(viewsets.ModelViewSet):
+class PythonCodeToolConfigViewSet(OrgScopedViewSetMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.TOOLS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
     queryset = PythonCodeToolConfig.objects.select_related("tool").prefetch_related(
         Prefetch(
             "tool__tool_fields",
@@ -784,17 +817,36 @@ class PythonCodeToolConfigViewSet(viewsets.ModelViewSet):
     filterset_fields = ["tool", "name"]
 
 
-class PythonCodeToolConfigFieldViewSet(viewsets.ModelViewSet):
+class PythonCodeToolConfigFieldViewSet(OrgScopedQuerysetMixin, viewsets.ModelViewSet):
     """
     A viewset for viewing and editing PythonCodeToolConfigFields instances.
+
+    Fields have no org column; they inherit the visibility of their parent tool
+    (built-in tools' fields are global, custom tools' fields are org-private).
+    New fields may only be added to a tool the active org owns.
     """
 
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.TOOLS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
     queryset = PythonCodeToolConfigField.objects.all()
     serializer_class = PythonCodeToolConfigFieldSerializer
     filter_backends = [DjangoFilterBackend]
 
+    def get_org_scope_q(self, org_id: int) -> Q:
+        return Q(tool__built_in=True) | Q(tool__org_id=org_id)
+
+    def perform_create(self, serializer):
+        # A field may only be added to a tool the active org owns (not to a
+        # shared built-in tool or another org's tool).
+        tool = serializer.validated_data.get("tool")
+        if tool is not None and tool.org_id != self.get_active_org_id():
+            raise NotFound()
+        serializer.save()
+
 
 class PythonCodeResultReadViewSet(ReadOnlyModelViewSet):
+    # TODO(EST-2423): org-scope python execution results.
     queryset = PythonCodeResult.objects.all()
     serializer_class = PythonCodeResultSerializer
     filter_backends = [DjangoFilterBackend]

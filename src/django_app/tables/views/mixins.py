@@ -44,8 +44,12 @@ class CopyActionMixin:
         )
 
 
-class _OrgResolverMixin:
+class OrgScopedResolverMixin:
     """Resolves and caches the active org id for the request.
+
+    The shared base for every org-aware viewset mixin below, and the public
+    primitive to inherit directly when a viewset scopes its queryset in a way
+    the standard mixins don't cover (see OrgScopedQuerysetMixin).
 
     Relies on IsAuthenticated running first (request.user is authenticated).
     Pairs with HasOrgPermission, which uses the same OrgContextService.
@@ -61,7 +65,7 @@ class _OrgResolverMixin:
         return self.request._rbac_active_org_id
 
 
-class OrgScopedViewSetMixin(_OrgResolverMixin):
+class OrgScopedViewSetMixin(OrgScopedResolverMixin):
     """For top-level resources that own an `org` FK directly.
 
     Place FIRST in the ViewSet's base list so get_queryset/perform_create
@@ -75,7 +79,7 @@ class OrgScopedViewSetMixin(_OrgResolverMixin):
         serializer.save(org_id=self.get_active_org_id(), created_by=self.request.user)
 
 
-class OrgScopedChildViewSetMixin(_OrgResolverMixin):
+class OrgScopedChildViewSetMixin(OrgScopedResolverMixin):
     """For child resources scoped transitively through a parent FK.
 
     Set `org_filter_path` to the ORM lookup that reaches the owning org,
@@ -113,7 +117,7 @@ class OrgScopedChildViewSetMixin(_OrgResolverMixin):
             raise NotFound()
 
 
-class OrgScopedHybridViewSetMixin(_OrgResolverMixin):
+class OrgScopedHybridViewSetMixin(OrgScopedResolverMixin):
     """For top-level resources that are EITHER shared built-ins (org IS NULL,
     visible to every org) OR an org's own custom rows.
 
@@ -153,6 +157,34 @@ class OrgScopedHybridViewSetMixin(_OrgResolverMixin):
             created_by=self.request.user,
             **self.custom_create_values,
         )
+
+
+class OrgScopedQuerysetMixin(OrgScopedResolverMixin):
+    """For resources whose org scope does not fit the standard mixins above.
+
+    Implement `get_org_scope_q(org_id) -> Q` to return the filter expression.
+    Use this when a resource is reachable through several different parents, or
+    when its visibility is inherited from a hybrid (built-in/custom) parent.
+
+    Set `scope_distinct = True` when the scope Q spans reverse or multi-valued
+    joins that can duplicate rows. Does not stamp org on create (override
+    perform_create if the resource owns an org column).
+    """
+
+    scope_distinct: bool = False
+
+    def get_org_scope_q(self, org_id: int) -> Q:
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement get_org_scope_q()."
+        )
+
+    def get_queryset(self):
+        queryset = (
+            super()
+            .get_queryset()
+            .filter(self.get_org_scope_q(self.get_active_org_id()))
+        )
+        return queryset.distinct() if self.scope_distinct else queryset
 
 
 class SuperadminWriteMixin:
