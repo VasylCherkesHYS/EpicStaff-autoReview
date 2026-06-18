@@ -36,7 +36,9 @@ import { getAvatarColor } from '../../core/helpers/avatar-colors';
         }
         :host.locked-by-other {
             pointer-events: none;
-            opacity: 0.65;
+            outline: 2px solid var(--field-lock-color);
+            border-radius: 6px;
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--field-lock-color) 20%, transparent);
         }
         .lock-indicator {
             position: absolute;

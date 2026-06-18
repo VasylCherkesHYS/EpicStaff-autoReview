@@ -150,13 +150,15 @@ import { LockableFieldComponent } from '../../lockable-field/lockable-field.comp
                             }
 
                             <div class="code-editor-column">
-                                <app-code-editor
-                                    class="code-editor-section"
-                                    [class.no-bottom-radius]="isOpenTestMode()"
-                                    [pythonCode]="pythonCode"
-                                    (pythonCodeChange)="onPythonCodeChange($event)"
-                                    (errorChange)="onCodeErrorChange($event)"
-                                ></app-code-editor>
+                                <app-lockable-field fieldId="python_code" [nodeId]="node().id">
+                                    <app-code-editor
+                                        class="code-editor-section"
+                                        [class.no-bottom-radius]="isOpenTestMode()"
+                                        [pythonCode]="pythonCode"
+                                        (pythonCodeChange)="onPythonCodeChange($event)"
+                                        (errorChange)="onCodeErrorChange($event)"
+                                    ></app-code-editor>
+                                </app-lockable-field>
 
                                 @if (isOpenTestMode()) {
                                     <app-python-terminal

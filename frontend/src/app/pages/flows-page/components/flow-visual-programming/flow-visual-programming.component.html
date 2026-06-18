@@ -18,6 +18,16 @@
         [editors]="collaborationEditors()"
     ></app-flow-header>
 
+    @if (savedByBanner()) {
+        <div class="saved-by-banner">
+            <i class="ti ti-device-floppy"></i>
+            Saved by {{ savedByBanner() }}
+            <button class="dismiss-btn" (click)="savedByBanner.set(null)">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+    }
+
     <div class="body">
         @if (restoreWarnings().length > 0) {
             <button

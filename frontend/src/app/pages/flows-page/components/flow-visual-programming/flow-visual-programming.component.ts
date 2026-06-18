@@ -56,6 +56,7 @@ import { FlowMessagesPanelComponent } from '../../../../pages/running-graph/comp
 import { RunSessionSSEService } from '../../../../pages/running-graph/services/graph-session-sse.service';
 import { ConfigService } from '../../../../services/config/config.service';
 import { ToastService } from '../../../../services/notifications/toast.service';
+import { ProfileService } from '../../../../services/auth/profile.service';
 import { AppSvgIconComponent } from '../../../../shared/components/app-svg-icon/app-svg-icon.component';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { UnsavedChangesDialogService } from '../../../../shared/components/unsaved-changes-dialog/unsaved-changes-dialog.service';
@@ -127,6 +128,7 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
     public readonly hasUnsavedChangesSignal = computed<boolean>(() => {
         return JSON.stringify(this.currentFlowState()) !== JSON.stringify(this.savedFlowState());
     });
+    public readonly savedByBanner = signal<string | null>(null);
 
     public isSaving = signal(false);
     public isRunning = signal(false);
@@ -169,7 +171,8 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         private readonly undoRedoService: UndoRedoService,
         private readonly createGraphWarningService: CreateGraphWarningsService,
         private readonly runSessionSSEService: RunSessionSSEService,
-        private readonly sidePanelService: SidePanelService
+        private readonly sidePanelService: SidePanelService,
+        private readonly profileService: ProfileService
     ) {
         this.isEpicChatEnabled = this.configService.isEpicChatEnabled;
         this.routeParamMap = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
@@ -198,12 +201,14 @@ export class FlowVisualProgrammingComponent implements OnInit, OnDestroy, CanCom
         this.wsService.graphSaved$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((event) => {
-                const savedBy = event.saved_by.display_name ?? `User ${event.saved_by.user_id}`;
-                this.toastService.info(`Graph was saved by ${savedBy}`, 4000, 'bottom-right');
-
-                    this.graphState.update((state) =>
-                        state ? { ...state, save_version: event.new_save_version } : state
-                    );
+                this.graphState.update((state) =>
+                    state ? { ...state, save_version: event.new_save_version } : state
+                );
+                const currentUserId = this.profileService.currentUserSignal()?.id;
+                if (event.saved_by.user_id !== currentUserId) {
+                    const savedBy = event.saved_by.display_name ?? `User ${event.saved_by.user_id}`;
+                    this.savedByBanner.set(savedBy);
+                }
             });
 
         this.wsService.graphState$
