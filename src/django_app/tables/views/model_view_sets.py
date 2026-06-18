@@ -6,7 +6,7 @@ import urllib.request
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import NOT_PROVIDED, IntegerField, Prefetch
+from django.db.models import NOT_PROVIDED, IntegerField, Prefetch, Q
 from django.db.models.functions import Cast
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import (
@@ -19,6 +19,7 @@ from rest_framework import filters as drf_filters
 from rest_framework import generics, mixins, status, viewsets, serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import (
+    NotFound,
     PermissionDenied,
     ValidationError as DRFValidationError,
 )
@@ -188,9 +189,12 @@ from tables.services.copy_services import (
     PythonCodeToolCopyService,
 )
 from tables.views.mixins import (
+    _OrgResolverMixin,
     CopyActionMixin,
     OrgScopedChildViewSetMixin,
+    OrgScopedHybridViewSetMixin,
     OrgScopedViewSetMixin,
+    SuperadminWriteMixin,
 )
 from tables.models.rbac_models.rbac_enums import Permission, ResourceType
 from tables.services.rbac.permissions import HasOrgPermission
@@ -319,7 +323,11 @@ class TemplateAgentReadWriteViewSet(ModelViewSet):
     filterset_fields = serializer_class.Meta.fields
 
 
-class LLMConfigReadWriteViewSet(ModelViewSet):
+class LLMConfigReadWriteViewSet(OrgScopedViewSetMixin, ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+
     class LLMConfigFilter(filters.FilterSet):
         model_provider_id = filters.CharFilter(
             field_name="model__llm_provider__id", lookup_expr="icontains"
@@ -339,21 +347,39 @@ class LLMConfigReadWriteViewSet(ModelViewSet):
     filterset_class = LLMConfigFilter
 
 
-class ProviderReadWriteViewSet(ModelViewSet):
+class ProviderReadWriteViewSet(SuperadminWriteMixin, ModelViewSet):
     queryset = Provider.objects.all()
     serializer_class = ProviderSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = ProviderFilter
 
 
-class LLMModelReadWriteViewSet(BasePredefinedRestrictedViewSet):
+class LLMModelReadWriteViewSet(
+    OrgScopedHybridViewSetMixin, BasePredefinedRestrictedViewSet
+):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    global_visibility_q = Q(is_custom=False)
+    # force created rows into the org's custom, non-predefined subset (also
+    # preserves BasePredefinedRestrictedViewSet's "no creating predefined" rule)
+    custom_create_values = {"is_custom": True, "predefined": False}
     queryset = LLMModel.objects.select_related("llm_provider").prefetch_related("tags")
     serializer_class = LLMModelSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = LLMModelFilter
 
 
-class EmbeddingModelReadWriteViewSet(BasePredefinedRestrictedViewSet):
+class EmbeddingModelReadWriteViewSet(
+    OrgScopedHybridViewSetMixin, BasePredefinedRestrictedViewSet
+):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    global_visibility_q = Q(is_custom=False)
+    # force created rows into the org's custom, non-predefined subset (also
+    # preserves BasePredefinedRestrictedViewSet's "no creating predefined" rule)
+    custom_create_values = {"is_custom": True, "predefined": False}
     queryset = EmbeddingModel.objects.select_related(
         "embedding_provider"
     ).prefetch_related("tags")
@@ -362,7 +388,11 @@ class EmbeddingModelReadWriteViewSet(BasePredefinedRestrictedViewSet):
     filterset_class = EmbeddingModelFilter
 
 
-class EmbeddingConfigReadWriteViewSet(ModelViewSet):
+class EmbeddingConfigReadWriteViewSet(OrgScopedViewSetMixin, ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+
     class EmbeddingConfigFilter(filters.FilterSet):
         model_provider_id = filters.CharFilter(
             field_name="model__embedding_provider__id", lookup_expr="icontains"
@@ -1228,12 +1258,21 @@ class GraphTagViewSet(viewsets.ModelViewSet):
     serializer_class = GraphTagSerializer
 
 
-class RealtimeModelViewSet(viewsets.ModelViewSet):
+class RealtimeModelViewSet(OrgScopedHybridViewSetMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    global_visibility_q = Q(is_custom=False)
+    custom_create_values = {"is_custom": True}
     queryset = RealtimeModel.objects.all()
     serializer_class = RealtimeModelSerializer
 
 
-class RealtimeConfigModelViewSet(viewsets.ModelViewSet):
+class RealtimeConfigModelViewSet(OrgScopedViewSetMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+
     class RealtimeConfigFilter(filters.FilterSet):
         model_provider_id = filters.CharFilter(
             field_name="realtime_model__provider__id", lookup_expr="icontains"
@@ -1253,12 +1292,25 @@ class RealtimeConfigModelViewSet(viewsets.ModelViewSet):
     filterset_class = RealtimeConfigFilter
 
 
-class RealtimeTranscriptionModelViewSet(viewsets.ModelViewSet):
+class RealtimeTranscriptionModelViewSet(
+    OrgScopedHybridViewSetMixin, viewsets.ModelViewSet
+):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+    global_visibility_q = Q(is_custom=False)
+    custom_create_values = {"is_custom": True}
     queryset = RealtimeTranscriptionModel.objects.all()
     serializer_class = RealtimeTranscriptionModelSerializer
 
 
-class RealtimeTranscriptionConfigModelViewSet(viewsets.ModelViewSet):
+class RealtimeTranscriptionConfigModelViewSet(
+    OrgScopedViewSetMixin, viewsets.ModelViewSet
+):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.LLM_CONFIGS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
+
     class RealtimeTranscriptionConfigFilter(filters.FilterSet):
         model_provider_id = filters.CharFilter(
             field_name="realtime_transcription_model__provider__id",
@@ -1465,7 +1517,10 @@ class DecisionTableNodeModelViewSet(
         node.save()
 
 
-class McpToolViewSet(CopyActionMixin, viewsets.ModelViewSet):
+class McpToolViewSet(OrgScopedViewSetMixin, CopyActionMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, HasOrgPermission]
+    rbac_resource_type = ResourceType.TOOLS
+    rbac_action_map = {**DEFAULT_ACTION_MAP}
     copy_service_class = McpToolCopyService
     copy_serializer_class = McpToolSerializer
 

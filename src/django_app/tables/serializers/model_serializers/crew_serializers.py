@@ -276,7 +276,7 @@ class AgentWriteSerializer(ToolsConnectionMixin, serializers.ModelSerializer):
         required=False,
     )
     realtime_agent = RealtimeAgentSerializer(required=False)
-    llm_config = serializers.PrimaryKeyRelatedField(
+    llm_config = OrgScopedPrimaryKeyRelatedField(
         queryset=LLMConfig.objects.all(), required=False, allow_null=True
     )
     rag = RagInputSerializer(required=False, allow_null=True)

@@ -1,10 +1,13 @@
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from tables.services.rbac.org_context_service import OrgContextService
+from tables.services.rbac.permissions import IsSuperadmin
 
 
 class CopyActionMixin:
@@ -108,3 +111,66 @@ class OrgScopedChildViewSetMixin(_OrgResolverMixin):
             self.get_active_org_id()
         ):
             raise NotFound()
+
+
+class OrgScopedHybridViewSetMixin(_OrgResolverMixin):
+    """For top-level resources that are EITHER shared built-ins (org IS NULL,
+    visible to every org) OR an org's own custom rows.
+
+    Declare `global_visibility_q` — a Q matching the built-in subset
+    (e.g. Q(is_custom=False) for models, Q(built_in=True) for tools) — and
+    `custom_create_values` — the field values that force a newly-created row
+    OUT of that built-in subset (e.g. {"is_custom": True} for models,
+    {"built_in": False} for tools). Without the latter, a created row could
+    default into the global subset and leak across orgs. Place FIRST in the
+    ViewSet's base list. `org` stays nullable (no NOT NULL flip): built-ins
+    keep org=NULL.
+    """
+
+    global_visibility_q: Q = None
+    custom_create_values: dict = None
+
+    def get_queryset(self):
+        if self.global_visibility_q is None:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} must set global_visibility_q."
+            )
+        return (
+            super()
+            .get_queryset()
+            .filter(self.global_visibility_q | Q(org_id=self.get_active_org_id()))
+        )
+
+    def perform_create(self, serializer):
+        # A row created via the org API is, by definition, that org's custom row:
+        # stamp the org and force it out of the shared/built-in subset.
+        if self.custom_create_values is None:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} must set custom_create_values."
+            )
+        serializer.save(
+            org_id=self.get_active_org_id(),
+            created_by=self.request.user,
+            **self.custom_create_values,
+        )
+
+
+class SuperadminWriteMixin:
+    """Global-readable, superadmin-writable resources (registry / catalog /
+    defaults).
+
+    Reads (safe actions) require only IsAuthenticated; writes
+    (create/update/partial_update/destroy + any custom action listed in
+    `superadmin_write_actions`) additionally require IsSuperadmin. Does NOT
+    org-scope — these rows are global. Pairs with the project default
+    permission_classes = [IsAuthenticated].
+    """
+
+    superadmin_write_actions = frozenset(
+        {"create", "update", "partial_update", "destroy"}
+    )
+
+    def get_permissions(self):
+        if getattr(self, "action", None) in self.superadmin_write_actions:
+            return [IsAuthenticated(), IsSuperadmin()]
+        return [IsAuthenticated()]
