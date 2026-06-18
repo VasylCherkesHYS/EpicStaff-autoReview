@@ -59,7 +59,7 @@ class GraphPartialExportService:
     def export(
         self,
         node_refs: list[NodeRef],
-        edge_ids: list[int] = None,
+        edge_ids: list[int] | None = None,
     ) -> PartialExportResult:
         result = PartialExportResult()
 
@@ -94,7 +94,12 @@ class GraphPartialExportService:
         collected: dict[str, dict[int, object]] = defaultdict(dict)
 
         for entity_type, instance in node_instances:
-            self._collect(entity_type, instance.id, collected, exclude_graphs=True)
+            self._collect(
+                entity_type=entity_type,
+                entity_id=instance.id,
+                collected=collected,
+                exclude_graphs=True,
+            )
 
         # Pass 3: include explicitly requested edges
         if edge_ids:
@@ -138,7 +143,10 @@ class GraphPartialExportService:
                 if dep_id is None:
                     continue
                 self._collect(
-                    dep_type, dep_id, collected, exclude_graphs=exclude_graphs
+                    entity_type=dep_type,
+                    entity_id=dep_id,
+                    collected=collected,
+                    exclude_graphs=exclude_graphs,
                 )
 
     def _serialize(self, collected: dict) -> dict:

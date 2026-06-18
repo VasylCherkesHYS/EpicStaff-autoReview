@@ -13,7 +13,7 @@ from tables.import_export.services.partial_export_service import (
     GraphPartialExportService,
     NodeRef,
 )
-from django_app.tables.import_export.export_tabular_projections.export_classification_decision_table_csv import (
+from tables.import_export.export_tabular_projections.export_classification_decision_table_csv import (
     export_condition_groups_csv,
 )
 from tables.utils.helpers import generate_file_name

@@ -9,7 +9,7 @@ from tables.serializers.model_serializers import CrewSerializer
 from tables.constants.organization_constants import DEFAULT_ORGANIZATION_NAME
 
 from tables.import_export.strategies.base import EntityImportExportStrategy
-from tables.import_export.strategies.nodes.node_handlers import (
+from tables.import_export.strategies.nodes.node_maps import (
     NODE_RELATIONS,
     NODE_TYPE_TO_ENTITY_TYPE,
 )
