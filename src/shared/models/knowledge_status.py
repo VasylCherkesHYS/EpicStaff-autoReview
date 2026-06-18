@@ -52,6 +52,9 @@ CHUNK_PARAM_FIELDS = (
     "additional_params",
 )
 
+# Used by compute_rag_status() to roll per-document statuses up to PROCESSING.
+# CHUNKED is included because a document in preview state is still being worked
+# on (user is tuning params) and the RAG should show as in-progress.
 AGGREGATION_IN_PROGRESS = frozenset(
     {
         DocumentStatus.CHUNKING.value,
@@ -60,6 +63,10 @@ AGGREGATION_IN_PROGRESS = frozenset(
     }
 )
 
+# Used by NaiveRagDocumentConfig.apply_param_updates() to detect whether a
+# concurrent indexing worker is running before allowing a param change.
+# CHUNKED is intentionally excluded: the CHUNKED state is preview-only (no
+# active worker) so chunk params can still be freely updated by the user.
 RACE_GUARD_IN_PROGRESS = frozenset(
     {DocumentStatus.CHUNKING.value, DocumentStatus.INDEXING.value}
 )

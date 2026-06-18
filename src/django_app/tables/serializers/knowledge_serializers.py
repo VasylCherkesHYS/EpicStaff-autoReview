@@ -198,6 +198,14 @@ class RagConfigurationsMixin:
     """Adds a `rag_configurations` field backed by CollectionManagementService."""
 
     def get_rag_configurations(self, obj):
+        """Return serialized RAG configuration summaries for ``obj`` (a SourceCollection).
+
+        Requires the queryset to have been prefetched via
+        ``CollectionManagementService.rag_configurations_prefetch()``; without it
+        every call will trigger N+1 queries against rag_types, naive_rags, and
+        graph_rags. Returns ``[]`` on any error so a single bad collection never
+        breaks the list endpoint.
+        """
         try:
             rag_configs = (
                 CollectionManagementService.get_rag_configurations_for_collection(obj)

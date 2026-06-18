@@ -143,8 +143,25 @@ class NaiveRagService:
         chunk_strategy: Optional[str] = None,
         additional_params: Optional[Dict[str, Any]] = None,
     ) -> NaiveRagDocumentConfig:
-        """Update one document config. Raises InvalidChunkParametersException
-        on validation errors, DocumentConfigNotFoundException on bad id/RAG."""
+        """
+        Update existing document config. Only updates provided fields.
+        Drops stale preview chunks and realigns rag_status when params actually change.
+
+        Args:
+            config_id: ID of config to update
+            naive_rag_id: ID of NaiveRag (for validation)
+            chunk_size: New chunk size (optional)
+            chunk_overlap: New overlap (optional)
+            chunk_strategy: New strategy (optional)
+            additional_params: New additional params (optional)
+
+        Returns:
+            Updated config
+
+        Raises:
+            DocumentConfigNotFoundException: If config not found or doesn't belong to naive_rag
+            InvalidChunkParametersException: If any field fails validation
+        """
         try:
             config = NaiveRagDocumentConfig.objects.select_related(
                 "document", "naive_rag"
@@ -207,11 +224,20 @@ class NaiveRagService:
         naive_rag_id: int,
         document_config_ids: Optional[List[int]] = None,
     ) -> List[NaiveRagDocumentConfig]:
-        """Document configs for a NaiveRag, ordered by file_name. IDs in
-        document_config_ids that don't belong to this RAG are dropped."""
+        """
+        Get document configs for a NaiveRag, ordered by file name.
+
+        Args:
+            naive_rag_id: ID of NaiveRag
+            document_config_ids: Optional list of specific config IDs to return.
+                IDs that don't belong to this NaiveRag are silently dropped.
+
+        Returns:
+            List of document configs with chunks_count and embeddings_count annotations
+        """
         NaiveRagService.get_naive_rag(naive_rag_id)
 
-        qs = (
+        configs_qs = (
             NaiveRagDocumentConfig.objects.filter(naive_rag_id=naive_rag_id)
             .select_related("document")
             .annotate(
@@ -221,8 +247,10 @@ class NaiveRagService:
             .order_by("document__file_name")
         )
         if document_config_ids:
-            qs = qs.filter(naive_rag_document_id__in=document_config_ids)
-        return list(qs)
+            configs_qs = configs_qs.filter(
+                naive_rag_document_id__in=document_config_ids
+            )
+        return list(configs_qs)
 
     @staticmethod
     @transaction.atomic
@@ -359,30 +387,50 @@ class NaiveRagService:
         chunk_strategy: Optional[str] = None,
         additional_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Update many configs with partial-success semantics: valid ones get
-        applied, invalid ones collect structured errors. Returns
-        {updated_count, failed_count, configs, config_errors}.
+        """
+        Bulk update multiple document configs with partial success support.
+        Updates valid configs and collects errors for invalid ones.
 
         config_ids non-empty and ≥1 update field are guaranteed by the
-        serializer (allow_empty=False + validate); not re-checked here."""
+        serializer (allow_empty=False); not re-checked here.
+
+        Args:
+            naive_rag_id: ID of NaiveRag (for validation)
+            config_ids: List of config IDs to update
+            chunk_size: New chunk size (optional)
+            chunk_overlap: New overlap (optional)
+            chunk_strategy: New strategy (optional)
+            additional_params: New additional params (optional)
+
+        Returns:
+            Dict with:
+                - updated_count: Number of successfully updated configs
+                - failed_count: Number of failed configs
+                - configs: List of all configs with their current DB values
+                - config_errors: Dict mapping config_id to list of error dicts
+        """
+        # Verify NaiveRag exists
         NaiveRagService.get_naive_rag(naive_rag_id)
 
+        # Get all configs that belong to this naive_rag
         configs = list(
             NaiveRagDocumentConfig.objects.filter(
                 naive_rag_id=naive_rag_id, naive_rag_document_id__in=config_ids
             ).select_related("document")
         )
 
-        missing_ids = set(config_ids) - {c.naive_rag_document_id for c in configs}
+        missing_ids = set(config_ids) - {cfg.naive_rag_document_id for cfg in configs}
         if missing_ids:
             raise DocumentConfigNotFoundException(
                 f"Configs not found or don't belong to NaiveRag {naive_rag_id}: {sorted(missing_ids)}"
             )
 
+        # Build update dict
         updates = ChunkParameterValidator.build_updates(
             chunk_size, chunk_overlap, chunk_strategy, additional_params
         )
 
+        # Process each config individually
         updated_count = 0
         failed_count = 0
         config_errors: Dict[int, List[Dict[str, Any]]] = {}
@@ -390,10 +438,14 @@ class NaiveRagService:
 
         for config in configs:
             errors = ChunkParameterValidator.collect_errors(config, updates)
+
+            # If there are errors, skip this config
             if errors:
                 config_errors[config.naive_rag_document_id] = errors
                 failed_count += 1
                 continue
+
+            # Update this config
             try:
                 if config.apply_param_updates(updates):
                     NaiveRagService._persist_param_updates(config)
@@ -410,7 +462,15 @@ class NaiveRagService:
                 failed_count += 1
 
         if any_actual_change:
-            NaiveRag.objects.get(naive_rag_id=naive_rag_id).update_rag_status()
+            try:
+                NaiveRag.objects.get(naive_rag_id=naive_rag_id).update_rag_status()
+            except Exception as e:
+                # Status recompute is best-effort: the per-doc updates already
+                # succeeded, so log and continue rather than masking them.
+                logger.error(
+                    f"Failed to recompute rag_status for NaiveRag {naive_rag_id} "
+                    f"after bulk update: {e}"
+                )
 
         logger.info(
             f"Bulk update completed: {updated_count} successful, {failed_count} failed"
@@ -441,8 +501,10 @@ class NaiveRagService:
         Note: config_ids non-empty is guaranteed by the serializer
         (allow_empty=False); not re-checked here.
         """
+        # Verify NaiveRag exists
         NaiveRagService.get_naive_rag(naive_rag_id)
 
+        # Get configs that belong to this naive_rag
         configs = NaiveRagDocumentConfig.objects.filter(
             naive_rag_id=naive_rag_id, naive_rag_document_id__in=config_ids
         )
@@ -457,6 +519,7 @@ class NaiveRagService:
 
         deleted_count = len(found_ids)
 
+        # Delete configs
         configs.delete()
 
         if deleted_count:
@@ -492,6 +555,7 @@ class NaiveRagService:
         except NaiveRagDocumentConfig.DoesNotExist:
             raise DocumentConfigNotFoundException(config_id)
 
+        # Validate config belongs to the specified naive_rag
         if config.naive_rag_id != naive_rag_id:
             raise DocumentConfigNotFoundException(
                 f"Config {config_id} does not belong to NaiveRag {naive_rag_id}"
@@ -611,6 +675,6 @@ class NaiveRagService:
             naive_rag_document_config_id=document_config_id,
             preview_chunk_id__in=unique_ids,
         )
-        chunks_by_id = {c.preview_chunk_id: c for c in chunks}
+        chunks_by_id = {chunk.preview_chunk_id: chunk for chunk in chunks}
 
         return [chunks_by_id[i] for i in unique_ids if i in chunks_by_id]

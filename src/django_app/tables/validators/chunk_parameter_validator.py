@@ -25,12 +25,15 @@ class ChunkParameterValidator:
 
     @staticmethod
     def allowed_strategies_for_file_type(file_type: str) -> set:
+        """Return the set of chunk strategies valid for a given file type.
+        Always includes UNIVERSAL_STRATEGIES; adds any file-type-specific ones."""
         return UNIVERSAL_STRATEGIES | FILE_TYPE_SPECIFIC_STRATEGIES.get(
             file_type, set()
         )
 
     @classmethod
     def is_strategy_allowed(cls, strategy: str, file_type: str) -> bool:
+        """Return True iff ``strategy`` is in the allowed set for ``file_type``."""
         return strategy in cls.allowed_strategies_for_file_type(file_type)
 
     @staticmethod

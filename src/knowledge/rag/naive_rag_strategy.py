@@ -31,6 +31,11 @@ from utils.indexing_error_classifier import IndexingErrorClassifier
 
 _embedder_cache = cachetools.LRUCache(maxsize=50)
 
+# Per-document in-process locks. Prevents two concurrent indexing jobs from
+# chunking/embedding the same document simultaneously within a single worker
+# process. NOT a distributed lock — parallel workers in separate processes are
+# not protected. Grows unbounded (one Lock per ever-seen config_id); acceptable
+# for typical usage where the key space equals the number of indexed documents.
 _doc_index_locks: dict[int, threading.Lock] = defaultdict(threading.Lock)
 
 
@@ -60,6 +65,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         logger.info(f"Initializing embedder for NaiveRAG with id: {naive_rag_id}")
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
+            # Use base storage method with rag_type
             embedder_config = uow_ctx.naive_rag_storage.get_embedder_configuration(
                 rag_id=naive_rag_id, rag_type="naive"
             )
@@ -96,6 +102,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
 
         embedder = self._get_cached_embedder(naive_rag_id=naive_rag_id)
 
+        # Embed the query
         embedded_data = embedder.embed(query)
 
         if isinstance(embedded_data, dict):
@@ -106,6 +113,8 @@ class NaiveRAGStrategy(BaseRAGStrategy):
 
         uow = UnitOfWork()
         with uow.start() as uow_ctx:
+            # Search using naive_rag_storage
+
             knowledge_chunk_list = uow_ctx.naive_rag_storage.search(
                 naive_rag_id=naive_rag_id,
                 embedded_query=embedded_query,
@@ -117,6 +126,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             for chunk_data in knowledge_chunk_list:
                 knowledge_snippets.append(chunk_data.chunk_text)
 
+            # Logging results
             if knowledge_snippets:
                 logger.info(f"QUERY: [{query}]")
                 if len(knowledge_snippets) > 1:
@@ -148,14 +158,31 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         rag_id: int,
         document_config_ids: Optional[list[int]] = None,
     ):
-        """Chunk+embed for a NaiveRag. `document_config_ids` (if set) is the
-        vetted list from IndexingService; otherwise pick up everything not
-        already completed (legacy whole-RAG path)."""
+        """
+        Process RAG indexing (chunking + embedding) for a NaiveRag.
+
+        Args:
+            rag_id: ID of the NaiveRag (naive_rag_id)
+            document_config_ids: Vetted list of config IDs from IndexingService.
+                If None, auto-resolves all configs not yet completed (legacy path).
+
+        Flow:
+        1. Invalidate embedder cache and mark RAG as PROCESSING
+        2. Resolve work items (specific configs or all non-completed)
+        3. For each document config (under per-doc lock to guard concurrent jobs):
+           - Skip if a concurrent job already finished it with identical params
+           - Wipe stale artifacts and flip status → INDEXING
+           - Chunk + embed in a single transaction; persist error on failure
+        4. Recompute aggregate RAG status from per-doc statuses
+        """
         naive_rag_id = rag_id
+
+        # Invalidate cached embedder — picks up any embedder config change since last run
         _embedder_cache.pop(naive_rag_id, None)
         embedder = self._get_cached_embedder(naive_rag_id=naive_rag_id)
         uow = UnitOfWork()
 
+        # Update RAG status to PROCESSING
         with uow.start() as ctx:
             ctx.naive_rag_storage.update_rag_status(
                 naive_rag_id=naive_rag_id, status="processing"
@@ -165,6 +192,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             f"document_config_ids={document_config_ids or 'all'}"
         )
 
+        # Collect configs to process (vetted list or auto-resolve)
         try:
             work_items = self._resolve_work_items(
                 uow, naive_rag_id, document_config_ids
@@ -180,6 +208,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         if not work_items:
             logger.warning(f"NaiveRag {naive_rag_id}: nothing to (re)index")
 
+        # Process each document under a per-doc lock to prevent concurrent indexing
         for config_id, file_name in work_items:
             logger.info(f"Processing {file_name} (config {config_id})")
             with _doc_index_locks[config_id]:
@@ -200,8 +229,14 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         may have finished this document with identical params. Re-indexing would
         waste embedder calls, so skip when snapshot is current and completed."""
         with uow.start() as ctx:
-            c = ctx.naive_rag_storage.get_naive_rag_document_config_by_id(config_id)
-            return c is not None and c.status == "completed" and c.is_snapshot_current()
+            doc_config = ctx.naive_rag_storage.get_naive_rag_document_config_by_id(
+                config_id
+            )
+            return (
+                doc_config is not None
+                and doc_config.status == "completed"
+                and doc_config.is_snapshot_current()
+            )
 
     def _resolve_work_items(self, uow, naive_rag_id, document_config_ids):
         """Read-only tx → list[(config_id, file_name)]. Detaches to plain
@@ -213,31 +248,42 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                     for cid in document_config_ids
                 ]
                 return [
-                    (c.naive_rag_document_id, c.document.file_name)
-                    for c in raw
-                    if c is not None and c.naive_rag_id == naive_rag_id
+                    (cfg.naive_rag_document_id, cfg.document.file_name)
+                    for cfg in raw
+                    if cfg is not None and cfg.naive_rag_id == naive_rag_id
                 ]
             raw = ctx.naive_rag_storage.get_naive_rag_document_configs(
                 naive_rag_id=naive_rag_id,
                 status=("new", "warning", "chunked", "failed", "indexing"),
             )
-            return [(c.naive_rag_document_id, c.document.file_name) for c in raw]
+            return [(cfg.naive_rag_document_id, cfg.document.file_name) for cfg in raw]
 
     def _prepare_doc_for_indexing(self, uow, config_id, file_name) -> bool:
         """Wipe stale artifacts and flip status=indexing in its own tx so the
         UI sees the transition. Returns False if the doc was deleted."""
         try:
             with uow.start() as ctx:
-                s = ctx.naive_rag_storage
-                s.delete_embeddings(naive_rag_document_config_id=config_id)
-                s.delete_chunks(naive_rag_document_config_id=config_id)
-                s.clear_indexed_snapshot(naive_rag_document_config_id=config_id)
+                storage = ctx.naive_rag_storage
+                # Wipe stale artifacts from the previous indexing run
+                storage.delete_embeddings(naive_rag_document_config_id=config_id)
+                storage.delete_chunks(naive_rag_document_config_id=config_id)
+                # Clear snapshot so mark_document_config_completed can stamp a fresh one
+                storage.clear_indexed_snapshot(naive_rag_document_config_id=config_id)
                 try:
-                    s.delete_preview_chunks(naive_rag_document_config_id=config_id)
+                    storage.delete_preview_chunks(
+                        naive_rag_document_config_id=config_id
+                    )
                 except Exception:
-                    pass
-                s.clear_document_config_error(naive_rag_document_config_id=config_id)
-                s.update_document_config_status(
+                    # Preview chunks may not exist yet (doc never previewed); non-fatal.
+                    logger.warning(
+                        f"Could not delete preview chunks for config {config_id} "
+                        f"(may not exist); continuing"
+                    )
+                # Clear previous error so UI shows a clean state while re-indexing
+                storage.clear_document_config_error(
+                    naive_rag_document_config_id=config_id
+                )
+                storage.update_document_config_status(
                     naive_rag_document_config_id=config_id, status="indexing"
                 )
             return True
@@ -266,18 +312,19 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                     return
 
                 phase = "embed"
-                for c in chunks:
-                    embedded = embedder.embed(c["text"])
+                for chunk in chunks:
+                    embedded = embedder.embed(chunk["text"])
                     vec = (
                         embedded.get("embedding", [])
                         if isinstance(embedded, dict)
                         else embedded
                     )
                     ctx.naive_rag_storage.save_embedding(
-                        chunk_id=c["chunk_id"],
+                        chunk_id=chunk["chunk_id"],
                         embedding=vec,
                         naive_rag_document_config_id=config_id,
                     )
+                # Mark completed inside the same tx so embeddings and status are atomic
                 if not ctx.naive_rag_storage.mark_document_config_completed(
                     naive_rag_document_config_id=config_id,
                 ):
@@ -291,6 +338,10 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             self._persist_doc_failure(uow, config_id, file_name, phase, e)
 
     def _persist_doc_failure(self, uow, config_id, file_name, phase, exc) -> None:
+        """Classify the error and persist it in a separate tx so the failure
+        write is not rolled back together with the failed chunk/embed tx.
+        Falls back to a plain status='failed' flip when mark_document_config_failed
+        is unavailable (e.g. config already deleted)."""
         classify = (
             IndexingErrorClassifier.for_chunking
             if phase == "chunk"
@@ -323,13 +374,32 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         logger.error(f"{phase}ing failed for {file_name}/{config_id}: {message}")
 
     def update_naive_rag_status(self, naive_rag_id: int):
-        """Recompute NaiveRag.rag_status from per-doc statuses using the shared
-        single-source rule (src.shared.models.knowledge_status.compute_rag_status)."""
+        """
+        Recompute NaiveRag.rag_status from per-doc statuses.
+
+        Status Logic (computed by src.shared.models.knowledge_status.compute_rag_status):
+        - NEW: all configs are New OR no configs
+        - COMPLETED: all configs are Completed
+        - FAILED: all configs are Failed
+        - PROCESSING: at least 1 config is Processing
+        - WARNING: mixed statuses or at least 1 Warning/Failed (but not all Failed)
+        - CHUNKED: all configs are Chunked
+
+        Uses two separate UoW transactions: the first reads per-doc statuses, the
+        second writes the aggregate status. There is a brief read-then-write race
+        window between them — a concurrent indexing job finishing between these
+        transactions may cause a stale status write. This is a known acceptable
+        trade-off; callers must not rely on this being strictly atomic.
+
+        Args:
+            naive_rag_id: ID of the NaiveRag
+        """
         uow = UnitOfWork()
+        # Read per-doc statuses to derive the aggregate
         with uow.start() as ctx:
             statuses = [
-                c.status
-                for c in ctx.naive_rag_storage.get_naive_rag_document_configs(
+                cfg.status
+                for cfg in ctx.naive_rag_storage.get_naive_rag_document_configs(
                     naive_rag_id=naive_rag_id
                 )
             ]
@@ -341,7 +411,9 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             ctx.naive_rag_storage.update_rag_status(
                 naive_rag_id=naive_rag_id, status=new_status
             )
+            # Persist error summary derived from per-doc errors (empty string on success)
             ctx.naive_rag_storage.set_error_message(naive_rag_id, error_summary)
+            # Stamp indexed_at once the whole RAG reaches completed
             if new_status == "completed":
                 ctx.naive_rag_storage.set_indexed_at(naive_rag_id)
             logger.info(f"NaiveRag {naive_rag_id} -> status '{new_status}'")

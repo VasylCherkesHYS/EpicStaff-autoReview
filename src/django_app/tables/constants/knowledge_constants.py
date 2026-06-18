@@ -5,6 +5,19 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 ALLOWED_FILE_TYPES = {choice[0] for choice in DocumentMetadata.DocumentFileType.choices}
 
+# MIME types used when serving documents inline (preview). Keys are DocumentFileType values.
+PREVIEW_CONTENT_TYPES = {
+    DocumentMetadata.DocumentFileType.PDF: "application/pdf",
+    DocumentMetadata.DocumentFileType.CSV: "text/csv; charset=utf-8",
+    DocumentMetadata.DocumentFileType.DOCX: (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ),
+    DocumentMetadata.DocumentFileType.TXT: "text/plain; charset=utf-8",
+    DocumentMetadata.DocumentFileType.JSON: "application/json; charset=utf-8",
+    DocumentMetadata.DocumentFileType.HTML: "text/html; charset=utf-8",
+    DocumentMetadata.DocumentFileType.MD: "text/markdown; charset=utf-8",
+}
+
 
 # Default RAG configuration values
 DEFAULT_CHUNK_SIZE = 1000

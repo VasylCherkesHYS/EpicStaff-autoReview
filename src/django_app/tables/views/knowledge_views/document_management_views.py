@@ -1,8 +1,3 @@
-import io
-import mimetypes
-import zipfile
-
-from django.http import HttpResponse
 from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -44,91 +39,11 @@ from tables.exceptions import (
     DocumentsNotFoundException,
     InvalidFieldType,
 )
-
-
-def _document_bytes(document: DocumentMetadata) -> bytes:
-    """Return the binary payload of a document, or empty bytes if absent."""
-    content = document.document_content
-    if content is None or content.content is None:
-        return b""
-    return bytes(content.content)
-
-
-PREVIEW_CONTENT_TYPES = {
-    DocumentMetadata.DocumentFileType.PDF: "application/pdf",
-    DocumentMetadata.DocumentFileType.CSV: "text/csv; charset=utf-8",
-    DocumentMetadata.DocumentFileType.DOCX: (
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ),
-    DocumentMetadata.DocumentFileType.TXT: "text/plain; charset=utf-8",
-    DocumentMetadata.DocumentFileType.JSON: "application/json; charset=utf-8",
-    DocumentMetadata.DocumentFileType.HTML: "text/html; charset=utf-8",
-    DocumentMetadata.DocumentFileType.MD: "text/markdown; charset=utf-8",
-}
-
-
-def _file_response(
-    content: bytes,
-    content_type: str,
-    filename: str,
-    disposition: str = "attachment",
-) -> HttpResponse:
-    """Serve raw bytes with the given content type and Content-Disposition."""
-    response = HttpResponse(content, content_type=content_type)
-    response["Content-Disposition"] = f'{disposition}; filename="{filename}"'
-    return response
-
-
-def _build_file_response(document: DocumentMetadata) -> HttpResponse:
-    """Build an attachment response for a single document."""
-    content_type = (
-        mimetypes.guess_type(document.file_name)[0] or "application/octet-stream"
-    )
-    return _file_response(_document_bytes(document), content_type, document.file_name)
-
-
-def _build_preview_response(document: DocumentMetadata) -> HttpResponse:
-    """
-    Build an inline response for a single document so the browser can render it
-    in place (preview) instead of downloading it. DOCX has no native browser
-    preview and will still be downloaded by the browser regardless of this header.
-    """
-    content_type = (
-        PREVIEW_CONTENT_TYPES.get(document.file_type)
-        or mimetypes.guess_type(document.file_name)[0]
-        or "application/octet-stream"
-    )
-    return _file_response(
-        _document_bytes(document), content_type, document.file_name, "inline"
-    )
-
-
-def _build_archive_response(
-    documents: list, archive_name: str = "documents.zip"
-) -> HttpResponse:
-    """Bundle multiple documents into a zip attachment, deduplicating file names."""
-    buffer = io.BytesIO()
-    used_names: dict[str, int] = {}
-
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for document in documents:
-            archive.writestr(
-                _unique_name(document.file_name, used_names),
-                _document_bytes(document),
-            )
-
-    return _file_response(buffer.getvalue(), "application/zip", archive_name)
-
-
-def _unique_name(name: str, used_names: dict) -> str:
-    """Suffix duplicate file names so no archive entry is overwritten."""
-    count = used_names.get(name, 0)
-    used_names[name] = count + 1
-    if count == 0:
-        return name
-
-    stem, dot, ext = name.rpartition(".")
-    return f"{stem} ({count}){dot}{ext}" if dot else f"{name} ({count})"
+from tables.utils.document_serving import (
+    build_file_response,
+    build_preview_response,
+    build_archive_response,
+)
 
 
 class DocumentManagementViewSet(viewsets.GenericViewSet):
@@ -286,7 +201,7 @@ class DocumentViewSet(
         render supported formats (pdf, txt, md, json, html, csv) in place. DOCX
         has no inline preview and is downloaded instead."""
         document = self.get_object()
-        return _build_preview_response(document)
+        return build_preview_response(document)
 
     @extend_schema(**DOCUMENTS_DESTROY_DELETE)
     def destroy(self, request, *args, **kwargs):
@@ -339,8 +254,8 @@ class DocumentViewSet(
             raise NotFound(str(e))
 
         if len(documents) == 1:
-            return _build_file_response(documents[0])
-        return _build_archive_response(documents)
+            return build_file_response(documents[0])
+        return build_archive_response(documents)
 
     @extend_schema(**DOCUMENTS_COPY_POST)
     @action(detail=False, methods=["post"], url_path="copy")
@@ -425,6 +340,7 @@ class CollectionDocumentsViewSet(viewsets.GenericViewSet):
         except (ValueError, TypeError):
             raise InvalidFieldType("collection_id", collection_id)
 
+        # Verify collection exists
         try:
             collection = DocumentManagementService.get_collection(collection_id)
         except CollectionNotFoundException as e:

@@ -325,17 +325,31 @@ class CollectionManagementService:
             if base_rag_type.rag_type == BaseRagType.RagType.NAIVE:
                 for naive_rag in base_rag_type.naive_rags.all():
                     configurations.append(
-                        CollectionManagementService._summarize_naive_rag(naive_rag)
+                        CollectionManagementService._get_naive_rag_summary(naive_rag)
                     )
             elif base_rag_type.rag_type == BaseRagType.RagType.GRAPH:
                 for graph_rag in base_rag_type.graph_rags.all():
                     configurations.append(
-                        CollectionManagementService._summarize_graph_rag(graph_rag)
+                        CollectionManagementService._get_graph_rag_summary(graph_rag)
                     )
         return configurations
 
     @staticmethod
-    def _summarize_naive_rag(naive_rag: NaiveRag) -> Dict[str, Any]:
+    def _get_naive_rag_summary(naive_rag: NaiveRag) -> Dict[str, Any]:
+        """
+        Get summary data for a NaiveRag configuration.
+
+        Args:
+            naive_rag: NaiveRag instance — must be pre-fetched by the caller via
+                ``rag_configurations_prefetch()`` (naive_rag_configs, chunks,
+                embeddings). Without prefetch every .all() call causes N+1 queries.
+
+        Returns:
+            Dict with NaiveRag summary: rag_id, rag_type, status,
+            is_ready_for_indexing, embedder_name, embedder_id,
+            document_configs_count, chunks_count, embeddings_count,
+            created_at, updated_at.
+        """
         document_configs = list(naive_rag.naive_rag_configs.all())
         document_configs_count = len(document_configs)
         chunks_count = sum(len(c.chunks.all()) for c in document_configs)
@@ -360,7 +374,20 @@ class CollectionManagementService:
         }
 
     @staticmethod
-    def _summarize_graph_rag(graph_rag: GraphRag) -> Dict[str, Any]:
+    def _get_graph_rag_summary(graph_rag: GraphRag) -> Dict[str, Any]:
+        """
+        Get summary data for a GraphRag configuration.
+
+        Args:
+            graph_rag: GraphRag instance — must be pre-fetched by the caller via
+                ``rag_configurations_prefetch()`` (graph_rag_documents).
+                Without prefetch .all() causes N+1 queries.
+
+        Returns:
+            Dict with GraphRag summary: rag_id, rag_type, status,
+            is_ready_for_indexing, embedder_name, embedder_id, llm_name,
+            llm_id, documents_count, indexed_at, created_at, updated_at.
+        """
         documents_count = len(graph_rag.graph_rag_documents.all())
         is_ready_for_indexing = (
             graph_rag.embedder is not None
