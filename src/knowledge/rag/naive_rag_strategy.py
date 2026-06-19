@@ -18,6 +18,7 @@ from src.shared.models import (
     compute_rag_status,
     summarize_rag_error,
 )
+from src.shared.models.knowledge_status import DocumentStatus, RagStatus
 from rag.base_rag_strategy import BaseRAGStrategy
 from services.chunk_document_service import ChunkDocumentService
 from settings import UnitOfWork
@@ -185,7 +186,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         # Update RAG status to PROCESSING
         with uow.start() as ctx:
             ctx.naive_rag_storage.update_rag_status(
-                naive_rag_id=naive_rag_id, status="processing"
+                naive_rag_id=naive_rag_id, status=RagStatus.PROCESSING.value
             )
         logger.info(
             f"Processing naive_rag_id={naive_rag_id}, "
@@ -200,7 +201,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
         except Exception as e:
             with uow.start() as ctx:
                 ctx.naive_rag_storage.update_rag_status(
-                    naive_rag_id=naive_rag_id, status="failed"
+                    naive_rag_id=naive_rag_id, status=RagStatus.FAILED.value
                 )
             logger.error(f"Failed to load configs for naive_rag {naive_rag_id}: {e}")
             return
@@ -234,7 +235,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             )
             return (
                 doc_config is not None
-                and doc_config.status == "completed"
+                and doc_config.status == DocumentStatus.COMPLETED.value
                 and doc_config.is_snapshot_current()
             )
 
@@ -254,7 +255,13 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                 ]
             raw = ctx.naive_rag_storage.get_naive_rag_document_configs(
                 naive_rag_id=naive_rag_id,
-                status=("new", "warning", "chunked", "failed", "indexing"),
+                status=(
+                    DocumentStatus.NEW.value,
+                    DocumentStatus.WARNING.value,
+                    DocumentStatus.CHUNKED.value,
+                    DocumentStatus.FAILED.value,
+                    DocumentStatus.INDEXING.value,
+                ),
             )
             return [(cfg.naive_rag_document_id, cfg.document.file_name) for cfg in raw]
 
@@ -284,7 +291,8 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                     naive_rag_document_config_id=config_id
                 )
                 storage.update_document_config_status(
-                    naive_rag_document_config_id=config_id, status="indexing"
+                    naive_rag_document_config_id=config_id,
+                    status=DocumentStatus.INDEXING.value,
                 )
             return True
         except _DOC_VANISHED_ERRORS:
@@ -303,7 +311,8 @@ class NaiveRAGStrategy(BaseRAGStrategy):
                 if not chunks:
                     logger.warning(f"Document {file_name}: 0 chunks, marking warning")
                     if not ctx.naive_rag_storage.update_document_config_status(
-                        naive_rag_document_config_id=config_id, status="warning"
+                        naive_rag_document_config_id=config_id,
+                        status=DocumentStatus.WARNING.value,
                     ):
                         logger.error(
                             f"Document {file_name}/{config_id}: could not set 'warning' "
@@ -365,7 +374,8 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             try:
                 with uow.start() as ctx:
                     ctx.naive_rag_storage.update_document_config_status(
-                        naive_rag_document_config_id=config_id, status="failed"
+                        naive_rag_document_config_id=config_id,
+                        status=DocumentStatus.FAILED.value,
                     )
             except Exception as inner2:
                 logger.error(
@@ -414,7 +424,7 @@ class NaiveRAGStrategy(BaseRAGStrategy):
             # Persist error summary derived from per-doc errors (empty string on success)
             ctx.naive_rag_storage.set_error_message(naive_rag_id, error_summary)
             # Stamp indexed_at once the whole RAG reaches completed
-            if new_status == "completed":
+            if new_status == RagStatus.COMPLETED.value:
                 ctx.naive_rag_storage.set_indexed_at(naive_rag_id)
             logger.info(f"NaiveRag {naive_rag_id} -> status '{new_status}'")
 

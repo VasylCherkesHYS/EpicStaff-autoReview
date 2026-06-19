@@ -54,7 +54,7 @@ class IndexingService:
         """
         if rag_type == "naive":
             return IndexingService._prepare_naive_rag_indexing(
-                rag_id, document_config_ids
+                rag_id=rag_id, document_config_ids=document_config_ids
             )
         elif rag_type == "graph":
             return IndexingService._prepare_graph_rag_indexing(rag_id)

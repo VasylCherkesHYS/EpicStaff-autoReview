@@ -111,11 +111,13 @@
                                     />
                                 </div>
                             </div>
-                            <app-collection-details-files
-                                [(documents)]="documents"
-                                (downloadRequested)="onFileDownload($event)"
-                                (previewRequested)="onFilePreview($event)"
-                            />
+                            <div class="details__files-wrap">
+                                <app-collection-details-files
+                                    [(documents)]="documents"
+                                    (downloadRequested)="onFileDownload($event)"
+                                    (previewRequested)="onFilePreview($event)"
+                                />
+                            </div>
                         </div>
                     }
                 </div>

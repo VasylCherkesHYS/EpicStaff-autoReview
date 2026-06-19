@@ -12,9 +12,9 @@ from tables.exceptions import InvalidChunkParametersException
 from tables.models.knowledge_models import NaiveRagDocumentConfig
 
 
-class ChunkParameterValidator:
-    """Single source of NaiveRag chunk-parameter validation and update-dict
-    building (size / overlap / strategy↔file-type).
+class NaiveRagDocumentConfigValidator:
+    """Single source of NaiveRagDocumentConfig chunk-parameter validation and
+    update-dict building (size / overlap / strategy↔file-type).
 
     Shared by the single-update and bulk-update paths so both apply identical
     rules. Errors are returned as a list of ``{field, value, reason}`` dicts
@@ -26,7 +26,14 @@ class ChunkParameterValidator:
     @staticmethod
     def allowed_strategies_for_file_type(file_type: str) -> set:
         """Return the set of chunk strategies valid for a given file type.
-        Always includes UNIVERSAL_STRATEGIES; adds any file-type-specific ones."""
+
+        Business rules:
+        - token, character: allowed for ALL file types
+        - json: only for JSON files
+        - markdown: only for MD files
+        - html: only for HTML files
+        - csv: only for CSV files
+        """
         return UNIVERSAL_STRATEGIES | FILE_TYPE_SPECIFIC_STRATEGIES.get(
             file_type, set()
         )

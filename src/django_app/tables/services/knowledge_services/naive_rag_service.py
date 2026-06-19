@@ -21,7 +21,7 @@ from tables.models.knowledge_models import (
     NaiveRagPreviewChunk,
     SourceCollection,
 )
-from tables.validators.chunk_parameter_validator import ChunkParameterValidator
+from tables.validators.chunk_parameter_validator import NaiveRagDocumentConfigValidator
 
 
 class NaiveRagService:
@@ -33,7 +33,7 @@ class NaiveRagService:
     - Managing per-document configurations
     - Bulk operations
 
-    Chunk-parameter validation lives in ChunkParameterValidator.
+    Chunk-parameter validation lives in NaiveRagDocumentConfigValidator.
     """
 
     @staticmethod
@@ -174,10 +174,10 @@ class NaiveRagService:
                 f"Config {config_id} does not belong to NaiveRag {naive_rag_id}"
             )
 
-        updates = ChunkParameterValidator.build_updates(
+        updates = NaiveRagDocumentConfigValidator.build_updates(
             chunk_size, chunk_overlap, chunk_strategy, additional_params
         )
-        ChunkParameterValidator.validate_or_raise(config, updates)
+        NaiveRagDocumentConfigValidator.validate_or_raise(config, updates)
 
         if config.apply_param_updates(updates):
             NaiveRagService._persist_param_updates(config)
@@ -347,7 +347,7 @@ class NaiveRagService:
         new_configs = []
         for document in documents_without_configs:
             # Validate strategy for file type
-            if not ChunkParameterValidator.is_strategy_allowed(
+            if not NaiveRagDocumentConfigValidator.is_strategy_allowed(
                 DEFAULT_CHUNK_STRATEGY, document.file_type
             ):
                 # Skip documents incompatible with default strategy
@@ -426,7 +426,7 @@ class NaiveRagService:
             )
 
         # Build update dict
-        updates = ChunkParameterValidator.build_updates(
+        updates = NaiveRagDocumentConfigValidator.build_updates(
             chunk_size, chunk_overlap, chunk_strategy, additional_params
         )
 
@@ -437,7 +437,7 @@ class NaiveRagService:
         any_actual_change = False
 
         for config in configs:
-            errors = ChunkParameterValidator.collect_errors(config, updates)
+            errors = NaiveRagDocumentConfigValidator.collect_errors(config, updates)
 
             # If there are errors, skip this config
             if errors:

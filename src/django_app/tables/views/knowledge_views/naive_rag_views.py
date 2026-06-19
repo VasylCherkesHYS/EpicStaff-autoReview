@@ -567,7 +567,8 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
         # (would falsely show "indexing in progress").
         if not config.is_snapshot_current():
             NaiveRagService.begin_attempt(
-                config, NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING
+                config=config,
+                new_status=NaiveRagDocumentConfig.NaiveRagDocumentStatus.CHUNKING,
             )
 
         logger.info(
@@ -620,7 +621,9 @@ class ProcessNaiveRagDocumentChunkingView(APIView):
             logger.error(f"Chunking error for job {chunking_job_id}: {e}")
             # Reset status to previous state on error
             message = NaiveRagService.mark_config_failed_and_get_message(
-                config, NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED, e
+                config=config,
+                error_code=NaiveRagDocumentConfig.DocumentErrorCode.CHUNKING_FAILED,
+                exc=e,
             )
             return Response(
                 {
