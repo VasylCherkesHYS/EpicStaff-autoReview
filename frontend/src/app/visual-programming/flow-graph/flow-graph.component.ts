@@ -5,6 +5,7 @@ import {
     ChangeDetectorRef,
     Component,
     computed,
+    effect,
     ElementRef,
     EventEmitter,
     inject,
@@ -138,6 +139,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     @Input() currentFlowId: number | null = null;
     @Input() flowName: string = '';
     @Input() initialNodeId: string | null = null;
+    @Input() isSaving: boolean = false;
 
     @Output() save = new EventEmitter<FlowModel>();
     readonly openShortcuts = output<DOMRect>();
@@ -237,7 +239,17 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     private readonly toastService = inject(ToastService);
     private readonly injector = inject(Injector);
 
-    constructor() {}
+    private lastSeenFullSaveRequest = 0;
+
+    constructor() {
+        effect(() => {
+            const requestCount = this.sidePanelService.fullSaveRequest();
+            if (requestCount > this.lastSeenFullSaveRequest) {
+                this.lastSeenFullSaveRequest = requestCount;
+                this.emitSave();
+            }
+        });
+    }
 
     public ngOnInit(): void {
         this.applyIncomingFlowState(this.flowState);
@@ -252,6 +264,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         }
         if (changes['initialNodeId'] && changes['initialNodeId'].currentValue) {
             this.openNodePanel(changes['initialNodeId'].currentValue);
+        }
+        if (changes['isSaving'] && changes['isSaving'].currentValue === true) {
+            this.onCloseContextMenu();
         }
     }
 
@@ -268,6 +283,9 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
         setTimeout(() => {
             this.rerouteSegmentConnections();
             this.fCanvasComponent.fitToScreen({ x: 200, y: 100 }, false);
+            if (this.flowService.nodes().length === 1) {
+                this.fCanvasComponent.setScale(0.1);
+            }
             this.cd.detectChanges();
         }, 0);
     }
@@ -386,7 +404,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     public onPaste(): void {
         this.hasUnarrangedChanges.set(true);
-        if (this.isDialogOpen()) {
+        if (this.isEditingLocked()) {
             return;
         }
 
@@ -419,7 +437,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onUndo(): void {
-        if (this.isDialogOpen()) {
+        if (this.isEditingLocked()) {
             return;
         }
 
@@ -428,7 +446,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     public onRedo(): void {
-        if (this.isDialogOpen()) {
+        if (this.isEditingLocked()) {
             return;
         }
 
@@ -438,7 +456,7 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     public onDelete(): void {
         this.hasUnarrangedChanges.set(true);
-        if (this.isDialogOpen()) {
+        if (this.isEditingLocked()) {
             return;
         }
 
@@ -669,7 +687,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
             if (updatedNode === null) {
                 return;
             }
-            this.flowService.updateNode(updatedNode);
+            // Skip the writeback if the captured node was removed from the flow
+            // (e.g. during DT→CDT conversion the old panel instance lingers briefly
+            //  before the outlet swaps to the newly-selected node's panel).
+            if (this.flowService.nodes().some((n) => n.id === updatedNode.id)) {
+                this.flowService.updateNode(updatedNode);
+            }
         }
         this.save.emit(this.flowService.getFlowState());
     }
@@ -1090,6 +1113,12 @@ export class FlowGraphComponent implements OnInit, OnChanges, OnDestroy {
 
     private isDialogOpen(): boolean {
         return this.dialog.openDialogs.length > 0;
+    }
+
+    // Editing is locked while a dialog is open OR a full graph save is in flight.
+    // (Saving lock fixes edits made mid-save being discarded when the response is applied.)
+    private isEditingLocked(): boolean {
+        return this.isDialogOpen() || this.isSaving;
     }
 
     private updateStartNodeInitialState(newState: Record<string, unknown>): void {
