@@ -106,7 +106,6 @@ def create_or_update_python_tool(
     requirements: str,
     entrypoint: str,
     description: str,
-    args_schema: dict,
     variables: list[dict],
     use_storage: bool = False,
 ) -> PythonCodeTool:
@@ -131,7 +130,6 @@ def create_or_update_python_tool(
         python_code_obj.entrypoint = entrypoint
         python_code_obj.libraries = requirements
         python_tool_obj.description = description
-        python_tool_obj.args_schema = args_schema
         python_tool_obj.variables = variables
         python_tool_obj.use_storage = use_storage
         python_tool_obj.save()
@@ -166,7 +164,6 @@ def upload_tools():
                     requirements=requirements_string,
                     entrypoint=entrypoint,
                     description=description,
-                    args_schema=args_schema,
                     variables=variables,
                     use_storage=tool_data.use_storage,
                 )
