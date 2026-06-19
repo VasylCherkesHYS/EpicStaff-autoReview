@@ -32,6 +32,7 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
                     [type]="effectiveType"
                     [id]="id"
                     [name]="name"
+                    [attr.autocomplete]="autocomplete"
                     [placeholder]="placeholder"
                     [(ngModel)]="value"
                     (blur)="onTouched(); blur.emit()"
@@ -168,6 +169,7 @@ export class CustomInputComponent implements ControlValueAccessor {
     @Input() type: string = 'text';
     @Input() id: string = '';
     @Input() name: string = '';
+    @Input() autocomplete: string = 'off';
     @Input() autofocus: boolean = false;
     @Input() tooltipText: string = '';
     @Input() icon: string = 'help';
