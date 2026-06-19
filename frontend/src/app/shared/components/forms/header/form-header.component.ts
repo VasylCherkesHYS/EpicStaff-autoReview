@@ -1,10 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
     selector: 'app-form-header',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     templateUrl: './form-header.component.html',
     styleUrls: ['./form-header.component.scss'],
 })

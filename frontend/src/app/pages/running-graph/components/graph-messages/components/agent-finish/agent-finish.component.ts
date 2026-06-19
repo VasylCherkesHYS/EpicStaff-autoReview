@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input, OnInit } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 import { MarkdownModule } from 'ngx-markdown';
@@ -12,7 +11,7 @@ import { AgentFinishMessageData, GraphMessage, MessageType } from '../../../../m
 @Component({
     selector: 'app-agent-finish-message',
     standalone: true,
-    imports: [CommonModule, MarkdownModule, NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
+    imports: [MarkdownModule, NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
     animations: [expandCollapseAnimation],
     template: `
         <div class="agent-flow-container">
@@ -45,54 +44,55 @@ import { AgentFinishMessageData, GraphMessage, MessageType } from '../../../../m
             >
                 <div class="agent-content">
                     <!-- Thought Section -->
-                    <div
-                        class="thought-container"
-                        *ngIf="agentFinishMessageData?.thought"
-                    >
-                        <div
-                            class="section-heading"
-                            (click)="toggleSection('thought')"
-                        >
-                            <app-svg-icon
-                                [icon]="isThoughtExpanded ? 'caret-down-filled' : 'caret-right-filled'"
-                                size="1.1rem"
-                            />
-                            Thought
-                        </div>
-                        <div
-                            class="collapsible-content"
-                            [@expandCollapse]="isThoughtExpanded ? 'expanded' : 'collapsed'"
-                        >
-                            <div class="thought-bubble">
-                                <span class="thought-quote">"</span>{{ cleanThought(agentFinishMessageData?.thought)
-                                }}<span class="thought-quote">"</span>
+                    @if (agentFinishMessageData?.thought) {
+                        <div class="thought-container">
+                            <div
+                                class="section-heading"
+                                (click)="toggleSection('thought')"
+                            >
+                                <app-svg-icon
+                                    [icon]="isThoughtExpanded ? 'caret-down-filled' : 'caret-right-filled'"
+                                    size="1.1rem"
+                                />
+                                Thought
+                            </div>
+                            <div
+                                class="collapsible-content"
+                                [@expandCollapse]="isThoughtExpanded ? 'expanded' : 'collapsed'"
+                            >
+                                <div class="thought-bubble">
+                                    <span class="thought-quote">"</span
+                                    >{{ cleanThought(agentFinishMessageData?.thought)
+                                    }}<span class="thought-quote">"</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    }
                 </div>
             </div>
         </div>
 
         <!-- Task Result as Separate Message Bubble -->
-        <div
-            class="result-message-container"
-            *ngIf="agentFinishMessageData?.output"
-        >
-            <div class="result-content">
-                <app-copy-button [text]="cleanOutput(agentFinishMessageData?.output)" />
-                <ngx-json-viewer
-                    *ngIf="isValidJson(agentFinishMessageData?.output)"
-                    [json]="getParsedJson(agentFinishMessageData?.output)"
-                    [expanded]="true"
-                ></ngx-json-viewer>
-                <markdown
-                    *ngIf="!isValidJson(agentFinishMessageData?.output)"
-                    [data]="cleanOutput(agentFinishMessageData?.output)"
-                    class="markdown-content"
-                >
-                </markdown>
+        @if (agentFinishMessageData?.output) {
+            <div class="result-message-container">
+                <div class="result-content">
+                    <app-copy-button [text]="cleanOutput(agentFinishMessageData?.output)" />
+                    @if (isValidJson(agentFinishMessageData?.output)) {
+                        <ngx-json-viewer
+                            [json]="getParsedJson(agentFinishMessageData?.output)"
+                            [expanded]="true"
+                        ></ngx-json-viewer>
+                    }
+                    @if (!isValidJson(agentFinishMessageData?.output)) {
+                        <markdown
+                            [data]="cleanOutput(agentFinishMessageData?.output)"
+                            class="markdown-content"
+                        >
+                        </markdown>
+                    }
+                </div>
             </div>
-        </div>
+        }
     `,
     styles: [
         `

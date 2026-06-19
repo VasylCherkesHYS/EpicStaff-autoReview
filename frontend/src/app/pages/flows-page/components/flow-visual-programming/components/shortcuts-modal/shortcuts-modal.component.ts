@@ -1,5 +1,4 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BREAKPOINTS } from 'src/app/core/constants/breakpoints';
@@ -23,7 +22,7 @@ export interface ShortcutSection {
 @Component({
     selector: 'app-shortcuts-modal',
     standalone: true,
-    imports: [CommonModule, AppSvgIconComponent],
+    imports: [AppSvgIconComponent],
     templateUrl: './shortcuts-modal.component.html',
     styleUrl: './shortcuts-modal.component.scss',
 })

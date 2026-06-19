@@ -1,4 +1,4 @@
-import { NgClass, NgFor, NgIf } from '@angular/common';
+import { NgClass } from '@angular/common';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -25,7 +25,7 @@ import { LlmItemComponent } from './llm-item/llm-item.component';
 
 @Component({
     selector: 'app-llm-popup',
-    imports: [NgFor, FormsModule, NgIf, NgClass, LlmItemComponent, AppSvgIconComponent],
+    imports: [FormsModule, NgClass, LlmItemComponent, AppSvgIconComponent],
     templateUrl: './llm-popup.component.html',
     styleUrls: ['./llm-popup.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

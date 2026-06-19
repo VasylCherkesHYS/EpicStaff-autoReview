@@ -1,10 +1,9 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 
 @Component({
     selector: 'app-form-slider',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     templateUrl: './form-slider.component.html',
     styleUrls: ['./form-slider.component.scss'],
 })

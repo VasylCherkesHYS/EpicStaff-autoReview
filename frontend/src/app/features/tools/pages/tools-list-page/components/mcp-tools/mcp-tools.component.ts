@@ -1,5 +1,4 @@
 import { Dialog, DialogModule } from '@angular/cdk/dialog';
-import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,7 +19,7 @@ import { McpToolCardComponent } from './components/mcp-tool-card/mcp-tool-card.c
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './mcp-tools.component.html',
     styleUrls: ['./mcp-tools.component.scss'],
-    imports: [LoadingSpinnerComponent, McpToolCardComponent, DialogModule, CommonModule],
+    imports: [LoadingSpinnerComponent, McpToolCardComponent, DialogModule],
 })
 export class McpToolsComponent implements OnInit {
     private readonly mcpToolsService = inject(McpToolsService);

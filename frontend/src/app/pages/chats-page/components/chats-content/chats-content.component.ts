@@ -1,4 +1,3 @@
-import { NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
@@ -9,7 +8,7 @@ import { ChatComponent } from './chat/chat.component';
 @Component({
     selector: 'app-chats-content',
     standalone: true,
-    imports: [NgIf, RouterModule, ChatComponent],
+    imports: [RouterModule, ChatComponent],
     templateUrl: './chats-content.component.html',
     styleUrls: ['./chats-content.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

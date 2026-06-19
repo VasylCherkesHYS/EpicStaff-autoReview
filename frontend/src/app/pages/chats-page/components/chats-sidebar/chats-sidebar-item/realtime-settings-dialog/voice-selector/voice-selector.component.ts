@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
@@ -8,7 +7,7 @@ import { ClickOutsideDirective } from '../../../../../../../shared/directives/cl
 @Component({
     selector: 'app-voice-selector',
     standalone: true,
-    imports: [CommonModule, FormsModule, ReactiveFormsModule, ClickOutsideDirective],
+    imports: [FormsModule, ReactiveFormsModule, ClickOutsideDirective],
     templateUrl: './voice-selector.component.html',
     styleUrls: ['./voice-selector.component.scss'],
 })

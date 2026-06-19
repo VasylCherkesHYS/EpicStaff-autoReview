@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -25,7 +24,7 @@ import { LlmModelItemComponent } from './llm-model-item/llm-model-item.component
 @Component({
     selector: 'app-llm-model-selector',
     standalone: true,
-    imports: [CommonModule, FormsModule, AppSvgIconComponent, LlmModelItemComponent],
+    imports: [FormsModule, AppSvgIconComponent, LlmModelItemComponent],
     providers: [
         {
             provide: NG_VALUE_ACCESSOR,
@@ -41,38 +40,31 @@ import { LlmModelItemComponent } from './llm-model-item/llm-model-item.component
                 [class.loading]="loading"
                 (click)="!loading && toggleDropdown($event)"
             >
-                <div
-                    *ngIf="loading"
-                    class="loading-spinner"
-                ></div>
-                <div
-                    *ngIf="selectedConfig && !loading; else placeholderTemplate"
-                    class="model-info"
-                >
-                    <app-svg-icon
-                        [icon]="getProviderIcon(selectedConfig)"
-                        size="20px"
-                        [ariaLabel]="selectedConfig.providerDetails?.name || ''"
-                        class="provider-icon"
-                    />
-                    <div class="model-text">
-                        <span class="model-name">{{ selectedConfig.modelDetails?.name || 'Unknown Model' }}</span>
-                        <span
-                            *ngIf="selectedConfig.custom_name"
-                            class="custom-name"
-                        >
-                            ({{ selectedConfig.custom_name }})
-                        </span>
+                @if (loading) {
+                    <div class="loading-spinner"></div>
+                }
+                @if (selectedConfig && !loading) {
+                    <div class="model-info">
+                        <app-svg-icon
+                            [icon]="getProviderIcon(selectedConfig)"
+                            size="20px"
+                            [ariaLabel]="selectedConfig.providerDetails?.name || ''"
+                            class="provider-icon"
+                        />
+                        <div class="model-text">
+                            <span class="model-name">{{ selectedConfig.modelDetails?.name || 'Unknown Model' }}</span>
+                            @if (selectedConfig.custom_name) {
+                                <span class="custom-name"> ({{ selectedConfig.custom_name }}) </span>
+                            }
+                        </div>
                     </div>
-                </div>
-                <ng-template #placeholderTemplate>
-                    <div
-                        *ngIf="!loading"
-                        class="placeholder-text"
-                    >
-                        {{ placeholder }}
-                    </div>
-                </ng-template>
+                } @else {
+                    @if (!loading) {
+                        <div class="placeholder-text">
+                            {{ placeholder }}
+                        </div>
+                    }
+                }
                 <div class="dropdown-icon">
                     <svg
                         width="16"
@@ -93,50 +85,46 @@ import { LlmModelItemComponent } from './llm-model-item/llm-model-item.component
             </div>
 
             <!-- Dropdown Menu -->
-            <div
-                class="dropdown-menu"
-                [class.dropdown-top]="dropdownPosition === 'top'"
-                *ngIf="isDropdownOpen"
-            >
-                <!-- Search Input -->
-                <div class="search-container">
-                    <input
-                        type="text"
-                        [(ngModel)]="searchTerm"
-                        placeholder="Search models..."
-                        (click)="$event.stopPropagation()"
-                        (input)="filterConfigs()"
-                    />
-                </div>
-
-                <!-- Models List -->
-                <div class="models-list">
-                    @if (selectedConfig && !searchTerm) {
-                        <div
-                            class="deselect-option"
-                            (click)="deselectConfig()"
-                        >
-                            <i class="ti ti-x"></i>
-                            <span>Clear</span>
-                        </div>
-                    }
-                    <div
-                        *ngIf="filteredConfigs.length === 0"
-                        class="no-results"
-                    >
-                        No matching models found
+            @if (isDropdownOpen) {
+                <div
+                    class="dropdown-menu"
+                    [class.dropdown-top]="dropdownPosition === 'top'"
+                >
+                    <!-- Search Input -->
+                    <div class="search-container">
+                        <input
+                            type="text"
+                            [(ngModel)]="searchTerm"
+                            placeholder="Search models..."
+                            (click)="$event.stopPropagation()"
+                            (input)="filterConfigs()"
+                        />
                     </div>
-
-                    @for (config of filteredConfigs; track config.id) {
-                        <app-llm-model-item
-                            [config]="config"
-                            [isSelected]="selectedConfigId === config.id"
-                            (selected)="selectConfig($event)"
-                        >
-                        </app-llm-model-item>
-                    }
+                    <!-- Models List -->
+                    <div class="models-list">
+                        @if (selectedConfig && !searchTerm) {
+                            <div
+                                class="deselect-option"
+                                (click)="deselectConfig()"
+                            >
+                                <i class="ti ti-x"></i>
+                                <span>Clear</span>
+                            </div>
+                        }
+                        @if (filteredConfigs.length === 0) {
+                            <div class="no-results">No matching models found</div>
+                        }
+                        @for (config of filteredConfigs; track config.id) {
+                            <app-llm-model-item
+                                [config]="config"
+                                [isSelected]="selectedConfigId === config.id"
+                                (selected)="selectConfig($event)"
+                            >
+                            </app-llm-model-item>
+                        }
+                    </div>
                 </div>
-            </div>
+            }
         </div>
     `,
     styles: [

@@ -11,12 +11,11 @@ import { Component, Input } from '@angular/core';
                 class="spinner"
                 [ngClass]="size"
             ></div>
-            <div
-                *ngIf="message"
-                class="loading-message"
-            >
-                {{ message }}
-            </div>
+            @if (message) {
+                <div class="loading-message">
+                    {{ message }}
+                </div>
+            }
         </div>
     `,
     styles: [

@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -126,7 +125,6 @@ const TERMINAL_STATUSES = new Set<GraphSessionStatus>([
     selector: 'app-graph-messages',
     standalone: true,
     imports: [
-        CommonModule,
         MarkdownModule,
         LoadingDotsComponent,
         StartMessageComponent,

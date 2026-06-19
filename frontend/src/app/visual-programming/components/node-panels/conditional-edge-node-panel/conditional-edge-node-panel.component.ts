@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 import { AbstractControl, FormArray, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -16,7 +15,7 @@ interface InputMapPair {
 @Component({
     standalone: true,
     selector: 'app-conditional-edge-node-panel',
-    imports: [ReactiveFormsModule, CustomInputComponent, InputMapComponent, CodeEditorComponent, CommonModule],
+    imports: [ReactiveFormsModule, CustomInputComponent, InputMapComponent, CodeEditorComponent],
     template: `
         <div class="panel-container">
             <div class="panel-content">

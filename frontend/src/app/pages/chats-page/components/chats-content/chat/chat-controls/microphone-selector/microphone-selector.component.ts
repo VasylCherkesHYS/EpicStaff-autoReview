@@ -1,5 +1,5 @@
 // microphone-selector.component.ts
-import { CommonModule } from '@angular/common';
+
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, effect, inject, OnInit } from '@angular/core';
 
 import { AppSvgIconComponent } from '../../../../../../../shared/components/app-svg-icon/app-svg-icon.component';
@@ -12,7 +12,7 @@ const STORAGE_KEY_DEVICE_ID = 'selected_microphone_id';
     templateUrl: './microphone-selector.component.html',
     styleUrls: ['./microphone-selector.component.scss'],
     standalone: true,
-    imports: [CommonModule, AppSvgIconComponent],
+    imports: [AppSvgIconComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MicrophoneSelectorComponent implements OnInit {

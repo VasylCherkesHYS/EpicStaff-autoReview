@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
     ChangeDetectionStrategy,
@@ -29,14 +28,7 @@ interface FlatLabelNode {
 
 @Component({
     selector: 'app-label-dropdown',
-    imports: [
-        CommonModule,
-        FormsModule,
-        AppSvgIconComponent,
-        ButtonComponent,
-        LabelColorPickerComponent,
-        CheckboxComponent,
-    ],
+    imports: [FormsModule, AppSvgIconComponent, ButtonComponent, LabelColorPickerComponent, CheckboxComponent],
     templateUrl: './label-dropdown.component.html',
     styleUrls: ['./label-dropdown.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

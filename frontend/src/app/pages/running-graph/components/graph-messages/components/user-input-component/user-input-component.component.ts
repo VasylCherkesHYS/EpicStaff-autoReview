@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, OnDestroy, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -7,7 +6,7 @@ import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg
 @Component({
     selector: 'app-wait-for-user-input',
     standalone: true,
-    imports: [CommonModule, FormsModule, AppSvgIconComponent],
+    imports: [FormsModule, AppSvgIconComponent],
     template: `
         <div class="wait-for-user-container">
             <div class="options-row">
@@ -32,16 +31,15 @@ import { AppSvgIconComponent } from '../../../../../../shared/components/app-svg
                     [disabled]="!userMessage.trim() || isSubmitting"
                     title="Send"
                 >
-                    <ng-container *ngIf="!isSubmitting">
+                    @if (!isSubmitting) {
                         <app-svg-icon
                             icon="send"
                             size="1rem"
                         />Send
-                    </ng-container>
-                    <div
-                        *ngIf="isSubmitting"
-                        class="spinner"
-                    ></div>
+                    }
+                    @if (isSubmitting) {
+                        <div class="spinner"></div>
+                    }
                 </button>
             </div>
 

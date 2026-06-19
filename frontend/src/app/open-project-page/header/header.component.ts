@@ -1,5 +1,4 @@
 import { Dialog, DialogModule } from '@angular/cdk/dialog';
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -39,7 +38,6 @@ import { EditTitleDialogComponent } from './edit-name-dialog/edit-title-dialog.c
         RouterModule,
         FormsModule,
         DialogModule,
-        CommonModule,
         AppSvgIconComponent,
         ButtonComponent,
         SaveWithIndicatorComponent,

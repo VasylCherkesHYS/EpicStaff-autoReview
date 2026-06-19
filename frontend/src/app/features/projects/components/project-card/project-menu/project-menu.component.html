@@ -15,33 +15,33 @@
             size="1rem"
         />
     </button>
-    <div
-        class="context-menu"
-        *ngIf="isMenuOpen()"
-        (mouseenter)="onMenuEnter()"
-        (mouseleave)="onMenuLeave()"
-    >
-        <!-- <app-project-menu-item
-            icon="ti-tags"
-            label="Manage Tags"
-            (itemClick)="onActionClick($event, 'manage-tags')"
-        ></app-project-menu-item> -->
-        <!-- <app-project-menu-item
-      icon="ti-download"
-      label="Export"
-      (itemClick)="onActionClick($event, 'export')"
+    @if (isMenuOpen()) {
+        <div
+            class="context-menu"
+            (mouseenter)="onMenuEnter()"
+            (mouseleave)="onMenuLeave()"
+        >
+            <!-- <app-project-menu-item
+      icon="ti-tags"
+      label="Manage Tags"
+      (itemClick)="onActionClick($event, 'manage-tags')"
     ></app-project-menu-item> -->
-        <app-project-menu-item
-            icon="ti-trash"
-            label="Delete"
-            [isDelete]="true"
-            (itemClick)="onActionClick($event, 'delete')"
-        ></app-project-menu-item>
-
-        <app-project-menu-item
-            icon="ti-copy"
-            label="Copy project"
-            (itemClick)="onActionClick($event, 'copy')"
-        ></app-project-menu-item>
-    </div>
+            <!-- <app-project-menu-item
+    icon="ti-download"
+    label="Export"
+    (itemClick)="onActionClick($event, 'export')"
+  ></app-project-menu-item> -->
+            <app-project-menu-item
+                icon="ti-trash"
+                label="Delete"
+                [isDelete]="true"
+                (itemClick)="onActionClick($event, 'delete')"
+            ></app-project-menu-item>
+            <app-project-menu-item
+                icon="ti-copy"
+                label="Copy project"
+                (itemClick)="onActionClick($event, 'copy')"
+            ></app-project-menu-item>
+        </div>
+    }
 </div>

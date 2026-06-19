@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -31,7 +30,6 @@ import { DEFAULT_OUTPUT_SCHEMA } from './default-output-schema';
         InputMapComponent,
         NodeStorageSectionComponent,
         CodeEditorComponent,
-        CommonModule,
         JsonEditorComponent,
         SelectComponent,
     ],

@@ -1,5 +1,4 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -18,7 +17,7 @@ import { GraphNoteModel } from '../../core/models/node.model';
 @Component({
     selector: 'app-note-edit-dialog',
     standalone: true,
-    imports: [CommonModule, FormsModule, AppSvgIconComponent],
+    imports: [FormsModule, AppSvgIconComponent],
     template: `
         <div
             class="backdrop"

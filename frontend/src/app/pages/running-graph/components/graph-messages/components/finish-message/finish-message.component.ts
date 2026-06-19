@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input, OnInit } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 import { MarkdownModule } from 'ngx-markdown';
@@ -12,7 +11,7 @@ import { FinishMessageData, GraphMessage } from '../../../../models/graph-sessio
 @Component({
     selector: 'app-finish-message',
     standalone: true,
-    imports: [CommonModule, NgxJsonViewerModule, MarkdownModule, AppSvgIconComponent, CopyButtonComponent],
+    imports: [NgxJsonViewerModule, MarkdownModule, AppSvgIconComponent, CopyButtonComponent],
     animations: [expandCollapseAnimation],
     template: `
         <div class="finish-container">
@@ -34,12 +33,12 @@ import { FinishMessageData, GraphMessage } from '../../../../models/graph-sessio
                     />
                 </div>
                 <h3>
-                    <span
-                        class="project-name"
-                        *ngIf="project && project.name"
-                        >{{ project.name }}</span
-                    >
-                    <span *ngIf="!project || !project.name">Default Project</span>
+                    @if (project && project.name) {
+                        <span class="project-name">{{ project.name }}</span>
+                    }
+                    @if (!project || !project.name) {
+                        <span>Default Project</span>
+                    }
                     finished
                 </h3>
             </div>
@@ -51,33 +50,32 @@ import { FinishMessageData, GraphMessage } from '../../../../models/graph-sessio
             >
                 <div class="finish-content">
                     <!-- Variables Section -->
-                    <div
-                        class="variables-container"
-                        *ngIf="hasVariables()"
-                    >
-                        <div
-                            class="section-heading"
-                            (click)="toggleSection('variables')"
-                        >
-                            <app-svg-icon
-                                [icon]="isVariablesExpanded ? 'caret-down-filled' : 'caret-right-filled'"
-                                size="1rem"
-                            />
-                            Variables
-                        </div>
-                        <div
-                            class="collapsible-content"
-                            [@expandCollapse]="isVariablesExpanded ? 'expanded' : 'collapsed'"
-                        >
-                            <div class="variables-content">
-                                <app-copy-button [text]="variablesJson" />
-                                <ngx-json-viewer
-                                    [json]="getVariables()"
-                                    [expanded]="false"
-                                ></ngx-json-viewer>
+                    @if (hasVariables()) {
+                        <div class="variables-container">
+                            <div
+                                class="section-heading"
+                                (click)="toggleSection('variables')"
+                            >
+                                <app-svg-icon
+                                    [icon]="isVariablesExpanded ? 'caret-down-filled' : 'caret-right-filled'"
+                                    size="1rem"
+                                />
+                                Variables
+                            </div>
+                            <div
+                                class="collapsible-content"
+                                [@expandCollapse]="isVariablesExpanded ? 'expanded' : 'collapsed'"
+                            >
+                                <div class="variables-content">
+                                    <app-copy-button [text]="variablesJson" />
+                                    <ngx-json-viewer
+                                        [json]="getVariables()"
+                                        [expanded]="false"
+                                    ></ngx-json-viewer>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    }
 
                     <!-- Final Output Section -->
                     <div class="output-container">

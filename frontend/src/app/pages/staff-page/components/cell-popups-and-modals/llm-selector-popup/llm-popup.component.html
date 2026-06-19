@@ -8,9 +8,9 @@
         />
         <!-- Commented out filter button -->
         <!-- <button class="filter-button">
-      <i class="ti ti-filter"></i>
-      Filter
-    </button> -->
+    <i class="ti ti-filter"></i>
+    Filter
+  </button> -->
     </div>
 
     <div class="tabs-header">
@@ -32,94 +32,84 @@
 
     <div class="body">
         <!-- LLM Models Tab -->
-        <div
-            class="llm-list-wrapper"
-            *ngIf="activeTab === 'llm'"
-        >
-            <!-- Loading Spinner -->
-            <div
-                *ngIf="loading"
-                class="loading-spinner"
-            >
-                <div class="dots">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                </div>
-            </div>
-
-            <ul
-                class="llms-list"
-                *ngIf="!loading"
-            >
-                <app-llm-item
-                    *ngFor="let item of filteredLLMs"
-                    [item]="item"
-                    [isSelected]="selectedLLMId === item.id"
-                    itemType="llm"
-                    (itemSelected)="onSelectLLM($event)"
-                >
-                </app-llm-item>
-
-                <li
-                    class="no-results"
-                    *ngIf="filteredLLMs.length === 0"
-                >
-                    <div class="empty-state">
-                        <app-svg-icon
-                            icon="search-off"
-                            size="1.5rem"
-                        />
-                        <p>No matching LLM configurations found</p>
+        @if (activeTab === 'llm') {
+            <div class="llm-list-wrapper">
+                <!-- Loading Spinner -->
+                @if (loading) {
+                    <div class="loading-spinner">
+                        <div class="dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
                     </div>
-                </li>
-            </ul>
-        </div>
+                }
+                @if (!loading) {
+                    <ul class="llms-list">
+                        @for (item of filteredLLMs; track item) {
+                            <app-llm-item
+                                [item]="item"
+                                [isSelected]="selectedLLMId === item.id"
+                                itemType="llm"
+                                (itemSelected)="onSelectLLM($event)"
+                            >
+                            </app-llm-item>
+                        }
+                        @if (filteredLLMs.length === 0) {
+                            <li class="no-results">
+                                <div class="empty-state">
+                                    <app-svg-icon
+                                        icon="search-off"
+                                        size="1.5rem"
+                                    />
+                                    <p>No matching LLM configurations found</p>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
 
         <!-- Realtime Models Tab -->
-        <div
-            class="llm-list-wrapper"
-            *ngIf="activeTab === 'realtime'"
-        >
-            <!-- Loading Spinner -->
-            <div
-                *ngIf="loading"
-                class="loading-spinner"
-            >
-                <div class="dots">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                </div>
-            </div>
-
-            <ul
-                class="llms-list"
-                *ngIf="!loading"
-            >
-                <app-llm-item
-                    *ngFor="let item of filteredRealtimeModels"
-                    [item]="item"
-                    [isSelected]="selectedRealtimeId === item.id"
-                    itemType="realtime"
-                    (itemSelected)="onSelectRealtime($event)"
-                >
-                </app-llm-item>
-
-                <li
-                    class="no-results"
-                    *ngIf="filteredRealtimeModels.length === 0"
-                >
-                    <div class="empty-state">
-                        <app-svg-icon
-                            icon="search-off"
-                            size="1.5rem"
-                        />
-                        <p>No matching Realtime configurations found</p>
+        @if (activeTab === 'realtime') {
+            <div class="llm-list-wrapper">
+                <!-- Loading Spinner -->
+                @if (loading) {
+                    <div class="loading-spinner">
+                        <div class="dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
                     </div>
-                </li>
-            </ul>
-        </div>
+                }
+                @if (!loading) {
+                    <ul class="llms-list">
+                        @for (item of filteredRealtimeModels; track item) {
+                            <app-llm-item
+                                [item]="item"
+                                [isSelected]="selectedRealtimeId === item.id"
+                                itemType="realtime"
+                                (itemSelected)="onSelectRealtime($event)"
+                            >
+                            </app-llm-item>
+                        }
+                        @if (filteredRealtimeModels.length === 0) {
+                            <li class="no-results">
+                                <div class="empty-state">
+                                    <app-svg-icon
+                                        icon="search-off"
+                                        size="1.5rem"
+                                    />
+                                    <p>No matching Realtime configurations found</p>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
     </div>
 
     <div class="controls-footer">

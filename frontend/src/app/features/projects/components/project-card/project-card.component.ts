@@ -1,4 +1,4 @@
-import { NgFor, NgIf, NgStyle } from '@angular/common';
+import { NgStyle } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -23,7 +23,7 @@ import { TagComponent } from './tag.component';
 @Component({
     selector: 'app-project-card',
     standalone: true,
-    imports: [NgIf, NgFor, NgStyle, TagComponent, ProjectMenuComponent, AppSvgIconComponent],
+    imports: [NgStyle, TagComponent, ProjectMenuComponent, AppSvgIconComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './project-card.component.html',
     styleUrls: ['./project-card.component.scss'],

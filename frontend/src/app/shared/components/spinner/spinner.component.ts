@@ -22,13 +22,14 @@ import { Component, Input } from '@angular/core';
                     'border-top-color': accentColor,
                 }"
             ></div>
-            <div
-                *ngIf="text"
-                class="loading-text"
-                [ngStyle]="{ color: textColor, 'font-size': textSize + 'px' }"
-            >
-                {{ text }}
-            </div>
+            @if (text) {
+                <div
+                    class="loading-text"
+                    [ngStyle]="{ color: textColor, 'font-size': textSize + 'px' }"
+                >
+                    {{ text }}
+                </div>
+            }
         </div>
     `,
     styles: [

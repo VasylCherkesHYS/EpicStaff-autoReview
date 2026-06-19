@@ -1,4 +1,3 @@
-import { NgFor, NgIf } from '@angular/common';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -23,7 +22,7 @@ import { AppSvgIconComponent } from '../../../../../shared/components/app-svg-ic
 @Component({
     selector: 'app-agent-selection-popup',
     standalone: true,
-    imports: [NgFor, FormsModule, NgIf, AppSvgIconComponent],
+    imports: [FormsModule, AppSvgIconComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './agent-popup.component.html',
     styleUrls: ['./agent-popup.component.scss'],

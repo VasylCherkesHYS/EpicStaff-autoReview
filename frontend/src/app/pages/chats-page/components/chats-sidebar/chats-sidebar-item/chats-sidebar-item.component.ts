@@ -1,5 +1,4 @@
 import { Dialog } from '@angular/cdk/dialog';
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, Input } from '@angular/core';
 
 import { FullAgent } from '../../../../../features/staff/services/full-agent.service';
@@ -10,7 +9,7 @@ import { RealtimeSettingsDialogComponent } from './realtime-settings-dialog/real
 @Component({
     selector: 'app-chats-sidebar-item',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     templateUrl: './chats-sidebar-item.component.html',
     styleUrls: ['./chats-sidebar-item.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

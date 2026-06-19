@@ -39,15 +39,12 @@
     </div>
     <div class="tags-container">
         <div class="tags">
-            <ng-container *ngFor="let tag of displayedTags()">
+            @for (tag of displayedTags(); track tag) {
                 <app-tag [tag]="tag"></app-tag>
-            </ng-container>
-            <span
-                class="more-tags"
-                *ngIf="hasMoreTags()"
-            >
-                +{{ additionalTagsCount() }} more
-            </span>
+            }
+            @if (hasMoreTags()) {
+                <span class="more-tags"> +{{ additionalTagsCount() }} more </span>
+            }
         </div>
     </div>
 </div>

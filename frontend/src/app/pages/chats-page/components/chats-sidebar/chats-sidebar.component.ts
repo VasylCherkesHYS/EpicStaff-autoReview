@@ -1,4 +1,3 @@
-import { NgFor } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SearchComponent } from '@shared/components';
@@ -10,7 +9,7 @@ import { ChatsSidebarItemComponent } from './chats-sidebar-item/chats-sidebar-it
 @Component({
     selector: 'app-chats-sidebar',
     standalone: true,
-    imports: [NgFor, ChatsSidebarItemComponent, FormsModule, SearchComponent],
+    imports: [ChatsSidebarItemComponent, FormsModule, SearchComponent],
     templateUrl: './chats-sidebar.component.html',
     styleUrls: ['./chats-sidebar.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

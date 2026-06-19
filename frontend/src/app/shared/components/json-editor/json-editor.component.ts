@@ -1,4 +1,3 @@
-import { NgIf } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -22,7 +21,7 @@ import { AppSvgIconComponent } from '../app-svg-icon/app-svg-icon.component';
 
 @Component({
     selector: 'app-json-editor',
-    imports: [FormsModule, NgIf, MonacoEditorModule, ResizableDirective, AppSvgIconComponent],
+    imports: [FormsModule, MonacoEditorModule, ResizableDirective, AppSvgIconComponent],
     templateUrl: './json-editor.component.html',
     styleUrls: ['./json-editor.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

@@ -6,8 +6,10 @@
         />
     </div>
     <ul>
-        <li *ngFor="let agent of filteredAgents; trackBy: trackByAgentId">
-            <app-chats-sidebar-item [agent]="agent"></app-chats-sidebar-item>
-        </li>
+        @for (agent of filteredAgents; track trackByAgentId($index, agent)) {
+            <li>
+                <app-chats-sidebar-item [agent]="agent"></app-chats-sidebar-item>
+            </li>
+        }
     </ul>
 </aside>

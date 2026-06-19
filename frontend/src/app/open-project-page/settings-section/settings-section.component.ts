@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -36,7 +35,6 @@ import { GetProjectRequest } from '../../features/projects/models/project.model'
     styleUrls: ['./settings-section.component.scss'],
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         HelpTooltipComponent,
         LlmModelSelectorComponent,

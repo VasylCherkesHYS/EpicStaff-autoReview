@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -11,7 +10,7 @@ export type GridSizeOption = 'small' | 'medium' | 'large';
 @Component({
     selector: 'app-grid-controls',
     standalone: true,
-    imports: [CommonModule, FormsModule, SearchDropdownComponent, AppSvgIconComponent],
+    imports: [FormsModule, SearchDropdownComponent, AppSvgIconComponent],
     templateUrl: './grid-controls.component.html',
     styleUrls: ['./grid-controls.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

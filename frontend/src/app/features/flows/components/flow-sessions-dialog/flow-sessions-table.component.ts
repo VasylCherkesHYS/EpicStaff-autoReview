@@ -61,13 +61,15 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                             >
                             </app-flow-session-status-filter-dropdown>
                         </th>
-                        <th *ngIf="showFlowName">
-                            <app-flow-name-filter-dropdown
-                                [flows]="flows"
-                                [value]="flowNameFilter"
-                                (valueChange)="flowNameFilterChange.emit($event)"
-                            ></app-flow-name-filter-dropdown>
-                        </th>
+                        @if (showFlowName) {
+                            <th>
+                                <app-flow-name-filter-dropdown
+                                    [flows]="flows"
+                                    [value]="flowNameFilter"
+                                    (valueChange)="flowNameFilterChange.emit($event)"
+                                ></app-flow-name-filter-dropdown>
+                            </th>
+                        }
                         <th
                             [class.sortable]="sortable"
                             (click)="sortable && toggleSort()"
@@ -121,7 +123,7 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                             </td>
                         </tr>
                     } @else {
-                        <ng-container *ngFor="let session of sessions; trackBy: trackById">
+                        @for (session of sessions; track trackById($index, session)) {
                             <tr [class.row-expanded]="!externalPreview && expandedSessionId() === session.id">
                                 <td>
                                     <app-checkbox
@@ -136,18 +138,16 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                                         [status]="session.status"
                                     ></app-flow-session-status-badge>
                                 </td>
-                                <td
-                                    *ngIf="showFlowName"
-                                    class="flow-link-td"
-                                >
-                                    <a
-                                        class="flow-link"
-                                        (click)="navigateToFlow(session.graph_id)"
-                                    >
-                                        {{ session.graph_name }}
-                                    </a>
-                                </td>
-
+                                @if (showFlowName) {
+                                    <td class="flow-link-td">
+                                        <a
+                                            class="flow-link"
+                                            (click)="navigateToFlow(session.graph_id)"
+                                        >
+                                            {{ session.graph_name }}
+                                        </a>
+                                    </td>
+                                }
                                 <td>{{ session.created_at | date: 'medium' }}</td>
                                 <td>
                                     @if (showDuration) {
@@ -171,44 +171,44 @@ import { FlowSessionStatusFilterDropdownComponent } from './flow-session-status-
                                             class="arrow-icon"
                                             (click)="viewSession.emit(session.id)"
                                         />
-                                        <img
-                                            src="assets/icons/ui/stop-session.svg"
-                                            alt="arrow-icon"
-                                            *ngIf="canStop(session.status)"
-                                            (click)="stopSession.emit(session.id)"
-                                            title="Stop session"
-                                            style="margin-left: 8px;"
-                                            class="arrow-icon"
-                                        />
-                                        <app-icon-button
-                                            *ngIf="!canStop(session.status)"
-                                            icon="x"
-                                            size="1.5rem"
-                                            ariaLabel="Delete session"
-                                            (onClick)="deleteSelected.emit([session.id])"
-                                        ></app-icon-button>
+                                        @if (canStop(session.status)) {
+                                            <img
+                                                src="assets/icons/ui/stop-session.svg"
+                                                alt="arrow-icon"
+                                                (click)="stopSession.emit(session.id)"
+                                                title="Stop session"
+                                                style="margin-left: 8px;"
+                                                class="arrow-icon"
+                                            />
+                                        }
+                                        @if (!canStop(session.status)) {
+                                            <app-icon-button
+                                                icon="x"
+                                                size="1.5rem"
+                                                ariaLabel="Delete session"
+                                                (onClick)="deleteSelected.emit([session.id])"
+                                            ></app-icon-button>
+                                        }
                                     </div>
                                 </td>
                             </tr>
-
-                            <tr
-                                *ngIf="!externalPreview && expandedSessionId() === session.id"
-                                class="preview-row"
-                            >
-                                <td
-                                    [attr.colspan]="showFlowName ? 7 : 6"
-                                    class="preview-cell"
-                                >
-                                    <div class="preview-content">
-                                        <app-graph-messages
-                                            [graphId]="flow?.id ?? session.graph_id"
-                                            [sessionId]="session.id.toString()"
-                                            [compact]="true"
-                                        ></app-graph-messages>
-                                    </div>
-                                </td>
-                            </tr>
-                        </ng-container>
+                            @if (!externalPreview && expandedSessionId() === session.id) {
+                                <tr class="preview-row">
+                                    <td
+                                        [attr.colspan]="showFlowName ? 7 : 6"
+                                        class="preview-cell"
+                                    >
+                                        <div class="preview-content">
+                                            <app-graph-messages
+                                                [graphId]="flow?.id ?? session.graph_id"
+                                                [sessionId]="session.id.toString()"
+                                                [compact]="true"
+                                            ></app-graph-messages>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
                     }
                 </tbody>
             </table>

@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, forwardRef, input, model, output, signal } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 
@@ -6,7 +5,7 @@ import { TooltipComponent } from '../tooltip/tooltip.component';
 
 @Component({
     selector: 'app-slider-with-stepper',
-    imports: [CommonModule, FormsModule, TooltipComponent],
+    imports: [FormsModule, TooltipComponent],
     templateUrl: './slider-with-stepper.component.html',
     styleUrls: ['./slider-with-stepper.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

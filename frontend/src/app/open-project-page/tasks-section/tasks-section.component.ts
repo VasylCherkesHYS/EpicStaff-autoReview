@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -26,7 +25,7 @@ import { TaskPendingEvent } from './tasks-table/tasks-table.component';
     standalone: true,
     templateUrl: './tasks-section.component.html',
     styleUrls: ['./tasks-section.component.scss'],
-    imports: [CommonModule, TasksTableComponent],
+    imports: [TasksTableComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TasksSectionComponent implements OnInit {

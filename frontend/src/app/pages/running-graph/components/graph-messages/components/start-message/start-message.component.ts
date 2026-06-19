@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input, ViewEncapsulation } from '@angular/core';
 import { NgxJsonViewerModule } from 'ngx-json-viewer';
 
@@ -10,7 +9,7 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
 @Component({
     selector: 'app-start-message',
     standalone: true,
-    imports: [CommonModule, NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
+    imports: [NgxJsonViewerModule, AppSvgIconComponent, CopyButtonComponent],
     encapsulation: ViewEncapsulation.Emulated,
     animations: [expandCollapseAnimation],
     template: `
@@ -19,15 +18,14 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
                 class="start-header"
                 (click)="toggleMessage()"
             >
-                <div
-                    class="play-arrow"
-                    *ngIf="hasInputs()"
-                >
-                    <app-svg-icon
-                        [icon]="isMessageExpanded ? 'caret-down-filled' : 'caret-right-filled'"
-                        size="1.1rem"
-                    />
-                </div>
+                @if (hasInputs()) {
+                    <div class="play-arrow">
+                        <app-svg-icon
+                            [icon]="isMessageExpanded ? 'caret-down-filled' : 'caret-right-filled'"
+                            size="1.1rem"
+                        />
+                    </div>
+                }
                 <div class="icon-container">
                     <app-svg-icon
                         icon="flag"
@@ -46,33 +44,32 @@ import { GraphMessage } from '../../../../models/graph-session-message.model';
             >
                 <div class="start-content">
                     <!-- Input Parameters Section -->
-                    <div
-                        class="input-container"
-                        *ngIf="hasInputs()"
-                    >
-                        <div
-                            class="section-heading"
-                            (click)="toggleInputs($event)"
-                        >
-                            <app-svg-icon
-                                [icon]="isInputsExpanded ? 'caret-down-filled' : 'caret-right-filled'"
-                                size="1.1rem"
-                            />
-                            Input Parameters
-                        </div>
-                        <div
-                            class="collapsible-content"
-                            [@expandCollapse]="isInputsExpanded ? 'expanded' : 'collapsed'"
-                        >
-                            <div class="input-content">
-                                <app-copy-button [text]="startInputJson" />
-                                <ngx-json-viewer
-                                    [json]="getStartInput()"
-                                    [expanded]="false"
-                                ></ngx-json-viewer>
+                    @if (hasInputs()) {
+                        <div class="input-container">
+                            <div
+                                class="section-heading"
+                                (click)="toggleInputs($event)"
+                            >
+                                <app-svg-icon
+                                    [icon]="isInputsExpanded ? 'caret-down-filled' : 'caret-right-filled'"
+                                    size="1.1rem"
+                                />
+                                Input Parameters
+                            </div>
+                            <div
+                                class="collapsible-content"
+                                [@expandCollapse]="isInputsExpanded ? 'expanded' : 'collapsed'"
+                            >
+                                <div class="input-content">
+                                    <app-copy-button [text]="startInputJson" />
+                                    <ngx-json-viewer
+                                        [json]="getStartInput()"
+                                        [expanded]="false"
+                                    ></ngx-json-viewer>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    }
                 </div>
             </div>
         </div>

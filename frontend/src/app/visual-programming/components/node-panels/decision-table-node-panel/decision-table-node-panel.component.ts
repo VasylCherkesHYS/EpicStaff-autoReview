@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, signal } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
@@ -15,7 +14,7 @@ import { DecisionTableGridComponent } from './decision-table-grid/decision-table
 @Component({
     standalone: true,
     selector: 'app-decision-table-node-panel',
-    imports: [ReactiveFormsModule, CustomInputComponent, CommonModule, DecisionTableGridComponent, SelectComponent],
+    imports: [ReactiveFormsModule, CustomInputComponent, DecisionTableGridComponent, SelectComponent],
     templateUrl: './decision-table-node-panel.component.html',
     styleUrls: ['./decision-table-node-panel.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

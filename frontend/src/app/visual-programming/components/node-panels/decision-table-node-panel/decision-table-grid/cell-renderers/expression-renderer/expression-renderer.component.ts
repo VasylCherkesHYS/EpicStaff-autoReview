@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { ICellRendererAngularComp } from 'ag-grid-angular';
 import { ICellRendererParams } from 'ag-grid-community';
@@ -6,7 +5,7 @@ import { ICellRendererParams } from 'ag-grid-community';
 @Component({
     selector: 'app-expression-renderer',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     template: `<div
         class="expression-renderer"
         [innerHTML]="highlightedValue"

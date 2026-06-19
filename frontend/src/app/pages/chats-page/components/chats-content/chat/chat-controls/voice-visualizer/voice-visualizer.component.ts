@@ -1,5 +1,5 @@
 // voice-visualizer.component.ts
-import { CommonModule } from '@angular/common';
+
 import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 
 import { WavRecorderService } from '../../../../../services/wav-recorder.service';
@@ -7,7 +7,7 @@ import { WavRecorderService } from '../../../../../services/wav-recorder.service
 @Component({
     selector: 'app-voice-visualizer',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     template: `
         <div class="visualizer">
             <div class="wave-container">

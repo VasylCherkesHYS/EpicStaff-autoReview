@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { EnhancedTranscriptionConfig } from '@shared/models';
 
@@ -8,7 +7,7 @@ import { ClickOutsideDirective } from '../../../../../../../shared/directives/cl
 @Component({
     selector: 'app-transcription-config-selector',
     standalone: true,
-    imports: [CommonModule, ClickOutsideDirective, AppSvgIconComponent],
+    imports: [ClickOutsideDirective, AppSvgIconComponent],
     templateUrl: './transcription-config-selector.component.html',
     styleUrls: ['./transcription-config-selector.component.scss'],
 })

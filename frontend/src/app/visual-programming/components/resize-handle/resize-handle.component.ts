@@ -1,11 +1,10 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { EFResizeHandleType, FFlowModule } from '@foblex/flow';
 
 @Component({
     selector: 'app-resize-handle',
     standalone: true,
-    imports: [CommonModule, FFlowModule],
+    imports: [FFlowModule],
     template: `
         <div
             fResizeHandle

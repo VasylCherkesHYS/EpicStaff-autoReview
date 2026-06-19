@@ -1,4 +1,3 @@
-import { NgIf } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { finalize, forkJoin, Subject, takeUntil } from 'rxjs';
 
@@ -13,7 +12,7 @@ import { ConsoleService } from './services/console.service';
 @Component({
     selector: 'app-chats-page',
     standalone: true,
-    imports: [ChatsSidebarComponent, ChatsContentComponent, NgIf, SpinnerComponent, PageHeaderComponent],
+    imports: [ChatsSidebarComponent, ChatsContentComponent, SpinnerComponent, PageHeaderComponent],
     templateUrl: './chats-page.component.html',
     styleUrls: ['./chats-page.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

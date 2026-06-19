@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -37,7 +36,6 @@ import { TerminalLogEntry, TerminalLogType } from './python-terminal/terminal-lo
         CustomInputComponent,
         InputMapComponent,
         CodeEditorComponent,
-        CommonModule,
         PythonTerminalComponent,
         NodeStorageSectionComponent,
         AppSvgIconComponent,

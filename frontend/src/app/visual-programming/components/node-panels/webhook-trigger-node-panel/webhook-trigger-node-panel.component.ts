@@ -1,5 +1,4 @@
 import { Clipboard, ClipboardModule } from '@angular/cdk/clipboard';
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnChanges, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -17,14 +16,7 @@ export const WEBHOOK_NAME_PATTERN = /^[A-Za-z0-9\-._~/]*$/;
 @Component({
     standalone: true,
     selector: 'app-webhook-trigger-node-panel',
-    imports: [
-        ReactiveFormsModule,
-        CustomInputComponent,
-        CodeEditorComponent,
-        CommonModule,
-        ClipboardModule,
-        SelectComponent,
-    ],
+    imports: [ReactiveFormsModule, CustomInputComponent, CodeEditorComponent, ClipboardModule, SelectComponent],
     templateUrl: 'webhook-trigger-node-panel.component.html',
     styleUrls: ['webhook-trigger-node-panel.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

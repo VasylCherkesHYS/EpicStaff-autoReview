@@ -63,13 +63,14 @@ import { GraphMessage, LLMMessageData } from '../../../../models/graph-session-m
                                 <app-copy-button [text]="llmResponse" />
                                 <markdown [data]="llmResponse"></markdown>
                             </div>
-                            <button
-                                *ngIf="shouldShowToggle() && isResponseExpanded"
-                                class="toggle-button"
-                                (click)="toggleCollapse()"
-                            >
-                                {{ isCollapsed ? 'Show more' : 'Show less' }}
-                            </button>
+                            @if (shouldShowToggle() && isResponseExpanded) {
+                                <button
+                                    class="toggle-button"
+                                    (click)="toggleCollapse()"
+                                >
+                                    {{ isCollapsed ? 'Show more' : 'Show less' }}
+                                </button>
+                            }
                         </div>
                     </div>
                 </div>

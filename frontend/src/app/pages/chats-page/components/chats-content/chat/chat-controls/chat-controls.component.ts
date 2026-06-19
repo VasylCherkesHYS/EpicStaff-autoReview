@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, effect, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -13,7 +12,6 @@ import { VoiceVisualizerComponent } from './voice-visualizer/voice-visualizer.co
     selector: 'app-chat-controls',
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         MicrophoneSelectorComponent,
         VoiceVisualizerComponent,

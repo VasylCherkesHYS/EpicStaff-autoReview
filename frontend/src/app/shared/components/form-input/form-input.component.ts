@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, forwardRef, Input, Output } from '@angular/core';
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 
@@ -7,7 +6,7 @@ import { HelpTooltipComponent } from '../help-tooltip/help-tooltip.component';
 @Component({
     selector: 'app-custom-input',
     standalone: true,
-    imports: [CommonModule, FormsModule, HelpTooltipComponent],
+    imports: [FormsModule, HelpTooltipComponent],
     template: `
         <div class="form-group">
             @if (label) {

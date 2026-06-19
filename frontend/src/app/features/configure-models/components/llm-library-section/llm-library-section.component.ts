@@ -1,6 +1,5 @@
 import { Dialog } from '@angular/cdk/dialog';
 import { ComponentType } from '@angular/cdk/portal';
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -34,14 +33,7 @@ import { VoiceModelConfigDialogComponent } from '../voice-config-model/voice-mod
 
 @Component({
     selector: 'app-llm-library-section',
-    imports: [
-        CommonModule,
-        FormsModule,
-        LlmLibraryCardComponent,
-        AppSvgIconComponent,
-        LoadingSpinnerComponent,
-        SelectComponent,
-    ],
+    imports: [FormsModule, LlmLibraryCardComponent, AppSvgIconComponent, LoadingSpinnerComponent, SelectComponent],
     templateUrl: './llm-library-section.component.html',
     styleUrls: ['./llm-library-section.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

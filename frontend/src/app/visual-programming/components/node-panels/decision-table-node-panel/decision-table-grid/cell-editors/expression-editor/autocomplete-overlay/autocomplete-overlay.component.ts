@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -24,7 +23,7 @@ export interface AutocompleteItem {
 @Component({
     selector: 'app-autocomplete-overlay',
     standalone: true,
-    imports: [CommonModule, ValuePreviewTooltipComponent, AppSvgIconComponent],
+    imports: [ValuePreviewTooltipComponent, AppSvgIconComponent],
     templateUrl: './autocomplete-overlay.component.html',
     styleUrls: ['./autocomplete-overlay.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,

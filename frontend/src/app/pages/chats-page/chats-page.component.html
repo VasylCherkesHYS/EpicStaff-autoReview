@@ -9,7 +9,7 @@
     ></app-page-header>
 
     <main class="chats__body">
-        <ng-container *ngIf="isLoading()">
+        @if (isLoading()) {
             <div class="chats__loading-container">
                 <app-spinner
                     [text]="'Loading chats...'"
@@ -17,11 +17,11 @@
                     [isOverlay]="false"
                 ></app-spinner>
             </div>
-        </ng-container>
+        }
 
-        <ng-container *ngIf="!isLoading()">
+        @if (!isLoading()) {
             <app-chats-sidebar [agents]="agentsList()"></app-chats-sidebar>
             <app-chats-content></app-chats-content>
-        </ng-container>
+        }
     </main>
 </div>
