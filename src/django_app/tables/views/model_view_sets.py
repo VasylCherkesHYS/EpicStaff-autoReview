@@ -240,7 +240,6 @@ from tables.serializers.model_serializers import (
     TelegramTriggerNodeSerializer,
     TelegramTriggerNodeFieldSerializer,
 )
-from django.http import HttpResponse
 
 from tables.serializers.serializers import (
     BulkExportSerializer,

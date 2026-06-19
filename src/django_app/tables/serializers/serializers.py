@@ -5,6 +5,9 @@ from tables.models.python_models import PythonCodeTool
 from tables.models.python_models import PythonCodeToolConfig
 from tables.models import PythonCode
 from tables.models.session_models import Session
+from tables.import_export.services.partial_export_service import (
+    LIST_KEY_TO_ENTITY_TYPE,
+)
 
 
 class RunSessionSerializer(serializers.Serializer):
@@ -150,10 +153,6 @@ class GraphNodesPartialExportSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        from tables.import_export.services.partial_export_service import (
-            LIST_KEY_TO_ENTITY_TYPE,
-        )
-
         if not any(attrs.get(key) for key in LIST_KEY_TO_ENTITY_TYPE):
             raise serializers.ValidationError("At least one node must be provided.")
         return attrs
